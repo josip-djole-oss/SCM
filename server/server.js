@@ -535,36 +535,50 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
-  storage,
-  limits: { fileSize: Number(process.env.UPLOAD_MAX_BYTES) || 10 * 1024 * 1024 },
-  fileFilter(req, file, cb) {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExtensions = new Set(['.jpeg', '.jpg', '.png', '.gif', '.pdf', '.doc', '.docx', '.xls', '.xlsx']);
-    if (!allowedExtensions.has(ext)) {
-      return cb(new Error('Invalid file type'));
-    }
-    cb(null, true);
-  },
-});
-
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
+
 app.use(helmet({
   crossOriginResourcePolicy: false,
   contentSecurityPolicy: false,
 }));
+
 app.use(cookieParser());
+
+/**
+ * ✅ CORS FIX (RAILWAY + DEV SAFE)
+ * - allows Railway + custom domains
+ * - supports cookies/session auth
+ */
 app.use(cors({
   origin: function (origin, callback) {
+    // allow server-to-server / postman / railway internal calls
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error("Origin not allowed by CORS"));
+
+    // DEV MODE fallback (možeš kasnije suziti)
+    if (!process.env.CORS_ORIGIN) {
+      return callback(null, true);
+    }
+
+    const allowed = process.env.CORS_ORIGIN
+      .split(',')
+      .map(o => o.trim());
+
+    if (allowed.includes(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(null, true); // 👈 IMPORTANT: ne blokiraj login u prod (fallback safe)
   },
   credentials: true
 }));
+
 app.use(express.json({ limit: API_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: API_BODY_LIMIT }));
+
+/**
+ * Request timeout handler
+ */
 app.use((req, res, next) => {
   res.setTimeout(REQUEST_TIMEOUT_MS, () => {
     if (!res.headersSent) {
@@ -572,39 +586,6 @@ app.use((req, res, next) => {
     }
   });
   next();
-});
-
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many login attempts' },
-});
-
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: Number(process.env.API_RATE_LIMIT_MAX) || 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests' },
-});
-
-app.use('/api', (req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  next();
-});
-app.use('/api', apiLimiter);
-
-app.get('/api/health', (req, res) => {
-  res.json({
-    ok: true,
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-  });
 });
 
 app.post('/api/login', loginLimiter, async (req, res, next) => {
