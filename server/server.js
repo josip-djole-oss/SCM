@@ -282,6 +282,36 @@ const allowedOrigins = configuredCorsOrigins
   .filter(Boolean);
 const allowAllCorsOrigins = String(process.env.CORS_ALLOW_ALL || '').toLowerCase() === 'true';
 
+function normalizeOriginValue(value) {
+  if (!value) return '';
+  return String(value).trim().replace(/\/+$/, '').toLowerCase();
+}
+
+function getRequestHost(req) {
+  return normalizeOriginValue(req.headers['x-forwarded-host'] || req.headers.host || '');
+}
+
+function isAllowedOrigin(origin, req) {
+  const normalizedOrigin = normalizeOriginValue(origin);
+  if (!normalizedOrigin) return true;
+  if (allowAllCorsOrigins || allowedOrigins.length === 0) return true;
+  if (allowedOrigins.some((entry) => normalizeOriginValue(entry) === normalizedOrigin)) {
+    return true;
+  }
+
+  try {
+    const originUrl = new URL(normalizedOrigin);
+    const requestHost = getRequestHost(req);
+    if (requestHost && originUrl.host.toLowerCase() === requestHost) {
+      return true;
+    }
+  } catch (_) {
+    return false;
+  }
+
+  return false;
+}
+
 function buildPublicAuthPayload(session) {
   return {
     email: session.email,
@@ -574,31 +604,16 @@ const apiLimiter = rateLimit({
 });
 
 /**
- * âś… CORS FIX (RAILWAY + DEV SAFE)
+ * Ä‚ËÄąâ€şĂ˘â‚¬Â¦ CORS FIX (RAILWAY + DEV SAFE)
  * - allows Railway + custom domains
  * - supports cookies/session auth
  */
-app.use(cors({
-  origin(origin, callback) {
-    // allow server-to-server / postman / railway internal calls
-    if (!origin) return callback(null, true);
-
-    // DEV MODE fallback (moĹľeĹˇ kasnije suziti)
-    if (allowAllCorsOrigins || allowedOrigins.length === 0) {
-      return callback(null, true);
-    }
-
-    const allowed = configuredCorsOrigins
-      .split(',')
-      .map(o => o.trim());
-
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-
-    return callback(new Error('Origin not allowed by CORS'));
-  },
-  credentials: true
+app.use(cors((req, callback) => {
+  const requestOrigin = req.headers.origin || '';
+  callback(null, {
+    origin: isAllowedOrigin(requestOrigin, req),
+    credentials: true,
+  });
 }));
 
 app.use(express.json({ limit: API_BODY_LIMIT }));
