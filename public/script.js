@@ -8722,8 +8722,10 @@ function renderWarehousePage() {
   if (saveButton) saveButton.disabled = !canManageWarehouseStock();
   const catalogAddButton = document.getElementById("warehouseCatalogAddBtn");
   if (catalogAddButton) catalogAddButton.style.display = canManageWarehouseCatalog() ? "inline-flex" : "none";
-  setElVisibility("warehouseIssueCard", canManageWarehouseIssue());
-  setElVisibility("warehouseStockCard", canManageWarehouseStock());
+  const issueCard = document.getElementById("warehouseIssueCard");
+  if (issueCard) issueCard.style.display = canManageWarehouseIssue() ? "block" : "none";
+  const stockCard = document.getElementById("warehouseStockCard");
+  if (stockCard) stockCard.style.display = canManageWarehouseStock() ? "grid" : "none";
 }
 
 function showWarehouse() {
@@ -9477,12 +9479,12 @@ function exportToPDF() {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.setTextColor(31, 42, 68);
-  doc.text("CMAX SCM", pageWidth / 2, 26, { align: "center" });
+  doc.text("TIDPLAN", pageWidth / 2, 26, { align: "center" });
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
   doc.setTextColor(75, 85, 99);
-  doc.text(header.site, pageWidth / 2, 32, { align: "center" });
-  doc.text(header.dateText, pageWidth / 2, 38, { align: "center" });
+  doc.text(header.site, pageWidth / 2, 33, { align: "center" });
+  doc.text(header.dateText, pageWidth / 2, 39, { align: "center" });
   doc.line(12, 43, pageWidth - 12, 43);
   doc.setTextColor(0, 0, 0);
 

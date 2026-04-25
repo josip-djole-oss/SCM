@@ -327,20 +327,47 @@ body {
   align-items: end;
 }
 
+#warehouseStockCard {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+#warehouseStockCard .warehouse-card-header {
+  margin-bottom: 0;
+  display: block;
+}
+
+#warehouseStockCard .warehouse-form-grid {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+#warehouseStockCard .warehouse-form-wide {
+  grid-column: auto;
+}
+
+#warehouseStockCard .warehouse-form-actions {
+  justify-content: flex-start;
+  margin-top: 2px;
+}
+
+#warehouseStockSaveBtn {
+  width: auto;
+  min-width: 0;
+  align-self: flex-start;
+}
+
 .warehouse-procurement-row {
   display: grid;
   gap: 8px;
-  margin-bottom: 14px;
+  margin-bottom: 0;
 }
 
 .warehouse-procurement-row label {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-dark);
-}
-
-.warehouse-multi-select {
-  position: relative;
 }
 
 .warehouse-multi-select summary {
@@ -364,20 +391,15 @@ body {
 }
 
 .warehouse-multi-select-options {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% - 1px);
-  left: 0;
-  right: 0;
   display: grid;
   gap: 8px;
   padding: 10px;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
-  border-top: 0;
+  border-top: none;
   border-bottom-left-radius: 10px;
   border-bottom-right-radius: 10px;
-  box-shadow: 0 10px 30px var(--shadow);
+  box-shadow: 0 8px 20px var(--shadow);
   max-height: 220px;
   overflow: auto;
 }
@@ -2920,7 +2942,6 @@ span.flatpickr-weekday {
     border-radius: 0;
   }
   .action-buttons,
-  .header,
   .lists-container,
   .date-picker-section,
   .footer,
@@ -3020,32 +3041,24 @@ span.flatpickr-weekday {
   }
   /* Print header info */
   .print-header-date {
-    display: block !important;
+    display: none !important;
   }
-  .print-brand-block {
+  .header {
     display: flex !important;
-    flex-direction: column;
-    align-items: center;
     justify-content: center;
-    gap: 4px;
-    margin: 0 auto 12px auto;
-    text-align: center;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
   }
-  .print-brand-logo {
-    max-width: 80px;
-    max-height: 48px;
-    object-fit: contain;
-  }
-  .print-brand-title {
-    font-size: 18px;
-    font-weight: 700;
-    color: #1f2a44;
-    letter-spacing: 0;
-  }
-  .print-brand-site,
-  .print-brand-date {
+  .logo-section {
     width: 100%;
+    justify-content: center;
+    align-items: center;
+  }
+  .title-section {
     text-align: center;
+  }
+  .date-display {
+    display: block !important;
     font-size: 12px;
     color: #4b5563;
   }
