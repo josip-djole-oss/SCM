@@ -208,6 +208,7 @@ BOOTSTRAP_ADMIN_PASSWORD=...     # Initial admin password
 SESSION_TTL_MS=28800000         # Session timeout (8 hours default)
 BCRYPT_ROUNDS=12                # Password hash rounds (12+ recommended)
 CORS_ORIGINS=https://yourdomain # Allowed origins (comma-separated)
+CORS_ORIGIN=https://yourdomain  # Single-origin alias also supported
 ```
 
 #### Deployment Checklist

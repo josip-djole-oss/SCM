@@ -145,6 +145,7 @@ PORT=3000                        # Server port
 BOOTSTRAP_ADMIN_EMAIL=...        # Initial admin
 BOOTSTRAP_ADMIN_PASSWORD=...     # Initial password
 CORS_ORIGINS=https://yourdomain  # Allowed origins
+CORS_ORIGIN=https://yourdomain   # Single-origin alias also supported
 SESSION_TTL_MS=28800000         # Session timeout (8 hours)
 BCRYPT_ROUNDS=12                # Password hash rounds
 ```

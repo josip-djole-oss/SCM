@@ -247,7 +247,11 @@ function generateToken(size = 32) {
 }
 
 function getAllowedOrigins() {
-  const configured = String(process.env.CORS_ORIGINS || '')
+  const configured = [
+    String(process.env.CORS_ORIGIN || ''),
+    String(process.env.CORS_ORIGINS || ''),
+  ]
+    .join(',')
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
@@ -256,6 +260,48 @@ function getAllowedOrigins() {
     `http://localhost:${PORT}`,
     `http://127.0.0.1:${PORT}`,
   ];
+}
+
+function shouldAllowAnyCorsOrigin() {
+  return String(process.env.CORS_ALLOW_ALL || '').trim().toLowerCase() === 'true';
+}
+
+function createCorsOriginHandler() {
+  return (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (shouldAllowAnyCorsOrigin()) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Origin not allowed by CORS'));
+  };
+}
+
+async function ensureBootstrapAdmin() {
+  const admins = readAdmins();
+  if (admins.length > 0) {
+    return false;
+  }
+
+  const bootstrapEmail = sanitizeString(process.env.BOOTSTRAP_ADMIN_EMAIL || '', 160).toLowerCase();
+  const bootstrapPassword = String(process.env.BOOTSTRAP_ADMIN_PASSWORD || '');
+
+  if (bootstrapEmail && bootstrapPassword && isValidEmail(bootstrapEmail)) {
+    const passwordHash = await bcrypt.hash(bootstrapPassword, BCRYPT_ROUNDS);
+    writeAdmins([
+      {
+        email: bootstrapEmail,
+        password: passwordHash,
+        isSuperAdmin: true,
+        level: 6,
+        permissions: { ...DEFAULT_PERMISSIONS },
+        allowedSites: null,
+      },
+    ]);
+    console.log(`Bootstrap admin created for ${bootstrapEmail}`);
+    return true;
+  }
+
+  console.warn('No bootstrap admin created. Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD.');
+  return false;
 }
 
 const allowedOrigins = getAllowedOrigins();
@@ -456,26 +502,10 @@ async function migrateAdminPasswords() {
 
 async function initializeData() {
   if (!fs.existsSync(adminsFile)) {
-    const bootstrapEmail = sanitizeString(process.env.BOOTSTRAP_ADMIN_EMAIL || '', 160).toLowerCase();
-    const bootstrapPassword = String(process.env.BOOTSTRAP_ADMIN_PASSWORD || '');
-    if (bootstrapEmail && bootstrapPassword && isValidEmail(bootstrapEmail)) {
-      const passwordHash = await bcrypt.hash(bootstrapPassword, BCRYPT_ROUNDS);
-      writeAdmins([
-        {
-          email: bootstrapEmail,
-          password: passwordHash,
-          isSuperAdmin: true,
-          level: 6,
-          permissions: { ...DEFAULT_PERMISSIONS },
-          allowedSites: null,
-        },
-      ]);
-      console.log(`Bootstrap admin created for ${bootstrapEmail}`);
-    } else {
-      writeAdmins([]);
-      console.warn('No bootstrap admin created. Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD.');
-    }
+    writeAdmins([]);
   }
+
+  await ensureBootstrapAdmin();
 
   if (!fs.existsSync(stateFile)) {
     writeJsonFile(stateFile, {
@@ -555,11 +585,7 @@ app.use(helmet({
 }));
 app.use(cookieParser());
 app.use(cors({
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Origin not allowed by CORS'));
-  },
+  origin: createCorsOriginHandler(),
   credentials: true,
 }));
 app.use(express.json({ limit: API_BODY_LIMIT }));
@@ -1224,7 +1250,7 @@ app.use((error, req, res, next) => {
     return res.status(400).json({ error: 'Invalid upload request' });
   }
   if (error && /cors/i.test(error.message || '')) {
-    return res.status(403).json({ error: 'CORS blocked' });
+    return res.status(403).json({ error: 'CORS blocked', origin: sanitizeString(req.headers.origin || '', 200) || null });
   }
   return res.status(500).json({ error: 'Internal server error' });
 });
@@ -1238,10 +1264,12 @@ initializeData()
     setInterval(cleanupPresence, 60 * 1000).unref();
     setInterval(dailyBackup, 24 * 60 * 60 * 1000).unref();
     app.listen(PORT, () => {
-      console.log(`CMAX Planner server running on port ${PORT}`);
+      console.log(`Server running on port ${PORT}`);
       console.log(`Data directory: ${dataDir}`);
       console.log(`Uploads directory: ${uploadsDir}`);
-      console.log(`Access the app at: http://localhost:${PORT}`);
+      if (!IS_PRODUCTION) {
+        console.log(`Access the app at: http://localhost:${PORT}`);
+      }
     });
   })
   .catch((error) => {
