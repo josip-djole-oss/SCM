@@ -275,7 +275,12 @@ async function ensureBootstrapAdmin() {
   return false;
 }
 
-const allowedOrigins = (process.env.CORS_ORIGIN || "").split(",").filter(o => o.trim());
+const configuredCorsOrigins = process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '';
+const allowedOrigins = configuredCorsOrigins
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const allowAllCorsOrigins = String(process.env.CORS_ALLOW_ALL || '').toLowerCase() === 'true';
 
 function buildPublicAuthPayload(session) {
   return {
@@ -538,7 +543,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage,
   limits: {
-    fileSize: Number(process.env.MAX_UPLOAD_SIZE_BYTES) || 10 * 1024 * 1024,
+    fileSize: Number(process.env.UPLOAD_MAX_BYTES || process.env.MAX_UPLOAD_SIZE_BYTES) || 10 * 1024 * 1024,
   },
 });
 
@@ -569,29 +574,29 @@ const apiLimiter = rateLimit({
 });
 
 /**
- * ✅ CORS FIX (RAILWAY + DEV SAFE)
+ * âś… CORS FIX (RAILWAY + DEV SAFE)
  * - allows Railway + custom domains
  * - supports cookies/session auth
  */
 app.use(cors({
-  origin: function (origin, callback) {
+  origin(origin, callback) {
     // allow server-to-server / postman / railway internal calls
     if (!origin) return callback(null, true);
 
-    // DEV MODE fallback (možeš kasnije suziti)
-    if (!process.env.CORS_ORIGIN) {
+    // DEV MODE fallback (moĹľeĹˇ kasnije suziti)
+    if (allowAllCorsOrigins || allowedOrigins.length === 0) {
       return callback(null, true);
     }
 
-    const allowed = process.env.CORS_ORIGIN
+    const allowed = configuredCorsOrigins
       .split(',')
       .map(o => o.trim());
 
-    if (allowed.includes(origin)) {
+    if (allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
 
-    return callback(null, true); // 👈 IMPORTANT: ne blokiraj login u prod (fallback safe)
+    return callback(new Error('Origin not allowed by CORS'));
   },
   credentials: true
 }));
