@@ -1,0 +1,92 @@
+[
+  {
+    "timestamp": "2026-04-24T21:19:04.674Z",
+    "user": "admin@cmax.com",
+    "action": "Cleared all logs",
+    "details": ""
+  },
+  {
+    "timestamp": "2026-04-24T21:19:41.567Z",
+    "user": "admin@cmax.com",
+    "action": "login",
+    "details": {
+      "success": true
+    }
+  },
+  {
+    "timestamp": "2026-04-24T21:19:41.576Z",
+    "user": "admin@cmax.com",
+    "action": "Logged in",
+    "details": ""
+  },
+  {
+    "timestamp": "2026-04-24T21:35:54.397Z",
+    "user": "admin@cmax.com",
+    "action": "login",
+    "details": {
+      "success": true
+    }
+  },
+  {
+    "timestamp": "2026-04-24T21:35:54.403Z",
+    "user": "admin@cmax.com",
+    "action": "Logged in",
+    "details": ""
+  },
+  {
+    "timestamp": "2026-04-24T21:36:01.033Z",
+    "user": "admin@cmax.com",
+    "action": "login",
+    "details": {
+      "success": true
+    }
+  },
+  {
+    "timestamp": "2026-04-24T21:36:01.047Z",
+    "user": "admin@cmax.com",
+    "action": "Logged in",
+    "details": ""
+  },
+  {
+    "timestamp": "2026-04-24T21:36:03.568Z",
+    "user": "admin@cmax.com",
+    "action": "login",
+    "details": {
+      "success": true
+    }
+  },
+  {
+    "timestamp": "2026-04-24T21:36:03.580Z",
+    "user": "admin@cmax.com",
+    "action": "Logged in",
+    "details": ""
+  },
+  {
+    "timestamp": "2026-04-24T21:36:11.547Z",
+    "user": "admin@cmax.com",
+    "action": "login",
+    "details": {
+      "success": true
+    }
+  },
+  {
+    "timestamp": "2026-04-24T21:36:11.555Z",
+    "user": "admin@cmax.com",
+    "action": "Logged in",
+    "details": ""
+  },
+  {
+    "timestamp": "2026-04-24T21:41:15.050Z",
+    "user": "admin@cmax.com",
+    "action": "login",
+    "details": {
+      "success": true
+    }
+  },
+  {
+    "timestamp": "2026-04-24T21:41:15.062Z",
+    "user": "admin@cmax.com",
+    "action": "Logged in",
+    "details": {}
+  }
+]

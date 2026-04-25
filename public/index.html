@@ -1,0 +1,1916 @@
+<!doctype html>
+<html lang="hr" data-theme="blue" data-dark="false">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+    />
+    <title>CMAX SCM</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- ==================== TOAST CONTAINER ==================== -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- ==================== LOADING OVERLAY ==================== -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none">
+      <div class="loading-box">
+        <div class="loading-spinner"></div>
+        <div class="loading-title" id="loadingTitle">CMAX SCM</div>
+        <div class="loading-text" id="loadingText">Učitavanje...</div>
+      </div>
+    </div>
+
+    <!-- ==================== LOGIN OVERLAY ==================== -->
+    <div id="loginOverlay" class="login-overlay" style="display: none">
+      <div class="login-top-bar" id="loginTopBar">
+        <div class="lang-selector" id="loginLangSelector">
+          <button class="lang-btn" onclick="setLanguage('hr')">🇭🇷 HR</button>
+          <button class="lang-btn" onclick="setLanguage('en')">🇬🇧 EN</button>
+          <button class="lang-btn" onclick="setLanguage('sv')">🇸🇪 SV</button>
+        </div>
+      </div>
+
+      <div class="login-box">
+        <div class="login-logo">
+          <img
+            src="cmaxlogo.png"
+            id="loginLogoImg"
+            onerror="
+              this.style.display = 'none';
+              document.getElementById('loginLogoFallback').style.display =
+                'block';
+            "
+            alt="CMAX Logo"
+          />
+          <span id="loginLogoFallback" style="display: none">CM</span>
+        </div>
+
+        <h2 id="loginTitle">CMAX SCM</h2>
+
+        <div class="form-group">
+          <label id="labelEmail" for="loginEmail">Email adresa:</label>
+          <input
+            type="email"
+            id="loginEmail"
+            placeholder="ime@primjer.com"
+            autocomplete="email"
+          />
+        </div>
+        <div class="form-group">
+          <label id="labelPassword" for="loginPassword">Lozinka:</label>
+          <input
+            type="password"
+            id="loginPassword"
+            placeholder="Unesite lozinku"
+            autocomplete="current-password"
+          />
+        </div>
+        <button class="login-btn" onclick="handleLogin()" id="loginBtnEl">
+          Prijava
+        </button>
+        <button class="guest-btn" onclick="enterReadonlyMode()" id="guestBtnEl">
+          👁 Nastavi kao gledatelj (read-only)
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== CUSTOM DIALOG ==================== -->
+    <div
+      id="customDialogOverlay"
+      class="modal-overlay"
+      style="display: none; z-index: 9000"
+    >
+      <div class="dialog-box">
+        <div id="dialogIcon" class="dialog-icon"></div>
+        <p id="dialogMessage" class="dialog-message"></p>
+        <input
+          type="text"
+          id="dialogInput"
+          class="dialog-input"
+          style="display: none"
+          placeholder=""
+        />
+        <div class="dialog-buttons" id="dialogButtons"></div>
+      </div>
+    </div>
+
+    <!-- ==================== CHANGE PASSWORD MODAL ==================== -->
+    <div id="changePasswordModal" class="modal-overlay" style="display: none">
+      <div class="modal-box" style="max-width: 480px">
+        <div class="modal-header">
+          <h2 id="changePasswordTitle">Promjena lozinke</h2>
+          <button class="close-btn" onclick="closeChangePasswordModal()">
+            &times;
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label id="labelOldPassword" for="oldPassword">Stara lozinka:</label>
+          <input
+            type="password"
+            id="oldPassword"
+            placeholder="Unesite staru lozinku"
+            autocomplete="current-password"
+          />
+        </div>
+        <div class="form-group">
+          <label id="labelNewPassword" for="newPassword">Nova lozinka:</label>
+          <input
+            type="password"
+            id="newPassword"
+            placeholder="Unesite novu lozinku"
+            autocomplete="new-password"
+          />
+        </div>
+        <div class="form-group">
+          <label id="labelConfirmPassword" for="confirmPassword"
+            >Potvrdi lozinku:</label
+          >
+          <input
+            type="password"
+            id="confirmPassword"
+            placeholder="Ponovite novu lozinku"
+            autocomplete="new-password"
+          />
+        </div>
+        <button
+          class="btn"
+          onclick="submitChangePassword()"
+          style="width: 100%"
+          id="btnConfirmPasswordChange"
+        >
+          Promijeni lozinku
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== MANAGE PANEL ==================== -->
+    <div
+      id="managePanel"
+      class="modal-overlay"
+      style="display: none; z-index: 3000"
+    >
+      <div class="modal-box" style="max-width: 480px">
+        <div class="modal-header">
+          <h2 id="managePanelTitle">Dodaj / Ukloni</h2>
+          <button class="close-btn" onclick="closeManagePanel()">
+            &times;
+          </button>
+        </div>
+
+        <!-- Step 1: Category -->
+        <div id="manageStep1">
+          <p
+            style="
+              color: var(--text-light);
+              margin-bottom: 12px;
+              font-size: 14px;
+            "
+            id="manageCategoryLabel"
+          >
+            Odaberi kategoriju:
+          </p>
+          <div class="manage-categories" id="manageCategoryGrid">
+            <button
+              class="manage-cat-btn"
+              onclick="manageSelectCategory('workers')"
+            >
+              <div></div>
+              <div id="mcWorkers">Resursi</div>
+            </button>
+            <button
+              class="manage-cat-btn"
+              onclick="manageSelectCategory('lifts')"
+            >
+              <div></div>
+              <div id="mcLifts">Liftovi</div>
+            </button>
+            <button
+              class="manage-cat-btn"
+              onclick="manageSelectCategory('moments')"
+            >
+              <div></div>
+              <div id="mcMoments">Momenti</div>
+            </button>
+            <button
+              class="manage-cat-btn"
+              onclick="manageSelectCategory('plans')"
+            >
+              <div></div>
+              <div id="mcPlans">Planovi</div>
+            </button>
+            <button
+              class="manage-cat-btn"
+              onclick="manageSelectCategory('karnas')"
+            >
+              <div></div>
+              <div id="mcKarnas">Karne/Delovi</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Add or Remove -->
+        <div id="manageStep2" style="display: none">
+          <div class="manage-back-bar">
+            <button
+              class="btn btn-secondary btn-small"
+              onclick="manageGoBack(1)"
+            >
+              ← <span id="manageBackLbl">Natrag</span>
+            </button>
+            <span class="manage-subtitle" id="manageStep2Title"></span>
+          </div>
+          <div class="manage-actions">
+            <button
+              class="btn btn-success"
+              onclick="manageGoAdd()"
+              id="manageAddBtn"
+            >
+              + Dodaj
+            </button>
+            <button
+              class="btn btn-danger"
+              onclick="manageGoRemove()"
+              id="manageRemoveBtn"
+            >
+              − Ukloni
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3a: Add form -->
+        <div id="manageStepAdd" style="display: none">
+          <div class="manage-back-bar">
+            <button
+              class="btn btn-secondary btn-small"
+              onclick="manageGoBack(2)"
+            >
+              ← <span id="manageBackLbl2">Natrag</span>
+            </button>
+            <span class="manage-subtitle" id="manageAddTitle"></span>
+          </div>
+          <div class="form-group" style="margin-top: 8px">
+            <label id="manageAddLabel">Naziv:</label>
+            <input
+              type="text"
+              id="manageAddInput"
+              class="form-group input"
+              style="
+                width: 100%;
+                padding: 11px 14px;
+                border: 2px solid var(--border-color);
+                border-radius: 10px;
+                font-size: 14px;
+                background: var(--input-bg);
+                color: var(--text-dark);
+                font-family: inherit;
+              "
+              placeholder=""
+            />
+          </div>
+          <button
+            class="btn"
+            onclick="manageDoAdd()"
+            style="width: 100%"
+            id="manageConfirmAddBtn"
+          >
+            Potvrdi
+          </button>
+          <div
+            id="manageAddResult"
+            style="display: none"
+            class="manage-result"
+          ></div>
+        </div>
+
+        <!-- Step 3b: Remove list -->
+        <div id="manageStepRemove" style="display: none">
+          <div class="manage-back-bar">
+            <button
+              class="btn btn-secondary btn-small"
+              onclick="manageGoBack(2)"
+            >
+              ← <span id="manageBackLbl3">Natrag</span>
+            </button>
+            <span class="manage-subtitle" id="manageRemoveTitle"></span>
+          </div>
+          <p
+            style="
+              font-size: 13px;
+              color: var(--text-light);
+              margin-bottom: 10px;
+            "
+            id="manageRemoveHint"
+          >
+            Kliknite na stavku za uklanjanje:
+          </p>
+          <div class="manage-remove-list" id="manageRemoveList"></div>
+          <div
+            id="manageRemoveResult"
+            style="display: none; margin-top: 10px"
+            class="manage-result"
+          ></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== ADMIN PANEL MODAL ==================== -->
+    <div id="adminModal" class="modal-overlay" style="display: none">
+      <div class="modal-box" style="max-width: 980px">
+        <div class="modal-header">
+          <h2 id="adminModalTitle">Upravljanje Adminima</h2>
+          <button class="close-btn" onclick="closeAdminPanel()">&times;</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tab-bar">
+          <button
+            class="tab-btn active"
+            onclick="switchTab('tabAdmins')"
+            id="tabBtnAdmins"
+          >
+            Admini
+          </button>
+          <button
+            class="tab-btn"
+            onclick="switchTab('tabGuest')"
+            id="tabBtnGuest"
+          >
+            Gost mode
+          </button>
+          <button
+            class="tab-btn"
+            onclick="switchTab('tabReports')"
+            id="tabBtnReports"
+          >
+            Prijave liftova
+            <span
+              id="reportNotifBadge"
+              class="notif-badge"
+              style="display: none"
+              >0</span
+            >
+          </button>
+          <button
+            class="tab-btn"
+            onclick="switchTab('tabLogs')"
+            id="tabBtnLogs"
+          >
+            Logovi
+          </button>
+          <button
+            class="tab-btn"
+            onclick="switchTab('tabSettings')"
+            id="tabBtnSettings"
+          >
+            Postavke
+          </button>
+        </div>
+
+        <!-- Tab: Admins -->
+        <div id="tabAdmins" class="tab-content active">
+          <div class="admin-form-grid">
+            <div class="form-group">
+              <label id="labelNewFirstName" for="newAdminFirstName">Ime:</label>
+              <input
+                type="text"
+                id="newAdminFirstName"
+                placeholder="Ime"
+                autocomplete="given-name"
+              />
+            </div>
+            <div class="form-group">
+              <label id="labelNewLastName" for="newAdminLastName"
+                >Prezime:</label
+              >
+              <input
+                type="text"
+                id="newAdminLastName"
+                placeholder="Prezime"
+                autocomplete="family-name"
+              />
+            </div>
+            <div class="form-group">
+              <label id="labelNewEmail" for="newAdminEmail"
+                >Email adresa:</label
+              >
+              <input
+                type="email"
+                id="newAdminEmail"
+                placeholder="ime@primjer.com"
+                autocomplete="off"
+              />
+            </div>
+            <div class="form-group">
+              <label id="labelNewPassword" for="newAdminPassword"
+                >Lozinka:</label
+              >
+              <input
+                type="password"
+                id="newAdminPassword"
+                placeholder="Nova lozinka"
+                autocomplete="off"
+              />
+            </div>
+            <div class="form-group">
+              <label id="labelAdminLevel" for="newAdminLevel"
+                >Admin level:</label
+              >
+              <select id="newAdminLevel"></select>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 14px">
+            <label
+              style="
+                font-weight: 600;
+                font-size: 14px;
+                color: var(--text-dark);
+                display: block;
+                margin-bottom: 8px;
+              "
+              id="labelPermissions"
+              >Ovlasti novog admina:</label
+            >
+            <div class="permissions-editor" id="newAdminPermsPanel"></div>
+          </div>
+          <div style="margin-bottom: 14px">
+            <label
+              style="
+                font-weight: 600;
+                font-size: 14px;
+                color: var(--text-dark);
+                display: block;
+                margin-bottom: 8px;
+              "
+              id="labelAdminSites"
+              >Gradilišta (pristup):</label
+            >
+            <div class="permissions-editor" id="newAdminSitesPanel"></div>
+          </div>
+
+          <button class="btn" onclick="addNewAdmin()" id="btnAddAdminEl">
+            Dodaj Admina
+          </button>
+
+          <div style="margin-top: 20px">
+            <h3
+              style="
+                font-size: 15px;
+                color: var(--text-dark);
+                margin-bottom: 12px;
+              "
+              id="adminListTitle"
+            >
+              Trenutni Admini:
+            </h3>
+            <div class="admin-list" id="adminList"></div>
+          </div>
+        </div>
+
+        <!-- Tab: Guest -->
+        <div id="tabGuest" class="tab-content">
+          <div
+            class="admin-settings-section"
+            style="margin-top: 0; padding-top: 0; border-top: 0"
+          >
+            <h4 id="guestAccessTitle">Gost mode pristup</h4>
+            <p class="admin-section-note" id="guestAccessNote">
+              Ovdje određuješ što posjetitelj vidi i koje komande su mu
+              dostupne.
+            </p>
+            <div class="permissions-editor" id="guestAccessPermsPanel"></div>
+            <div class="permissions-editor" id="guestWarehouseAccessPanel"></div>
+            <button
+              class="btn"
+              onclick="saveGuestAccessSettings()"
+              id="btnSaveGuestAccess"
+            >
+              Spremi guest pristup
+            </button>
+          </div>
+        </div>
+
+        <!-- Tab: Reports -->
+        <div id="tabReports" class="tab-content">
+          <div class="filter-bar" id="reportFilterBar">
+            <button
+              class="btn active"
+              id="filterAll"
+              onclick="filterReports('all')"
+            >
+              Sve
+            </button>
+            <button
+              class="btn"
+              id="filterPending"
+              onclick="filterReports('pending')"
+            >
+              Na čekanju
+            </button>
+            <button
+              class="btn"
+              id="filterApproved"
+              onclick="filterReports('approved')"
+            >
+              Odobrene
+            </button>
+            <button
+              class="btn"
+              id="filterRejected"
+              onclick="filterReports('rejected')"
+            >
+              Odbijene
+            </button>
+          </div>
+          <div id="reportsList"></div>
+        </div>
+
+        <!-- Tab: Logs -->
+        <div id="tabLogs" class="tab-content">
+          <div
+            style="
+              margin-bottom: 12px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            "
+          >
+            <h3
+              style="font-size: 15px; color: var(--text-dark); margin: 0"
+              id="logsTitle"
+            >
+              Evidencija aktivnosti
+            </h3>
+            <button
+              class="btn btn-small btn-danger"
+              onclick="clearLogs()"
+              id="btnClearLogs"
+            >
+              Očisti logove
+            </button>
+          </div>
+          <div class="logs-container" id="logsContainer"></div>
+        </div>
+
+        <!-- Tab: Settings -->
+        <div id="tabSettings" class="tab-content">
+          <!-- Dark mode -->
+          <div class="admin-settings-section">
+            <h4 id="settingsDarkModeTitle">Tamna tema</h4>
+            <button
+              class="btn"
+              id="darkModeToggleBtn"
+              onclick="toggleDarkMode()"
+            >
+              Uključi tamnu temu
+            </button>
+          </div>
+
+          <!-- Color theme -->
+          <div class="admin-settings-section">
+            <h4 id="settingsThemeTitle">Boja stranice</h4>
+            <div class="theme-buttons">
+              <button
+                class="theme-btn active"
+                id="themeBtnBlue"
+                style="background: linear-gradient(135deg, #667eea, #764ba2)"
+                title="Plava (zadano)"
+                onclick="setColorTheme('blue')"
+              ></button>
+              <button
+                class="theme-btn"
+                id="themeBtnOrange"
+                style="background: linear-gradient(135deg, #f39c12, #e67e22)"
+                title="Narančasta"
+                onclick="setColorTheme('orange')"
+              ></button>
+              <button
+                class="theme-btn"
+                id="themeBtnRed"
+                style="background: linear-gradient(135deg, #e74c3c, #c0392b)"
+                title="Crvena"
+                onclick="setColorTheme('red')"
+              ></button>
+              <button
+                class="theme-btn"
+                id="themeBtnTeal"
+                style="background: linear-gradient(135deg, #14b8a6, #0f766e)"
+                title="Teal"
+                onclick="setColorTheme('teal')"
+              ></button>
+              <button
+                class="theme-btn"
+                id="themeBtnIndigo"
+                style="background: linear-gradient(135deg, #6366f1, #4338ca)"
+                title="Indigo"
+                onclick="setColorTheme('indigo')"
+              ></button>
+              <button
+                class="theme-btn"
+                id="themeBtnEmerald"
+                style="background: linear-gradient(135deg, #10b981, #059669)"
+                title="Emerald"
+                onclick="setColorTheme('emerald')"
+              ></button>
+              <button
+                class="theme-btn"
+                id="themeBtnSlate"
+                style="background: linear-gradient(135deg, #64748b, #334155)"
+                title="Slate"
+                onclick="setColorTheme('slate')"
+              ></button>
+              <button
+                class="theme-btn"
+                id="themeBtnOlive"
+                style="background: linear-gradient(135deg, #8f9a3b, #5f6b23)"
+                title="Olive"
+                onclick="setColorTheme('olive')"
+              ></button>
+              <button
+                class="theme-btn"
+                id="themeBtnRose"
+                style="background: linear-gradient(135deg, #f472b6, #be185d)"
+                title="Rose"
+                onclick="setColorTheme('rose')"
+              ></button>
+            </div>
+            <p
+              style="font-size: 12px; color: var(--text-light); margin-top: 8px"
+              id="settingsThemeNote"
+            >
+              Kliknite na boju za primjenu. Promjena se pamti.
+            </p>
+          </div>
+
+          <!-- Bins column permissions -->
+          <div class="admin-settings-section">
+            <h4 id="settingsBinsTitle">
+              Bins tablica - omogući uređivanje kolona
+            </h4>
+            <div class="permissions-grid">
+              <label class="perm-label"
+                ><input
+                  type="checkbox"
+                  id="bin_perm_totalAvailable"
+                  onchange="toggleBinPermission('totalAvailable')"
+                />
+                <span id="bin_perm_total_label">Total Available</span></label
+              >
+              <label class="perm-label"
+                ><input
+                  type="checkbox"
+                  id="bin_perm_emptyAvailable"
+                  onchange="toggleBinPermission('emptyAvailable')"
+                />
+                <span id="bin_perm_empty_label">Empty Available</span></label
+              >
+              <label class="perm-label"
+                ><input
+                  type="checkbox"
+                  id="bin_perm_forEmptying"
+                  onchange="toggleBinPermission('forEmptying')"
+                />
+                <span id="bin_perm_forEmpty_label">For Emptying</span></label
+              >
+            </div>
+          </div>
+
+          <div class="admin-settings-section">
+            <h4 id="settingsLayoutTitle">Layout i prikaz</h4>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap">
+              <button
+                class="btn"
+                onclick="resetTidplanLayoutSettings()"
+                id="btnResetTidplanLayout"
+              >
+                Reset Tidplan layout
+              </button>
+              <button
+                class="btn"
+                onclick="resetThemeSettings()"
+                id="btnResetThemeSettings"
+              >
+                Reset izgled stranice
+              </button>
+            </div>
+            <p class="admin-section-note" id="settingsLayoutNote">
+              Vraća spremljeni layout i temu na početne vrijednosti bez brisanja
+              podataka.
+            </p>
+          </div>
+
+          <div
+            class="admin-settings-section"
+            id="guestAccessSectionOld"
+            style="display: none"
+          >
+            <h4 id="guestAccessTitleOld">Guest mode pristup</h4>
+            <p class="admin-section-note" id="guestAccessNoteOld">
+              Superadmin ovdje određuje koje module i komande vidi korisnik u
+              guest modu.
+            </p>
+            <div class="permissions-editor" id="guestAccessPermsPanelOld"></div>
+            <button
+              class="btn"
+              onclick="saveGuestAccessSettings()"
+              id="btnSaveGuestAccessOld"
+            >
+              Spremi guest pristup
+            </button>
+          </div>
+
+          <!-- Password change -->
+          <div class="admin-settings-section">
+            <h4 id="settingsPasswordTitle">Sigurnost</h4>
+            <button
+              class="btn"
+              id="btnChangePassword"
+              onclick="openChangePasswordModal()"
+            >
+              <span id="btnChangePasswordText">Promijeni lozinku</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="notificationImageViewer"
+      class="image-viewer"
+      style="display: none"
+    >
+      <button
+        class="image-viewer-close"
+        id="notificationViewerClose"
+        onclick="closeNotificationViewer()"
+      >
+        ✕
+      </button>
+      <button
+        class="image-viewer-nav image-viewer-prev"
+        id="notificationViewerPrev"
+        onclick="prevNotificationImage()"
+      >
+        ‹
+      </button>
+      <img id="notificationViewerImage" alt="Obavijest slika" />
+      <button
+        class="image-viewer-nav image-viewer-next"
+        id="notificationViewerNext"
+        onclick="nextNotificationImage()"
+      >
+        ›
+      </button>
+    </div>
+
+    <!-- ==================== REPORT MODAL ==================== -->
+    <div id="reportModal" class="modal-overlay" style="display: none">
+      <div class="modal-box" style="max-width: 480px">
+        <div class="modal-header">
+          <h2 id="reportModalTitle">Prijava lifta</h2>
+          <button class="close-btn" onclick="closeReportModal()">
+            &times;
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label id="labelLift" for="reportLift">Broj lifta:</label>
+          <select id="reportLift"></select>
+        </div>
+        <div class="form-group">
+          <label id="labelPlan" for="reportPlan">Plan:</label>
+          <select id="reportPlan"></select>
+        </div>
+        <div class="form-group">
+          <label id="labelReporter" for="reporterName">Vaše ime:</label>
+          <input
+            type="text"
+            id="reporterName"
+            placeholder="Ime i prezime"
+            autocomplete="name"
+          />
+        </div>
+        <div class="form-group">
+          <label id="labelComment" for="reportComment"
+            >Komentar (neobavezno):</label
+          >
+          <textarea
+            id="reportComment"
+            placeholder="Unesite napomenu..."
+          ></textarea>
+        </div>
+        <button
+          class="btn"
+          onclick="submitReport()"
+          style="width: 100%"
+          id="btnSubmitReportEl"
+        >
+          Pošalji prijavu
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== PASSWORD CHANGE MODAL ==================== -->
+    <div id="changePasswordModal" class="modal-overlay" style="display: none">
+      <div class="modal-box" style="max-width: 480px">
+        <div class="modal-header">
+          <h2 id="changePasswordModalTitle">Promjena lozinke</h2>
+          <button class="close-btn" onclick="closeChangePasswordModal()">
+            &times;
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label id="labelCurrentPassword" for="currentPassword"
+            >Trenutna lozinka:</label
+          >
+          <input
+            type="password"
+            id="currentPassword"
+            placeholder="Unesite trenutnu lozinku"
+            autocomplete="current-password"
+          />
+        </div>
+        <div class="form-group">
+          <label id="labelNewPassword" for="newPasswordChange"
+            >Nova lozinka:</label
+          >
+          <input
+            type="password"
+            id="newPasswordChange"
+            placeholder="Unesite novu lozinku"
+            autocomplete="new-password"
+          />
+        </div>
+        <div class="form-group">
+          <label id="labelConfirmPassword" for="confirmPasswordChange"
+            >Potvrdi novu lozinku:</label
+          >
+          <input
+            type="password"
+            id="confirmPasswordChange"
+            placeholder="Ponovite novu lozinku"
+            autocomplete="new-password"
+          />
+        </div>
+        <div
+          id="changePasswordResult"
+          style="
+            display: none;
+            margin-bottom: 12px;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 13px;
+          "
+        ></div>
+        <button
+          class="btn"
+          onclick="submitChangePassword()"
+          style="width: 100%"
+          id="btnSubmitChangePassword"
+        >
+          Promijeni lozinku
+        </button>
+      </div>
+    </div>
+
+    <!-- ==================== MAIN CONTAINER ==================== -->
+    <div class="container" id="mainContainer" style="display: none">
+      <!-- HEADER -->
+      <div class="header">
+        <div class="logo-section">
+          <div class="logo">
+            <img
+              src="cmaxlogo.png"
+              id="mainLogoImg"
+              onerror="
+                this.style.display = 'none';
+                document.getElementById('mainLogoFallback').style.display =
+                  'flex';
+              "
+              alt="CMAX Logo"
+            />
+            <span
+              id="mainLogoFallback"
+              style="
+                display: none;
+                align-items: center;
+                justify-content: center;
+              "
+              >CM</span
+            >
+          </div>
+          <div class="title-section">
+            <h1 id="mainTitle" title="CMAX Site Control Manager">CMAX SCM</h1>
+            <div class="date-display" id="dateDisplay"></div>
+            <div class="site-switcher">
+              <select id="siteSelect" style="display: none"></select>
+              <button
+                class="btn site-switcher-btn"
+                id="siteSwitcherBtn"
+                onclick="toggleSiteDropdown()"
+              >
+                <span id="siteSwitcherLabel">Gradilište</span>
+              </button>
+              <div
+                class="site-dropdown"
+                id="siteDropdown"
+                style="display: none"
+              >
+                <div id="siteListContainer"></div>
+                <div class="site-dropdown-actions">
+                  <button class="btn btn-small" onclick="promptAddSite()">
+                    Dodaj
+                  </button>
+                  <button
+                    class="btn btn-small btn-danger"
+                    onclick="confirmRemoveSite()"
+                  >
+                    Ukloni
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <span id="readonlyBadge" class="readonly-badge" id="readonlyBadgeText"
+            >READ-ONLY</span
+          >
+        </div>
+
+        <div class="header-right">
+          <div class="presence-strip" id="presenceStrip" style="display: none">
+            <span class="presence-strip-label" id="presenceStripLabel"
+              >Aktivni</span
+            >
+            <div class="presence-list" id="presenceList"></div>
+          </div>
+          <div class="lang-selector" id="headerLangSelector">
+            <button class="lang-btn" onclick="setLanguage('hr')">🇭🇷 HR</button>
+            <button class="lang-btn" onclick="setLanguage('en')">🇬🇧 EN</button>
+            <button class="lang-btn" onclick="setLanguage('sv')">🇸🇪 SV</button>
+          </div>
+
+          <button
+            class="btn"
+            id="guestLoginBtn"
+            style="display: none"
+            onclick="switchToLogin()"
+          >
+            <span id="guestLoginBtnText">Prijava</span>
+          </button>
+
+          <div class="date-picker-section">
+            <label for="datePicker" id="labelDate">Odaberi datum:</label>
+            <input type="date" id="datePicker" class="date-picker" />
+          </div>
+        </div>
+      </div>
+
+      <div id="planner-section">
+        <!-- Print-only date header -->
+        <div
+          class="print-header-date"
+          id="printHeaderDate"
+          style="font-size: 14px; color: #555; margin-bottom: 8px"
+        ></div>
+        <!-- ACTION BUTTONS -->
+        <div class="action-buttons">
+          <button class="btn btn-icon" id="btnPrint" onclick="handlePrint()">
+            🖨️ <span id="btnPrintText">Print</span>
+          </button>
+          <button class="btn btn-icon" id="btnExport" onclick="handleExport()">
+            📄 <span id="btnExportText">Export PDF</span>
+          </button>
+          <button class="btn" id="btnClear" onclick="clearAllTable()">
+            <span id="btnClearText">Očisti tablicu</span>
+          </button>
+          <button class="btn" id="btnReport" onclick="openReportModal()">
+            <span id="btnReportText">Prijavi lift</span>
+          </button>
+          <button class="btn" id="btnTidplan" onclick="showTidplan()">
+            <span id="btnTidplanText">Tidplan</span>
+          </button>
+          <button class="btn btn-icon" id="btnBins" onclick="toggleBinsView()">
+            🗑️ <span id="btnBinsText">Kante za smeće</span>
+          </button>
+          <button class="btn" id="btnWarehouse" onclick="showWarehouse()">
+            <span id="btnWarehouseText">Skladište</span>
+          </button>
+          <button
+            class="btn"
+            id="btnNotifications"
+            onclick="showNotifications()"
+          >
+            <span id="btnNotificationsText">Obavijesti</span>
+            <span
+              id="notificationsNotifBadge"
+              class="notif-badge"
+              style="display: none"
+              >0</span
+            >
+          </button>
+          <button
+            class="btn"
+            id="btnSave"
+            onclick="saveAllData()"
+            style="display: none"
+          >
+            💾 <span id="btnSaveText">Spremi</span>
+          </button>
+          <button
+            class="btn"
+            id="adminBtn"
+            onclick="openAdminPanel()"
+            style="display: none"
+          >
+            <span id="btnAdminText">Admin Panel</span>
+            <span id="adminNotifBadge" class="notif-badge" style="display: none"
+              >0</span
+            >
+          </button>
+          <button
+            class="btn"
+            id="btnChangePassword"
+            onclick="openChangePasswordModal()"
+            style="display: none"
+          >
+            🔑 <span id="btnChangePasswordText">Promijeni lozinku</span>
+          </button>
+          <button class="btn btn-danger" id="btnLogout" onclick="logout()">
+            <span id="btnLogoutText">Odjava</span>
+          </button>
+        </div>
+        <div
+          id="accessNotice"
+          class="admin-section-note"
+          style="display: none; margin: 8px 0 14px 0"
+        >
+          Trenutno nemate dodijeljen nijedan glavni modul za prikaz.
+        </div>
+
+        <!-- LISTS CONTAINER -->
+        <div class="lists-container">
+          <!-- RESURSI -->
+          <div class="list-card">
+            <div class="list-header" onclick="toggleList('workers')">
+              <h3 id="listTitleWorkers">Resursi</h3>
+              <span class="collapse-icon collapsed" id="workers-icon">▼</span>
+            </div>
+            <div class="list-content collapsed" id="workers-content">
+              <div class="list-controls" id="workersControls">
+                <button class="btn" onclick="openManagePanel('workers')">
+                  <span id="btnManageWorkersText">Dodaj / Ukloni</span>
+                </button>
+              </div>
+              <div style="max-height: 320px; overflow-y: auto">
+                <table class="list-table">
+                  <thead>
+                    <tr>
+                      <th id="colWorkerName">Naziv</th>
+                      <th>✓</th>
+                      <th id="colWorkerStatus">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="workersList"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- LIFTOVI -->
+          <div class="list-card">
+            <div class="list-header" onclick="toggleList('lifts')">
+              <h3 id="listTitleLifts">Liftovi</h3>
+              <span class="collapse-icon collapsed" id="lifts-icon">▼</span>
+            </div>
+            <div class="list-content collapsed" id="lifts-content">
+              <div class="list-controls" id="liftsControls">
+                <button class="btn" onclick="openManagePanel('lifts')">
+                  <span id="btnManageLiftsText">Dodaj / Ukloni</span>
+                </button>
+              </div>
+              <div style="max-height: 320px; overflow-y: auto">
+                <table class="list-table">
+                  <thead>
+                    <tr>
+                      <th id="colLiftName">Naziv</th>
+                      <th>✓</th>
+                      <th id="colLiftStatus">Status</th>
+                      <th id="colLiftPlan">Plan</th>
+                    </tr>
+                  </thead>
+                  <tbody id="liftsList"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- MOMENTI -->
+          <div class="list-card">
+            <div class="list-header" onclick="toggleList('moments')">
+              <h3 id="listTitleMoments">Momenti</h3>
+              <span class="collapse-icon collapsed" id="moments-icon">▼</span>
+            </div>
+            <div class="list-content collapsed" id="moments-content">
+              <div class="list-controls" id="momentsControls">
+                <button class="btn" onclick="openManagePanel('moments')">
+                  <span id="btnManageMomentsText">Dodaj / Ukloni</span>
+                </button>
+              </div>
+              <div style="max-height: 320px; overflow-y: auto">
+                <table class="list-table">
+                  <thead>
+                    <tr>
+                      <th id="colMomentName">Naziv</th>
+                    </tr>
+                  </thead>
+                  <tbody id="momentsList"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- PLANOVI -->
+          <div class="list-card">
+            <div class="list-header" onclick="toggleList('plans')">
+              <h3 id="listTitlePlans">Planovi</h3>
+              <span class="collapse-icon collapsed" id="plans-icon">▼</span>
+            </div>
+            <div class="list-content collapsed" id="plans-content">
+              <div class="list-controls" id="plansControls">
+                <button class="btn" onclick="openManagePanel('plans')">
+                  <span id="btnManagePlansText">Dodaj / Ukloni</span>
+                </button>
+              </div>
+              <div style="max-height: 320px; overflow-y: auto">
+                <table class="list-table">
+                  <thead>
+                    <tr>
+                      <th id="colPlanName">Naziv</th>
+                    </tr>
+                  </thead>
+                  <tbody id="plansList"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- KARNE -->
+          <div class="list-card">
+            <div class="list-header" onclick="toggleList('karnas')">
+              <h3 id="listTitleKarnas">Karne/Delovi</h3>
+              <span class="collapse-icon collapsed" id="karnas-icon">▼</span>
+            </div>
+            <div class="list-content collapsed" id="karnas-content">
+              <div class="list-controls" id="karnasControls">
+                <button class="btn" onclick="openManagePanel('karnas')">
+                  <span id="btnManageKarnasText">Dodaj / Ukloni</span>
+                </button>
+              </div>
+              <div style="max-height: 320px; overflow-y: auto">
+                <table class="list-table">
+                  <thead>
+                    <tr>
+                      <th id="colKarnaName">Naziv</th>
+                    </tr>
+                  </thead>
+                  <tbody id="karnasList"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- PLANNING TABLE -->
+        <div class="planning-section">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              gap: 8px;
+              margin-bottom: 8px;
+            "
+          >
+            <h2 id="planningTitle" style="margin: 0">Raspored rada</h2>
+            <div style="display: flex; gap: 6px">
+              <button
+                class="btn btn-small"
+                id="btnAddRow"
+                onclick="addPlanningRow()"
+                style="white-space: nowrap"
+              >
+                +
+              </button>
+              <button
+                class="btn btn-small btn-danger"
+                id="btnRemoveRow"
+                onclick="removePlanningRow()"
+                style="white-space: nowrap"
+              >
+                −
+              </button>
+            </div>
+          </div>
+          <div class="planning-table-wrapper">
+            <table class="planning-table">
+              <thead>
+                <tr>
+                  <th id="thW1">Radnik 1</th>
+                  <th id="thW2">Radnik 2</th>
+                  <th id="thW3">Radnik 3</th>
+                  <th id="thPlan">Plan</th>
+                  <th id="thKarna">Karna</th>
+                  <th id="thM1">Moment 1</th>
+                  <th id="thM2">Moment 2</th>
+                  <th id="thL1">Lift 1</th>
+                  <th id="thL2">Lift 2</th>
+                  <th id="thL3">Lift 3</th>
+                  <th id="thComment">Komentar</th>
+                </tr>
+              </thead>
+              <tbody id="planningTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- BINS TABLE -->
+        <div class="bins-section" id="binsSection">
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              gap: 8px;
+              margin-bottom: 8px;
+            "
+          >
+            <h2 id="binsTitle" style="margin: 0">Kante za smeće</h2>
+            <div
+              style="display: flex; gap: 6px"
+              id="binsAdminControls"
+              style="display: none"
+            >
+              <button
+                class="btn btn-small"
+                id="btnAddBinPlan"
+                onclick="addBinPlan()"
+                style="white-space: nowrap"
+              >
+                +
+              </button>
+              <button
+                class="btn btn-small btn-danger"
+                id="btnRemoveBinPlan"
+                onclick="removeBinPlan()"
+                style="white-space: nowrap"
+              >
+                −
+              </button>
+            </div>
+          </div>
+          <div class="bins-table-wrapper">
+            <table class="bins-table">
+              <thead>
+                <tr>
+                  <th id="thBinPlan">Plan</th>
+                  <th id="thBinKarna">Kärna</th>
+                  <th id="thBinTotal">Total available</th>
+                  <th id="thBinEmpty">Empty available</th>
+                  <th id="thBinForEmpty">For emptying</th>
+                  <th id="thBinAdditional">Additional required</th>
+                  <th id="thBinStatus">Status</th>
+                </tr>
+              </thead>
+              <tbody id="binsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="notifications-section" style="display: none">
+        <div class="notifications-header">
+          <h1 id="notificationsTitle">Obavijesti</h1>
+          <div class="notifications-header-actions">
+            <button
+              class="btn"
+              id="btnBackFromNotifications"
+              onclick="showPlanner()"
+            >
+              <span id="btnBackFromNotificationsText">Planner</span>
+            </button>
+          </div>
+        </div>
+        <div class="notifications-filters">
+          <div class="form-group">
+            <label id="notificationFilterLabel" for="notificationFilterSite"
+              >Gradilište:</label
+            >
+            <select id="notificationFilterSite"></select>
+          </div>
+          <div class="form-group">
+            <label id="notificationSearchLabel" for="notificationSearch"
+              >Pretraga:</label
+            >
+            <input type="text" id="notificationSearch" placeholder="Traži..." />
+          </div>
+          <label class="notification-pin-toggle">
+            <input type="checkbox" id="notificationPinnedOnly" />
+            <span id="notificationPinnedOnlyLabel">Samo pinned</span>
+          </label>
+        </div>
+
+        <div class="notifications-composer" id="notificationsComposer">
+          <h3 id="notificationComposerTitle">Nova obavijest</h3>
+          <div class="form-group">
+            <label id="notificationTextLabel" for="notificationText"
+              >Obavijest:</label
+            >
+            <textarea
+              id="notificationText"
+              rows="4"
+              placeholder="Upiši obavijest..."
+            ></textarea>
+          </div>
+          <div class="form-group">
+            <label id="notificationSitesLabel">Objavi na gradilištima:</label>
+            <div class="notification-sites" id="notificationSites"></div>
+          </div>
+          <div class="form-group">
+            <label id="notificationImagesLabel" for="notificationImages"
+              >Slike (max 2):</label
+            >
+            <input
+              type="file"
+              id="notificationImages"
+              accept="image/*"
+              multiple
+            />
+            <div
+              class="notification-image-preview"
+              id="notificationImagePreview"
+            ></div>
+          </div>
+          <button
+            class="btn"
+            id="btnPublishNotification"
+            onclick="submitNotification()"
+          >
+            Objavi
+          </button>
+        </div>
+
+        <div class="notifications-list" id="notificationsList"></div>
+      </div>
+
+      <div id="warehouse-section" style="display: none">
+        <div class="warehouse-header">
+          <h1 id="warehousePageTitle">Skladište</h1>
+          <div class="warehouse-header-actions">
+            <button class="btn" onclick="showPlanner()">Planner</button>
+            <button class="btn" id="warehouseNavLogsBtn" onclick="showWarehouseLogs()">Logovi</button>
+            <button class="btn" id="warehouseNavGraphBtn" onclick="showWarehouseGraph()">Graph</button>
+          </div>
+        </div>
+
+        <div class="warehouse-grid">
+          <div class="warehouse-card warehouse-card-wide" id="warehouseIssueCard">
+            <div class="warehouse-card-header">
+              <h3 id="warehouseIssueTitle">Izdavanje radnicima</h3>
+              <span id="warehouseIssueSubtitle">8 stupaca za alat ili materijal</span>
+            </div>
+            <div class="warehouse-table-wrapper">
+              <table class="warehouse-table">
+                <thead>
+                  <tr>
+                    <th id="warehouseIssueColWorker">Ime i prezime</th>
+                    <th>A/M 1</th>
+                    <th>A/M 2</th>
+                    <th>A/M 3</th>
+                    <th>A/M 4</th>
+                    <th>A/M 5</th>
+                    <th>A/M 6</th>
+                    <th>A/M 7</th>
+                    <th>A/M 8</th>
+                    <th id="warehouseIssueColComment">Komentar</th>
+                    <th id="warehouseIssueColSave">Spremi</th>
+                  </tr>
+                </thead>
+                <tbody id="warehouseIssueBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="warehouse-card" id="warehouseStockCard">
+            <div class="warehouse-card-header">
+              <h3 id="warehouseStockTitle">Ulaz / izlaz robe</h3>
+              <span id="warehouseStockSubtitle">Sve ide u logove</span>
+            </div>
+            <div class="warehouse-form-grid">
+              <div class="form-group">
+                <label for="warehouseStockItem" id="warehouseStockItemLabel">Alat / materijal</label>
+                <select
+                  id="warehouseStockItem"
+                  onchange="updateWarehouseStockForm('itemId', this.value)"
+                ></select>
+              </div>
+              <div class="form-group">
+                <label for="warehouseStockDirection" id="warehouseStockDirectionLabel">Radnja</label>
+                <select
+                  id="warehouseStockDirection"
+                  onchange="updateWarehouseStockForm('direction', this.value)"
+                >
+                  <option value="in" id="warehouseStockDirectionIn">Dodaj</option>
+                  <option value="out" id="warehouseStockDirectionOut">Oduzmi</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="warehouseStockQuantity" id="warehouseStockQuantityLabel">Količina</label>
+                <input
+                  type="number"
+                  id="warehouseStockQuantity"
+                  min="1"
+                  value="1"
+                  onchange="
+                    updateWarehouseStockForm(
+                      'quantity',
+                      Number(this.value) || 1,
+                    )
+                  "
+                />
+              </div>
+              <div class="form-group warehouse-form-wide">
+                <label for="warehouseStockComment" id="warehouseStockCommentLabel">Komentar</label>
+                <input
+                  type="text"
+                  id="warehouseStockComment"
+                  placeholder="Upiši komentar..."
+                  onchange="updateWarehouseStockForm('comment', this.value)"
+                />
+              </div>
+            </div>
+            <button class="btn" id="warehouseStockSaveBtn" onclick="saveWarehouseStockAdjustment()">
+              Spremi
+            </button>
+          </div>
+
+          <div class="warehouse-card">
+            <div class="warehouse-card-header">
+              <h3 id="warehouseAlertsTitle">Upozorenja</h3>
+              <span id="warehouseAlertsSubtitle">Materijal koji fali ili uskoro nestaje</span>
+            </div>
+            <div id="warehouseAlerts"></div>
+          </div>
+
+          <div class="warehouse-card warehouse-card-wide" id="warehouseInventoryCard">
+            <div class="warehouse-card-header">
+              <h3 id="warehouseInventoryTitle">Stanje skladišta</h3>
+              <span id="warehouseInventorySubtitle">Trenutno, ukupno izdano i ukupno zaprimljeno</span>
+            </div>
+            <div class="warehouse-table-wrapper">
+              <table class="warehouse-table">
+                <thead>
+                  <tr>
+                    <th id="warehouseInventoryColItem">Alat / materijal</th>
+                    <th id="warehouseInventoryColUnit">Jedinica</th>
+                    <th id="warehouseInventoryColCurrent">Trenutno</th>
+                    <th id="warehouseInventoryColIssued">Ukupno dano</th>
+                    <th id="warehouseInventoryColReceived">Ukupno došlo</th>
+                    <th id="warehouseInventoryColMinimum">Min. limit</th>
+                    <th id="warehouseInventoryColNotify">Obavijesti osobu</th>
+                  </tr>
+                </thead>
+                <tbody id="warehouseInventoryBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="warehouse-card warehouse-card-wide" id="warehouseCatalogCard">
+            <div class="warehouse-card-header">
+              <h3 id="warehouseCatalogTitle">Popis alata / materijala</h3>
+              <div class="warehouse-header-actions">
+                <button
+                  id="warehouseCatalogAddBtn"
+                  class="btn btn-small"
+                  onclick="addWarehouseCatalogItem()"
+                >
+                  Dodaj
+                </button>
+              </div>
+            </div>
+            <div id="warehouseCatalogList" class="warehouse-catalog-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="warehouse-logs-section" style="display: none">
+        <div class="warehouse-header">
+          <h1 id="warehouseLogsTitle">Logovi skladišta</h1>
+          <div class="warehouse-header-actions">
+            <button class="btn" id="warehouseLogsBackBtn" onclick="showWarehouse()">Skladište</button>
+            <button class="btn" id="warehouseLogsGraphBtn" onclick="showWarehouseGraph()">Graph</button>
+            <button class="btn" onclick="showPlanner()">Planner</button>
+          </div>
+        </div>
+        <div class="warehouse-log-toolbar">
+          <div class="warehouse-log-toolbar-intro">
+            <strong id="warehouseLogFiltersTitle">Filteri logova</strong>
+            <span id="warehouseLogFiltersSubtitle">Postavi filtere i klikni Sortiraj za primjenu.</span>
+          </div>
+          <div class="form-group">
+            <label for="warehouseLogDate" id="warehouseLogDateLabel">Datum</label>
+            <input type="date" id="warehouseLogDate" />
+          </div>
+          <div class="form-group">
+            <label for="warehouseLogWorker" id="warehouseLogWorkerLabel">Radnik</label>
+            <select id="warehouseLogWorker">
+              <option value="">-</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="warehouseLogItem" id="warehouseLogItemLabel">Materijal</label>
+            <select id="warehouseLogItem">
+              <option value="">-</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="warehouseLogType" id="warehouseLogTypeLabel">Tip</label>
+            <select id="warehouseLogType">
+              <option value="">-</option>
+              <option value="issue" id="warehouseLogTypeIssue">Izdavanje</option>
+              <option value="stock" id="warehouseLogTypeStock">Stanje</option>
+              <option value="adjustment" id="warehouseLogTypeAdjustment">Ručno</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="warehouseLogFlow" id="warehouseLogFlowLabel">Smjer</label>
+            <select id="warehouseLogFlow">
+              <option value="">-</option>
+              <option value="in" id="warehouseLogFlowIn">Ulaz</option>
+              <option value="out" id="warehouseLogFlowOut">Izlaz</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="warehouseLogSort" id="warehouseLogSortLabel">Sortiraj po</label>
+            <select id="warehouseLogSort">
+              <option value="timestamp" id="warehouseLogSortTimestamp">Datumu</option>
+              <option value="itemName" id="warehouseLogSortItem">Materijalu</option>
+              <option value="worker" id="warehouseLogSortWorker">Radniku</option>
+              <option value="type" id="warehouseLogSortType">Vrsti</option>
+              <option value="quantity" id="warehouseLogSortQuantity">Količini</option>
+              <option value="balanceAfter" id="warehouseLogSortBalance">Stanju nakon</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="warehouseLogDirection" id="warehouseLogDirectionLabel">Smjer</label>
+            <select id="warehouseLogDirection">
+              <option value="desc" id="warehouseLogDirectionDesc">Silazno</option>
+              <option value="asc" id="warehouseLogDirectionAsc">Uzlazno</option>
+            </select>
+          </div>
+          <div class="warehouse-log-toolbar-actions">
+            <button class="btn" id="warehouseApplyLogFiltersBtn" onclick="applyWarehouseLogFilters()">
+              Sortiraj
+            </button>
+            <button class="btn btn-secondary" id="warehouseResetLogFiltersBtn" onclick="resetWarehouseLogFilters()">
+              Reset filtera
+            </button>
+            <button
+              class="btn btn-danger"
+              id="warehouseClearLogsBtn"
+              onclick="clearAllWarehouseLogs()"
+              style="display: none"
+            >
+              Obriši sve logove
+            </button>
+          </div>
+        </div>
+        <div class="warehouse-table-wrapper">
+          <table class="warehouse-table">
+            <thead>
+              <tr>
+                <th id="warehouseLogsColDate">Datum</th>
+                <th id="warehouseLogsColType">Tip</th>
+                <th id="warehouseLogsColWorker">Radnik</th>
+                <th id="warehouseLogsColItem">Materijal</th>
+                <th id="warehouseLogsColQuantity">Količina</th>
+                <th id="warehouseLogsColFlow">Smjer</th>
+                <th id="warehouseLogsColComment">Komentar</th>
+                <th id="warehouseLogsColBalance">Stanje nakon</th>
+                <th id="warehouseLogsColAuthor">Upisao</th>
+                <th id="warehouseLogsActionsHead" style="display: none">
+                  Akcije
+                </th>
+              </tr>
+            </thead>
+            <tbody id="warehouseLogsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="warehouse-graph-section" style="display: none">
+        <div class="warehouse-header">
+          <h1 id="warehouseGraphTitle">Graph skladišta</h1>
+          <div class="warehouse-header-actions">
+            <button class="btn" id="warehouseGraphBackBtn" onclick="showWarehouse()">Skladište</button>
+            <button class="btn" id="warehouseGraphLogsBtn" onclick="showWarehouseLogs()">Logovi</button>
+            <button class="btn" onclick="showPlanner()">Planner</button>
+          </div>
+        </div>
+        <div class="warehouse-grid">
+          <div class="warehouse-card">
+            <div class="warehouse-card-header">
+              <h3 id="warehouseGraphWorkersTitle">Tko odskače po materijalu</h3>
+            </div>
+            <div id="warehouseGraphWorkers"></div>
+          </div>
+          <div class="warehouse-card">
+            <div class="warehouse-card-header">
+              <h3 id="warehouseGraphItemsTitle">Najtraženiji materijali</h3>
+            </div>
+            <div id="warehouseGraphItems"></div>
+          </div>
+          <div class="warehouse-card warehouse-card-wide">
+            <div class="warehouse-card-header">
+              <h3 id="warehouseGraphInsightTitle">Izdvajanje iz prosjeka po alatu / materijalu</h3>
+            </div>
+            <div
+              id="warehouseGraphInsight"
+              class="warehouse-graph-insight"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tidplan-section" style="display: none">
+        <!-- TIDPLAN HEADER -->
+        <div class="tidplan-header">
+          <h1 id="tidplanTitle">TIDPLAN</h1>
+          <div
+            class="tidplan-info"
+            style="
+              font-size: 13px;
+              color: var(--text-light);
+              margin-top: -6px;
+              margin-bottom: 8px;
+            "
+          >
+            <span id="tidplanSiteLabel"></span>
+            <strong id="tidplanSite"></strong>
+            ,
+            <span id="tidplanDateLabel"></span>
+            <strong id="tidplanDate"></strong>
+            <span
+              style="
+                margin-left: 20px;
+                font-weight: bold;
+                color: var(--primary-color-start);
+              "
+            >
+              📊 Dostupni radnici: <span id="totalPresentWorkers">0</span> /
+              <span id="totalWorkers">0</span>
+            </span>
+          </div>
+        </div>
+        <!-- TIDPLAN CONTROLS -->
+        <div class="tidplan-controls">
+          <button
+            class="btn"
+            id="btnAddTidplanActivity"
+            onclick="addTidplanActivity()"
+          >
+            Dodaj aktivnost
+          </button>
+          <button class="btn" id="btnManageZones" onclick="toggleZoneManager()">
+            Dodaj/Ukloni Zone
+          </button>
+          <button class="btn" id="btnPrintTidplan" onclick="printTidplan()">
+            Print Tidplan
+          </button>
+          <button class="btn" id="btnBackToPlanner" onclick="showPlanner()">
+            Planner
+          </button>
+          <button
+            class="btn"
+            id="btnClearTidplan"
+            onclick="clearTidplan()"
+            style="margin-left: auto"
+          >
+            🗑️ Očisti plan
+          </button>
+          <button
+            class="btn"
+            id="btnSaveTidplan"
+            onclick="saveTidplanData()"
+            disabled
+            style="opacity: 0.6; cursor: not-allowed"
+          >
+            💾 Spremi
+          </button>
+          <div class="filters">
+            <div class="sort-group">
+              <button
+                class="btn"
+                onclick="toggleTidplanSortMenu()"
+                id="btnSortTidplan"
+              >
+                ⬇️ Sortiraj
+              </button>
+              <div id="tidplanSortOptions" class="sort-options">
+                <div class="sort-filter-block">
+                  <label>
+                    Plan
+                    <select id="filterPlan" onchange="updateTidplan()">
+                      <option value="">Filter Plan</option>
+                    </select>
+                  </label>
+                  <label>
+                    Zona
+                    <select id="filterZona" onchange="updateTidplan()">
+                      <option value="">Filter Zona</option>
+                    </select>
+                  </label>
+                  <label>
+                    Moment
+                    <select id="filterMoment" onchange="updateTidplan()">
+                      <option value="">Filter Moment</option>
+                    </select>
+                  </label>
+                </div>
+                <hr style="width: 100%; border-color: var(--border-color)" />
+                <div
+                  class="sort-panel-header"
+                  style="
+                    margin-bottom: 8px;
+                    font-weight: 600;
+                    color: var(--text-dark);
+                    font-size: 13px;
+                  "
+                >
+                  Sortiraj po:
+                </div>
+                <div class="sort-checkbox-block">
+                  <label><input type="checkbox" value="plan" /> Plan</label>
+                  <label><input type="checkbox" value="zona" /> Zona</label>
+                  <label><input type="checkbox" value="karna" /> Karna</label>
+                  <label><input type="checkbox" value="moment" /> Moment</label>
+                  <label><input type="checkbox" value="start" /> Start</label>
+                  <label><input type="checkbox" value="end" /> End</label>
+                </div>
+                <div
+                  style="
+                    border-top: 1px solid var(--border-color);
+                    padding-top: 8px;
+                    margin-top: 8px;
+                    width: 100%;
+                  "
+                >
+                  <button
+                    class="btn btn-small"
+                    onclick="applyTidplanSort()"
+                    style="width: 100%"
+                  >
+                    ✓ Primijeni sortiraj
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          id="zoneManagerPanel"
+          class="zone-manager-panel"
+          style="display: none"
+        >
+          <div>
+            <strong>⚙️ Upravljanje zonama</strong>
+            <button class="btn btn-small" onclick="toggleZoneManager()">
+              Zatvori
+            </button>
+          </div>
+          <div id="zoneList"></div>
+          <div class="zone-input-group">
+            <input id="newZoneName" type="text" placeholder="Naziv zone" />
+            <input id="newZoneColor" type="color" value="#FF0000" />
+            <button class="btn btn-small" onclick="addTidplanZoneFromInputs()">
+              ➕ Dodaj zonu
+            </button>
+            <button
+              class="btn btn-small btn-danger"
+              onclick="clearAllTidplanZones()"
+            >
+              🗑️ Obriši sve
+            </button>
+          </div>
+        </div>
+
+        <!-- TIDPLAN CONTROL BUTTONS -->
+        <div class="tidplan-control-buttons">
+          <button
+            class="tidplan-panel-toggle"
+            id="tidplanPanelToggle"
+            title="Panel Mode"
+          >
+            <span id="panelToggleIcon">◐</span>
+          </button>
+          <button
+            class="tidplan-fullscreen-toggle"
+            id="tidplanFullscreenToggle"
+            title="Fullscreen Gantt"
+          >
+            ⛶
+          </button>
+        </div>
+
+        <!-- TIDPLAN TABLE -->
+        <div class="tidplan-container">
+          <div class="tidplan-left-panel">
+            <div class="tidplan-table-container">
+              <table class="tidplan-table" id="tidplanTable">
+                <thead id="tidplanThead">
+                  <tr>
+                    <th>Plan</th>
+                    <th>Zona</th>
+                    <th>Karna</th>
+                    <th>Moment</th>
+                    <th>Resursi</th>
+                    <th>Start</th>
+                    <th>End</th>
+                    <th>Komentar</th>
+                    <th>Akcije</th>
+                  </tr>
+                </thead>
+                <tbody id="tidplanTbody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="tidplan-resizer" id="tidplanResizer"></div>
+          <div class="tidplan-timeline" id="tidplanTimeline">
+            <div class="timeline-header" id="timelineHeader"></div>
+            <div class="timeline-body" id="timelineBody"></div>
+          </div>
+        </div>
+        <div
+          class="tidplan-legend"
+          id="tidplanLegend"
+          aria-label="Legenda resursa"
+        >
+          <div class="tidplan-legend-title" id="tidplanLegendTitle">
+            Legenda resursa
+          </div>
+          <div class="tidplan-legend-items">
+            <div class="tidplan-legend-item">
+              <span class="tidplan-legend-swatch is-surplus"></span>
+              <span id="tidplanLegendSurplus">Plavo: visak resursa</span>
+            </div>
+            <div class="tidplan-legend-item">
+              <span class="tidplan-legend-swatch is-exact"></span>
+              <span id="tidplanLegendExact"
+                >Zeleno: tocno dovoljno resursa</span
+              >
+            </div>
+            <div class="tidplan-legend-item">
+              <span class="tidplan-legend-swatch is-shortage"></span>
+              <span id="tidplanLegendShortage">Crveno: manjak resursa</span>
+            </div>
+            <div class="tidplan-legend-item">
+              <span class="tidplan-legend-swatch is-weekend"></span>
+              <span id="tidplanLegendWeekend">Sivo: Vikend</span>
+            </div>
+            <div class="tidplan-legend-item">
+              <span class="tidplan-legend-swatch is-holiday"></span>
+              <span id="tidplanLegendHoliday"
+                >Svijetlo crveno: Neradni dan</span
+              >
+            </div>
+          </div>
+          <div class="tidplan-legend-note" id="tidplanLegendNote">
+            Predji misem preko donjeg reda resursa za detalje po danu: visak i
+            manjak resursa.
+          </div>
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="footer">
+        <p>Script and idea made by Josip Ivandic</p>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/hr.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/sv.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
