@@ -1,7 +1,7 @@
 [
   {
     "email": "admin@cmax.com",
-    "password": "$2b$12$wRAjTepiQ7085VHni6aQQOLB9NJpl9bjuIsYMlNHY3DsGuxSQWUXG",
+    "password": "$2b$12$LQdG9fqHbYQzKhwNVCQzw.5rMjmQHWW/gT5Yzm1rM9QUDdOEs97Uu",
     "firstName": "",
     "lastName": "",
     "fullName": "",
@@ -37,10 +37,10 @@
       "canManageKarnas": true,
       "canEditBinsData": true,
       "canManageBinsPlans": true,
-      "canManageBinsPermissions": false,
+      "canManageBinsPermissions": true,
       "canViewReports": true,
       "canApproveReports": true,
-      "canDeleteReports": false,
+      "canDeleteReports": true,
       "canViewLogs": true,
       "canClearLogs": true,
       "canViewWarehouse": false,

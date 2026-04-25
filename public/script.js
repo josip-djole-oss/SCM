@@ -1752,7 +1752,7 @@ const originalFetch = window.fetch.bind(window);
 window.fetch = function patchedFetch(resource, options = {}) {
   const requestUrl = typeof resource === "string" ? resource : resource?.url || "";
   const nextOptions = { ...options };
-  nextOptions.credentials = nextOptions.credentials || "same-origin";
+  nextOptions.credentials = nextOptions.credentials || "include";
   const method = (nextOptions.method || "GET").toUpperCase();
   const isApiRequest = requestUrl.startsWith("/api/");
   if (isApiRequest) {

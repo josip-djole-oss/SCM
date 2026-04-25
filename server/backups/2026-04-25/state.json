@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "savedAt": "2026-04-24T21:35:18.183Z",
+  "savedAt": "2026-04-25T11:31:18.762Z",
   "savedBy": "admin@cmax.com",
   "sites": [
     "Kaj16"
@@ -9,8 +9,12 @@
   "admins": [
     {
       "email": "admin@cmax.com",
-      "password": "cmax2024",
+      "firstName": "",
+      "lastName": "",
+      "fullName": "",
       "isSuperAdmin": true,
+      "isReadonly": false,
+      "level": 6,
       "permissions": {
         "canAccessPlanner": true,
         "canAccessTidplan": true,
@@ -45,13 +49,14 @@
         "canApproveReports": true,
         "canDeleteReports": false,
         "canViewLogs": true,
-        "canClearLogs": true
+        "canClearLogs": true,
+        "canViewWarehouse": false,
+        "canManageWarehouse": false,
+        "canAssignWarehouseToAdmin": false,
+        "canModifyReadOnly": false,
+        "canToggleReadOnly": false
       },
-      "firstName": "",
-      "lastName": "",
-      "fullName": "",
-      "allowedSites": null,
-      "level": 6
+      "allowedSites": null
     }
   ],
   "guestPermissions": {
@@ -353,6 +358,12 @@
             "planningRows": []
           },
           "2026-04-24": {
+            "workerAttendance": {},
+            "liftAvailability": {},
+            "liftPlans": {},
+            "planningRows": []
+          },
+          "2026-04-25": {
             "workerAttendance": {},
             "liftAvailability": {},
             "liftPlans": {},
@@ -16485,6 +16496,651 @@
               "additionalRequired": 0
             }
           ]
+        },
+        "2026-04-25": {
+          "planCount": 20,
+          "rows": [
+            {
+              "plan": "Plan 1",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 1",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 1",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 1",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 2",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 2",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 2",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 2",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 3",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 3",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 3",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 3",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 4",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 4",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 4",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 4",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 5",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 5",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 5",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 5",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 6",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 6",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 6",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 6",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 7",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 7",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 7",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 7",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 8",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 8",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 8",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 8",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 9",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 9",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 9",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 9",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 10",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 10",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 10",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 10",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 11",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 11",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 11",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 11",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 12",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 12",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 12",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 12",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 13",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 13",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 13",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 13",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 14",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 14",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 14",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 14",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 15",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 15",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 15",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 15",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 16",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 16",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 16",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 16",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 17",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 17",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 17",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 17",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 18",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 18",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 18",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 18",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 19",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 19",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 19",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 19",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 20",
+              "karna": "Kärna 1",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 20",
+              "karna": "Kärna 2",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 20",
+              "karna": "Kärna 3",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            },
+            {
+              "plan": "Plan 20",
+              "karna": "Kärna 4",
+              "totalAvailable": 0,
+              "emptyAvailable": 0,
+              "forEmptying": 0,
+              "additionalRequired": 0
+            }
+          ]
         }
       },
       "tidplan": [
@@ -16564,80 +17220,80 @@
             "id": "itm_1777064974490_3za5",
             "name": "RM 5m",
             "unit": "kom",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           },
           {
             "id": "itm_1777065005073_00lc",
             "name": "DM 2m",
             "unit": "kom",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           },
           {
             "id": "itm_1777065076517_4p7d",
             "name": "Rukavice S",
             "unit": "Pari",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           },
           {
             "id": "itm_1777065097847_87dx",
             "name": "Rukavice M",
             "unit": "pari",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           },
           {
             "id": "itm_1777065112644_coxu",
             "name": "Rukavice L",
             "unit": "Pari",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           },
           {
             "id": "itm_1777065129850_i6ye",
             "name": "Rukavice XL",
             "unit": "Pari",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           },
           {
             "id": "itm_1777065161279_zyex",
             "name": "Kanadjanke",
             "unit": "kom",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           },
           {
             "id": "itm_1777065200294_r8yb",
             "name": "Skare za lim Lijeve/crvene",
             "unit": "kom",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           },
           {
             "id": "itm_1777065244459_6wh7",
             "name": "Skare za lim Desne/zelene",
             "unit": "kom",
-            "minimum": 0,
+            "minimum": 10,
             "notifyPerson": ""
           }
         ],
         "stock": {
           "itm_1777064974490_3za5": {
-            "current": 32,
-            "totalIssued": 1,
+            "current": 22,
+            "totalIssued": 11,
             "totalReceived": 33
           },
           "itm_1777065005073_00lc": {
-            "current": 25,
-            "totalIssued": 3,
+            "current": 13,
+            "totalIssued": 15,
             "totalReceived": 28
           },
           "itm_1777065076517_4p7d": {
-            "current": 25,
-            "totalIssued": 4,
+            "current": 16,
+            "totalIssued": 13,
             "totalReceived": 29
           },
           "itm_1777065097847_87dx": {
@@ -16646,18 +17302,18 @@
             "totalReceived": 26
           },
           "itm_1777065112644_coxu": {
-            "current": 26,
-            "totalIssued": 1,
+            "current": 16,
+            "totalIssued": 11,
             "totalReceived": 27
           },
           "itm_1777065129850_i6ye": {
-            "current": 26,
-            "totalIssued": 4,
+            "current": 9,
+            "totalIssued": 21,
             "totalReceived": 30
           },
           "itm_1777065161279_zyex": {
-            "current": 23,
-            "totalIssued": 4,
+            "current": 20,
+            "totalIssued": 7,
             "totalReceived": 27
           },
           "itm_1777065200294_r8yb": {

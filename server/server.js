@@ -269,8 +269,33 @@ function shouldAllowAnyCorsOrigin() {
 function createCorsOriginHandler() {
   return (origin, callback) => {
     if (!origin) return callback(null, true);
+    
+    // Allow if explicitly configured to allow all
     if (shouldAllowAnyCorsOrigin()) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    
+    // In production, allow requests from same host (for deployed apps)
+    // and any configured origins
+    if (IS_PRODUCTION) {
+      const allowedOrigin = allowedOrigins[0];
+      if (allowedOrigin && origin.includes(allowedOrigin)) {
+        return callback(null, true);
+      }
+      // Also allow if explicitly in whitelist
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // In production, if no origins configured, allow current domain
+      if (!allowedOrigins.filter(o => o !== `http://localhost:${PORT}` && o !== `http://127.0.0.1:${PORT}`).length) {
+        return callback(null, true);
+      }
+    }
+    
+    // In development, be more permissive
+    if (!IS_PRODUCTION) {
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // Allow localhost variations in dev
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
+      return callback(null, true); // Allow all in dev
+    }
+    
     return callback(new Error('Origin not allowed by CORS'));
   };
 }
@@ -331,7 +356,7 @@ function createSession(res, payload) {
   sessions.set(sessionId, session);
   res.cookie(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'none',
     secure: IS_PRODUCTION,
     maxAge: SESSION_TTL_MS,
     path: '/',
@@ -344,7 +369,7 @@ function clearSession(req, res) {
   if (sessionId) sessions.delete(sessionId);
   res.clearCookie(SESSION_COOKIE_NAME, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'none',
     secure: IS_PRODUCTION,
     path: '/',
   });
@@ -382,7 +407,7 @@ function requireAuth(req, res, next) {
   req.session = session;
   res.cookie(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: 'none',
     secure: IS_PRODUCTION,
     maxAge: SESSION_TTL_MS,
     path: '/',
