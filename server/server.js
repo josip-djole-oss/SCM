@@ -17,6 +17,10 @@ const API_BODY_LIMIT = process.env.API_BODY_LIMIT || '5mb';
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS) || 15000;
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS) || 8 * 60 * 60 * 1000;
 const PRESENCE_TTL_MS = 60000;
+const AUTO_BACKUP_INTERVAL_MS = Number(process.env.AUTO_BACKUP_INTERVAL_MS) || 24 * 60 * 60 * 1000;
+const STORAGE_INIT_RETRY_MS = Number(process.env.STORAGE_INIT_RETRY_MS) || 3000;
+const STORAGE_INIT_MAX_ATTEMPTS = Number(process.env.STORAGE_INIT_MAX_ATTEMPTS) || 0;
+const STORAGE_INIT_MAX_RETRY_MS = Number(process.env.STORAGE_INIT_MAX_RETRY_MS) || 30000;
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS) || 12;
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'cmax_session';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -40,6 +44,7 @@ const dataStorage = createStorage({
   backupsDir: BACKUPS_DIR,
   databaseUrl: DATABASE_URL,
 });
+const storageAdapter = dataStorage;
 const dataDir = dataStorage.dataDir;
 const uploadsDir = dataStorage.uploadsDir;
 const backupsDir = dataStorage.backupsDir;
@@ -51,6 +56,16 @@ const warehouseFile = dataStorage.files?.warehouse || path.join(dataDir, 'wareho
 const warehouseLogsFile = dataStorage.files?.warehouseLogs || path.join(dataDir, 'warehouse-logs.json');
 const sessions = new Map();
 const activePresence = new Map();
+const storageRuntime = {
+  ready: false,
+  initializing: false,
+  attempts: 0,
+  lastError: dataStorage.startupError ? String(dataStorage.startupError.message || dataStorage.startupError) : null,
+  lastReadyAt: null,
+  retryTimer: null,
+  nextRetryAt: null,
+  backupIntervalStarted: false,
+};
 
 const DEFAULT_PERMISSIONS = {
   canAccessPlanner: true,
@@ -120,6 +135,22 @@ function ensureDir(dirPath) {
 })().catch((error) => {
   console.error('Failed to prepare storage directories', error);
 });
+
+function getStorageStatusPayload() {
+  const nextRetryInMs = storageRuntime.nextRetryAt
+    ? Math.max(0, storageRuntime.nextRetryAt - Date.now())
+    : null;
+  return {
+    ready: storageRuntime.ready,
+    retrying: storageRuntime.initializing || Boolean(storageRuntime.retryTimer),
+    attempts: storageRuntime.attempts,
+    lastError: storageRuntime.lastError,
+    lastReadyAt: storageRuntime.lastReadyAt,
+    nextRetryInMs,
+    connected: storageRuntime.ready,
+    databaseConfigured: DATABASE_URL ? 'set' : 'missing',
+  };
+}
 
 function logServerError(error, context = 'server') {
   const timestamp = new Date().toISOString();
@@ -441,6 +472,18 @@ function requireSuperAdmin(req, res, next) {
   return next();
 }
 
+function requireStorageReady(req, res, next) {
+  if (storageRuntime.ready) return next();
+  const status = getStorageStatusPayload();
+  if (status.nextRetryInMs !== null) {
+    res.setHeader('Retry-After', String(Math.max(1, Math.ceil(status.nextRetryInMs / 1000))));
+  }
+  return res.status(503).json({
+    error: 'Storage not ready',
+    storage: status,
+  });
+}
+
 function canAccessSite(session, site) {
   if (!site) site = 'default';
   // Super admins can access all sites
@@ -465,21 +508,53 @@ function getUploadUrl(filePath) {
   return `/uploads/${relative}`;
 }
 
-function dailyBackup() {
+async function createBackupSnapshot(label = 'manual') {
   try {
-    const dateKey = new Date().toISOString().slice(0, 10);
-    const targetDir = path.join(backupsDir, dateKey);
-    ensureDir(targetDir);
-    for (const entry of fs.readdirSync(dataDir)) {
-      const source = path.join(dataDir, entry);
-      const target = path.join(targetDir, entry);
-      if (fs.statSync(source).isFile()) {
-        fs.copyFileSync(source, target);
-      }
+    const safeLabel = sanitizeString(label, 60).replace(/[^a-zA-Z0-9_-]/g, '_') || 'manual';
+    const snapshot = await storageAdapter.exportAll();
+    if (typeof storageAdapter.saveBackupSnapshot === 'function') {
+      return storageAdapter.saveBackupSnapshot(snapshot, { label: safeLabel });
     }
+    ensureDir(backupsDir);
+    const filename = `${safeLabel}-${Date.now()}.json`;
+    const filePath = path.join(backupsDir, filename);
+    fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf8');
+    return {
+      id: filename,
+      filename,
+      filePath,
+      createdAt: new Date().toISOString(),
+      storage: 'filesystem',
+    };
   } catch (error) {
     logServerError(error, 'backup');
+    return null;
   }
+}
+
+async function getLastBackupTime() {
+  if (typeof storageAdapter.getLastBackupTime === 'function') {
+    return storageAdapter.getLastBackupTime();
+  }
+  if (!fs.existsSync(backupsDir)) return 0;
+  let latest = 0;
+  for (const entry of fs.readdirSync(backupsDir)) {
+    const filePath = path.join(backupsDir, entry);
+    const stats = fs.statSync(filePath);
+    if (stats.isFile()) {
+      latest = Math.max(latest, stats.mtimeMs);
+    }
+  }
+  return latest;
+}
+
+async function ensureAutoBackupCurrent(label = 'auto') {
+  if (!storageRuntime.ready) return null;
+  const lastBackupTime = await getLastBackupTime();
+  if (Date.now() - lastBackupTime > AUTO_BACKUP_INTERVAL_MS) {
+    return createBackupSnapshot(label);
+  }
+  return null;
 }
 
 function validateStatePayload(state) {
@@ -566,7 +641,66 @@ async function initializeData() {
   await dataStorage.ensureJsonFile(notificationsFile, []);
 
   await migrateAdminPasswords();
-  dailyBackup();
+  try {
+    await ensureAutoBackupCurrent('startup');
+  } catch (error) {
+    logServerError(error, 'startup_backup');
+  }
+}
+
+function scheduleStorageInitializationRetry() {
+  if (storageRuntime.retryTimer) return;
+  if (STORAGE_INIT_MAX_ATTEMPTS > 0 && storageRuntime.attempts >= STORAGE_INIT_MAX_ATTEMPTS) {
+    console.error(`Storage init stopped after ${storageRuntime.attempts} failed attempts.`);
+    return;
+  }
+  const delayMs = Math.min(
+    STORAGE_INIT_MAX_RETRY_MS,
+    Math.round(STORAGE_INIT_RETRY_MS * Math.pow(1.8, Math.max(0, storageRuntime.attempts - 1))),
+  );
+  storageRuntime.nextRetryAt = Date.now() + delayMs;
+  storageRuntime.retryTimer = setTimeout(() => {
+    storageRuntime.retryTimer = null;
+    storageRuntime.nextRetryAt = null;
+    startStorageInitialization();
+  }, delayMs);
+  storageRuntime.retryTimer.unref?.();
+  console.warn(`Storage init retry scheduled in ${delayMs}ms.`);
+}
+
+function startBackupScheduler() {
+  if (storageRuntime.backupIntervalStarted) return;
+  storageRuntime.backupIntervalStarted = true;
+  setInterval(() => {
+    ensureAutoBackupCurrent('auto').catch((error) => logServerError(error, 'auto_backup'));
+  }, AUTO_BACKUP_INTERVAL_MS).unref();
+}
+
+async function startStorageInitialization() {
+  if (storageRuntime.ready || storageRuntime.initializing) return;
+  storageRuntime.initializing = true;
+  storageRuntime.attempts += 1;
+
+  try {
+    await initializeData();
+    storageRuntime.ready = true;
+    storageRuntime.lastError = null;
+    storageRuntime.lastReadyAt = new Date().toISOString();
+    storageRuntime.nextRetryAt = null;
+    startBackupScheduler();
+    console.log(`Storage ready after ${storageRuntime.attempts} attempt(s).`);
+  } catch (error) {
+    storageRuntime.ready = false;
+    storageRuntime.lastError = error && error.message ? error.message : String(error);
+    logServerError(error, `storage_init_attempt_${storageRuntime.attempts}`);
+    if (dataStorage.retryable === false) {
+      console.error('Storage init is blocked by configuration and will not retry automatically.');
+    } else {
+      scheduleStorageInitializationRetry();
+    }
+  } finally {
+    storageRuntime.initializing = false;
+  }
 }
 
 const storage = multer.diskStorage({
@@ -615,6 +749,14 @@ const apiLimiter = rateLimit({
   message: { error: 'Too many requests' },
 });
 
+const backupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.BACKUP_RATE_LIMIT_MAX) || 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many backup requests' },
+});
+
 /**
  * Ä‚ËÄąâ€şĂ˘â‚¬Â¦ CORS FIX (RAILWAY + DEV SAFE)
  * - allows Railway + custom domains
@@ -652,13 +794,21 @@ app.use('/api', (req, res, next) => {
 app.use('/api', apiLimiter);
 
 app.get('/api/health', (req, res) => {
+  const storageStatus = getStorageStatusPayload();
   res.json({
     ok: true,
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     storageType: STORAGE_TYPE,
+    storageReady: storageStatus.ready,
+    storage: storageStatus,
   });
+});
+
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health') return next();
+  return requireStorageReady(req, res, next);
 });
 
 app.post('/api/login', loginLimiter, async (req, res, next) => {
@@ -935,6 +1085,29 @@ apiRouter.get('/admin/readonly-status', requirePermission('canViewSettings'), as
     });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+apiRouter.get('/admin/backup', requireAdmin, backupLimiter, async (req, res, next) => {
+  try {
+    const backup = await createBackupSnapshot(`manual-${req.session.email || 'admin'}`);
+    if (!backup) {
+      return res.status(500).json({ error: 'Failed to create backup' });
+    }
+    await logActivity(req.session.email, 'manual_backup', {
+      file: backup.filename,
+      storageType: STORAGE_TYPE,
+    });
+    res.json({
+      ok: true,
+      id: backup.id || null,
+      file: backup.filename,
+      path: backup.filePath || null,
+      storage: backup.storage || STORAGE_TYPE,
+      createdAt: backup.createdAt || new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
   }
 });
 
@@ -1343,22 +1516,17 @@ app.use((error, req, res, next) => {
 process.on('uncaughtException', (error) => logServerError(error, 'uncaughtException'));
 process.on('unhandledRejection', (error) => logServerError(error, 'unhandledRejection'));
 
-initializeData()
-  .then(() => {
-    setInterval(cleanupSessions, 60 * 1000).unref();
-    setInterval(cleanupPresence, 60 * 1000).unref();
-    setInterval(dailyBackup, 24 * 60 * 60 * 1000).unref();
-    app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Storage type: ${STORAGE_TYPE}`);
-      console.log(`Data directory: ${dataDir}`);
-      console.log(`Uploads directory: ${uploadsDir}`);
-      if (!IS_PRODUCTION) {
-        console.log(`Access the app at: http://localhost:${PORT}`);
-      }
-    });
-  })
-  .catch((error) => {
-    logServerError(error, 'startup');
-    process.exit(1);
-  });
+setInterval(cleanupSessions, 60 * 1000).unref();
+setInterval(cleanupPresence, 60 * 1000).unref();
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log(`Storage type: ${STORAGE_TYPE}`);
+  console.log(`DATABASE_URL: ${DATABASE_URL ? 'SET' : 'MISSING'}`);
+  console.log(`Data directory: ${dataDir}`);
+  console.log(`Uploads directory: ${uploadsDir}`);
+  if (!IS_PRODUCTION) {
+    console.log(`Access the app at: http://localhost:${PORT}`);
+  }
+  startStorageInitialization().catch((error) => logServerError(error, 'startup'));
+});

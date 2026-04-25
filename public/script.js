@@ -245,6 +245,8 @@ const TRANSLATIONS = {
     permSectionGuestTitle: "Gost mode",
     permSectionGuestNote: "Što posjetitelj vidi i koje komande može koristiti.",
     loadingDefault: "Učitavanje...",
+    loadingBooting: "Pokretanje aplikacije...",
+    loadingConnectingDb: "Povezivanje s bazom podataka...",
     loadingLogin: "Provjera prijave...",
     loadingAdminPanel: "Otvaranje admin panela...",
     loadingSiteChange: "Učitavanje podataka gradilišta...",
@@ -610,6 +612,8 @@ const TRANSLATIONS = {
     permSectionGuestTitle: "Guest mode",
     permSectionGuestNote: "What a visitor can see and which commands can be used.",
     loadingDefault: "Loading...",
+    loadingBooting: "Starting application...",
+    loadingConnectingDb: "Connecting to database...",
     loadingLogin: "Checking login...",
     loadingAdminPanel: "Opening admin panel...",
     loadingSiteChange: "Loading site data...",
@@ -976,6 +980,8 @@ const TRANSLATIONS = {
     permSectionGuestTitle: "Gastläge",
     permSectionGuestNote: "Vad en besökare kan se och vilka kommandon som kan användas.",
     loadingDefault: "Laddar...",
+    loadingBooting: "Startar applikationen...",
+    loadingConnectingDb: "Ansluter till databasen...",
     loadingLogin: "Kontrollerar inloggning...",
     loadingAdminPanel: "Öppnar adminpanelen...",
     loadingSiteChange: "Laddar arbetsplatsdata...",
@@ -1748,6 +1754,117 @@ function applyAuthData(authData) {
   appState.guestPermissions = getGuestPermissions();
 }
 
+function isStoragePendingPayload(payload) {
+  return Boolean(
+    payload &&
+      payload.error === "Storage not ready" &&
+      payload.storage &&
+      payload.storage.ready === false,
+  );
+}
+
+function getHealthRetryDelay(storageStatus) {
+  const nextRetryInMs = Number(storageStatus?.nextRetryInMs);
+  if (Number.isFinite(nextRetryInMs) && nextRetryInMs > 0) {
+    return Math.max(1000, Math.min(nextRetryInMs + 250, 10000));
+  }
+  return 3000;
+}
+
+function getCachedBootReadyState() {
+  return sessionStorage.getItem(BOOT_READY_CACHE_KEY) === "ready";
+}
+
+function setBootState(nextState) {
+  appBootState = nextState;
+  const loginOverlay = document.getElementById("loginOverlay");
+  const mainContainer = document.getElementById("mainContainer");
+
+  if (nextState === BOOT_STATES.READY) {
+    sessionStorage.setItem(BOOT_READY_CACHE_KEY, "ready");
+  }
+
+  if (nextState === BOOT_STATES.READY) {
+    hideLoading();
+    return;
+  }
+
+  if (loginOverlay) loginOverlay.style.display = "none";
+  if (mainContainer) mainContainer.style.display = "none";
+  showLoading(nextState === BOOT_STATES.CONNECTING_DB ? "loadingConnectingDb" : "loadingBooting");
+}
+
+function fetchHealthStatus() {
+  return originalFetch("/api/health", {
+    cache: "no-store",
+    credentials: "include",
+  }).then((response) => {
+    if (!response.ok) {
+      throw new Error("HEALTH_UNAVAILABLE");
+    }
+    return response.json();
+  });
+}
+
+function waitForBackendReady(options = {}) {
+  const allowTimeoutFallback = options.allowTimeoutFallback !== false;
+  if (!BACKEND_ENABLED) {
+    setBootState(BOOT_STATES.READY);
+    return Promise.resolve({ storageReady: true });
+  }
+
+  if (backendBootPromise) return backendBootPromise;
+
+  setBootState(BOOT_STATES.BOOTING);
+  backendBootPromise = new Promise((resolve) => {
+    const startedAt = Date.now();
+    const cachedReadyState = getCachedBootReadyState();
+
+    const resolveDegraded = () => {
+      backendBootPromise = null;
+      resolve({
+        storageReady: false,
+        degraded: true,
+        storage: {
+          ready: false,
+          retrying: true,
+          cachedReadyState,
+        },
+      });
+    };
+
+    const poll = () => {
+      fetchHealthStatus()
+        .then((payload) => {
+          const storageStatus = payload?.storage || {};
+          if (payload?.storageReady || storageStatus.ready) {
+            backendBootPromise = null;
+            resolve(payload);
+            return;
+          }
+          if (allowTimeoutFallback && Date.now() - startedAt >= BOOT_HEALTH_TIMEOUT_MS) {
+            resolveDegraded();
+            return;
+          }
+          setBootState(BOOT_STATES.CONNECTING_DB);
+          setTimeout(poll, getHealthRetryDelay(storageStatus));
+        })
+        .catch(() => {
+          if (allowTimeoutFallback && Date.now() - startedAt >= BOOT_HEALTH_TIMEOUT_MS) {
+            resolveDegraded();
+            return;
+          }
+          setBootState(BOOT_STATES.CONNECTING_DB);
+          setTimeout(poll, 5000);
+        });
+    };
+
+    poll();
+  });
+
+  return backendBootPromise;
+}
+
 const originalFetch = window.fetch.bind(window);
 window.fetch = function patchedFetch(resource, options = {}) {
   const requestUrl = typeof resource === "string" ? resource : resource?.url || "";
@@ -1765,6 +1882,17 @@ window.fetch = function patchedFetch(resource, options = {}) {
     }
   }
   return originalFetch(resource, nextOptions).then((response) => {
+    if (isApiRequest && response.status === 503) {
+      response
+        .clone()
+        .json()
+        .then((payload) => {
+          if (isStoragePendingPayload(payload)) {
+            setBootState(BOOT_STATES.CONNECTING_DB);
+          }
+        })
+        .catch(() => {});
+    }
     if (isApiRequest && response.status === 401 && !requestUrl.includes("/api/login")) {
       clearAuthSessionLocal();
       appState.isAdmin = false;
@@ -1846,6 +1974,15 @@ const BACKEND_ENABLED =
   typeof window !== "undefined" &&
   window.location &&
   window.location.protocol !== "file:";
+const BOOT_STATES = {
+  BOOTING: "booting",
+  CONNECTING_DB: "connecting_db",
+  READY: "ready",
+};
+const BOOT_READY_CACHE_KEY = "cmax_boot_ready";
+const BOOT_HEALTH_TIMEOUT_MS = 10000;
+let appBootState = BOOT_STATES.BOOTING;
+let backendBootPromise = null;
 
 const DEFAULT_PERMISSIONS = {
   canAccessPlanner: true,
@@ -2918,7 +3055,7 @@ function initApp() {
   appState.guestPermissions = getGuestPermissions();
   checkAuth();
   setupEventListeners();
-  loadAllData()
+  const initialLoadPromise = loadAllData()
     .catch((error) => {
       console.error("Initial data load failed:", error);
     })
@@ -2954,6 +3091,7 @@ function initApp() {
     }
     sendPresence(false, true).catch(() => {});
   });
+  return initialLoadPromise;
 }
 
 function saveCurrentView(view) {
@@ -3657,6 +3795,16 @@ function checkAuth() {
   if (BACKEND_ENABLED) {
     fetch("/api/session", { cache: "no-store" })
       .then((res) => {
+        if (res.status === 503) {
+          return res.json().catch(() => null).then((payload) => {
+            if (isStoragePendingPayload(payload)) {
+              setBootState(BOOT_STATES.CONNECTING_DB);
+              waitForBackendReady().catch(() => {});
+              throw new Error("STORAGE_NOT_READY");
+            }
+            throw new Error("SESSION_INVALID");
+          });
+        }
         if (!res.ok) throw new Error("SESSION_INVALID");
         return res.json();
       })
@@ -3674,7 +3822,10 @@ function checkAuth() {
         }
         showMainApp();
       })
-      .catch(() => {
+      .catch((error) => {
+        if (error && error.message === "STORAGE_NOT_READY") {
+          return;
+        }
         clearAuthSessionLocal();
         showLogin();
       });
@@ -3989,6 +4140,11 @@ function initTidplanDatePickers() {
 
 /* ==================== AUTH ==================== */
 function handleLogin() {
+  if (appBootState !== BOOT_STATES.READY) {
+    setBootState(BOOT_STATES.CONNECTING_DB);
+    waitForBackendReady().catch(() => {});
+    return;
+  }
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
   if (!email || !password) {
@@ -4003,6 +4159,16 @@ function handleLogin() {
     body: JSON.stringify({ email, password }),
   })
     .then((res) => {
+      if (res.status === 503) {
+        return res.json().catch(() => null).then((payload) => {
+          if (isStoragePendingPayload(payload)) {
+            setBootState(BOOT_STATES.CONNECTING_DB);
+            waitForBackendReady().catch(() => {});
+            throw new Error("STORAGE_NOT_READY");
+          }
+          throw new Error("LOGIN_FAILED");
+        });
+      }
       if (!res.ok) throw new Error("LOGIN_FAILED");
       return res.json();
     })
@@ -4034,19 +4200,37 @@ function handleLogin() {
       renderAll();
       hideLoading();
     })
-    .catch(() => {
+    .catch((error) => {
+      if (error && error.message === "STORAGE_NOT_READY") {
+        return;
+      }
       showToast(t("errWrongCredentials"), "error");
       hideLoading();
     });
 }
 
 function enterReadonlyMode() {
+  if (appBootState !== BOOT_STATES.READY) {
+    setBootState(BOOT_STATES.CONNECTING_DB);
+    waitForBackendReady().catch(() => {});
+    return;
+  }
   showLoading("loadingLogin");
   fetch("/api/login/guest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   })
     .then((res) => {
+      if (res.status === 503) {
+        return res.json().catch(() => null).then((payload) => {
+          if (isStoragePendingPayload(payload)) {
+            setBootState(BOOT_STATES.CONNECTING_DB);
+            waitForBackendReady().catch(() => {});
+            throw new Error("STORAGE_NOT_READY");
+          }
+          throw new Error("READONLY_FAILED");
+        });
+      }
       if (!res.ok) throw new Error("READONLY_FAILED");
       return res.json();
     })
@@ -4069,7 +4253,10 @@ function enterReadonlyMode() {
       renderAll();
       hideLoading();
     })
-    .catch(() => {
+    .catch((error) => {
+      if (error && error.message === "STORAGE_NOT_READY") {
+        return;
+      }
       showToast("Read-only prijava nije uspjela.", "error");
       hideLoading();
     });
@@ -11026,14 +11213,25 @@ function initTidplanFullscreenControls() {
   });
 }
 
+async function bootstrapApp() {
+  setBootState(BOOT_STATES.BOOTING);
+  let bootHealth = null;
+  if (BACKEND_ENABLED) {
+    bootHealth = await waitForBackendReady({ allowTimeoutFallback: true });
+  }
+  await initApp();
+  if (bootHealth?.degraded) {
+    console.warn("Booted in degraded mode while waiting for /api/health.");
+  }
+  setBootState(BOOT_STATES.READY);
+}
+
 window.onload = function () {
-  try {
-    initApp();
-  } catch (err) {
+  bootstrapApp().catch((err) => {
     console.error("initApp failed", err);
     document.body.innerHTML = `<div style="padding:20px;color:#b00;background:#fee;font-family:sans-serif;">
       <h2>Neuspjela inicijalizacija</h2>
       <pre>${err.toString()}</pre>
     </div>`;
-  }
+  });
 };
