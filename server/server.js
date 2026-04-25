@@ -8,6 +8,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
+const { createStorage } = require('./storage');
 
 const app = express();
 
@@ -19,16 +20,35 @@ const PRESENCE_TTL_MS = 60000;
 const BCRYPT_ROUNDS = Number(process.env.BCRYPT_ROUNDS) || 12;
 const SESSION_COOKIE_NAME = process.env.SESSION_COOKIE_NAME || 'cmax_session';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-const STATIC_DIR = path.join(__dirname, '..', 'public');
-const dataDir = path.join(__dirname, 'data');
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-const backupsDir = path.join(__dirname, 'backups');
-const errorLogFile = path.join(dataDir, 'server-errors.log');
-const stateFile = path.join(dataDir, 'state.json');
-const adminsFile = path.join(dataDir, 'admins.json');
-const logsFile = path.join(dataDir, 'logs.json');
-const warehouseFile = path.join(dataDir, 'warehouse.json');
-const warehouseLogsFile = path.join(dataDir, 'warehouse-logs.json');
+const STORAGE_TYPE = process.env.STORAGE_TYPE || 'json';
+const DATABASE_URL = process.env.DATABASE_URL || '';
+const APP_ROOT = path.join(__dirname, '..');
+const STATIC_DIR = path.join(APP_ROOT, 'public');
+
+function resolveRuntimePath(value, fallbackPath) {
+  if (!value) return fallbackPath;
+  return path.isAbsolute(value) ? value : path.resolve(APP_ROOT, value);
+}
+
+const DATA_DIR = resolveRuntimePath(process.env.DATA_PATH, path.join(__dirname, 'data'));
+const UPLOADS_DIR = resolveRuntimePath(process.env.UPLOAD_PATH, path.join(APP_ROOT, 'uploads'));
+const BACKUPS_DIR = resolveRuntimePath(process.env.BACKUP_PATH, path.join(DATA_DIR, 'backups'));
+const dataStorage = createStorage({
+  storageType: STORAGE_TYPE,
+  dataDir: DATA_DIR,
+  uploadsDir: UPLOADS_DIR,
+  backupsDir: BACKUPS_DIR,
+  databaseUrl: DATABASE_URL,
+});
+const dataDir = dataStorage.dataDir;
+const uploadsDir = dataStorage.uploadsDir;
+const backupsDir = dataStorage.backupsDir;
+const errorLogFile = dataStorage.files?.errorLog || path.join(dataDir, 'server-errors.log');
+const stateFile = dataStorage.files?.state || path.join(dataDir, 'state.json');
+const adminsFile = dataStorage.files?.admins || path.join(dataDir, 'admins.json');
+const logsFile = dataStorage.files?.logs || path.join(dataDir, 'logs.json');
+const warehouseFile = dataStorage.files?.warehouse || path.join(dataDir, 'warehouse.json');
+const warehouseLogsFile = dataStorage.files?.warehouseLogs || path.join(dataDir, 'warehouse-logs.json');
 const sessions = new Map();
 const activePresence = new Map();
 
@@ -95,9 +115,11 @@ function ensureDir(dirPath) {
   }
 }
 
-ensureDir(dataDir);
-ensureDir(uploadsDir);
-ensureDir(backupsDir);
+(async () => {
+  await dataStorage.ensureBaseStructure();
+})().catch((error) => {
+  console.error('Failed to prepare storage directories', error);
+});
 
 function logServerError(error, context = 'server') {
   const timestamp = new Date().toISOString();
@@ -144,25 +166,24 @@ function sanitizeSiteKey(site) {
 }
 
 function getReportsFilePath(site) {
-  return path.join(dataDir, `reports_${sanitizeSiteKey(site)}.json`);
+  return dataStorage.getReportsFilePath(sanitizeSiteKey(site));
 }
 
 function getNotificationsFilePath(site) {
-  return path.join(dataDir, `notifications_${sanitizeSiteKey(site)}.json`);
+  return dataStorage.getNotificationsFilePath(sanitizeSiteKey(site));
 }
 
-function readJsonFile(filePath, fallbackValue) {
+async function readJsonFile(filePath, fallbackValue) {
   try {
-    if (!fs.existsSync(filePath)) return fallbackValue;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return await dataStorage.readJson(filePath, fallbackValue);
   } catch (error) {
     logServerError(error, `read:${path.basename(filePath)}`);
     return fallbackValue;
   }
 }
 
-function writeJsonFile(filePath, value) {
-  fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
+async function writeJsonFile(filePath, value) {
+  await dataStorage.writeJson(filePath, value);
 }
 
 function normalizePermissions(permissions, fallback = DEFAULT_PERMISSIONS) {
@@ -198,16 +219,17 @@ function redactAdminRecord(admin) {
   return safeAdmin;
 }
 
-function readAdmins() {
-  return readJsonFile(adminsFile, []).map((admin) => normalizeAdminRecord(admin));
+async function readAdmins() {
+  const admins = await readJsonFile(adminsFile, []);
+  return admins.map((admin) => normalizeAdminRecord(admin));
 }
 
-function writeAdmins(admins) {
-  writeJsonFile(adminsFile, admins.map((admin) => normalizeAdminRecord(admin)));
+async function writeAdmins(admins) {
+  await writeJsonFile(adminsFile, admins.map((admin) => normalizeAdminRecord(admin)));
 }
 
 async function persistAdmins(adminsInput) {
-  const existingAdmins = readAdmins();
+  const existingAdmins = await readAdmins();
   const existingByEmail = new Map(existingAdmins.map((admin) => [admin.email, admin]));
   const nextAdmins = [];
 
@@ -225,16 +247,16 @@ async function persistAdmins(adminsInput) {
     nextAdmins.push(normalized);
   }
 
-  writeJsonFile(adminsFile, nextAdmins);
+  await writeJsonFile(adminsFile, nextAdmins);
 }
 
-function getState() {
-  const state = readJsonFile(stateFile, null);
+async function getState() {
+  const state = await readJsonFile(stateFile, null);
   return state && typeof state === 'object' ? state : null;
 }
 
-function getGuestPermissionsFromState() {
-  const state = getState();
+async function getGuestPermissionsFromState() {
+  const state = await getState();
   return normalizePermissions(state?.guestPermissions || DEFAULT_GUEST_PERMISSIONS, DEFAULT_GUEST_PERMISSIONS);
 }
 
@@ -247,7 +269,7 @@ function generateToken(size = 32) {
 }
 
 async function ensureBootstrapAdmin() {
-  const admins = readAdmins();
+  const admins = await readAdmins();
   if (admins.length > 0) {
     return false;
   }
@@ -257,7 +279,7 @@ async function ensureBootstrapAdmin() {
 
   if (bootstrapEmail && bootstrapPassword && isValidEmail(bootstrapEmail)) {
     const passwordHash = await bcrypt.hash(bootstrapPassword, BCRYPT_ROUNDS);
-    writeAdmins([
+    await writeAdmins([
       {
         email: bootstrapEmail,
         password: passwordHash,
@@ -464,38 +486,38 @@ function validateStatePayload(state) {
   return Boolean(state && typeof state === 'object' && !Array.isArray(state));
 }
 
-function logActivity(userEmail, action, details = {}) {
+async function logActivity(userEmail, action, details = {}) {
   try {
-    const logs = readJsonFile(logsFile, []);
+    const logs = await readJsonFile(logsFile, []);
     logs.push({
       timestamp: new Date().toISOString(),
       user: sanitizeString(userEmail || 'unknown', 160),
       action: sanitizeString(action || 'unknown', 160),
       details: sanitizeObject(details),
     });
-    writeJsonFile(logsFile, logs.slice(-2000));
+    await writeJsonFile(logsFile, logs.slice(-2000));
   } catch (error) {
     logServerError(error, 'logActivity');
   }
 }
 
-function logWarehouseActivity(userEmail, action, details = {}) {
+async function logWarehouseActivity(userEmail, action, details = {}) {
   try {
-    const logs = readJsonFile(warehouseLogsFile, []);
+    const logs = await readJsonFile(warehouseLogsFile, []);
     logs.push({
       timestamp: new Date().toISOString(),
       user: sanitizeString(userEmail || 'unknown', 160),
       action: sanitizeString(action || 'unknown', 160),
       details: sanitizeObject(details),
     });
-    writeJsonFile(warehouseLogsFile, logs.slice(-5000));
+    await writeJsonFile(warehouseLogsFile, logs.slice(-5000));
   } catch (error) {
     logServerError(error, 'logWarehouseActivity');
   }
 }
 
 async function migrateAdminPasswords() {
-  const admins = readAdmins();
+  const admins = await readAdmins();
   let changed = false;
   for (const admin of admins) {
     if (admin.password && !isPasswordHash(admin.password)) {
@@ -503,55 +525,45 @@ async function migrateAdminPasswords() {
       changed = true;
     }
   }
-  if (changed) writeAdmins(admins);
+  if (changed) await writeAdmins(admins);
 }
 
 async function initializeData() {
-  if (!fs.existsSync(adminsFile)) {
-    writeAdmins([]);
-  }
+  await dataStorage.init();
+  await dataStorage.ensureBaseStructure();
+  await dataStorage.ensureJsonFile(adminsFile, []);
 
   await ensureBootstrapAdmin();
 
-  if (!fs.existsSync(stateFile)) {
-    writeJsonFile(stateFile, {
-      version: 2,
-      savedAt: new Date().toISOString(),
-      workers: [],
-      lifts: [],
-      moments: [],
-      plans: [],
-      karnas: [],
-      dailyData: {},
-      guestPermissions: { ...DEFAULT_GUEST_PERMISSIONS },
-      siteData: {},
-      sites: ['default'],
-      currentSite: 'default',
-    });
-  }
+  await dataStorage.ensureJsonFile(stateFile, {
+    version: 2,
+    savedAt: new Date().toISOString(),
+    workers: [],
+    lifts: [],
+    moments: [],
+    plans: [],
+    karnas: [],
+    dailyData: {},
+    guestPermissions: { ...DEFAULT_GUEST_PERMISSIONS },
+    siteData: {},
+    sites: ['default'],
+    currentSite: 'default',
+  });
 
-  if (!fs.existsSync(logsFile)) {
-    writeJsonFile(logsFile, []);
-  }
-
-  if (!fs.existsSync(warehouseLogsFile)) {
-    writeJsonFile(warehouseLogsFile, []);
-  }
-
-  if (!fs.existsSync(warehouseFile)) {
-    writeJsonFile(warehouseFile, {
-      version: 1,
-      items: [],
-      adminAssignments: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-  }
+  await dataStorage.ensureJsonFile(logsFile, []);
+  await dataStorage.ensureJsonFile(warehouseLogsFile, []);
+  await dataStorage.ensureJsonFile(warehouseFile, {
+    version: 1,
+    items: [],
+    adminAssignments: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
 
   const reportsFile = getReportsFilePath('default');
-  if (!fs.existsSync(reportsFile)) writeJsonFile(reportsFile, []);
+  await dataStorage.ensureJsonFile(reportsFile, []);
   const notificationsFile = getNotificationsFilePath('default');
-  if (!fs.existsSync(notificationsFile)) writeJsonFile(notificationsFile, []);
+  await dataStorage.ensureJsonFile(notificationsFile, []);
 
   await migrateAdminPasswords();
   dailyBackup();
@@ -645,6 +657,7 @@ app.get('/api/health', (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
+    storageType: STORAGE_TYPE,
   });
 });
 
@@ -656,15 +669,16 @@ app.post('/api/login', loginLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Invalid credentials' });
     }
 
-    const admin = readAdmins().find((entry) => entry.email === email);
+    const admins = await readAdmins();
+    const admin = admins.find((entry) => entry.email === email);
     if (!admin) {
-      logActivity(email, 'login', { success: false });
+      await logActivity(email, 'login', { success: false });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     const matches = await bcrypt.compare(password, admin.password || '');
     if (!matches) {
-      logActivity(email, 'login', { success: false });
+      await logActivity(email, 'login', { success: false });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -679,7 +693,7 @@ app.post('/api/login', loginLimiter, async (req, res, next) => {
       level: admin.level,
     });
 
-    logActivity(email, 'login', { success: true });
+    await logActivity(email, 'login', { success: true });
     return res.json({
       auth: buildPublicAuthPayload(session),
       csrfToken: session.csrfToken,
@@ -690,9 +704,9 @@ app.post('/api/login', loginLimiter, async (req, res, next) => {
   }
 });
 
-app.post('/api/login/guest', loginLimiter, (req, res, next) => {
+app.post('/api/login/guest', loginLimiter, async (req, res, next) => {
   try {
-    const permissions = getGuestPermissionsFromState();
+    const permissions = await getGuestPermissionsFromState();
     const session = createSession(res, {
       email: 'readonly',
       fullName: 'Read only',
@@ -713,8 +727,8 @@ app.post('/api/login/guest', loginLimiter, (req, res, next) => {
   }
 });
 
-app.post('/api/logout', requireAuth, requireCsrf, (req, res) => {
-  logActivity(req.session.email, 'logout', {});
+app.post('/api/logout', requireAuth, requireCsrf, async (req, res) => {
+  await logActivity(req.session.email, 'logout', {});
   clearSession(req, res);
   cleanupPresence();
   res.json({ success: true });
@@ -756,16 +770,21 @@ const apiRouter = express.Router();
 apiRouter.use(requireAuth);
 apiRouter.use(requireCsrf);
 
-apiRouter.get('/state', (req, res) => {
-  const data = getState();
+apiRouter.get('/state', async (req, res, next) => {
+  try {
+  const data = await getState();
   if (!data) return res.json({ state: null });
   const responseState = { ...data };
   if (Array.isArray(responseState.admins)) {
     responseState.admins = responseState.admins.map((admin) => redactAdminRecord(admin));
   } else if (responseState.version === 2) {
-    responseState.admins = readAdmins().map((admin) => redactAdminRecord(admin));
+    const admins = await readAdmins();
+    responseState.admins = admins.map((admin) => redactAdminRecord(admin));
   }
   res.json({ state: responseState });
+  } catch (error) {
+    next(error);
+  }
 });
 
 apiRouter.post('/state', requireAdmin, async (req, res, next) => {
@@ -780,7 +799,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       return res.status(403).json({ error: 'Read-only users cannot modify state' });
     }
     
-    writeJsonFile(stateFile, {
+    await writeJsonFile(stateFile, {
       ...state,
       savedAt: new Date().toISOString(),
       savedBy: req.session.email,
@@ -809,7 +828,7 @@ apiRouter.post('/admin/toggle-readonly', requirePermission('canToggleReadOnly'),
       return res.status(403).json({ error: 'Only super admins can manage read-only mode' });
     }
     
-    const admins = readAdmins();
+    const admins = await readAdmins();
     const adminIndex = admins.findIndex((a) => a.email === targetEmail);
     
     if (adminIndex < 0) {
@@ -820,7 +839,7 @@ apiRouter.post('/admin/toggle-readonly', requirePermission('canToggleReadOnly'),
     admin.isReadonly = !admin.isReadonly;
     
     await persistAdmins(admins);
-    logActivity(req.session.email, 'toggle_readonly_mode', {
+    await logActivity(req.session.email, 'toggle_readonly_mode', {
       targetEmail,
       newStatus: admin.isReadonly,
     });
@@ -849,7 +868,7 @@ apiRouter.post('/admin/set-readonly-sites', requirePermission('canModifyReadOnly
       return res.status(403).json({ error: 'Only super admins can manage read-only access' });
     }
     
-    const admins = readAdmins();
+    const admins = await readAdmins();
     const adminIndex = admins.findIndex((a) => a.email === targetEmail);
     
     if (adminIndex < 0) {
@@ -874,7 +893,7 @@ apiRouter.post('/admin/set-readonly-sites', requirePermission('canModifyReadOnly
     }
     
     await persistAdmins(admins);
-    logActivity(req.session.email, 'set_readonly_sites', {
+    await logActivity(req.session.email, 'set_readonly_sites', {
       targetEmail,
       sites: admin.allowedSites,
     });
@@ -903,7 +922,8 @@ apiRouter.get('/admin/readonly-status', requirePermission('canViewSettings'), as
       return res.status(403).json({ error: 'Access denied' });
     }
     
-    const admin = readAdmins().find((a) => a.email === targetEmail);
+    const admins = await readAdmins();
+    const admin = admins.find((a) => a.email === targetEmail);
     if (!admin) {
       return res.status(404).json({ error: 'Admin not found' });
     }
@@ -960,24 +980,28 @@ apiRouter.post('/presence', (req, res) => {
   res.json({ success: true });
 });
 
-apiRouter.post('/upload', requireAdmin, upload.single('file'), (req, res) => {
-  if (req.session.isReadonly) {
-    return res.status(403).json({ error: 'Read-only users cannot upload files' });
+apiRouter.post('/upload', requireAdmin, upload.single('file'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) {
+      return res.status(403).json({ error: 'Read-only users cannot upload files' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const fileInfo = {
+      originalName: sanitizeString(req.file.originalname, 255),
+      filename: req.file.filename,
+      url: getUploadUrl(req.file.path),
+      size: req.file.size,
+      mimetype: req.file.mimetype,
+      uploadDate: new Date().toISOString(),
+    };
+    await logActivity(req.session.email, 'file_upload', {
+      filename: fileInfo.originalName,
+      size: fileInfo.size,
+    });
+    res.json({ success: true, file: fileInfo });
+  } catch (error) {
+    next(error);
   }
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const fileInfo = {
-    originalName: sanitizeString(req.file.originalname, 255),
-    filename: req.file.filename,
-    url: getUploadUrl(req.file.path),
-    size: req.file.size,
-    mimetype: req.file.mimetype,
-    uploadDate: new Date().toISOString(),
-  };
-  logActivity(req.session.email, 'file_upload', {
-    filename: fileInfo.originalName,
-    size: fileInfo.size,
-  });
-  res.json({ success: true, file: fileInfo });
 });
 
 apiRouter.get('/files', requireAdmin, (req, res) => {
@@ -999,16 +1023,21 @@ apiRouter.get('/files', requireAdmin, (req, res) => {
   res.json({ files });
 });
 
-apiRouter.get('/reports', requireAuth, (req, res) => {
+apiRouter.get('/reports', requireAuth, async (req, res, next) => {
+  try {
   const site = sanitizeString(req.query.site || 'default', 80);
   if (!canAccessSite(req.session, site)) {
     return res.status(403).json({ error: 'Access denied to this site' });
   }
-  const reports = readJsonFile(getReportsFilePath(site), []);
+  const reports = await readJsonFile(getReportsFilePath(site), []);
   res.json(Array.isArray(reports) ? reports : []);
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.post('/reports', requirePermission('canCreateReports'), (req, res) => {
+apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, res, next) => {
+  try {
   if (req.session.isReadonly) {
     return res.status(403).json({ error: 'Read-only users cannot modify reports' });
   }
@@ -1020,21 +1049,29 @@ apiRouter.post('/reports', requirePermission('canCreateReports'), (req, res) => 
   if (!Array.isArray(reports)) {
     return res.status(400).json({ error: 'Invalid reports payload' });
   }
-  writeJsonFile(getReportsFilePath(site), reports);
-  logActivity(req.session.email, 'save_reports', { count: reports.length, site });
+  await writeJsonFile(getReportsFilePath(site), reports);
+  await logActivity(req.session.email, 'save_reports', { count: reports.length, site });
   res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.get('/notifications', requirePermission('canViewNotifications'), (req, res) => {
+apiRouter.get('/notifications', requirePermission('canViewNotifications'), async (req, res, next) => {
+  try {
   const site = sanitizeString(req.query.site || 'default', 80);
   if (!canAccessSite(req.session, site)) {
     return res.status(403).json({ error: 'Access denied to this site' });
   }
-  const notifications = readJsonFile(getNotificationsFilePath(site), []);
+  const notifications = await readJsonFile(getNotificationsFilePath(site), []);
   res.json(Array.isArray(notifications) ? notifications : []);
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.post('/notifications', requirePermission('canManageNotifications'), (req, res) => {
+apiRouter.post('/notifications', requirePermission('canManageNotifications'), async (req, res, next) => {
+  try {
   if (req.session.isReadonly) {
     return res.status(403).json({ error: 'Read-only users cannot modify notifications' });
   }
@@ -1046,44 +1083,63 @@ apiRouter.post('/notifications', requirePermission('canManageNotifications'), (r
   if (!Array.isArray(notifications)) {
     return res.status(400).json({ error: 'Invalid notifications payload' });
   }
-  writeJsonFile(getNotificationsFilePath(site), notifications);
-  logActivity(req.session.email, 'save_notifications', { count: notifications.length, site });
+  await writeJsonFile(getNotificationsFilePath(site), notifications);
+  await logActivity(req.session.email, 'save_notifications', { count: notifications.length, site });
   res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.get('/logs', requirePermission('canViewLogs'), (req, res) => {
-  const logs = readJsonFile(logsFile, []);
-  res.json(Array.isArray(logs) ? logs : []);
+apiRouter.get('/logs', requirePermission('canViewLogs'), async (req, res, next) => {
+  try {
+    const logs = await readJsonFile(logsFile, []);
+    res.json(Array.isArray(logs) ? logs : []);
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.post('/logs', (req, res) => {
-  const action = sanitizeString(req.body?.action || 'client_log', 200);
-  const details = sanitizeObject(req.body?.details || {});
-  logActivity(req.session.email, action, details);
-  res.json({ success: true });
+apiRouter.post('/logs', async (req, res, next) => {
+  try {
+    const action = sanitizeString(req.body?.action || 'client_log', 200);
+    const details = sanitizeObject(req.body?.details || {});
+    await logActivity(req.session.email, action, details);
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.delete('/logs', requirePermission('canClearLogs'), (req, res) => {
-  writeJsonFile(logsFile, []);
-  logActivity(req.session.email, 'clear_logs', {});
-  res.json({ success: true });
+apiRouter.delete('/logs', requirePermission('canClearLogs'), async (req, res, next) => {
+  try {
+    await writeJsonFile(logsFile, []);
+    await logActivity(req.session.email, 'clear_logs', {});
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
 /* ==================== WAREHOUSE MANAGEMENT ==================== */
 
-apiRouter.get('/warehouse', requirePermission('canViewWarehouse'), (req, res) => {
-  const warehouse = readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
-  res.json(warehouse);
+apiRouter.get('/warehouse', requirePermission('canViewWarehouse'), async (req, res, next) => {
+  try {
+    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
+    res.json(warehouse);
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.post('/warehouse', requirePermission('canManageWarehouse'), (req, res, next) => {
+apiRouter.post('/warehouse', requirePermission('canManageWarehouse'), async (req, res, next) => {
   try {
     const item = sanitizeObject(req.body?.item);
     if (!item || !item.id) {
       return res.status(400).json({ error: 'Invalid item payload. Must include id.' });
     }
     
-    const warehouse = readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
+    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
     const existingIndex = warehouse.items.findIndex((i) => i.id === item.id);
     
     const warehouseItem = {
@@ -1100,28 +1156,28 @@ apiRouter.post('/warehouse', requirePermission('canManageWarehouse'), (req, res,
     
     if (existingIndex >= 0) {
       warehouse.items[existingIndex] = warehouseItem;
-      logWarehouseActivity(req.session.email, 'update_item', { id: item.id, name: warehouseItem.name });
+      await logWarehouseActivity(req.session.email, 'update_item', { id: item.id, name: warehouseItem.name });
     } else {
       warehouse.items.push(warehouseItem);
-      logWarehouseActivity(req.session.email, 'create_item', { id: item.id, name: warehouseItem.name });
+      await logWarehouseActivity(req.session.email, 'create_item', { id: item.id, name: warehouseItem.name });
     }
     
     warehouse.updatedAt = new Date().toISOString();
-    writeJsonFile(warehouseFile, warehouse);
+    await writeJsonFile(warehouseFile, warehouse);
     res.json({ success: true, item: warehouseItem });
   } catch (error) {
     next(error);
   }
 });
 
-apiRouter.delete('/warehouse/:itemId', requirePermission('canManageWarehouse'), (req, res, next) => {
+apiRouter.delete('/warehouse/:itemId', requirePermission('canManageWarehouse'), async (req, res, next) => {
   try {
     const itemId = sanitizeString(req.params.itemId || '', 120);
     if (!itemId) {
       return res.status(400).json({ error: 'Missing itemId' });
     }
     
-    const warehouse = readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
+    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
     const index = warehouse.items.findIndex((i) => i.id === itemId);
     
     if (index < 0) {
@@ -1141,21 +1197,25 @@ apiRouter.delete('/warehouse/:itemId', requirePermission('canManageWarehouse'), 
     }
     
     warehouse.updatedAt = new Date().toISOString();
-    writeJsonFile(warehouseFile, warehouse);
+    await writeJsonFile(warehouseFile, warehouse);
     
-    logWarehouseActivity(req.session.email, 'delete_item', { id: itemId, name: deletedItem.name });
+    await logWarehouseActivity(req.session.email, 'delete_item', { id: itemId, name: deletedItem.name });
     res.json({ success: true });
   } catch (error) {
     next(error);
   }
 });
 
-apiRouter.get('/warehouse/admin-assignments', requirePermission('canViewWarehouse'), (req, res) => {
-  const warehouse = readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
-  res.json(warehouse.adminAssignments || {});
+apiRouter.get('/warehouse/admin-assignments', requirePermission('canViewWarehouse'), async (req, res, next) => {
+  try {
+    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
+    res.json(warehouse.adminAssignments || {});
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.post('/warehouse/assign-admin', requirePermission('canAssignWarehouseToAdmin'), (req, res, next) => {
+apiRouter.post('/warehouse/assign-admin', requirePermission('canAssignWarehouseToAdmin'), async (req, res, next) => {
   try {
     const adminEmail = sanitizeString(req.body?.adminEmail || '', 160).toLowerCase();
     const itemIds = Array.isArray(req.body?.itemIds) ? req.body.itemIds : [];
@@ -1169,12 +1229,13 @@ apiRouter.post('/warehouse/assign-admin', requirePermission('canAssignWarehouseT
     }
     
     // Verify admin exists
-    const admin = readAdmins().find((a) => a.email === adminEmail);
+    const admins = await readAdmins();
+    const admin = admins.find((a) => a.email === adminEmail);
     if (!admin) {
       return res.status(404).json({ error: 'Admin not found' });
     }
     
-    const warehouse = readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
+    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
     const sanitizedItemIds = itemIds
       .map((id) => sanitizeString(id, 120))
       .filter((id) => warehouse.items.some((item) => item.id === id));
@@ -1189,9 +1250,9 @@ apiRouter.post('/warehouse/assign-admin', requirePermission('canAssignWarehouseT
     
     warehouse.adminAssignments[adminEmail] = mergedAssignments;
     warehouse.updatedAt = new Date().toISOString();
-    writeJsonFile(warehouseFile, warehouse);
+    await writeJsonFile(warehouseFile, warehouse);
     
-    logWarehouseActivity(req.session.email, 'assign_admin', {
+    await logWarehouseActivity(req.session.email, 'assign_admin', {
       adminEmail,
       itemIds: sanitizedItemIds,
     });
@@ -1201,7 +1262,7 @@ apiRouter.post('/warehouse/assign-admin', requirePermission('canAssignWarehouseT
   }
 });
 
-apiRouter.post('/warehouse/unassign-admin', requirePermission('canAssignWarehouseToAdmin'), (req, res, next) => {
+apiRouter.post('/warehouse/unassign-admin', requirePermission('canAssignWarehouseToAdmin'), async (req, res, next) => {
   try {
     const adminEmail = sanitizeString(req.body?.adminEmail || '', 160).toLowerCase();
     const itemIds = Array.isArray(req.body?.itemIds) ? req.body.itemIds : [];
@@ -1214,7 +1275,7 @@ apiRouter.post('/warehouse/unassign-admin', requirePermission('canAssignWarehous
       return res.status(400).json({ error: 'No items to unassign' });
     }
     
-    const warehouse = readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
+    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
     const sanitizedItemIds = itemIds.map((id) => sanitizeString(id, 120));
     
     if (!warehouse.adminAssignments[adminEmail]) {
@@ -1230,9 +1291,9 @@ apiRouter.post('/warehouse/unassign-admin', requirePermission('canAssignWarehous
     }
     
     warehouse.updatedAt = new Date().toISOString();
-    writeJsonFile(warehouseFile, warehouse);
+    await writeJsonFile(warehouseFile, warehouse);
     
-    logWarehouseActivity(req.session.email, 'unassign_admin', {
+    await logWarehouseActivity(req.session.email, 'unassign_admin', {
       adminEmail,
       itemIds: sanitizedItemIds,
     });
@@ -1242,15 +1303,23 @@ apiRouter.post('/warehouse/unassign-admin', requirePermission('canAssignWarehous
   }
 });
 
-apiRouter.get('/warehouse-logs', requirePermission('canViewLogs'), (req, res) => {
-  const logs = readJsonFile(warehouseLogsFile, []);
-  res.json(Array.isArray(logs) ? logs : []);
+apiRouter.get('/warehouse-logs', requirePermission('canViewLogs'), async (req, res, next) => {
+  try {
+    const logs = await readJsonFile(warehouseLogsFile, []);
+    res.json(Array.isArray(logs) ? logs : []);
+  } catch (error) {
+    next(error);
+  }
 });
 
-apiRouter.delete('/warehouse-logs', requirePermission('canClearLogs'), (req, res) => {
-  writeJsonFile(warehouseLogsFile, []);
-  logWarehouseActivity(req.session.email, 'clear_warehouse_logs', {});
-  res.json({ success: true });
+apiRouter.delete('/warehouse-logs', requirePermission('canClearLogs'), async (req, res, next) => {
+  try {
+    await writeJsonFile(warehouseLogsFile, []);
+    await logWarehouseActivity(req.session.email, 'clear_warehouse_logs', {});
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.use('/api', apiRouter);
@@ -1281,6 +1350,7 @@ initializeData()
     setInterval(dailyBackup, 24 * 60 * 60 * 1000).unref();
     app.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
+      console.log(`Storage type: ${STORAGE_TYPE}`);
       console.log(`Data directory: ${dataDir}`);
       console.log(`Uploads directory: ${uploadsDir}`);
       if (!IS_PRODUCTION) {
