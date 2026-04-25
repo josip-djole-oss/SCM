@@ -246,60 +246,6 @@ function generateToken(size = 32) {
   return crypto.randomBytes(size).toString('hex');
 }
 
-function getAllowedOrigins() {
-  const configured = [
-    String(process.env.CORS_ORIGIN || ''),
-    String(process.env.CORS_ORIGINS || ''),
-  ]
-    .join(',')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-  if (configured.length) return configured;
-  return [
-    `http://localhost:${PORT}`,
-    `http://127.0.0.1:${PORT}`,
-  ];
-}
-
-function shouldAllowAnyCorsOrigin() {
-  return String(process.env.CORS_ALLOW_ALL || '').trim().toLowerCase() === 'true';
-}
-
-function createCorsOriginHandler() {
-  return (origin, callback) => {
-    if (!origin) return callback(null, true);
-    
-    // Allow if explicitly configured to allow all
-    if (shouldAllowAnyCorsOrigin()) return callback(null, true);
-    
-    // In production, allow requests from same host (for deployed apps)
-    // and any configured origins
-    if (IS_PRODUCTION) {
-      const allowedOrigin = allowedOrigins[0];
-      if (allowedOrigin && origin.includes(allowedOrigin)) {
-        return callback(null, true);
-      }
-      // Also allow if explicitly in whitelist
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      // In production, if no origins configured, allow current domain
-      if (!allowedOrigins.filter(o => o !== `http://localhost:${PORT}` && o !== `http://127.0.0.1:${PORT}`).length) {
-        return callback(null, true);
-      }
-    }
-    
-    // In development, be more permissive
-    if (!IS_PRODUCTION) {
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      // Allow localhost variations in dev
-      if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
-      return callback(null, true); // Allow all in dev
-    }
-    
-    return callback(new Error('Origin not allowed by CORS'));
-  };
-}
-
 async function ensureBootstrapAdmin() {
   const admins = readAdmins();
   if (admins.length > 0) {
@@ -329,7 +275,7 @@ async function ensureBootstrapAdmin() {
   return false;
 }
 
-const allowedOrigins = getAllowedOrigins();
+const allowedOrigins = (process.env.CORS_ORIGIN || "").split(",").filter(o => o.trim());
 
 function buildPublicAuthPayload(session) {
   return {
@@ -610,8 +556,12 @@ app.use(helmet({
 }));
 app.use(cookieParser());
 app.use(cors({
-  origin: createCorsOriginHandler(),
-  credentials: true,
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error("Origin not allowed by CORS"));
+  },
+  credentials: true
 }));
 app.use(express.json({ limit: API_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: API_BODY_LIMIT }));
