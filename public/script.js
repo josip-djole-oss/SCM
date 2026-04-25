@@ -2025,6 +2025,7 @@ const documentVersions = {
   reportsBySite: {},
   notificationsBySite: {},
 };
+const WAREHOUSE_ALERTS_SEEN_KEY = "cmax_warehouse_alerts_seen";
 
 const DEFAULT_PERMISSIONS = {
   canAccessPlanner: true,
@@ -2032,6 +2033,8 @@ const DEFAULT_PERMISSIONS = {
   canAccessBins: true,
   canAccessWarehouse: true,
   canManageWarehouse: true,
+  canManageWarehouseStock: false,
+  canManageWarehouseIssue: false,
   canViewWarehouseLogs: true,
   canViewWarehouseAnalytics: true,
   canViewNotifications: true,
@@ -2095,6 +2098,8 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canManageWarehouse",
+    "canManageWarehouseStock",
+    "canManageWarehouseIssue",
     "canViewNotifications",
     "canCreateReports",
     "canPrint",
@@ -2121,6 +2126,8 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canManageWarehouse",
+    "canManageWarehouseStock",
+    "canManageWarehouseIssue",
     "canViewWarehouseLogs",
     "canViewWarehouseAnalytics",
     "canViewNotifications",
@@ -2143,6 +2150,8 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canEditBinsData",
     "canManageBinsPlans",
     "canManageBinsPermissions",
+    "canManageWarehouseStock",
+    "canManageWarehouseIssue",
     "canManageNotifications",
     "canApproveReports",
     "canViewLogs",
@@ -2154,6 +2163,8 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canManageWarehouse",
+    "canManageWarehouseStock",
+    "canManageWarehouseIssue",
     "canViewWarehouseLogs",
     "canViewWarehouseAnalytics",
     "canViewNotifications",
@@ -2307,6 +2318,8 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canAccessTidplan: true,
   canAccessBins: false,
   canAccessWarehouse: false,
+  canManageWarehouseStock: false,
+  canManageWarehouseIssue: false,
   canViewWarehouseLogs: false,
   canViewWarehouseAnalytics: false,
   canViewNotifications: false,
@@ -2365,6 +2378,8 @@ const ADMIN_PERMISSION_SECTIONS = [
     keys: [
       "canAccessWarehouse",
       "canManageWarehouse",
+      "canManageWarehouseStock",
+      "canManageWarehouseIssue",
       "canViewWarehouseLogs",
       "canViewWarehouseAnalytics",
     ],
@@ -2624,6 +2639,7 @@ function getDefaultWarehouseData() {
       direction: "in",
       comment: "",
     },
+    alertSeenByUser: {},
     logs: [],
   };
 }
@@ -2679,6 +2695,10 @@ function normalizeWarehouseData(rawWarehouse) {
       direction: raw.stockForm?.direction === "out" ? "out" : "in",
       comment: (raw.stockForm?.comment || "").toString(),
     },
+    alertSeenByUser:
+      raw.alertSeenByUser && typeof raw.alertSeenByUser === "object"
+        ? { ...raw.alertSeenByUser }
+        : {},
     logs: Array.isArray(raw.logs)
       ? raw.logs.map((entry) => createWarehouseLogEntry(entry))
       : [],
@@ -2812,7 +2832,12 @@ function saveGuestPermissions(permissions) {
 }
 
 function getPermissionLabel(key) {
-  return t(`perm_${key}`);
+  const translated = t(`perm_${key}`);
+  if (translated && translated !== `perm_${key}`) return translated;
+  return key
+    .replace(/^can/, "")
+    .replace(/([A-Z])/g, " $1")
+    .trim();
 }
 
 function hasPermission(key) {
@@ -2825,6 +2850,10 @@ function hasPermission(key) {
 
 function hasAdminPermission(key) {
   return appState.isSuperAdmin || (!appState.isReadonly && appState.permissions[key] !== false);
+}
+
+function getCurrentUserEmail() {
+  return (appState.currentUser || "").trim().toLowerCase();
 }
 
 function getGuestWarehouseSiteAccess(site = currentSite) {
@@ -2872,6 +2901,39 @@ function canEditWarehouse() {
   return !appState.isReadonly && hasPermission("canManageWarehouse");
 }
 
+function isWarehouseElevatedUser() {
+  return appState.isSuperAdmin || getCurrentAdminLevel() >= 6;
+}
+
+function isWarehouseProcurementOwner(item) {
+  if (!item) return false;
+  const currentUserEmail = getCurrentUserEmail();
+  return Boolean(currentUserEmail) && currentUserEmail === (item.notifyPerson || "").trim().toLowerCase();
+}
+
+function canManageWarehouseCatalog() {
+  if (appState.isReadonly || !hasPermission("canManageWarehouse")) return false;
+  if (isWarehouseElevatedUser()) return true;
+  return getVisibleWarehouseCatalog().some((item) => isWarehouseProcurementOwner(item));
+}
+
+function canManageWarehouseCatalogItem(item) {
+  if (appState.isReadonly || !hasPermission("canManageWarehouse")) return false;
+  return isWarehouseElevatedUser() || isWarehouseProcurementOwner(item);
+}
+
+function canManageWarehouseStock() {
+  if (appState.isReadonly) return false;
+  if (isWarehouseElevatedUser()) return true;
+  return hasPermission("canManageWarehouseStock");
+}
+
+function canManageWarehouseIssue() {
+  if (appState.isReadonly) return false;
+  if (isWarehouseElevatedUser()) return true;
+  return hasPermission("canManageWarehouseIssue");
+}
+
 function canViewWarehouseLogsSection() {
   if (!hasPermission("canViewWarehouseLogs")) return false;
   if (!appState.isReadonly) return true;
@@ -2882,6 +2944,93 @@ function canViewWarehouseAnalyticsSection() {
   if (!hasPermission("canViewWarehouseAnalytics")) return false;
   if (!appState.isReadonly) return true;
   return getGuestWarehouseSiteAccess().allowedItemIds.length > 0;
+}
+
+function getWarehouseResponsibleOptions(site = currentSite) {
+  return getAdmins()
+    .filter((admin) => {
+      if (!admin || !admin.email) return false;
+      if (admin.isSuperAdmin) return true;
+      if (!Array.isArray(admin.allowedSites)) return true;
+      return admin.allowedSites.includes(site);
+    })
+    .sort((a, b) => compareNaturally(a.fullName || a.email, b.fullName || b.email));
+}
+
+function getWarehouseResponsibleLabel(email, site = currentSite) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return t("warehouseNoAssignedAdmin");
+  const admin = getWarehouseResponsibleOptions(site).find(
+    (entry) => entry.email === normalizedEmail,
+  );
+  return admin?.fullName || admin?.email || normalizedEmail;
+}
+
+function getWarehouseAlertKey(alert) {
+  return [
+    currentSite,
+    alert?.item?.id || "",
+    alert?.stock?.current || 0,
+    alert?.item?.minimum || 0,
+  ].join(":");
+}
+
+function getWarehouseSeenAlertsMap() {
+  return safeParseStoredJson(localStorage.getItem(WAREHOUSE_ALERTS_SEEN_KEY), {}) || {};
+}
+
+function saveWarehouseSeenAlertsMap(map) {
+  localStorage.setItem(WAREHOUSE_ALERTS_SEEN_KEY, JSON.stringify(map || {}));
+}
+
+function getWarehouseSeenAlertsForUser() {
+  const all = getWarehouseSeenAlertsMap();
+  const userKey = `${currentSite}::${getCurrentUserEmail() || "guest"}`;
+  return Array.isArray(all[userKey]) ? all[userKey] : [];
+}
+
+function setWarehouseSeenAlertsForUser(alertKeys) {
+  const all = getWarehouseSeenAlertsMap();
+  const userKey = `${currentSite}::${getCurrentUserEmail() || "guest"}`;
+  all[userKey] = Array.from(new Set((alertKeys || []).filter(Boolean)));
+  saveWarehouseSeenAlertsMap(all);
+}
+
+function canSeeWarehouseAlert(alert) {
+  if (!alert || appState.isReadonly) return false;
+  return isWarehouseElevatedUser() || isWarehouseProcurementOwner(alert.item);
+}
+
+function markVisibleWarehouseAlertsSeen() {
+  const visibleAlertKeys = getWarehouseAlerts()
+    .filter((alert) => canSeeWarehouseAlert(alert))
+    .map((alert) => getWarehouseAlertKey(alert));
+  if (!visibleAlertKeys.length) return;
+  const seen = new Set(getWarehouseSeenAlertsForUser());
+  visibleAlertKeys.forEach((key) => seen.add(key));
+  setWarehouseSeenAlertsForUser(Array.from(seen));
+}
+
+function updateWarehouseAlertBadge() {
+  let badge = document.getElementById("warehouseNotifBadge");
+  if (!badge) {
+    const button = document.getElementById("btnWarehouse");
+    if (button) {
+      badge = document.createElement("span");
+      badge.id = "warehouseNotifBadge";
+      badge.className = "notif-badge";
+      badge.style.display = "none";
+      button.appendChild(badge);
+    }
+  }
+  if (!badge) return;
+  const seen = getWarehouseSeenAlertsForUser();
+  const unseenCount = getWarehouseAlerts().filter((alert) => {
+    if (!canSeeWarehouseAlert(alert)) return false;
+    return !seen.includes(getWarehouseAlertKey(alert));
+  }).length;
+  badge.textContent = unseenCount;
+  badge.style.display = unseenCount > 0 && canAccessWarehouseModule() ? "inline-flex" : "none";
 }
 
 function canAccessNotificationsModule() {
@@ -4147,6 +4296,8 @@ function applyPermissionVisibility() {
   setElVisibility("warehouseNavGraphBtn", canWarehouseGraph);
   setElVisibility("warehouseLogsGraphBtn", canWarehouseGraph);
   setElVisibility("warehouseGraphLogsBtn", canWarehouseLogs);
+  updateSaveButtonVisibility();
+  updateWarehouseAlertBadge();
 }
 
 /* ==================== FLATPICKR INIT ==================== */
@@ -4439,23 +4590,27 @@ function updateDateDisplay() {
 
 function updatePrintDate() {
   const el = document.getElementById("printHeaderDate");
-  if (el) {
-    const date = new Date(appState.currentDate + "T00:00:00");
-    const locale =
-      { hr: "hr-HR", en: "en-US", sv: "sv-SE" }[currentLang] || "hr-HR";
-    el.textContent =
-      "CMAX SCM — " +
-      date
-        .toLocaleDateString(locale, {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
-        .toUpperCase();
-  }
+  if (!el) return;
+  const date = new Date(appState.currentDate + "T00:00:00");
+  const locale =
+    { hr: "hr-HR", en: "en-US", sv: "sv-SE" }[currentLang] || "hr-HR";
+  const formattedDate = date
+    .toLocaleDateString(locale, {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+    .toUpperCase();
+  el.innerHTML = `
+    <div class="print-brand-block">
+      <img src="cmaxlogo.png" alt="CMAX Logo" class="print-brand-logo" />
+      <div class="print-brand-title">CMAX SCM</div>
+      <div class="print-brand-site">${escapeHtml(currentSite || "")}</div>
+      <div class="print-brand-date">${escapeHtml(formattedDate)}</div>
+    </div>
+  `;
 }
-
 function getCurrentLocale() {
   return { hr: "hr-HR", en: "en-US", sv: "sv-SE" }[currentLang] || "hr-HR";
 }
@@ -5258,6 +5413,7 @@ function updateNotifBadge() {
   }
 
   updateNotificationsBadge();
+  updateWarehouseAlertBadge();
 }
 
 function getUnreadNotificationsCount() {
@@ -7789,10 +7945,7 @@ function toggleBinsView() {
     document.querySelector(".lists-container").classList.add("hidden");
     document.getElementById("binsSection").classList.add("active");
     document.getElementById("btnBins").classList.add("btn-success");
-    // Show Save button if there are unsaved changes
-    if (appState.hasUnsavedChanges) {
-      document.getElementById("btnSave").style.display = "inline-flex";
-    }
+    updateSaveButtonVisibility();
     if (appState.isSuperAdmin) {
       document.getElementById("binsAdminControls").style.display = "flex";
     }
@@ -7809,10 +7962,7 @@ function toggleBinsView() {
     document.querySelector(".lists-container").classList.remove("hidden");
     document.getElementById("binsSection").classList.remove("active");
     document.getElementById("btnBins").classList.remove("btn-success");
-    // Show Save button if there are unsaved changes
-    if (appState.hasUnsavedChanges) {
-      document.getElementById("btnSave").style.display = "inline-flex";
-    }
+    updateSaveButtonVisibility();
     addLog("Switched to Main view");
     sendPresence(true).catch(() => {});
     refreshPresence().catch(() => {});
@@ -8197,7 +8347,6 @@ function persistWarehouseData() {
 }
 
 function getWarehouseAlerts() {
-  const responsibleAdminsLabel = getWarehouseResponsibleAdminsLabel();
   return getVisibleWarehouseCatalog()
     .map((item) => {
       const stock = ensureWarehouseStockRecord(item.id);
@@ -8211,19 +8360,14 @@ function getWarehouseAlerts() {
           unit: item.unit || "kom",
           minimum: item.minimum,
         }),
-        notifyLabel: responsibleAdminsLabel,
+        notifyLabel: getWarehouseResponsibleLabel(item.notifyPerson),
       };
     })
     .filter(Boolean);
 }
 
 function getWarehouseResponsibleAdmins(site = currentSite) {
-  return getAdmins().filter((admin) => {
-    if (!admin || !admin.email) return false;
-    if (admin.isSuperAdmin) return true;
-    if (!Array.isArray(admin.allowedSites)) return true;
-    return admin.allowedSites.includes(site);
-  });
+  return getWarehouseResponsibleOptions(site);
 }
 
 function getWarehouseResponsibleAdminsLabel(site = currentSite) {
@@ -8248,7 +8392,7 @@ function createWarehouseSelect(selectedValue, onchange) {
     if (item.id === selectedValue) option.selected = true;
     select.appendChild(option);
   });
-  select.disabled = !canEditWarehouse();
+  select.disabled = !canManageWarehouseIssue();
   select.addEventListener("change", onchange);
   return select;
 }
@@ -8267,7 +8411,7 @@ function createWorkerSelect(selectedValue, onchange) {
     if (worker === selectedValue) option.selected = true;
     select.appendChild(option);
   });
-  select.disabled = !canEditWarehouse();
+  select.disabled = !canManageWarehouseIssue();
   select.addEventListener("change", onchange);
   return select;
 }
@@ -8275,6 +8419,7 @@ function createWorkerSelect(selectedValue, onchange) {
 function saveWarehouseDraft() {
   persistWarehouseData();
   renderWarehouseIssueTable();
+  updateWarehouseAlertBadge();
 }
 
 function renderWarehouseIssueTable() {
@@ -8307,7 +8452,7 @@ function renderWarehouseIssueTable() {
     qtyInput.min = "1";
     qtyInput.value = Math.max(Number(slot.quantity) || 1, 1);
     qtyInput.className = "warehouse-qty-input";
-    qtyInput.disabled = !canEditWarehouse();
+    qtyInput.disabled = !canManageWarehouseIssue();
     qtyInput.addEventListener("change", () => {
       warehouseData.issueDraft.slots[slotIndex].quantity = Math.max(Number(qtyInput.value) || 1, 1);
       saveWarehouseDraft();
@@ -8323,7 +8468,7 @@ function renderWarehouseIssueTable() {
   commentInput.className = "warehouse-comment-input";
   commentInput.placeholder = t("warehouseStockCommentPlaceholder");
   commentInput.value = warehouseData.issueDraft.comment || "";
-  commentInput.disabled = !canEditWarehouse();
+  commentInput.disabled = !canManageWarehouseIssue();
   commentInput.addEventListener("change", () => {
     warehouseData.issueDraft.comment = commentInput.value;
     saveWarehouseDraft();
@@ -8335,7 +8480,7 @@ function renderWarehouseIssueTable() {
   const saveBtn = document.createElement("button");
   saveBtn.className = "btn";
   saveBtn.textContent = t("warehouseSave");
-  saveBtn.disabled = !canEditWarehouse();
+  saveBtn.disabled = !canManageWarehouseIssue();
   saveBtn.addEventListener("click", saveWarehouseIssueRow);
   actionsTd.appendChild(saveBtn);
   tr.appendChild(actionsTd);
@@ -8346,7 +8491,6 @@ function renderWarehouseInventorySummary() {
   const tbody = document.getElementById("warehouseInventoryBody");
   if (!tbody || !warehouseData) return;
   tbody.innerHTML = "";
-  const responsibleAdminsLabel = getWarehouseResponsibleAdminsLabel();
   const visibleCatalog = getVisibleWarehouseCatalog();
   if (!visibleCatalog.length) {
     tbody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("warehouseNoVisibleItems"))}</td></tr>`;
@@ -8365,7 +8509,7 @@ function renderWarehouseInventorySummary() {
       <td>${stock.totalIssued}</td>
       <td>${stock.totalReceived}</td>
       <td>${item.minimum || 0}</td>
-      <td>${escapeHtml(responsibleAdminsLabel)}</td>
+      <td>${escapeHtml(getWarehouseResponsibleLabel(item.notifyPerson))}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -8384,15 +8528,41 @@ function renderWarehouseCatalogManager() {
     const stock = ensureWarehouseStockRecord(item.id);
     const row = document.createElement("div");
     row.className = "warehouse-catalog-item";
-    row.innerHTML = `<strong>${escapeHtml(item.name)} (${escapeHtml(item.unit || "kom")})</strong><span class="warehouse-catalog-meta">${escapeHtml(tFormat("warehouseCatalogMeta", { current: stock.current, minimum: item.minimum || 0, admins: getWarehouseResponsibleAdminsLabel() }))}</span>`;
+    row.innerHTML = `<strong>${escapeHtml(item.name)} (${escapeHtml(item.unit || "kom")})</strong><span class="warehouse-catalog-meta">${escapeHtml(tFormat("warehouseCatalogMeta", { current: stock.current, minimum: item.minimum || 0, admins: getWarehouseResponsibleLabel(item.notifyPerson) }))}</span>`;
 
     const actions = document.createElement("div");
     actions.className = "warehouse-catalog-actions";
 
+    if (canManageWarehouseCatalog()) {
+      const ownerSelect = document.createElement("select");
+      ownerSelect.className = "warehouse-select";
+      ownerSelect.disabled = !canManageWarehouseCatalogItem(item);
+      const emptyOption = document.createElement("option");
+      emptyOption.value = "";
+      emptyOption.textContent = t("warehouseNoAssignedAdmin");
+      ownerSelect.appendChild(emptyOption);
+      getWarehouseResponsibleOptions().forEach((admin) => {
+        const option = document.createElement("option");
+        option.value = admin.email;
+        option.textContent = admin.fullName || admin.email;
+        if ((item.notifyPerson || "").trim().toLowerCase() === admin.email) {
+          option.selected = true;
+        }
+        ownerSelect.appendChild(option);
+      });
+      ownerSelect.addEventListener("change", (event) => {
+        if (!canManageWarehouseCatalogItem(item)) return;
+        item.notifyPerson = event.target.value;
+        persistWarehouseData();
+        renderWarehousePage();
+      });
+      actions.appendChild(ownerSelect);
+    }
+
     const limitBtn = document.createElement("button");
     limitBtn.className = "btn btn-small";
     limitBtn.textContent = t("warehouseThreshold");
-    limitBtn.disabled = !canEditWarehouse();
+    limitBtn.style.display = canManageWarehouseCatalogItem(item) ? "inline-flex" : "none";
     limitBtn.onclick = () => {
       showPromptDialog(t("warehouseLimitPrompt"), "⚙️", String(item.minimum || 0), (value) => {
         item.minimum = Math.max(Number(value) || 0, 0);
@@ -8405,7 +8575,7 @@ function renderWarehouseCatalogManager() {
     const removeBtn = document.createElement("button");
     removeBtn.className = "btn btn-small btn-danger";
     removeBtn.textContent = t("warehouseRemoveItem");
-    removeBtn.disabled = !canEditWarehouse();
+    removeBtn.style.display = canManageWarehouseCatalogItem(item) ? "inline-flex" : "none";
     removeBtn.onclick = () => removeWarehouseCatalogItem(item.id);
     actions.appendChild(removeBtn);
 
@@ -8417,7 +8587,7 @@ function renderWarehouseCatalogManager() {
 function renderWarehouseAlerts() {
   const container = document.getElementById("warehouseAlerts");
   if (!container || !warehouseData) return;
-  const alerts = getWarehouseAlerts();
+  const alerts = getWarehouseAlerts().filter((alert) => canSeeWarehouseAlert(alert));
   if (!alerts.length) {
     container.innerHTML = `<div class="warehouse-alert-empty">${escapeHtml(t("warehouseAlertsEmpty"))}</div>`;
     return;
@@ -8437,6 +8607,10 @@ function renderWarehousePage() {
   renderWarehouseInventorySummary();
   renderWarehouseCatalogManager();
   renderWarehouseAlerts();
+  if (currentView === "warehouse") {
+    markVisibleWarehouseAlertsSeen();
+  }
+  updateWarehouseAlertBadge();
 
   const itemSelect = document.getElementById("warehouseStockItem");
   if (itemSelect) {
@@ -8456,9 +8630,11 @@ function renderWarehousePage() {
   const commentInput = document.getElementById("warehouseStockComment");
   if (commentInput) commentInput.value = warehouseData.stockForm.comment || "";
   const saveButton = document.getElementById("warehouseStockSaveBtn");
-  if (saveButton) saveButton.disabled = !canEditWarehouse();
+  if (saveButton) saveButton.disabled = !canManageWarehouseStock();
   const catalogAddButton = document.getElementById("warehouseCatalogAddBtn");
-  if (catalogAddButton) catalogAddButton.disabled = !canEditWarehouse();
+  if (catalogAddButton) catalogAddButton.style.display = canManageWarehouseCatalog() ? "inline-flex" : "none";
+  setElVisibility("warehouseIssueCard", canManageWarehouseIssue());
+  setElVisibility("warehouseStockCard", canManageWarehouseStock());
 }
 
 function showWarehouse() {
@@ -8512,6 +8688,7 @@ function showWarehouseGraph() {
 }
 
 function updateWarehouseStockForm(field, value) {
+  if (!canManageWarehouseStock()) return;
   warehouseData.stockForm[field] = value;
   persistWarehouseData();
 }
@@ -8552,7 +8729,7 @@ function applyWarehouseMovement(itemId, quantity, direction, extra = {}) {
 }
 
 function saveWarehouseIssueRow() {
-  if (!canEditWarehouse()) return;
+  if (!canManageWarehouseIssue()) return;
   const worker = (warehouseData.issueDraft.worker || "").trim();
   if (!worker) {
     showToast(t("warehouseSelectWorker"), "error");
@@ -8582,7 +8759,7 @@ function saveWarehouseIssueRow() {
 }
 
 function saveWarehouseStockAdjustment() {
-  if (!canEditWarehouse()) return;
+  if (!canManageWarehouseStock()) return;
   const { itemId, quantity, direction, comment } = warehouseData.stockForm || {};
   if (!itemId) {
     showToast("Odaberi alat ili materijal.", "error");
@@ -8600,7 +8777,7 @@ function saveWarehouseStockAdjustment() {
 }
 
 function addWarehouseCatalogItem() {
-  if (!canEditWarehouse()) return;
+  if (!canManageWarehouseCatalog()) return;
   showPromptDialog(t("warehouseNewItemPrompt"), "📦", "", (nameValue) => {
     const name = (nameValue || "").trim();
     if (!name) return;
@@ -8611,7 +8788,13 @@ function addWarehouseCatalogItem() {
     showPromptDialog(t("warehouseUnitPrompt"), "📏", "kom", (unitValue) => {
       const unit = (unitValue || "kom").trim() || "kom";
       const id = `itm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      warehouseData.catalog.push({ id, name, unit, minimum: 0, notifyPerson: "" });
+      warehouseData.catalog.push({
+        id,
+        name,
+        unit,
+        minimum: 0,
+        notifyPerson: getCurrentUserEmail(),
+      });
       warehouseData.stock[id] = { current: 0, totalIssued: 0, totalReceived: 0 };
       warehouseData.stockForm.itemId = id;
       persistWarehouseData();
@@ -8622,8 +8805,8 @@ function addWarehouseCatalogItem() {
 }
 
 function removeWarehouseCatalogItem(itemId) {
-  if (!canEditWarehouse()) return;
   const item = getWarehouseItemById(itemId);
+  if (!canManageWarehouseCatalogItem(item)) return;
   if (!item) return;
   showConfirm(tFormat("warehouseRemoveItemConfirm", { name: item.name }), null, "⚠️", () => {
     warehouseData.catalog = warehouseData.catalog.filter((entry) => entry.id !== itemId);
@@ -8904,20 +9087,19 @@ function renderWarehouseGraphPage() {
 function markDirty() {
   appState.hasUnsavedChanges = true;
   trackEditActivity();
-  // Show Save button
-  const btnSave = document.getElementById("btnSave");
-  if (btnSave && currentView === "main") {
-    btnSave.style.display = "inline-flex";
-  }
+  updateSaveButtonVisibility();
 }
 
 function markClean() {
   appState.hasUnsavedChanges = false;
-  // Hide Save button if in main view
+  updateSaveButtonVisibility();
+}
+
+function updateSaveButtonVisibility() {
   const btnSave = document.getElementById("btnSave");
-  if (btnSave && currentView === "main") {
-    btnSave.style.display = "none";
-  }
+  if (!btnSave) return;
+  const showSave = appState.hasUnsavedChanges && ["main", "bins"].includes(currentView);
+  btnSave.style.display = showSave ? "inline-flex" : "none";
 }
 
 function saveAllData() {
@@ -8937,6 +9119,42 @@ function startAutoSave() {
       console.log("Auto-saved at", new Date().toLocaleTimeString());
     }
   }, 300000); // 5 minutes
+}
+
+function getPrintDateLabel() {
+  const date = new Date(appState.currentDate + "T00:00:00");
+  return date
+    .toLocaleDateString(getCurrentLocale(), {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+    .toUpperCase();
+}
+
+function drawPdfBrandHeader(doc, title) {
+  const pageWidth = doc.internal.pageSize.width;
+  doc.setFillColor(246, 248, 252);
+  doc.rect(0, 0, pageWidth, 26, "F");
+  doc.setDrawColor(102, 126, 234);
+  doc.setLineWidth(0.8);
+  doc.line(12, 24, pageWidth - 12, 24);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(31, 42, 68);
+  doc.text("CMAX SCM", pageWidth / 2, 9, { align: "center" });
+  doc.setFontSize(11);
+  doc.text(currentSite || "", pageWidth / 2, 15, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(75, 85, 99);
+  doc.text(getPrintDateLabel(), pageWidth / 2, 20, { align: "center" });
+  if (title) {
+    doc.setTextColor(102, 126, 234);
+    doc.text(title, 14, 18);
+  }
+  doc.setTextColor(0, 0, 0);
 }
 
 /* ==================== HANDLE PRINT/EXPORT WITH VIEW ==================== */
@@ -9113,7 +9331,7 @@ function exportBinsToPDF() {
       ],
     ],
     body: tableData,
-    startY: 26,
+    startY: 30,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: {
       fillColor: [102, 126, 234],
@@ -9121,7 +9339,7 @@ function exportBinsToPDF() {
       fontStyle: "bold",
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
-    margin: { top: 26, left: 14, right: 14 },
+    margin: { top: 30, left: 12, right: 12 },
   });
 
   const fileName = `CMAX_Bins_${appState.currentDate}.pdf`;
@@ -9233,7 +9451,7 @@ function exportToPDF() {
   doc.autoTable({
     head: [headers],
     body: rows,
-    startY: 32,
+    startY: 35,
     styles: {
       fontSize: 8,
       cellPadding: 3,
@@ -11351,3 +11569,5 @@ window.onload = function () {
     </div>`;
   });
 };
+
+

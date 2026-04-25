@@ -104,6 +104,8 @@ const DEFAULT_PERMISSIONS = {
   canClearLogs: true,
   canViewWarehouse: false,
   canManageWarehouse: false,
+  canManageWarehouseStock: false,
+  canManageWarehouseIssue: false,
   canAssignWarehouseToAdmin: false,
   canModifyReadOnly: false,
   canToggleReadOnly: false,
@@ -120,6 +122,8 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canExport: false,
   canViewWarehouse: false,
   canManageWarehouse: false,
+  canManageWarehouseStock: false,
+  canManageWarehouseIssue: false,
   canAssignWarehouseToAdmin: false,
   canModifyReadOnly: false,
 };

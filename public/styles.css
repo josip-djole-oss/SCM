@@ -2847,7 +2847,10 @@ span.flatpickr-weekday {
   .readonly-badge,
   .collapse-icon,
   .lang-selector,
-  .header-right {
+  .header-right,
+  .date-display,
+  .site-switcher,
+  .site-switcher-btn {
     display: none !important;
   }
   .header {
@@ -2939,6 +2942,33 @@ span.flatpickr-weekday {
   .print-header-date {
     display: block !important;
   }
+  .print-brand-block {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin: 0 auto 12px auto;
+    text-align: center;
+  }
+  .print-brand-logo {
+    max-width: 80px;
+    max-height: 48px;
+    object-fit: contain;
+  }
+  .print-brand-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1f2a44;
+    letter-spacing: 0;
+  }
+  .print-brand-site,
+  .print-brand-date {
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+    color: #4b5563;
+  }
   /* Hide main table when printing bins */
   .bins-section.active ~ .planning-section {
     display: none !important;
@@ -2946,6 +2976,10 @@ span.flatpickr-weekday {
 }
 
 .print-header-date {
+  display: none;
+}
+
+.print-brand-block {
   display: none;
 }
 
