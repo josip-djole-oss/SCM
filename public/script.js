@@ -1076,12 +1076,14 @@ Object.assign(TRANSLATIONS.hr, {
   guestWarehouseItemsNote: "Ove stavke vrijede za trenutno odabrano gradilište.",
   guestWarehouseNoItems: "Nema stavki u skladištu za ovo gradilište.",
   warehouseIssueTitle: "Izdavanje radnicima",
-  warehouseIssueSubtitle: "8 stupaca za alat ili materijal",
+  warehouseIssueSubtitle: "",
   warehouseIssueColWorker: "Ime i prezime",
   warehouseIssueColComment: "Komentar",
   warehouseIssueColSave: "Spremi",
-  warehouseStockTitle: "Ulaz / izlaz robe",
+  warehouseStockTitle: "Ulaz / izlaz materijala/alata",
   warehouseStockSubtitle: "Sve ide u logove",
+  warehouseProcurementLabel: "Osoba zadužena za nabavku",
+  warehouseProcurementPlaceholder: "Odaberi osobe",
   warehouseStockItemLabel: "Alat / materijal",
   warehouseStockDirectionLabel: "Radnja",
   warehouseStockDirectionIn: "Dodaj",
@@ -1099,7 +1101,6 @@ Object.assign(TRANSLATIONS.hr, {
   warehouseInventoryColIssued: "Ukupno dano",
   warehouseInventoryColReceived: "Ukupno došlo",
   warehouseInventoryColMinimum: "Min. limit",
-  warehouseInventoryColNotify: "Obavijesti osobu",
   warehouseCatalogTitle: "Popis alata / materijala",
   warehouseCatalogAdd: "Dodaj",
   warehouseLogsTitle: "Logovi skladišta",
@@ -1142,7 +1143,7 @@ Object.assign(TRANSLATIONS.hr, {
   warehouseGraphItemsTitle: "Najtraženiji materijali",
   warehouseGraphInsightTitle: "Izdvajanje iz prosjeka po alatu / materijalu",
   warehouseNoAssignedAdmin: "nema dodijeljenog admina",
-  warehouseCatalogMeta: "Stanje {current} | min {minimum} | obavijesti {admins}",
+  warehouseCatalogMeta: "Stanje {current} | min {minimum}",
   warehouseAlertsEmpty: "Trenutno nema upozorenja za skladište.",
   warehouseAlertMessage: "{name} je na {current} {unit} i pao je ispod limita {minimum}.",
   warehouseAlertNotify: "Obavijest: {admins}",
@@ -1185,12 +1186,14 @@ Object.assign(TRANSLATIONS.en, {
   guestWarehouseItemsNote: "These items apply to the currently selected site.",
   guestWarehouseNoItems: "No warehouse items exist for this site.",
   warehouseIssueTitle: "Issue to workers",
-  warehouseIssueSubtitle: "8 columns for tools or materials",
+  warehouseIssueSubtitle: "",
   warehouseIssueColWorker: "Full name",
   warehouseIssueColComment: "Comment",
   warehouseIssueColSave: "Save",
-  warehouseStockTitle: "Incoming / outgoing stock",
+  warehouseStockTitle: "Incoming / outgoing materials/tools",
   warehouseStockSubtitle: "Everything goes to the logs",
+  warehouseProcurementLabel: "Procurement contacts",
+  warehouseProcurementPlaceholder: "Select people",
   warehouseStockItemLabel: "Tool / material",
   warehouseStockDirectionLabel: "Action",
   warehouseStockDirectionIn: "Add",
@@ -1208,7 +1211,6 @@ Object.assign(TRANSLATIONS.en, {
   warehouseInventoryColIssued: "Total issued",
   warehouseInventoryColReceived: "Total received",
   warehouseInventoryColMinimum: "Min. limit",
-  warehouseInventoryColNotify: "Notify person",
   warehouseCatalogTitle: "Tool / material list",
   warehouseCatalogAdd: "Add",
   warehouseLogsTitle: "Warehouse logs",
@@ -1251,7 +1253,7 @@ Object.assign(TRANSLATIONS.en, {
   warehouseGraphItemsTitle: "Most requested materials",
   warehouseGraphInsightTitle: "Deviation from average by tool / material",
   warehouseNoAssignedAdmin: "no assigned admin",
-  warehouseCatalogMeta: "Stock {current} | min {minimum} | alerts {admins}",
+  warehouseCatalogMeta: "Stock {current} | min {minimum}",
   warehouseAlertsEmpty: "There are currently no warehouse alerts.",
   warehouseAlertMessage: "{name} is at {current} {unit} and dropped below the limit of {minimum}.",
   warehouseAlertNotify: "Alert: {admins}",
@@ -1604,6 +1606,7 @@ function applyTranslations() {
     warehouseIssueColSave: "warehouseIssueColSave",
     warehouseStockTitle: "warehouseStockTitle",
     warehouseStockSubtitle: "warehouseStockSubtitle",
+    warehouseProcurementLabel: "warehouseProcurementLabel",
     warehouseStockItemLabel: "warehouseStockItemLabel",
     warehouseStockDirectionLabel: "warehouseStockDirectionLabel",
     warehouseStockDirectionIn: "warehouseStockDirectionIn",
@@ -1621,7 +1624,6 @@ function applyTranslations() {
     warehouseInventoryColIssued: "warehouseInventoryColIssued",
     warehouseInventoryColReceived: "warehouseInventoryColReceived",
     warehouseInventoryColMinimum: "warehouseInventoryColMinimum",
-    warehouseInventoryColNotify: "warehouseInventoryColNotify",
     warehouseCatalogTitle: "warehouseCatalogTitle",
     warehouseCatalogAddBtn: "warehouseCatalogAdd",
     warehouseLogsTitle: "warehouseLogsTitle",
@@ -2632,6 +2634,7 @@ function getDefaultWarehouseData() {
   return {
     catalog,
     stock,
+    procurementOwners: [],
     issueDraft: createWarehouseIssueDraft(),
     stockForm: {
       itemId: catalog[0]?.id || "",
@@ -2680,10 +2683,22 @@ function normalizeWarehouseData(rawWarehouse) {
 
   const stockFormItemId =
     raw.stockForm?.itemId && stock[raw.stockForm.itemId] ? raw.stockForm.itemId : catalog[0]?.id || "";
+  const procurementOwners = Array.isArray(raw.procurementOwners)
+    ? raw.procurementOwners
+        .map((email) => String(email || "").trim().toLowerCase())
+        .filter(Boolean)
+    : Array.from(
+        new Set(
+          catalog
+            .map((item) => String(item.notifyPerson || "").trim().toLowerCase())
+            .filter(Boolean),
+        ),
+      );
 
   return {
     catalog,
     stock,
+    procurementOwners: Array.from(new Set(procurementOwners)),
     issueDraft: {
       worker: (raw.issueDraft?.worker || "").toString(),
       comment: (raw.issueDraft?.comment || "").toString(),
@@ -2906,9 +2921,8 @@ function isWarehouseElevatedUser() {
 }
 
 function isWarehouseProcurementOwner(item) {
-  if (!item) return false;
   const currentUserEmail = getCurrentUserEmail();
-  return Boolean(currentUserEmail) && currentUserEmail === (item.notifyPerson || "").trim().toLowerCase();
+  return Boolean(currentUserEmail) && getWarehouseProcurementOwnerEmails().includes(currentUserEmail);
 }
 
 function canManageWarehouseCatalog() {
@@ -2960,10 +2974,37 @@ function getWarehouseResponsibleOptions(site = currentSite) {
 function getWarehouseResponsibleLabel(email, site = currentSite) {
   const normalizedEmail = String(email || "").trim().toLowerCase();
   if (!normalizedEmail) return t("warehouseNoAssignedAdmin");
-  const admin = getWarehouseResponsibleOptions(site).find(
-    (entry) => entry.email === normalizedEmail,
-  );
+  const admin = getWarehouseResponsibleOptions(site).find((entry) => entry.email === normalizedEmail);
   return admin?.fullName || admin?.email || normalizedEmail;
+}
+
+function getWarehouseResponsibleLabels(emails, site = currentSite) {
+  const normalizedEmails = Array.isArray(emails)
+    ? emails.map((email) => String(email || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+  if (!normalizedEmails.length) return t("warehouseNoAssignedAdmin");
+  return normalizedEmails
+    .map((email) => getWarehouseResponsibleLabel(email, site))
+    .join(", ");
+}
+
+function getWarehouseProcurementOwnerEmails() {
+  if (!warehouseData) loadWarehouseData();
+  const selected = Array.isArray(warehouseData?.procurementOwners)
+    ? warehouseData.procurementOwners
+    : [];
+  if (selected.length) return Array.from(new Set(selected.map((email) => String(email || "").trim().toLowerCase()).filter(Boolean)));
+  return Array.from(
+    new Set(
+      (warehouseData?.catalog || [])
+        .map((item) => String(item.notifyPerson || "").trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function getWarehouseProcurementOwnersLabel() {
+  return getWarehouseResponsibleLabels(getWarehouseProcurementOwnerEmails());
 }
 
 function getWarehouseAlertKey(alert) {
@@ -4610,6 +4651,22 @@ function updatePrintDate() {
       <div class="print-brand-date">${escapeHtml(formattedDate)}</div>
     </div>
   `;
+}
+
+function getPlannerPrintHeaderData() {
+  const date = new Date(appState.currentDate + "T00:00:00");
+  return {
+    site: currentSite || "",
+    dateText: date
+      .toLocaleDateString("hr-HR", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+      .toUpperCase(),
+    logo: document.getElementById("mainLogoImg"),
+  };
 }
 function getCurrentLocale() {
   return { hr: "hr-HR", en: "en-US", sv: "sv-SE" }[currentLang] || "hr-HR";
@@ -8360,7 +8417,7 @@ function getWarehouseAlerts() {
           unit: item.unit || "kom",
           minimum: item.minimum,
         }),
-        notifyLabel: getWarehouseResponsibleLabel(item.notifyPerson),
+        notifyLabel: getWarehouseProcurementOwnersLabel(),
       };
     })
     .filter(Boolean);
@@ -8493,7 +8550,7 @@ function renderWarehouseInventorySummary() {
   tbody.innerHTML = "";
   const visibleCatalog = getVisibleWarehouseCatalog();
   if (!visibleCatalog.length) {
-    tbody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("warehouseNoVisibleItems"))}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6">${escapeHtml(t("warehouseNoVisibleItems"))}</td></tr>`;
     return;
   }
   visibleCatalog.forEach((item) => {
@@ -8509,7 +8566,6 @@ function renderWarehouseInventorySummary() {
       <td>${stock.totalIssued}</td>
       <td>${stock.totalReceived}</td>
       <td>${item.minimum || 0}</td>
-      <td>${escapeHtml(getWarehouseResponsibleLabel(item.notifyPerson))}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -8528,36 +8584,10 @@ function renderWarehouseCatalogManager() {
     const stock = ensureWarehouseStockRecord(item.id);
     const row = document.createElement("div");
     row.className = "warehouse-catalog-item";
-    row.innerHTML = `<strong>${escapeHtml(item.name)} (${escapeHtml(item.unit || "kom")})</strong><span class="warehouse-catalog-meta">${escapeHtml(tFormat("warehouseCatalogMeta", { current: stock.current, minimum: item.minimum || 0, admins: getWarehouseResponsibleLabel(item.notifyPerson) }))}</span>`;
+    row.innerHTML = `<strong>${escapeHtml(item.name)} (${escapeHtml(item.unit || "kom")})</strong><span class="warehouse-catalog-meta">${escapeHtml(tFormat("warehouseCatalogMeta", { current: stock.current, minimum: item.minimum || 0 }))}</span>`;
 
     const actions = document.createElement("div");
     actions.className = "warehouse-catalog-actions";
-
-    if (canManageWarehouseCatalog()) {
-      const ownerSelect = document.createElement("select");
-      ownerSelect.className = "warehouse-select";
-      ownerSelect.disabled = !canManageWarehouseCatalogItem(item);
-      const emptyOption = document.createElement("option");
-      emptyOption.value = "";
-      emptyOption.textContent = t("warehouseNoAssignedAdmin");
-      ownerSelect.appendChild(emptyOption);
-      getWarehouseResponsibleOptions().forEach((admin) => {
-        const option = document.createElement("option");
-        option.value = admin.email;
-        option.textContent = admin.fullName || admin.email;
-        if ((item.notifyPerson || "").trim().toLowerCase() === admin.email) {
-          option.selected = true;
-        }
-        ownerSelect.appendChild(option);
-      });
-      ownerSelect.addEventListener("change", (event) => {
-        if (!canManageWarehouseCatalogItem(item)) return;
-        item.notifyPerson = event.target.value;
-        persistWarehouseData();
-        renderWarehousePage();
-      });
-      actions.appendChild(ownerSelect);
-    }
 
     const limitBtn = document.createElement("button");
     limitBtn.className = "btn btn-small";
@@ -8601,12 +8631,71 @@ function renderWarehouseAlerts() {
   });
 }
 
+function renderWarehouseProcurementOwners() {
+  const details = document.getElementById("warehouseProcurementDetails");
+  const summary = document.getElementById("warehouseProcurementSummary");
+  const options = document.getElementById("warehouseProcurementOptions");
+  const label = document.getElementById("warehouseProcurementLabel");
+  if (!details || !summary || !options || !label || !warehouseData) return;
+
+  const procurementLabelText = t("warehouseProcurementLabel");
+  const procurementPlaceholderText = t("warehouseProcurementPlaceholder");
+  label.textContent =
+    procurementLabelText === "warehouseProcurementLabel"
+      ? "Osoba zadužena za nabavku"
+      : procurementLabelText;
+  const selectedEmails = getWarehouseProcurementOwnerEmails();
+  summary.textContent = selectedEmails.length
+    ? getWarehouseResponsibleLabels(selectedEmails)
+    : procurementPlaceholderText === "warehouseProcurementPlaceholder"
+      ? "Odaberi osobe"
+      : procurementPlaceholderText;
+  options.innerHTML = "";
+
+  const canManageContacts = canManageWarehouseCatalog();
+  details.classList.toggle("is-disabled", !canManageContacts);
+  if (!canManageContacts) details.open = false;
+
+  const admins = getWarehouseResponsibleOptions();
+  if (!admins.length) {
+    const empty = document.createElement("div");
+    empty.className = "warehouse-alert-empty";
+    empty.textContent = t("warehouseNoAssignedAdmin");
+    options.appendChild(empty);
+    return;
+  }
+
+  admins.forEach((admin) => {
+    const row = document.createElement("label");
+    row.className = "warehouse-multi-select-option";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = selectedEmails.includes(admin.email);
+    checkbox.disabled = !canManageContacts;
+    checkbox.addEventListener("change", () => {
+      if (!canManageWarehouseCatalog()) return;
+      const next = new Set(getWarehouseProcurementOwnerEmails());
+      if (checkbox.checked) next.add(admin.email);
+      else next.delete(admin.email);
+      warehouseData.procurementOwners = Array.from(next);
+      persistWarehouseData();
+      renderWarehousePage();
+    });
+    const text = document.createElement("span");
+    text.textContent = admin.fullName || admin.email;
+    row.appendChild(checkbox);
+    row.appendChild(text);
+    options.appendChild(row);
+  });
+}
+
 function renderWarehousePage() {
   if (!warehouseData) loadWarehouseData();
   renderWarehouseIssueTable();
   renderWarehouseInventorySummary();
   renderWarehouseCatalogManager();
   renderWarehouseAlerts();
+  renderWarehouseProcurementOwners();
   if (currentView === "warehouse") {
     markVisibleWarehouseAlertsSeen();
   }
@@ -8793,7 +8882,7 @@ function addWarehouseCatalogItem() {
         name,
         unit,
         minimum: 0,
-        notifyPerson: getCurrentUserEmail(),
+        notifyPerson: "",
       });
       warehouseData.stock[id] = { current: 0, totalIssued: 0, totalReceived: 0 };
       warehouseData.stockForm.itemId = id;
@@ -9377,42 +9466,24 @@ function exportToPDF() {
   });
 
   const dayData = getCurrentDayData();
-  const date = new Date(appState.currentDate + "T00:00:00");
-  const dateStr = date
-    .toLocaleDateString("hr-HR", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-    .toUpperCase();
+  const header = getPlannerPrintHeaderData();
+  const pageWidth = doc.internal.pageSize.getWidth();
 
-  // Header
-  doc.setFillColor(102, 126, 234);
-  doc.rect(0, 0, 297, 22, "F");
+  doc.setDrawColor(210, 214, 220);
+  doc.setLineWidth(0.35);
+  if (header.logo && header.logo.complete) {
+    doc.addImage(header.logo, "PNG", (pageWidth - 20) / 2, 8, 20, 12);
+  }
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.setTextColor(255, 255, 255);
-  doc.text("CMAX PLANNER", 14, 10);
-  doc.setFontSize(10);
+  doc.setTextColor(31, 42, 68);
+  doc.text("CMAX SCM", pageWidth / 2, 26, { align: "center" });
   doc.setFont("helvetica", "normal");
-  doc.text(dateStr, 14, 17);
-  doc.setTextColor(0, 0, 0);
-
-  // Summary row
-  const presentWorkers = appState.workers.filter(
-    (w) => dayData.workerAttendance[w] !== false,
-  ).length;
-  const availableLifts = appState.lifts.filter(
-    (l) => dayData.liftAvailability[l] !== false,
-  ).length;
-  doc.setFontSize(9);
-  doc.setTextColor(80, 80, 80);
-  doc.text(
-    `Resursi: ${presentWorkers}/${appState.workers.length} dostupno  |  Liftovi: ${availableLifts}/${appState.lifts.length} dostupno`,
-    14,
-    28,
-  );
+  doc.setFontSize(11);
+  doc.setTextColor(75, 85, 99);
+  doc.text(header.site, pageWidth / 2, 32, { align: "center" });
+  doc.text(header.dateText, pageWidth / 2, 38, { align: "center" });
+  doc.line(12, 43, pageWidth - 12, 43);
   doc.setTextColor(0, 0, 0);
 
   const headers = [
@@ -9451,7 +9522,7 @@ function exportToPDF() {
   doc.autoTable({
     head: [headers],
     body: rows,
-    startY: 35,
+    startY: 48,
     styles: {
       fontSize: 8,
       cellPadding: 3,
@@ -9525,24 +9596,6 @@ function exportToPDF() {
       }
     },
   });
-
-  // Footer
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(
-    `CMAX SCM | ${dateStr}`,
-      10,
-      doc.internal.pageSize.height - 6,
-    );
-    doc.text(
-      `${i} / ${pageCount}`,
-      doc.internal.pageSize.width - 20,
-      doc.internal.pageSize.height - 6,
-    );
-  }
 
   const fileName = `CMAX_Planner_${appState.currentDate}.pdf`;
   doc.save(fileName);

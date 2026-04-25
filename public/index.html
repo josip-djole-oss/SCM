@@ -1384,7 +1384,7 @@
           <div class="warehouse-card warehouse-card-wide" id="warehouseIssueCard">
             <div class="warehouse-card-header">
               <h3 id="warehouseIssueTitle">Izdavanje radnicima</h3>
-              <span id="warehouseIssueSubtitle">8 stupaca za alat ili materijal</span>
+              <span id="warehouseIssueSubtitle"></span>
             </div>
             <div class="warehouse-table-wrapper">
               <table class="warehouse-table">
@@ -1410,8 +1410,15 @@
 
           <div class="warehouse-card" id="warehouseStockCard">
             <div class="warehouse-card-header">
-              <h3 id="warehouseStockTitle">Ulaz / izlaz robe</h3>
+              <h3 id="warehouseStockTitle">Ulaz / izlaz materijala/alata</h3>
               <span id="warehouseStockSubtitle">Sve ide u logove</span>
+            </div>
+            <div class="warehouse-procurement-row">
+              <label for="warehouseProcurementDetails" id="warehouseProcurementLabel">Osoba zadužena za nabavku</label>
+              <details class="warehouse-multi-select" id="warehouseProcurementDetails">
+                <summary id="warehouseProcurementSummary">Odaberi osobe</summary>
+                <div class="warehouse-multi-select-options" id="warehouseProcurementOptions"></div>
+              </details>
             </div>
             <div class="warehouse-form-grid">
               <div class="form-group">
@@ -1455,10 +1462,12 @@
                   onchange="updateWarehouseStockForm('comment', this.value)"
                 />
               </div>
+              <div class="warehouse-form-actions">
+                <button class="btn" id="warehouseStockSaveBtn" onclick="saveWarehouseStockAdjustment()">
+                  Spremi
+                </button>
+              </div>
             </div>
-            <button class="btn" id="warehouseStockSaveBtn" onclick="saveWarehouseStockAdjustment()">
-              Spremi
-            </button>
           </div>
 
           <div class="warehouse-card">
@@ -1484,7 +1493,6 @@
                     <th id="warehouseInventoryColIssued">Ukupno dano</th>
                     <th id="warehouseInventoryColReceived">Ukupno došlo</th>
                     <th id="warehouseInventoryColMinimum">Min. limit</th>
-                    <th id="warehouseInventoryColNotify">Obavijesti osobu</th>
                   </tr>
                 </thead>
                 <tbody id="warehouseInventoryBody"></tbody>
