@@ -8,7 +8,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
-const { createStorage } = require('./storage');
+const { VersionConflictError, createStorage } = require('./storage');
 
 const app = express();
 
@@ -217,6 +217,31 @@ async function writeJsonFile(filePath, value) {
   await dataStorage.writeJson(filePath, value);
 }
 
+async function readVersionedJsonFile(filePath, fallbackValue) {
+  return dataStorage.readDocument(filePath, fallbackValue);
+}
+
+async function writeVersionedJsonFile(filePath, value, options = {}) {
+  return dataStorage.writeDocument(filePath, value, options);
+}
+
+async function mutateVersionedJsonFile(filePath, fallbackValue, mutator) {
+  return dataStorage.mutateDocument(filePath, fallbackValue, mutator);
+}
+
+function isVersionConflictError(error) {
+  return error instanceof VersionConflictError || error?.code === 'VERSION_CONFLICT';
+}
+
+function sendVersionConflict(res, latestPayloadBuilder) {
+  const latest = typeof latestPayloadBuilder === 'function' ? latestPayloadBuilder() : latestPayloadBuilder;
+  return Promise.resolve(latest).then((payload) =>
+    res.status(409).json({
+      error: 'VERSION_CONFLICT',
+      latest: payload,
+    }));
+}
+
 function normalizePermissions(permissions, fallback = DEFAULT_PERMISSIONS) {
   return { ...fallback, ...(permissions || {}) };
 }
@@ -256,7 +281,11 @@ async function readAdmins() {
 }
 
 async function writeAdmins(admins) {
-  await writeJsonFile(adminsFile, admins.map((admin) => normalizeAdminRecord(admin)));
+  await writeVersionedJsonFile(
+    adminsFile,
+    admins.map((admin) => normalizeAdminRecord(admin)),
+    { fallbackValue: [] },
+  );
 }
 
 async function persistAdmins(adminsInput) {
@@ -278,12 +307,42 @@ async function persistAdmins(adminsInput) {
     nextAdmins.push(normalized);
   }
 
-  await writeJsonFile(adminsFile, nextAdmins);
+  await writeVersionedJsonFile(adminsFile, nextAdmins, { fallbackValue: [] });
 }
 
 async function getState() {
   const state = await readJsonFile(stateFile, null);
   return state && typeof state === 'object' ? state : null;
+}
+
+async function getStateDocument() {
+  const document = await readVersionedJsonFile(stateFile, null);
+  const state = document.data && typeof document.data === 'object' ? document.data : null;
+  return {
+    ...document,
+    data: state,
+  };
+}
+
+async function buildPublicStatePayload(document) {
+  const responseState = document?.data && typeof document.data === 'object'
+    ? { ...document.data }
+    : null;
+
+  if (responseState) {
+    if (Array.isArray(responseState.admins)) {
+      responseState.admins = responseState.admins.map((admin) => redactAdminRecord(admin));
+    } else if (responseState.version === 2) {
+      const admins = await readAdmins();
+      responseState.admins = admins.map((admin) => redactAdminRecord(admin));
+    }
+  }
+
+  return {
+    state: responseState,
+    version: document?.version || 1,
+    updatedAt: document?.updatedAt || null,
+  };
 }
 
 async function getGuestPermissionsFromState() {
@@ -563,14 +622,16 @@ function validateStatePayload(state) {
 
 async function logActivity(userEmail, action, details = {}) {
   try {
-    const logs = await readJsonFile(logsFile, []);
-    logs.push({
-      timestamp: new Date().toISOString(),
-      user: sanitizeString(userEmail || 'unknown', 160),
-      action: sanitizeString(action || 'unknown', 160),
-      details: sanitizeObject(details),
+    await mutateVersionedJsonFile(logsFile, [], async (logs) => {
+      const nextLogs = Array.isArray(logs) ? [...logs] : [];
+      nextLogs.push({
+        timestamp: new Date().toISOString(),
+        user: sanitizeString(userEmail || 'unknown', 160),
+        action: sanitizeString(action || 'unknown', 160),
+        details: sanitizeObject(details),
+      });
+      return nextLogs.slice(-2000);
     });
-    await writeJsonFile(logsFile, logs.slice(-2000));
   } catch (error) {
     logServerError(error, 'logActivity');
   }
@@ -578,14 +639,16 @@ async function logActivity(userEmail, action, details = {}) {
 
 async function logWarehouseActivity(userEmail, action, details = {}) {
   try {
-    const logs = await readJsonFile(warehouseLogsFile, []);
-    logs.push({
-      timestamp: new Date().toISOString(),
-      user: sanitizeString(userEmail || 'unknown', 160),
-      action: sanitizeString(action || 'unknown', 160),
-      details: sanitizeObject(details),
+    await mutateVersionedJsonFile(warehouseLogsFile, [], async (logs) => {
+      const nextLogs = Array.isArray(logs) ? [...logs] : [];
+      nextLogs.push({
+        timestamp: new Date().toISOString(),
+        user: sanitizeString(userEmail || 'unknown', 160),
+        action: sanitizeString(action || 'unknown', 160),
+        details: sanitizeObject(details),
+      });
+      return nextLogs.slice(-5000);
     });
-    await writeJsonFile(warehouseLogsFile, logs.slice(-5000));
   } catch (error) {
     logServerError(error, 'logWarehouseActivity');
   }
@@ -922,16 +985,8 @@ apiRouter.use(requireCsrf);
 
 apiRouter.get('/state', async (req, res, next) => {
   try {
-  const data = await getState();
-  if (!data) return res.json({ state: null });
-  const responseState = { ...data };
-  if (Array.isArray(responseState.admins)) {
-    responseState.admins = responseState.admins.map((admin) => redactAdminRecord(admin));
-  } else if (responseState.version === 2) {
-    const admins = await readAdmins();
-    responseState.admins = admins.map((admin) => redactAdminRecord(admin));
-  }
-  res.json({ state: responseState });
+    const document = await getStateDocument();
+    res.json(await buildPublicStatePayload(document));
   } catch (error) {
     next(error);
   }
@@ -940,25 +995,43 @@ apiRouter.get('/state', async (req, res, next) => {
 apiRouter.post('/state', requireAdmin, async (req, res, next) => {
   try {
     const state = sanitizeObject(req.body?.state);
+    const lastKnownVersion = Number(req.body?.lastKnownVersion);
     if (!validateStatePayload(state)) {
       return res.status(400).json({ error: 'Invalid state payload' });
+    }
+    if (!Number.isFinite(lastKnownVersion) || lastKnownVersion < 1) {
+      return res.status(400).json({ error: 'Missing lastKnownVersion' });
     }
     
     // Read-only users cannot modify state
     if (req.session.isReadonly) {
       return res.status(403).json({ error: 'Read-only users cannot modify state' });
     }
+
+    if (!state.siteData || typeof state.siteData !== 'object' || Object.keys(state.siteData).length === 0) {
+      return res.status(400).json({ error: 'Empty state payload rejected' });
+    }
     
-    await writeJsonFile(stateFile, {
+    const savedDocument = await writeVersionedJsonFile(stateFile, {
       ...state,
       savedAt: new Date().toISOString(),
       savedBy: req.session.email,
+    }, {
+      lastKnownVersion,
+      fallbackValue: null,
     });
     if (state && Array.isArray(state.admins)) {
       await persistAdmins(state.admins);
     }
-    res.json({ success: true });
+    res.json({
+      ok: true,
+      version: savedDocument.version,
+      updatedAt: savedDocument.updatedAt,
+    });
   } catch (error) {
+    if (isVersionConflictError(error)) {
+      return sendVersionConflict(res, async () => buildPublicStatePayload(await getStateDocument()));
+    }
     next(error);
   }
 });
@@ -978,28 +1051,34 @@ apiRouter.post('/admin/toggle-readonly', requirePermission('canToggleReadOnly'),
       return res.status(403).json({ error: 'Only super admins can manage read-only mode' });
     }
     
-    const admins = await readAdmins();
-    const adminIndex = admins.findIndex((a) => a.email === targetEmail);
-    
-    if (adminIndex < 0) {
+    let updatedAdmin = null;
+    await mutateVersionedJsonFile(adminsFile, [], async (admins) => {
+      const nextAdmins = Array.isArray(admins) ? admins.map((admin) => normalizeAdminRecord(admin)) : [];
+      const adminIndex = nextAdmins.findIndex((admin) => admin.email === targetEmail);
+      if (adminIndex < 0) {
+        throw new Error('ADMIN_NOT_FOUND');
+      }
+      nextAdmins[adminIndex].isReadonly = !nextAdmins[adminIndex].isReadonly;
+      updatedAdmin = nextAdmins[adminIndex];
+      return nextAdmins;
+    });
+    if (!updatedAdmin) {
       return res.status(404).json({ error: 'Admin not found' });
     }
-    
-    const admin = admins[adminIndex];
-    admin.isReadonly = !admin.isReadonly;
-    
-    await persistAdmins(admins);
     await logActivity(req.session.email, 'toggle_readonly_mode', {
       targetEmail,
-      newStatus: admin.isReadonly,
+      newStatus: updatedAdmin.isReadonly,
     });
     
     res.json({
-      success: true,
-      email: admin.email,
-      isReadonly: admin.isReadonly,
+      ok: true,
+      email: updatedAdmin.email,
+      isReadonly: updatedAdmin.isReadonly,
     });
   } catch (error) {
+    if (error?.message === 'ADMIN_NOT_FOUND') {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
     next(error);
   }
 });
@@ -1018,43 +1097,51 @@ apiRouter.post('/admin/set-readonly-sites', requirePermission('canModifyReadOnly
       return res.status(403).json({ error: 'Only super admins can manage read-only access' });
     }
     
-    const admins = await readAdmins();
-    const adminIndex = admins.findIndex((a) => a.email === targetEmail);
-    
-    if (adminIndex < 0) {
-      return res.status(404).json({ error: 'Admin not found' });
-    }
-    
-    const admin = admins[adminIndex];
-    if (!admin.isReadonly) {
-      return res.status(400).json({ error: 'Admin is not in read-only mode' });
-    }
-    
-    // Allow null (all sites) or array of site names
-    if (sites === null || sites === undefined) {
-      admin.allowedSites = null;
-    } else if (Array.isArray(sites)) {
-      admin.allowedSites = sites.map((s) => sanitizeString(s, 80)).filter(Boolean);
-      if (admin.allowedSites.length === 0) {
-        admin.allowedSites = null;
+    let updatedAdmin = null;
+    await mutateVersionedJsonFile(adminsFile, [], async (admins) => {
+      const nextAdmins = Array.isArray(admins) ? admins.map((admin) => normalizeAdminRecord(admin)) : [];
+      const adminIndex = nextAdmins.findIndex((admin) => admin.email === targetEmail);
+      if (adminIndex < 0) {
+        throw new Error('ADMIN_NOT_FOUND');
       }
-    } else {
-      return res.status(400).json({ error: 'Sites must be null or an array' });
-    }
-    
-    await persistAdmins(admins);
+      const admin = nextAdmins[adminIndex];
+      if (!admin.isReadonly) {
+        throw new Error('ADMIN_NOT_READONLY');
+      }
+      if (sites === null || sites === undefined) {
+        admin.allowedSites = null;
+      } else if (Array.isArray(sites)) {
+        admin.allowedSites = sites.map((s) => sanitizeString(s, 80)).filter(Boolean);
+        if (admin.allowedSites.length === 0) {
+          admin.allowedSites = null;
+        }
+      } else {
+        throw new Error('INVALID_SITES');
+      }
+      updatedAdmin = admin;
+      return nextAdmins;
+    });
     await logActivity(req.session.email, 'set_readonly_sites', {
       targetEmail,
-      sites: admin.allowedSites,
+      sites: updatedAdmin?.allowedSites || null,
     });
     
     res.json({
-      success: true,
-      email: admin.email,
-      isReadonly: admin.isReadonly,
-      allowedSites: admin.allowedSites,
+      ok: true,
+      email: updatedAdmin.email,
+      isReadonly: updatedAdmin.isReadonly,
+      allowedSites: updatedAdmin.allowedSites,
     });
   } catch (error) {
+    if (error?.message === 'ADMIN_NOT_FOUND') {
+      return res.status(404).json({ error: 'Admin not found' });
+    }
+    if (error?.message === 'ADMIN_NOT_READONLY') {
+      return res.status(400).json({ error: 'Admin is not in read-only mode' });
+    }
+    if (error?.message === 'INVALID_SITES') {
+      return res.status(400).json({ error: 'Sites must be null or an array' });
+    }
     next(error);
   }
 });
@@ -1198,12 +1285,16 @@ apiRouter.get('/files', requireAdmin, (req, res) => {
 
 apiRouter.get('/reports', requireAuth, async (req, res, next) => {
   try {
-  const site = sanitizeString(req.query.site || 'default', 80);
-  if (!canAccessSite(req.session, site)) {
-    return res.status(403).json({ error: 'Access denied to this site' });
-  }
-  const reports = await readJsonFile(getReportsFilePath(site), []);
-  res.json(Array.isArray(reports) ? reports : []);
+    const site = sanitizeString(req.query.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+    const document = await readVersionedJsonFile(getReportsFilePath(site), []);
+    res.json({
+      reports: Array.isArray(document.data) ? document.data : [],
+      version: document.version || 1,
+      updatedAt: document.updatedAt || null,
+    });
   } catch (error) {
     next(error);
   }
@@ -1219,25 +1310,47 @@ apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, re
     return res.status(403).json({ error: 'Access denied to this site' });
   }
   const reports = sanitizeObject(req.body?.reports);
+  const lastKnownVersion = Number(req.body?.lastKnownVersion);
   if (!Array.isArray(reports)) {
     return res.status(400).json({ error: 'Invalid reports payload' });
   }
-  await writeJsonFile(getReportsFilePath(site), reports);
+  if (!Number.isFinite(lastKnownVersion) || lastKnownVersion < 1) {
+    return res.status(400).json({ error: 'Missing lastKnownVersion' });
+  }
+  const savedDocument = await writeVersionedJsonFile(getReportsFilePath(site), reports, {
+    lastKnownVersion,
+    fallbackValue: [],
+  });
   await logActivity(req.session.email, 'save_reports', { count: reports.length, site });
-  res.json({ success: true });
+  res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt });
   } catch (error) {
+    if (isVersionConflictError(error)) {
+      const site = sanitizeString(req.body?.site || 'default', 80);
+      return sendVersionConflict(res, async () => {
+        const latest = await readVersionedJsonFile(getReportsFilePath(site), []);
+        return {
+          reports: Array.isArray(latest.data) ? latest.data : [],
+          version: latest.version || 1,
+          updatedAt: latest.updatedAt || null,
+        };
+      });
+    }
     next(error);
   }
 });
 
 apiRouter.get('/notifications', requirePermission('canViewNotifications'), async (req, res, next) => {
   try {
-  const site = sanitizeString(req.query.site || 'default', 80);
-  if (!canAccessSite(req.session, site)) {
-    return res.status(403).json({ error: 'Access denied to this site' });
-  }
-  const notifications = await readJsonFile(getNotificationsFilePath(site), []);
-  res.json(Array.isArray(notifications) ? notifications : []);
+    const site = sanitizeString(req.query.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+    const document = await readVersionedJsonFile(getNotificationsFilePath(site), []);
+    res.json({
+      notifications: Array.isArray(document.data) ? document.data : [],
+      version: document.version || 1,
+      updatedAt: document.updatedAt || null,
+    });
   } catch (error) {
     next(error);
   }
@@ -1253,13 +1366,31 @@ apiRouter.post('/notifications', requirePermission('canManageNotifications'), as
     return res.status(403).json({ error: 'Access denied to this site' });
   }
   const notifications = sanitizeObject(req.body?.notifications);
+  const lastKnownVersion = Number(req.body?.lastKnownVersion);
   if (!Array.isArray(notifications)) {
     return res.status(400).json({ error: 'Invalid notifications payload' });
   }
-  await writeJsonFile(getNotificationsFilePath(site), notifications);
+  if (!Number.isFinite(lastKnownVersion) || lastKnownVersion < 1) {
+    return res.status(400).json({ error: 'Missing lastKnownVersion' });
+  }
+  const savedDocument = await writeVersionedJsonFile(getNotificationsFilePath(site), notifications, {
+    lastKnownVersion,
+    fallbackValue: [],
+  });
   await logActivity(req.session.email, 'save_notifications', { count: notifications.length, site });
-  res.json({ success: true });
+  res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt });
   } catch (error) {
+    if (isVersionConflictError(error)) {
+      const site = sanitizeString(req.body?.site || 'default', 80);
+      return sendVersionConflict(res, async () => {
+        const latest = await readVersionedJsonFile(getNotificationsFilePath(site), []);
+        return {
+          notifications: Array.isArray(latest.data) ? latest.data : [],
+          version: latest.version || 1,
+          updatedAt: latest.updatedAt || null,
+        };
+      });
+    }
     next(error);
   }
 });
@@ -1286,9 +1417,9 @@ apiRouter.post('/logs', async (req, res, next) => {
 
 apiRouter.delete('/logs', requirePermission('canClearLogs'), async (req, res, next) => {
   try {
-    await writeJsonFile(logsFile, []);
+    await writeVersionedJsonFile(logsFile, [], { fallbackValue: [] });
     await logActivity(req.session.email, 'clear_logs', {});
-    res.json({ success: true });
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }
@@ -1312,9 +1443,6 @@ apiRouter.post('/warehouse', requirePermission('canManageWarehouse'), async (req
       return res.status(400).json({ error: 'Invalid item payload. Must include id.' });
     }
     
-    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
-    const existingIndex = warehouse.items.findIndex((i) => i.id === item.id);
-    
     const warehouseItem = {
       id: sanitizeString(item.id, 120),
       name: sanitizeString(item.name || '', 200),
@@ -1326,18 +1454,32 @@ apiRouter.post('/warehouse', requirePermission('canManageWarehouse'), async (req
       createdAt: item.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    
-    if (existingIndex >= 0) {
-      warehouse.items[existingIndex] = warehouseItem;
-      await logWarehouseActivity(req.session.email, 'update_item', { id: item.id, name: warehouseItem.name });
-    } else {
-      warehouse.items.push(warehouseItem);
-      await logWarehouseActivity(req.session.email, 'create_item', { id: item.id, name: warehouseItem.name });
-    }
-    
-    warehouse.updatedAt = new Date().toISOString();
-    await writeJsonFile(warehouseFile, warehouse);
-    res.json({ success: true, item: warehouseItem });
+
+    let warehouseAction = 'create_item';
+    await mutateVersionedJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} }, async (warehouse) => {
+      const nextWarehouse = warehouse && typeof warehouse === 'object'
+        ? { ...warehouse }
+        : { version: 1, items: [], adminAssignments: {} };
+      nextWarehouse.items = Array.isArray(nextWarehouse.items) ? [...nextWarehouse.items] : [];
+      nextWarehouse.adminAssignments =
+        nextWarehouse.adminAssignments && typeof nextWarehouse.adminAssignments === 'object'
+          ? { ...nextWarehouse.adminAssignments }
+          : {};
+
+      const existingIndex = nextWarehouse.items.findIndex((entry) => entry.id === item.id);
+      if (existingIndex >= 0) {
+        nextWarehouse.items[existingIndex] = warehouseItem;
+        warehouseAction = 'update_item';
+      } else {
+        nextWarehouse.items.push(warehouseItem);
+        warehouseAction = 'create_item';
+      }
+      nextWarehouse.updatedAt = new Date().toISOString();
+      return nextWarehouse;
+    });
+
+    await logWarehouseActivity(req.session.email, warehouseAction, { id: item.id, name: warehouseItem.name });
+    res.json({ ok: true, item: warehouseItem });
   } catch (error) {
     next(error);
   }
@@ -1350,31 +1492,38 @@ apiRouter.delete('/warehouse/:itemId', requirePermission('canManageWarehouse'), 
       return res.status(400).json({ error: 'Missing itemId' });
     }
     
-    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
-    const index = warehouse.items.findIndex((i) => i.id === itemId);
-    
-    if (index < 0) {
+    let deletedItem = null;
+    await mutateVersionedJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} }, async (warehouse) => {
+      const nextWarehouse = warehouse && typeof warehouse === 'object'
+        ? { ...warehouse }
+        : { version: 1, items: [], adminAssignments: {} };
+      nextWarehouse.items = Array.isArray(nextWarehouse.items) ? [...nextWarehouse.items] : [];
+      nextWarehouse.adminAssignments =
+        nextWarehouse.adminAssignments && typeof nextWarehouse.adminAssignments === 'object'
+          ? { ...nextWarehouse.adminAssignments }
+          : {};
+      const index = nextWarehouse.items.findIndex((entry) => entry.id === itemId);
+      if (index < 0) {
+        throw new Error('WAREHOUSE_ITEM_NOT_FOUND');
+      }
+      deletedItem = nextWarehouse.items.splice(index, 1)[0];
+      for (const adminEmail of Object.keys(nextWarehouse.adminAssignments)) {
+        nextWarehouse.adminAssignments[adminEmail] = (nextWarehouse.adminAssignments[adminEmail] || []).filter(
+          (id) => id !== itemId,
+        );
+        if (nextWarehouse.adminAssignments[adminEmail].length === 0) {
+          delete nextWarehouse.adminAssignments[adminEmail];
+        }
+      }
+      nextWarehouse.updatedAt = new Date().toISOString();
+      return nextWarehouse;
+    });
+    await logWarehouseActivity(req.session.email, 'delete_item', { id: itemId, name: deletedItem.name });
+    res.json({ ok: true });
+  } catch (error) {
+    if (error?.message === 'WAREHOUSE_ITEM_NOT_FOUND') {
       return res.status(404).json({ error: 'Item not found' });
     }
-    
-    const deletedItem = warehouse.items.splice(index, 1)[0];
-    
-    // Remove from all admin assignments
-    for (const adminEmail in warehouse.adminAssignments) {
-      warehouse.adminAssignments[adminEmail] = warehouse.adminAssignments[adminEmail].filter(
-        (id) => id !== itemId
-      );
-      if (warehouse.adminAssignments[adminEmail].length === 0) {
-        delete warehouse.adminAssignments[adminEmail];
-      }
-    }
-    
-    warehouse.updatedAt = new Date().toISOString();
-    await writeJsonFile(warehouseFile, warehouse);
-    
-    await logWarehouseActivity(req.session.email, 'delete_item', { id: itemId, name: deletedItem.name });
-    res.json({ success: true });
-  } catch (error) {
     next(error);
   }
 });
@@ -1408,29 +1557,40 @@ apiRouter.post('/warehouse/assign-admin', requirePermission('canAssignWarehouseT
       return res.status(404).json({ error: 'Admin not found' });
     }
     
-    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
-    const sanitizedItemIds = itemIds
-      .map((id) => sanitizeString(id, 120))
-      .filter((id) => warehouse.items.some((item) => item.id === id));
-    
-    if (sanitizedItemIds.length === 0) {
-      return res.status(400).json({ error: 'No valid items to assign' });
-    }
-    
-    // Merge with existing assignments
-    const currentAssignments = warehouse.adminAssignments[adminEmail] || [];
-    const mergedAssignments = Array.from(new Set([...currentAssignments, ...sanitizedItemIds]));
-    
-    warehouse.adminAssignments[adminEmail] = mergedAssignments;
-    warehouse.updatedAt = new Date().toISOString();
-    await writeJsonFile(warehouseFile, warehouse);
+    let sanitizedItemIds = [];
+    await mutateVersionedJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} }, async (warehouse) => {
+      const nextWarehouse = warehouse && typeof warehouse === 'object'
+        ? { ...warehouse }
+        : { version: 1, items: [], adminAssignments: {} };
+      nextWarehouse.items = Array.isArray(nextWarehouse.items) ? [...nextWarehouse.items] : [];
+      nextWarehouse.adminAssignments =
+        nextWarehouse.adminAssignments && typeof nextWarehouse.adminAssignments === 'object'
+          ? { ...nextWarehouse.adminAssignments }
+          : {};
+
+      sanitizedItemIds = itemIds
+        .map((id) => sanitizeString(id, 120))
+        .filter((id) => nextWarehouse.items.some((item) => item.id === id));
+
+      if (sanitizedItemIds.length === 0) {
+        throw new Error('NO_VALID_ASSIGNMENTS');
+      }
+
+      const currentAssignments = nextWarehouse.adminAssignments[adminEmail] || [];
+      nextWarehouse.adminAssignments[adminEmail] = Array.from(new Set([...currentAssignments, ...sanitizedItemIds]));
+      nextWarehouse.updatedAt = new Date().toISOString();
+      return nextWarehouse;
+    });
     
     await logWarehouseActivity(req.session.email, 'assign_admin', {
       adminEmail,
       itemIds: sanitizedItemIds,
     });
-    res.json({ success: true, assignedItemIds: sanitizedItemIds });
+    res.json({ ok: true, assignedItemIds: sanitizedItemIds });
   } catch (error) {
+    if (error?.message === 'NO_VALID_ASSIGNMENTS') {
+      return res.status(400).json({ error: 'No valid items to assign' });
+    }
     next(error);
   }
 });
@@ -1448,30 +1608,41 @@ apiRouter.post('/warehouse/unassign-admin', requirePermission('canAssignWarehous
       return res.status(400).json({ error: 'No items to unassign' });
     }
     
-    const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
     const sanitizedItemIds = itemIds.map((id) => sanitizeString(id, 120));
-    
-    if (!warehouse.adminAssignments[adminEmail]) {
-      return res.status(404).json({ error: 'Admin has no warehouse assignments' });
-    }
-    
-    warehouse.adminAssignments[adminEmail] = warehouse.adminAssignments[adminEmail].filter(
-      (id) => !sanitizedItemIds.includes(id)
-    );
-    
-    if (warehouse.adminAssignments[adminEmail].length === 0) {
-      delete warehouse.adminAssignments[adminEmail];
-    }
-    
-    warehouse.updatedAt = new Date().toISOString();
-    await writeJsonFile(warehouseFile, warehouse);
+    await mutateVersionedJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} }, async (warehouse) => {
+      const nextWarehouse = warehouse && typeof warehouse === 'object'
+        ? { ...warehouse }
+        : { version: 1, items: [], adminAssignments: {} };
+      nextWarehouse.adminAssignments =
+        nextWarehouse.adminAssignments && typeof nextWarehouse.adminAssignments === 'object'
+          ? { ...nextWarehouse.adminAssignments }
+          : {};
+
+      if (!nextWarehouse.adminAssignments[adminEmail]) {
+        throw new Error('ADMIN_ASSIGNMENTS_NOT_FOUND');
+      }
+
+      nextWarehouse.adminAssignments[adminEmail] = nextWarehouse.adminAssignments[adminEmail].filter(
+        (id) => !sanitizedItemIds.includes(id),
+      );
+
+      if (nextWarehouse.adminAssignments[adminEmail].length === 0) {
+        delete nextWarehouse.adminAssignments[adminEmail];
+      }
+
+      nextWarehouse.updatedAt = new Date().toISOString();
+      return nextWarehouse;
+    });
     
     await logWarehouseActivity(req.session.email, 'unassign_admin', {
       adminEmail,
       itemIds: sanitizedItemIds,
     });
-    res.json({ success: true, unassignedItemIds: sanitizedItemIds });
+    res.json({ ok: true, unassignedItemIds: sanitizedItemIds });
   } catch (error) {
+    if (error?.message === 'ADMIN_ASSIGNMENTS_NOT_FOUND') {
+      return res.status(404).json({ error: 'Admin has no warehouse assignments' });
+    }
     next(error);
   }
 });
@@ -1487,9 +1658,9 @@ apiRouter.get('/warehouse-logs', requirePermission('canViewLogs'), async (req, r
 
 apiRouter.delete('/warehouse-logs', requirePermission('canClearLogs'), async (req, res, next) => {
   try {
-    await writeJsonFile(warehouseLogsFile, []);
+    await writeVersionedJsonFile(warehouseLogsFile, [], { fallbackValue: [] });
     await logWarehouseActivity(req.session.email, 'clear_warehouse_logs', {});
-    res.json({ success: true });
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }

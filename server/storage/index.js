@@ -22,6 +22,58 @@ function createFileMap(dataDir) {
   };
 }
 
+class VersionConflictError extends Error {
+  constructor(latest) {
+    super('Document version conflict');
+    this.name = 'VersionConflictError';
+    this.code = 'VERSION_CONFLICT';
+    this.latest = latest;
+  }
+}
+
+function isDocumentEnvelope(value) {
+  return Boolean(
+    value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      typeof value.version === 'number' &&
+      Object.prototype.hasOwnProperty.call(value, 'data'),
+  );
+}
+
+function createEnvelope(data, version = 1, updatedAt = new Date().toISOString()) {
+  return {
+    version: Math.max(1, Number(version) || 1),
+    updatedAt,
+    data,
+  };
+}
+
+function normalizeDocument(rawValue, fallbackValue) {
+  if (isDocumentEnvelope(rawValue)) {
+    return {
+      exists: true,
+      version: Math.max(1, Number(rawValue.version) || 1),
+      updatedAt: rawValue.updatedAt || null,
+      data: rawValue.data,
+    };
+  }
+  if (rawValue === undefined) {
+    return {
+      exists: false,
+      version: 1,
+      updatedAt: null,
+      data: fallbackValue,
+    };
+  }
+  return {
+    exists: true,
+    version: 1,
+    updatedAt: null,
+    data: rawValue,
+  };
+}
+
 function createUnavailableStorage(options = {}, error) {
   const dataDir = options.dataDir;
   const uploadsDir = options.uploadsDir;
@@ -42,47 +94,26 @@ function createUnavailableStorage(options = {}, error) {
     available: false,
     retryable: false,
     startupError: failure,
-    async init() {
-      return fail();
-    },
+    async init() { return fail(); },
     async ensureBaseStructure() {
       ensureDir(dataDir);
       ensureDir(uploadsDir);
       ensureDir(backupsDir);
     },
-    async ensureJsonFile() {
-      return fail();
-    },
-    async readJson() {
-      return fail();
-    },
-    async writeJson() {
-      return fail();
-    },
-    async getAll() {
-      return fail();
-    },
-    async save() {
-      return fail();
-    },
-    async update() {
-      return fail();
-    },
-    async delete() {
-      return fail();
-    },
-    async exportAll() {
-      return fail();
-    },
-    async saveBackupSnapshot() {
-      return fail();
-    },
-    async getLastBackupTime() {
-      return fail();
-    },
-    async listBackups() {
-      return fail();
-    },
+    async ensureJsonFile() { return fail(); },
+    async readJson() { return fail(); },
+    async writeJson() { return fail(); },
+    async readDocument() { return fail(); },
+    async writeDocument() { return fail(); },
+    async mutateDocument() { return fail(); },
+    async getAll() { return fail(); },
+    async save() { return fail(); },
+    async update() { return fail(); },
+    async delete() { return fail(); },
+    async exportAll() { return fail(); },
+    async saveBackupSnapshot() { return fail(); },
+    async getLastBackupTime() { return fail(); },
+    async listBackups() { return fail(); },
     getReportsFilePath(site) {
       return path.join(dataDir, `reports_${normalizeSiteKey(site)}.json`);
     },
@@ -97,6 +128,7 @@ function createJsonStorage(options = {}) {
   const uploadsDir = options.uploadsDir;
   const backupsDir = options.backupsDir || path.join(dataDir, 'backups');
   const files = createFileMap(dataDir);
+  const documentLocks = new Map();
 
   function listBackupFiles() {
     if (!fs.existsSync(backupsDir)) return [];
@@ -114,6 +146,73 @@ function createJsonStorage(options = {}) {
         };
       })
       .sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  async function withDocumentLock(filePath, operation) {
+    const lockKey = path.normalize(filePath);
+    const previous = documentLocks.get(lockKey) || Promise.resolve();
+    const next = previous.catch(() => {}).then(operation);
+    documentLocks.set(lockKey, next.finally(() => {
+      if (documentLocks.get(lockKey) === next) {
+        documentLocks.delete(lockKey);
+      }
+    }));
+    return next;
+  }
+
+  async function readRawFile(filePath) {
+    if (!fs.existsSync(filePath)) return undefined;
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  }
+
+  async function readDocument(filePath, fallbackValue) {
+    return normalizeDocument(await readRawFile(filePath), fallbackValue);
+  }
+
+  async function writeDocument(filePath, value, options = {}) {
+    return withDocumentLock(filePath, async () => {
+      const current = await readDocument(filePath, options.fallbackValue);
+      const expectedVersion = options.lastKnownVersion;
+      if (
+        expectedVersion !== undefined &&
+        expectedVersion !== null &&
+        Number(expectedVersion) !== Number(current.version)
+      ) {
+        throw new VersionConflictError({
+          version: current.version,
+          updatedAt: current.updatedAt,
+          data: current.data,
+        });
+      }
+
+      const nextVersion = current.exists ? current.version + 1 : 1;
+      const envelope = createEnvelope(value, nextVersion);
+      fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2));
+      return envelope;
+    });
+  }
+
+  async function mutateDocument(filePath, fallbackValue, mutator) {
+    return withDocumentLock(filePath, async () => {
+      const current = await readDocument(filePath, fallbackValue);
+      const nextData = await mutator(current.data, {
+        version: current.version,
+        updatedAt: current.updatedAt,
+        exists: current.exists,
+      });
+      if (nextData === undefined) {
+        throw new Error(`Mutator for ${filePath} returned undefined.`);
+      }
+      const nextVersion = current.exists ? current.version + 1 : 1;
+      const envelope = createEnvelope(nextData, nextVersion);
+      fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2));
+      return envelope;
+    });
+  }
+
+  async function readJson(filePath, fallbackValue) {
+    const document = await readDocument(filePath, fallbackValue);
+    return document.data;
   }
 
   async function exportAll() {
@@ -147,15 +246,6 @@ function createJsonStorage(options = {}) {
     };
   }
 
-  async function readJson(filePath, fallbackValue) {
-    if (!fs.existsSync(filePath)) return fallbackValue;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  }
-
-  async function writeJson(filePath, value) {
-    fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
-  }
-
   return {
     storageType: 'json',
     dataDir,
@@ -174,28 +264,38 @@ function createJsonStorage(options = {}) {
     },
     async ensureJsonFile(filePath, defaultValue) {
       if (!fs.existsSync(filePath)) {
-        fs.writeFileSync(filePath, JSON.stringify(defaultValue, null, 2));
+        const envelope = createEnvelope(defaultValue, 1);
+        fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2));
       }
     },
     async readJson(filePath, fallbackValue) {
       return readJson(filePath, fallbackValue);
     },
     async writeJson(filePath, value) {
-      await writeJson(filePath, value);
+      await writeDocument(filePath, value, { fallbackValue: value });
+    },
+    async readDocument(filePath, fallbackValue) {
+      return readDocument(filePath, fallbackValue);
+    },
+    async writeDocument(filePath, value, options = {}) {
+      return writeDocument(filePath, value, options);
+    },
+    async mutateDocument(filePath, fallbackValue, mutator) {
+      return mutateDocument(filePath, fallbackValue, mutator);
     },
     async getAll(filePath, fallbackValue) {
       return readJson(filePath, fallbackValue);
     },
     async save(filePath, value) {
-      await writeJson(filePath, value);
+      await writeDocument(filePath, value, { fallbackValue: value });
       return value;
     },
     async update(filePath, value) {
-      await writeJson(filePath, value);
+      await writeDocument(filePath, value, { fallbackValue: value });
       return value;
     },
     async delete(filePath, fallbackValue = []) {
-      await writeJson(filePath, fallbackValue);
+      await writeDocument(filePath, fallbackValue, { fallbackValue });
       return fallbackValue;
     },
     async exportAll() {
@@ -264,68 +364,299 @@ function createPostgresStorage(options = {}) {
     if (normalized === path.normalize(files.warehouse)) return { table: 'warehouse', key: 'default' };
     if (normalized === path.normalize(files.warehouseLogs)) return { table: 'logs', category: 'warehouse_logs' };
 
-    const reportsPrefix = path.join(dataDir, 'reports_');
-    const notificationsPrefix = path.join(dataDir, 'notifications_');
     const baseName = path.basename(normalized, '.json');
-
-    if (normalized.startsWith(path.normalize(reportsPrefix)) || baseName.startsWith('reports_')) {
+    if (baseName.startsWith('reports_')) {
       return { table: 'reports', site: baseName.slice('reports_'.length) || 'default' };
     }
-    if (normalized.startsWith(path.normalize(notificationsPrefix)) || baseName.startsWith('notifications_')) {
+    if (baseName.startsWith('notifications_')) {
       return { table: 'notifications', site: baseName.slice('notifications_'.length) || 'default' };
     }
 
     throw new Error(`Unsupported postgres storage target for path: ${filePath}`);
   }
 
+  function getDocumentKey(target) {
+    if (target.table === 'admins') return 'admins';
+    if (target.table === 'state') return `state:${target.key}`;
+    if (target.table === 'warehouse') return `warehouse:${target.key}`;
+    if (target.table === 'reports') return `reports:${target.site}`;
+    if (target.table === 'notifications') return `notifications:${target.site}`;
+    if (target.table === 'logs') return `logs:${target.category}`;
+    throw new Error(`Unsupported target table: ${target.table}`);
+  }
+
   async function query(text, params = []) {
     return pool.query(text, params);
   }
 
+  async function getVersionRow(client, documentKey, lock = false) {
+    await client.query(
+      `INSERT INTO document_versions (document_key, version)
+       VALUES ($1, 1)
+       ON CONFLICT (document_key) DO NOTHING`,
+      [documentKey],
+    );
+    const suffix = lock ? ' FOR UPDATE' : '';
+    const result = await client.query(
+      `SELECT version, updated_at FROM document_versions WHERE document_key = $1${suffix}`,
+      [documentKey],
+    );
+    return result.rows[0] || { version: 1, updated_at: null };
+  }
+
+  async function readTargetData(client, target, fallbackValue) {
+    if (target.table === 'admins') {
+      const result = await client.query('SELECT data FROM admins ORDER BY email ASC');
+      return {
+        exists: result.rowCount > 0,
+        data: result.rowCount > 0 ? result.rows.map((row) => row.data) : fallbackValue,
+      };
+    }
+    if (target.table === 'state') {
+      const result = await client.query('SELECT data FROM state WHERE key = $1', [target.key]);
+      return {
+        exists: result.rowCount > 0,
+        data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
+      };
+    }
+    if (target.table === 'warehouse') {
+      const result = await client.query('SELECT data FROM warehouse WHERE key = $1', [target.key]);
+      return {
+        exists: result.rowCount > 0,
+        data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
+      };
+    }
+    if (target.table === 'reports') {
+      const result = await client.query('SELECT data FROM reports WHERE site = $1', [target.site]);
+      return {
+        exists: result.rowCount > 0,
+        data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
+      };
+    }
+    if (target.table === 'notifications') {
+      const result = await client.query('SELECT data FROM notifications WHERE site = $1', [target.site]);
+      return {
+        exists: result.rowCount > 0,
+        data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
+      };
+    }
+    if (target.table === 'logs') {
+      const result = await client.query('SELECT data FROM logs WHERE category = $1', [target.category]);
+      return {
+        exists: result.rowCount > 0,
+        data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
+      };
+    }
+    return { exists: false, data: fallbackValue };
+  }
+
+  async function writeTargetData(client, target, value) {
+    if (target.table === 'admins') {
+      await client.query('DELETE FROM admins');
+      for (const entry of Array.isArray(value) ? value : []) {
+        const email = String(entry?.email || '').trim().toLowerCase();
+        if (!email) continue;
+        await client.query(
+          `INSERT INTO admins (email, data, updated_at)
+           VALUES ($1, $2::jsonb, NOW())`,
+          [email, JSON.stringify(entry)],
+        );
+      }
+      return;
+    }
+
+    if (target.table === 'state') {
+      await client.query(
+        `INSERT INTO state (key, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [target.key, JSON.stringify(value)],
+      );
+      return;
+    }
+
+    if (target.table === 'warehouse') {
+      await client.query(
+        `INSERT INTO warehouse (key, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [target.key, JSON.stringify(value)],
+      );
+      return;
+    }
+
+    if (target.table === 'reports') {
+      await client.query(
+        `INSERT INTO reports (site, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (site) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [target.site, JSON.stringify(value)],
+      );
+      return;
+    }
+
+    if (target.table === 'notifications') {
+      await client.query(
+        `INSERT INTO notifications (site, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (site) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [target.site, JSON.stringify(value)],
+      );
+      return;
+    }
+
+    if (target.table === 'logs') {
+      await client.query(
+        `INSERT INTO logs (category, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (category) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [target.category, JSON.stringify(value)],
+      );
+    }
+  }
+
+  async function readDocument(filePath, fallbackValue) {
+    const client = await pool.connect();
+    try {
+      const target = resolveTarget(filePath);
+      const documentKey = getDocumentKey(target);
+      const [dataSnapshot, versionRow] = await Promise.all([
+        readTargetData(client, target, fallbackValue),
+        getVersionRow(client, documentKey, false),
+      ]);
+      return {
+        exists: dataSnapshot.exists,
+        version: Math.max(1, Number(versionRow.version) || 1),
+        updatedAt: versionRow.updated_at instanceof Date
+          ? versionRow.updated_at.toISOString()
+          : versionRow.updated_at || null,
+        data: dataSnapshot.data,
+      };
+    } finally {
+      client.release();
+    }
+  }
+
+  async function writeDocument(filePath, value, options = {}) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const target = resolveTarget(filePath);
+      const documentKey = getDocumentKey(target);
+      const versionRow = await getVersionRow(client, documentKey, true);
+      const current = await readTargetData(client, target, options.fallbackValue);
+
+      if (
+        options.lastKnownVersion !== undefined &&
+        options.lastKnownVersion !== null &&
+        Number(options.lastKnownVersion) !== Number(versionRow.version)
+      ) {
+        throw new VersionConflictError({
+          version: Number(versionRow.version) || 1,
+          updatedAt: versionRow.updated_at instanceof Date
+            ? versionRow.updated_at.toISOString()
+            : versionRow.updated_at || null,
+          data: current.data,
+        });
+      }
+
+      await writeTargetData(client, target, value);
+      const nextVersion = current.exists ? Number(versionRow.version) + 1 : Number(versionRow.version);
+      const versionResult = await client.query(
+        `UPDATE document_versions
+         SET version = $2, updated_at = NOW()
+         WHERE document_key = $1
+         RETURNING version, updated_at`,
+        [documentKey, nextVersion],
+      );
+      await client.query('COMMIT');
+      const row = versionResult.rows[0];
+      return {
+        version: Number(row.version) || nextVersion,
+        updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+        data: value,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function mutateDocument(filePath, fallbackValue, mutator) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const target = resolveTarget(filePath);
+      const documentKey = getDocumentKey(target);
+      const versionRow = await getVersionRow(client, documentKey, true);
+      const current = await readTargetData(client, target, fallbackValue);
+      const nextData = await mutator(current.data, {
+        version: Number(versionRow.version) || 1,
+        updatedAt: versionRow.updated_at instanceof Date
+          ? versionRow.updated_at.toISOString()
+          : versionRow.updated_at || null,
+        exists: current.exists,
+      });
+      if (nextData === undefined) {
+        throw new Error(`Mutator for ${filePath} returned undefined.`);
+      }
+
+      await writeTargetData(client, target, nextData);
+      const nextVersion = current.exists ? Number(versionRow.version) + 1 : Number(versionRow.version);
+      const versionResult = await client.query(
+        `UPDATE document_versions
+         SET version = $2, updated_at = NOW()
+         WHERE document_key = $1
+         RETURNING version, updated_at`,
+        [documentKey, nextVersion],
+      );
+      await client.query('COMMIT');
+      const row = versionResult.rows[0];
+      return {
+        version: Number(row.version) || nextVersion,
+        updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+        data: nextData,
+      };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async function readJson(filePath, fallbackValue) {
+    const document = await readDocument(filePath, fallbackValue);
+    return document.data;
+  }
+
   async function exportAll() {
-    const [adminsResult, stateResult, reportsResult, notificationsResult, logsResult, warehouseResult] =
+    const [adminsDoc, stateDoc, reportsResult, notificationsResult, logsResult, warehouseDoc] =
       await Promise.all([
-        query('SELECT data FROM admins ORDER BY email ASC'),
-        query('SELECT data FROM state WHERE key = $1', ['default']),
+        readDocument(files.admins, []),
+        readDocument(files.state, null),
         query('SELECT site, data FROM reports ORDER BY site ASC'),
         query('SELECT site, data FROM notifications ORDER BY site ASC'),
         query('SELECT category, data FROM logs ORDER BY category ASC'),
-        query('SELECT data FROM warehouse WHERE key = $1', ['default']),
+        readDocument(files.warehouse, null),
       ]);
 
     const reports = {};
     const notifications = {};
     const logGroups = {};
 
-    for (const row of reportsResult.rows) {
-      reports[row.site] = row.data;
-    }
-    for (const row of notificationsResult.rows) {
-      notifications[row.site] = row.data;
-    }
-    for (const row of logsResult.rows) {
-      logGroups[row.category] = row.data;
-    }
+    for (const row of reportsResult.rows) reports[row.site] = row.data;
+    for (const row of notificationsResult.rows) notifications[row.site] = row.data;
+    for (const row of logsResult.rows) logGroups[row.category] = row.data;
 
     return {
       storageType: 'postgres',
       exportedAt: new Date().toISOString(),
-      admins: adminsResult.rows.map((row) => row.data),
-      state: stateResult.rowCount > 0 ? stateResult.rows[0].data : null,
+      admins: adminsDoc.data,
+      state: stateDoc.data,
       reports,
       notifications,
       logs: logGroups.logs || [],
-      warehouse: warehouseResult.rowCount > 0 ? warehouseResult.rows[0].data : null,
+      warehouse: warehouseDoc.data,
       warehouseLogs: logGroups.warehouse_logs || [],
     };
-  }
-
-  async function upsertSingleton(table, keyColumn, keyValue, value) {
-    await query(
-      `INSERT INTO ${table} (${keyColumn}, data) VALUES ($1, $2::jsonb)
-       ON CONFLICT (${keyColumn}) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
-      [keyValue, JSON.stringify(value)],
-    );
   }
 
   return {
@@ -381,6 +712,13 @@ function createPostgresStorage(options = {}) {
         );
       `);
       await query(`
+        CREATE TABLE IF NOT EXISTS document_versions (
+          document_key TEXT PRIMARY KEY,
+          version BIGINT NOT NULL DEFAULT 1,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `);
+      await query(`
         CREATE TABLE IF NOT EXISTS backups (
           id BIGSERIAL PRIMARY KEY,
           label TEXT NOT NULL,
@@ -395,135 +733,39 @@ function createPostgresStorage(options = {}) {
       ensureDir(backupsDir);
     },
     async ensureJsonFile(filePath, defaultValue) {
-      const target = resolveTarget(filePath);
-      if (target.table === 'admins') {
-        const existing = await query('SELECT 1 FROM admins LIMIT 1');
-        if (existing.rowCount === 0 && Array.isArray(defaultValue) && defaultValue.length > 0) {
-          await this.writeJson(filePath, defaultValue);
-        }
-        return;
-      }
-      if (target.table === 'state') {
-        const existing = await query('SELECT 1 FROM state WHERE key = $1', [target.key]);
-        if (existing.rowCount === 0) {
-          await upsertSingleton('state', 'key', target.key, defaultValue);
-        }
-        return;
-      }
-      if (target.table === 'warehouse') {
-        const existing = await query('SELECT 1 FROM warehouse WHERE key = $1', [target.key]);
-        if (existing.rowCount === 0) {
-          await upsertSingleton('warehouse', 'key', target.key, defaultValue);
-        }
-        return;
-      }
-      if (target.table === 'reports') {
-        const existing = await query('SELECT 1 FROM reports WHERE site = $1', [target.site]);
-        if (existing.rowCount === 0) {
-          await upsertSingleton('reports', 'site', target.site, defaultValue);
-        }
-        return;
-      }
-      if (target.table === 'notifications') {
-        const existing = await query('SELECT 1 FROM notifications WHERE site = $1', [target.site]);
-        if (existing.rowCount === 0) {
-          await upsertSingleton('notifications', 'site', target.site, defaultValue);
-        }
-        return;
-      }
-      if (target.table === 'logs') {
-        const existing = await query('SELECT 1 FROM logs WHERE category = $1', [target.category]);
-        if (existing.rowCount === 0) {
-          await upsertSingleton('logs', 'category', target.category, defaultValue);
-        }
+      const current = await readDocument(filePath, defaultValue);
+      if (!current.exists) {
+        await writeDocument(filePath, defaultValue, { fallbackValue: defaultValue });
       }
     },
     async readJson(filePath, fallbackValue) {
-      const target = resolveTarget(filePath);
-      if (target.table === 'admins') {
-        const result = await query('SELECT data FROM admins ORDER BY email ASC');
-        return result.rowCount > 0 ? result.rows.map((row) => row.data) : fallbackValue;
-      }
-      if (target.table === 'state') {
-        const result = await query('SELECT data FROM state WHERE key = $1', [target.key]);
-        return result.rowCount > 0 ? result.rows[0].data : fallbackValue;
-      }
-      if (target.table === 'warehouse') {
-        const result = await query('SELECT data FROM warehouse WHERE key = $1', [target.key]);
-        return result.rowCount > 0 ? result.rows[0].data : fallbackValue;
-      }
-      if (target.table === 'reports') {
-        const result = await query('SELECT data FROM reports WHERE site = $1', [target.site]);
-        return result.rowCount > 0 ? result.rows[0].data : fallbackValue;
-      }
-      if (target.table === 'notifications') {
-        const result = await query('SELECT data FROM notifications WHERE site = $1', [target.site]);
-        return result.rowCount > 0 ? result.rows[0].data : fallbackValue;
-      }
-      if (target.table === 'logs') {
-        const result = await query('SELECT data FROM logs WHERE category = $1', [target.category]);
-        return result.rowCount > 0 ? result.rows[0].data : fallbackValue;
-      }
-      return fallbackValue;
+      return readJson(filePath, fallbackValue);
     },
     async writeJson(filePath, value) {
-      const target = resolveTarget(filePath);
-      if (target.table === 'admins') {
-        const client = await pool.connect();
-        try {
-          await client.query('BEGIN');
-          await client.query('DELETE FROM admins');
-          for (const entry of Array.isArray(value) ? value : []) {
-            const email = String(entry?.email || '').trim().toLowerCase();
-            if (!email) continue;
-            await client.query(
-              `INSERT INTO admins (email, data, updated_at)
-               VALUES ($1, $2::jsonb, NOW())`,
-              [email, JSON.stringify(entry)],
-            );
-          }
-          await client.query('COMMIT');
-        } catch (error) {
-          await client.query('ROLLBACK');
-          throw error;
-        } finally {
-          client.release();
-        }
-        return;
-      }
-      if (target.table === 'state') {
-        await upsertSingleton('state', 'key', target.key, value);
-        return;
-      }
-      if (target.table === 'warehouse') {
-        await upsertSingleton('warehouse', 'key', target.key, value);
-        return;
-      }
-      if (target.table === 'reports') {
-        await upsertSingleton('reports', 'site', target.site, value);
-        return;
-      }
-      if (target.table === 'notifications') {
-        await upsertSingleton('notifications', 'site', target.site, value);
-        return;
-      }
-      if (target.table === 'logs') {
-        await upsertSingleton('logs', 'category', target.category, value);
-      }
+      await writeDocument(filePath, value, { fallbackValue: value });
+    },
+    async readDocument(filePath, fallbackValue) {
+      return readDocument(filePath, fallbackValue);
+    },
+    async writeDocument(filePath, value, options = {}) {
+      return writeDocument(filePath, value, options);
+    },
+    async mutateDocument(filePath, fallbackValue, mutator) {
+      return mutateDocument(filePath, fallbackValue, mutator);
     },
     async getAll(filePath, fallbackValue) {
-      return this.readJson(filePath, fallbackValue);
+      return readJson(filePath, fallbackValue);
     },
     async save(filePath, value) {
-      await this.writeJson(filePath, value);
+      await writeDocument(filePath, value, { fallbackValue: value });
       return value;
     },
     async update(filePath, value) {
-      await this.writeJson(filePath, value);
+      await writeDocument(filePath, value, { fallbackValue: value });
       return value;
     },
     async delete(filePath, fallbackValue = []) {
-      await this.writeJson(filePath, fallbackValue);
+      await writeDocument(filePath, fallbackValue, { fallbackValue });
       return fallbackValue;
     },
     async exportAll() {
@@ -599,5 +841,6 @@ function createStorage(options = {}) {
 }
 
 module.exports = {
+  VersionConflictError,
   createStorage,
 };

@@ -1771,6 +1771,43 @@ function getHealthRetryDelay(storageStatus) {
   return 3000;
 }
 
+function setDocumentVersion(kind, version, site = "default") {
+  const safeVersion = Number(version);
+  if (!Number.isFinite(safeVersion) || safeVersion < 1) return;
+  if (kind === "state") {
+    documentVersions.state = safeVersion;
+    return;
+  }
+  if (kind === "reports") {
+    documentVersions.reportsBySite[site] = safeVersion;
+    return;
+  }
+  if (kind === "notifications") {
+    documentVersions.notificationsBySite[site] = safeVersion;
+  }
+}
+
+function getDocumentVersion(kind, site = "default") {
+  if (kind === "state") return documentVersions.state || 1;
+  if (kind === "reports") return documentVersions.reportsBySite[site] || 1;
+  if (kind === "notifications") return documentVersions.notificationsBySite[site] || 1;
+  return 1;
+}
+
+function showVersionConflictMessage(onReloadLatest) {
+  showConfirm(
+    "Netko je u međuvremenu promijenio podatke. Želiš učitati najnoviju verziju sa servera?",
+    "Promjene u konfliktu",
+    "⚠️",
+    () => {
+      Promise.resolve(onReloadLatest && onReloadLatest()).catch(() => {});
+    },
+    () => {
+      showToast("Tvoja lokalna verzija je zastarjela. Spremanje je zaustavljeno.", "error");
+    },
+  );
+}
+
 function getCachedBootReadyState() {
   return sessionStorage.getItem(BOOT_READY_CACHE_KEY) === "ready";
 }
@@ -1983,6 +2020,11 @@ const BOOT_READY_CACHE_KEY = "cmax_boot_ready";
 const BOOT_HEALTH_TIMEOUT_MS = 10000;
 let appBootState = BOOT_STATES.BOOTING;
 let backendBootPromise = null;
+const documentVersions = {
+  state: 1,
+  reportsBySite: {},
+  notificationsBySite: {},
+};
 
 const DEFAULT_PERMISSIONS = {
   canAccessPlanner: true,
@@ -3174,10 +3216,25 @@ function saveReports(reports) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         reports,
+        lastKnownVersion: getDocumentVersion("reports", currentSite),
         userEmail: appState.currentUser || null,
         site: currentSite,
       }),
-    }).catch(() => {});
+    })
+      .then((res) => {
+        if (res.status === 409) {
+          return res.json().then((payload) => {
+            showVersionConflictMessage(() => loadReportsData(currentSite));
+            throw new Error("REPORTS_CONFLICT");
+          });
+        }
+        if (!res.ok) throw new Error("REPORTS_SAVE_FAILED");
+        return res.json();
+      })
+      .then((payload) => {
+        setDocumentVersion("reports", payload?.version, currentSite);
+      })
+      .catch(() => {});
   }
   scheduleServerSync();
 }
@@ -3191,9 +3248,11 @@ function loadReportsData() {
     cache: "no-store",
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((reports) => {
-      localStorage.setItem(REPORTS_KEY, JSON.stringify(reports || []));
-      return reports || [];
+    .then((payload) => {
+      const reports = Array.isArray(payload?.reports) ? payload.reports : [];
+      setDocumentVersion("reports", payload?.version, currentSite);
+      localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
+      return reports;
     })
     .catch(() => getReports());
 }
@@ -3222,11 +3281,30 @@ function saveNotificationsForSite(site, notifications) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       notifications,
+      lastKnownVersion: getDocumentVersion("notifications", site),
       userEmail: appState.currentUser || null,
       site,
     }),
   })
-    .then((res) => (res.ok ? true : Promise.reject()))
+    .then((res) => {
+      if (res.status === 409) {
+        return res.json().then(() => {
+          showVersionConflictMessage(() =>
+            loadNotificationsData(site).then(() => {
+              if (currentView === "notifications") {
+                renderNotificationsList();
+              }
+            }),
+          );
+          return false;
+        });
+      }
+      if (!res.ok) return Promise.reject();
+      return res.json().then((payload) => {
+        setDocumentVersion("notifications", payload?.version, site);
+        return true;
+      });
+    })
     .catch(() => {
       scheduleServerSync();
       return false;
@@ -3242,8 +3320,9 @@ function loadNotificationsData(site = currentSite) {
     cache: "no-store",
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((notifications) => {
-      const list = Array.isArray(notifications) ? notifications : [];
+    .then((payload) => {
+      const list = Array.isArray(payload?.notifications) ? payload.notifications : [];
+      setDocumentVersion("notifications", payload?.version, site);
       localStorage.setItem(
         getNotificationStorageKey(site),
         JSON.stringify(list),
@@ -4696,7 +4775,10 @@ function refreshSiteMetadata() {
 
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((data) => syncSiteMetadata(data?.state))
+    .then((data) => {
+      setDocumentVersion("state", data?.version);
+      return syncSiteMetadata(data?.state);
+    })
     .then((changed) =>
       loadNotificationsData()
         .then(() => {
@@ -5230,6 +5312,7 @@ function loadData() {
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((data) => {
+      setDocumentVersion("state", data?.version);
       if (data && data.state) {
         if (applyServerStateSnapshot(data.state)) {
           const savedData = localStorage.getItem(STORAGE_KEY);
@@ -5458,9 +5541,19 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
       Array.isArray(serverState.siteData[site].notifications)
         ? serverState.siteData[site].notifications
         : null;
+    const serverReports =
+      serverState.siteData &&
+      serverState.siteData[site] &&
+      Array.isArray(serverState.siteData[site].reports)
+        ? serverState.siteData[site].reports
+        : null;
     const localNotifications = safeParseStoredJson(
       localStorage.getItem(getSiteStorageKey("cmax_planner_notifications", site)),
       null,
+    );
+    const localReports = safeParseStoredJson(
+      localStorage.getItem(getSiteStorageKey("cmax_planner_reports", site)),
+      [],
     );
     siteData[site] = {
       planner: mergePlannerSnapshot(localPlanner, serverPlanner),
@@ -5482,12 +5575,9 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
           null,
         ),
       ),
-      reports: safeParseStoredJson(
-        localStorage.getItem(getSiteStorageKey("cmax_planner_reports", site)),
-        [],
-      ),
+      reports: Array.isArray(serverReports) ? serverReports : (Array.isArray(localReports) ? localReports : []),
       notifications: Array.isArray(localNotifications)
-        ? localNotifications
+        ? (Array.isArray(serverNotifications) ? serverNotifications : localNotifications)
         : Array.isArray(serverNotifications)
           ? serverNotifications
           : [],
@@ -5647,7 +5737,10 @@ function syncServerState(options = {}) {
 
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((data) => data?.state || null)
+    .then((data) => {
+      setDocumentVersion("state", data?.version);
+      return data?.state || null;
+    })
     .catch(() => null)
     .then((serverState) =>
       fetch("/api/state", {
@@ -5660,6 +5753,7 @@ function syncServerState(options = {}) {
             includeBinPermissions,
             includeSites,
           }),
+          lastKnownVersion: getDocumentVersion("state"),
           userEmail: appState.currentUser || null,
           skipLog,
         }),
@@ -5667,7 +5761,26 @@ function syncServerState(options = {}) {
       }),
     )
     .then((res) => {
+      if (res.status === 409) {
+        return res.json().then((payload) => {
+          showVersionConflictMessage(() =>
+            Promise.resolve(payload?.latest?.state)
+              .then((latestState) => {
+                if (latestState) {
+                  applyServerStateSnapshot(latestState);
+                  return loadAllData().then(() => renderAll());
+                }
+                return loadAllData().then(() => renderAll());
+              }),
+          );
+          throw new Error("STATE_VERSION_CONFLICT");
+        });
+      }
       if (!res.ok) throw new Error("STATE_SAVE_FAILED");
+      return res.json();
+    })
+    .then((payload) => {
+      setDocumentVersion("state", payload?.version);
       if (markAsClean) markClean();
       if (includeAdmins) pendingServerSyncOptions.includeAdmins = false;
       if (includeGuestPermissions) pendingServerSyncOptions.includeGuestPermissions = false;
@@ -5678,6 +5791,9 @@ function syncServerState(options = {}) {
       return true;
     })
     .catch((error) => {
+      if (error && error.message === "STATE_VERSION_CONFLICT") {
+        return false;
+      }
       console.error("Server sync failed:", error);
       if (showSuccess) showToast("Server save failed.", "error");
       return false;
