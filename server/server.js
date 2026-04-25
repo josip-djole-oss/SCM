@@ -535,6 +535,13 @@ const storage = multer.diskStorage({
   },
 });
 
+const upload = multer({
+  storage,
+  limits: {
+    fileSize: Number(process.env.MAX_UPLOAD_SIZE_BYTES) || 10 * 1024 * 1024,
+  },
+});
+
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
