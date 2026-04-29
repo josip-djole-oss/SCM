@@ -387,6 +387,233 @@ ab -n 1000 -c 50 http://localhost:3000/api/health
 - [ ] Audit all admin accounts
 - [ ] Test disaster recovery procedures
 
+## Export/Import & Backup Testing
+
+### Warehouse Export/Import Tests
+
+**1. Export Warehouse to Excel**
+```bash
+curl -X GET http://localhost:3000/api/warehouse/export/excel \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -o warehouse.xlsx
+
+# Expected: 200 OK, .xlsx file downloaded
+```
+
+**2. Import Warehouse from Excel**
+```bash
+curl -X POST http://localhost:3000/api/warehouse/import/excel \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -F "file=@warehouse.xlsx"
+
+# Expected: 200 OK, { "ok": true, "itemsImported": N }
+```
+
+**3. Read-Only User Cannot Import**
+```bash
+# Login as read-only user, then:
+curl -X POST http://localhost:3000/api/warehouse/import/excel \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -F "file=@warehouse.xlsx"
+
+# Expected: 403 Forbidden - "Read-only users cannot import"
+```
+
+### TidPlan Export/Import Tests
+
+**1. Export TidPlan to PDF**
+```bash
+curl -X GET "http://localhost:3000/api/tidplan/export/pdf?site=gradiliste-1" \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -o tidplan.pdf
+
+# Expected: 200 OK, .pdf file downloaded
+```
+
+**2. Import TidPlan from PDF**
+```bash
+curl -X POST http://localhost:3000/api/tidplan/import/pdf \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -F "file=@tidplan.pdf" \
+  -F "site=gradiliste-1"
+
+# Expected: 200 OK, { "ok": true, "itemsImported": N }
+```
+
+**3. Site Access Control on Export**
+```bash
+# Try to export from site you don't have access to
+curl -X GET "http://localhost:3000/api/tidplan/export/pdf?site=restricted-site" \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE"
+
+# Expected: 403 Forbidden - "Access denied to this site"
+```
+
+### Planner Export/Import Tests
+
+**1. Export to Excel**
+```bash
+curl -X GET "http://localhost:3000/api/planner/export/excel?site=gradiliste-1" \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -o planner.xlsx
+
+# Expected: 200 OK
+```
+
+**2. Export to PDF**
+```bash
+curl -X GET "http://localhost:3000/api/planner/export/pdf?site=gradiliste-1" \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -o planner.pdf
+
+# Expected: 200 OK
+```
+
+**3. Export to Word**
+```bash
+curl -X GET "http://localhost:3000/api/planner/export/word?site=gradiliste-1" \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -o planner.docx
+
+# Expected: 200 OK
+```
+
+**4. Import from Excel**
+```bash
+curl -X POST http://localhost:3000/api/planner/import/excel \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -F "file=@planner.xlsx" \
+  -F "site=gradiliste-1"
+
+# Expected: 200 OK, { "ok": true, "tasksImported": N }
+```
+
+### Backup Management Tests
+
+**1. Manual Backup Creation**
+```bash
+curl -X POST http://localhost:3000/api/backup \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE"
+
+# Expected: 200 OK
+# {
+#   "ok": true,
+#   "id": "manual-admin@example.com-1234567890.json",
+#   "file": "manual-admin@example.com-1234567890.json",
+#   "createdAt": "2026-04-29T10:00:00Z",
+#   "storage": "filesystem"
+# }
+```
+
+**2. Read-Only User Cannot Create Backup**
+```bash
+# Login as read-only, then:
+curl -X POST http://localhost:3000/api/backup \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE"
+
+# Expected: 403 Forbidden - "Read-only users cannot create backups"
+```
+
+**3. Backup Rate Limiting**
+```bash
+# Try to create 11 backups in 15 minutes
+for i in {1..11}; do
+  curl -X POST http://localhost:3000/api/backup \
+    -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+    -b "cmax_session=YOUR_SESSION_COOKIE"
+  echo "Backup $i"
+done
+
+# Expected: First 10 succeed (200 OK), 11th gets 429 Too Many Requests
+```
+
+**4. List Backups**
+```bash
+curl -X GET http://localhost:3000/api/backups \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE"
+
+# Expected: 200 OK
+# {
+#   "backups": [
+#     {
+#       "filename": "auto-1704067200000.json",
+#       "size": 524288,
+#       "createdAt": "2026-04-29T12:00:00Z"
+#     }
+#   ]
+# }
+```
+
+**5. Backup Info**
+```bash
+curl -X GET http://localhost:3000/api/backup/info \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE"
+
+# Expected: 200 OK
+# {
+#   "backupInterval": 6,
+#   "backupIntervalMs": 21600000,
+#   "storageType": "json",
+#   "backupsDir": "/app/data/backups",
+#   "dataDir": "/app/data",
+#   "lastBackupTime": 1704067200000,
+#   "createdAt": "2026-04-29T12:00:00Z"
+# }
+```
+
+### Data Isolation Tests
+
+**1. Verify Site Separation**
+```bash
+# Create item in site A
+curl -X POST http://localhost:3000/api/tidplan \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -d '{"site": "site-a", "data": [{"name": "Task A"}]}'
+
+# Create item in site B
+curl -X POST http://localhost:3000/api/tidplan \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE" \
+  -d '{"site": "site-b", "data": [{"name": "Task B"}]}'
+
+# Get data from site A
+curl "http://localhost:3000/api/tidplan?site=site-a" \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE"
+
+# Expected: Only Task A, NOT Task B
+```
+
+**2. Delete One Site, Verify Others Untouched**
+```bash
+# Delete site A
+curl -X DELETE http://localhost:3000/api/sites/site-a \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE"
+
+# Check site B still has data
+curl "http://localhost:3000/api/tidplan?site=site-b" \
+  -H "x-csrf-token: YOUR_CSRF_TOKEN" \
+  -b "cmax_session=YOUR_SESSION_COOKIE"
+
+# Expected: Task B still exists, NOT deleted
+```
+
 ## Reporting Issues
 
 If you discover a security vulnerability:

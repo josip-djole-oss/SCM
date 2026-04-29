@@ -8,6 +8,10 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcryptjs');
+const ExcelJS = require('exceljs');
+const PDFDocument = require('pdfkit');
+const { PDFDocument: PDFLibDocument } = require('pdf-lib');
+const { Document, Packer, Paragraph, Table, TableRow, TableCell } = require('docx');
 const { VersionConflictError, createStorage } = require('./storage');
 
 const app = express();
@@ -17,7 +21,7 @@ const API_BODY_LIMIT = process.env.API_BODY_LIMIT || '5mb';
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS) || 15000;
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS) || 8 * 60 * 60 * 1000;
 const PRESENCE_TTL_MS = 60000;
-const AUTO_BACKUP_INTERVAL_MS = Number(process.env.AUTO_BACKUP_INTERVAL_MS) || 24 * 60 * 60 * 1000;
+const AUTO_BACKUP_INTERVAL_MS = Number(process.env.AUTO_BACKUP_INTERVAL_MS) || 6 * 60 * 60 * 1000; // 6 hours
 const STORAGE_INIT_RETRY_MS = Number(process.env.STORAGE_INIT_RETRY_MS) || 3000;
 const STORAGE_INIT_MAX_ATTEMPTS = Number(process.env.STORAGE_INIT_MAX_ATTEMPTS) || 0;
 const STORAGE_INIT_MAX_RETRY_MS = Number(process.env.STORAGE_INIT_MAX_RETRY_MS) || 30000;
@@ -272,6 +276,237 @@ function normalizeAdminRecord(admin) {
       ? admin.allowedSites.map((site) => sanitizeString(site, 80)).filter(Boolean)
       : null,
   };
+}
+
+/* ==================== SITE-SPECIFIC DATA MANAGEMENT ==================== */
+
+function getSiteDataDir(site) {
+  const safeSite = sanitizeSiteKey(site);
+  return path.join(dataDir, 'sites', safeSite);
+}
+
+function getTidplanFilePath(site) {
+  return path.join(getSiteDataDir(site), 'tidplan.json');
+}
+
+function getPlannerFilePath(site) {
+  return path.join(getSiteDataDir(site), 'planner.json');
+}
+
+async function ensureSiteDir(site) {
+  const siteDir = getSiteDataDir(site);
+  if (!fs.existsSync(siteDir)) {
+    fs.mkdirSync(siteDir, { recursive: true });
+  }
+}
+
+async function readTidplan(site) {
+  await ensureSiteDir(site);
+  return readJsonFile(getTidplanFilePath(site), []);
+}
+
+async function writeTidplan(site, data) {
+  await ensureSiteDir(site);
+  return writeVersionedJsonFile(getTidplanFilePath(site), data, { fallbackValue: [] });
+}
+
+async function readPlanner(site) {
+  await ensureSiteDir(site);
+  return readJsonFile(getPlannerFilePath(site), []);
+}
+
+async function writePlanner(site, data) {
+  await ensureSiteDir(site);
+  return writeVersionedJsonFile(getPlannerFilePath(site), data, { fallbackValue: [] });
+}
+
+/* ==================== EXPORT/IMPORT FUNCTIONS ==================== */
+
+async function exportToExcel(data, columns) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Podaci');
+
+  // Add header
+  worksheet.columns = columns.map((col) => ({
+    header: col,
+    key: col.toLowerCase().replace(/\s+/g, '_'),
+  }));
+
+  // Style header
+  worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  worksheet.getRow(1).fill = {
+    type: 'pattern',
+    pattern: 'solid',
+    fgColor: { argb: 'FF4472C4' },
+  };
+
+  // Add data rows
+  if (Array.isArray(data)) {
+    data.forEach((row) => {
+      worksheet.addRow(row);
+    });
+  }
+
+  // Auto-fit columns
+  worksheet.columns.forEach((column) => {
+    let maxLength = column.header.length;
+    if (column.values) {
+      const lengths = column.values.map((v) => String(v || '').length);
+      maxLength = Math.max(maxLength, ...lengths);
+    }
+    column.width = Math.min(maxLength + 2, 50);
+  });
+
+  return workbook.xlsx.writeBuffer();
+}
+
+async function exportToPDF(title, content) {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      const chunks = [];
+
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      // Title
+      doc.fontSize(20).font('Helvetica-Bold').text(title, { align: 'center' });
+      doc.moveDown();
+
+      // Date
+      doc.fontSize(10).font('Helvetica').text(`Generirano: ${new Date().toLocaleString('hr-HR')}`, {
+        align: 'left',
+      });
+      doc.moveDown();
+
+      // Content
+      doc.fontSize(11).font('Helvetica');
+      if (Array.isArray(content)) {
+        content.forEach((item) => {
+          Object.entries(item).forEach(([key, value]) => {
+            doc.text(`${key}: ${value}`, { continued: false });
+          });
+          doc.moveDown();
+        });
+      } else if (typeof content === 'string') {
+        doc.text(content);
+      }
+
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function exportToWord(title, content) {
+  const paragraphs = [];
+
+  // Title
+  paragraphs.push(
+    new Paragraph({
+      text: title,
+      bold: true,
+      size: 32,
+    }),
+  );
+
+  // Date
+  paragraphs.push(
+    new Paragraph({
+      text: `Generirano: ${new Date().toLocaleString('hr-HR')}`,
+      size: 20,
+    }),
+  );
+
+  // Content
+  if (Array.isArray(content)) {
+    content.forEach((item) => {
+      const rows = [];
+      Object.entries(item).forEach(([key, value]) => {
+        rows.push(
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph(key)] }),
+              new TableCell({ children: [new Paragraph(String(value))] }),
+            ],
+          }),
+        );
+      });
+
+      if (rows.length > 0) {
+        paragraphs.push(
+          new Table({
+            width: { size: 100, type: 'percent' },
+            rows,
+          }),
+        );
+        paragraphs.push(new Paragraph(''));
+      }
+    });
+  }
+
+  const doc = new Document({ sections: [{ children: paragraphs }] });
+  return Packer.toBuffer(doc);
+}
+
+/* ==================== BACKUP FUNCTIONS ==================== */
+
+async function createBackupSnapshotWithLabel(label = 'manual', includeNotification = true) {
+  try {
+    const safeLabel = sanitizeString(label, 60).replace(/[^a-zA-Z0-9_-]/g, '_') || 'manual';
+    const snapshot = await storageAdapter.exportAll();
+    
+    if (typeof storageAdapter.saveBackupSnapshot === 'function') {
+      return storageAdapter.saveBackupSnapshot(snapshot, { label: safeLabel });
+    }
+
+    ensureDir(backupsDir);
+    const timestamp = Date.now();
+    const filename = `${safeLabel}-${timestamp}.json`;
+    const filePath = path.join(backupsDir, filename);
+    
+    fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf8');
+    
+    return {
+      id: filename,
+      filename,
+      filePath,
+      createdAt: new Date().toISOString(),
+      storage: 'filesystem',
+      label: safeLabel,
+      timestamp,
+    };
+  } catch (error) {
+    logServerError(error, 'backup');
+    return null;
+  }
+}
+
+async function listBackups(limit = 20) {
+  try {
+    if (!fs.existsSync(backupsDir)) return [];
+    
+    const files = fs.readdirSync(backupsDir)
+      .filter((f) => f.endsWith('.json'))
+      .map((filename) => {
+        const filePath = path.join(backupsDir, filename);
+        const stats = fs.statSync(filePath);
+        return {
+          filename,
+          size: stats.size,
+          createdAt: stats.mtime.toISOString(),
+        };
+      })
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, limit);
+    
+    return files;
+  } catch (error) {
+    logServerError(error, 'listBackups');
+    return [];
+  }
 }
 
 function redactAdminRecord(admin) {
@@ -802,18 +1037,11 @@ app.use(cookieParser());
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: Number(process.env.LOGIN_RATE_LIMIT_MAX) || 5,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many login attempts' },
-});
-
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: Number(process.env.API_RATE_LIMIT_MAX) || 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests' },
+  skip: (req) => req.method !== 'POST',
 });
 
 const backupLimiter = rateLimit({
@@ -850,32 +1078,6 @@ app.use((req, res, next) => {
     }
   });
   next();
-});
-
-app.use('/api', (req, res, next) => {
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  next();
-});
-app.use('/api', apiLimiter);
-
-app.get('/api/health', (req, res) => {
-  const storageStatus = getStorageStatusPayload();
-  res.json({
-    ok: true,
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    storageType: STORAGE_TYPE,
-    storageReady: storageStatus.ready,
-    storage: storageStatus,
-  });
-});
-
-app.use('/api', (req, res, next) => {
-  if (req.path === '/health') return next();
-  return requireStorageReady(req, res, next);
 });
 
 app.post('/api/login', loginLimiter, async (req, res, next) => {
@@ -1176,29 +1378,6 @@ apiRouter.get('/admin/readonly-status', requirePermission('canViewSettings'), as
     });
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-apiRouter.get('/admin/backup', requireAdmin, backupLimiter, async (req, res, next) => {
-  try {
-    const backup = await createBackupSnapshot(`manual-${req.session.email || 'admin'}`);
-    if (!backup) {
-      return res.status(500).json({ error: 'Failed to create backup' });
-    }
-    await logActivity(req.session.email, 'manual_backup', {
-      file: backup.filename,
-      storageType: STORAGE_TYPE,
-    });
-    res.json({
-      ok: true,
-      id: backup.id || null,
-      file: backup.filename,
-      path: backup.filePath || null,
-      storage: backup.storage || STORAGE_TYPE,
-      createdAt: backup.createdAt || new Date().toISOString(),
-    });
-  } catch (error) {
-    next(error);
   }
 });
 
@@ -1665,6 +1844,371 @@ apiRouter.delete('/warehouse-logs', requirePermission('canClearLogs'), async (re
     await writeVersionedJsonFile(warehouseLogsFile, [], { fallbackValue: [] });
     await logWarehouseActivity(req.session.email, 'clear_warehouse_logs', {});
     res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/* ==================== EXPORT/IMPORT ENDPOINTS ==================== */
+
+// Warehouse Export to Excel
+apiRouter.get('/warehouse/export/excel', requirePermission('canViewWarehouse'), async (req, res, next) => {
+  try {
+    const warehouse = await readJsonFile(warehouseFile, { items: [] });
+    const data = Array.isArray(warehouse.items) ? warehouse.items.map((item) => ({
+      ID: item.id,
+      'Naziv': item.name,
+      'Opis': item.description,
+      'Količina': item.quantity,
+      'Mjerna jedinica': item.unit,
+      'Kategorija': item.category,
+      'Lokacija': item.location,
+      'Kreirano': item.createdAt,
+      'Ažurirano': item.updatedAt,
+    })) : [];
+
+    const buffer = await exportToExcel(data, [
+      'ID', 'Naziv', 'Opis', 'Količina', 'Mjerna jedinica', 'Kategorija', 'Lokacija', 'Kreirano', 'Ažurirano'
+    ]);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="skladiste-${Date.now()}.xlsx"`);
+    res.send(buffer);
+    
+    await logActivity(req.session.email, 'export_warehouse_excel', {});
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Warehouse Import from Excel
+apiRouter.post('/warehouse/import/excel', requirePermission('canManageWarehouse'), upload.single('file'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) {
+      return res.status(403).json({ error: 'Read-only users cannot import' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(req.file.path);
+    const worksheet = workbook.getWorksheet(1);
+    
+    const items = [];
+    let rowNumber = 0;
+    worksheet.eachRow({ header: 1 }, (row, rn) => {
+      if (rn === 1) return; // Skip header
+      const [id, name, description, quantity, unit, category, location] = row;
+      if (id) {
+        items.push({
+          id: String(id).trim(),
+          name: sanitizeString(name || '', 200),
+          description: sanitizeString(description || '', 500),
+          quantity: Number(quantity) || 0,
+          unit: sanitizeString(unit || '', 50),
+          category: sanitizeString(category || '', 100),
+          location: sanitizeString(location || '', 200),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    await writeVersionedJsonFile(warehouseFile, {
+      version: 1,
+      items,
+      adminAssignments: {},
+      updatedAt: new Date().toISOString(),
+    }, { fallbackValue: { version: 1, items: [], adminAssignments: {} } });
+
+    await logActivity(req.session.email, 'import_warehouse_excel', { itemsCount: items.length });
+    
+    // Clean up uploaded file
+    fs.unlinkSync(req.file.path);
+    
+    res.json({ ok: true, itemsImported: items.length });
+  } catch (error) {
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+    next(error);
+  }
+});
+
+// TidPlan Export to PDF
+apiRouter.get('/tidplan/export/pdf', requirePermission('canAccessTidplan'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.query.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+
+    const tidplan = await readTidplan(site);
+    const content = Array.isArray(tidplan) ? tidplan.map((item) => ({
+      'Datum': item.date || '-',
+      'Naziv': item.name || '-',
+      'Opis': item.description || '-',
+      'Status': item.status || '-',
+    })) : [];
+
+    const buffer = await exportToPDF(`TidPlan - ${site}`, content);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="tidplan-${site}-${Date.now()}.pdf"`);
+    res.send(buffer);
+    
+    await logActivity(req.session.email, 'export_tidplan_pdf', { site });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// TidPlan Import from PDF (extract text data)
+apiRouter.post('/tidplan/import/pdf', requirePermission('canManageTidplan'), upload.single('file'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) {
+      return res.status(403).json({ error: 'Read-only users cannot import' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const site = sanitizeString(req.body?.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+
+    // Read PDF and extract text
+    const fileData = fs.readFileSync(req.file.path);
+    const pdfDoc = await PDFLibDocument.load(fileData);
+    const pages = pdfDoc.getPages();
+    
+    let extractedText = '';
+    for (const page of pages) {
+      const text = page.getTextContent?.();
+      if (text) extractedText += text;
+    }
+
+    // Parse extracted data (simple parsing - can be enhanced)
+    const tidplan = [];
+    const lines = extractedText.split('\n').filter((l) => l.trim());
+    
+    lines.slice(2).forEach((line) => {
+      const parts = line.split('|').map((p) => p.trim());
+      if (parts.length >= 2) {
+        tidplan.push({
+          date: parts[0] || new Date().toISOString().split('T')[0],
+          name: sanitizeString(parts[1] || '', 200),
+          description: sanitizeString(parts[2] || '', 500),
+          status: sanitizeString(parts[3] || 'pending', 50),
+        });
+      }
+    });
+
+    await writeTidplan(site, tidplan);
+    await logActivity(req.session.email, 'import_tidplan_pdf', { site, itemsCount: tidplan.length });
+    
+    fs.unlinkSync(req.file.path);
+    
+    res.json({ ok: true, itemsImported: tidplan.length });
+  } catch (error) {
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+    next(error);
+  }
+});
+
+// Planner Export to Excel
+apiRouter.get('/planner/export/excel', requirePermission('canAccessPlanner'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.query.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+
+    const planner = await readPlanner(site);
+    const data = Array.isArray(planner) ? planner.map((item) => ({
+      'Datum': item.date || '-',
+      'Naziv zadatka': item.taskName || '-',
+      'Opis': item.description || '-',
+      'Status': item.status || '-',
+      'Prioritet': item.priority || '-',
+      'Dodijeljen': item.assignedTo || '-',
+    })) : [];
+
+    const buffer = await exportToExcel(data, [
+      'Datum', 'Naziv zadatka', 'Opis', 'Status', 'Prioritet', 'Dodijeljen'
+    ]);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="planner-${site}-${Date.now()}.xlsx"`);
+    res.send(buffer);
+    
+    await logActivity(req.session.email, 'export_planner_excel', { site });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Planner Export to PDF
+apiRouter.get('/planner/export/pdf', requirePermission('canAccessPlanner'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.query.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+
+    const planner = await readPlanner(site);
+    const content = Array.isArray(planner) ? planner.map((item) => ({
+      'Datum': item.date || '-',
+      'Naziv': item.taskName || '-',
+      'Opis': item.description || '-',
+      'Status': item.status || '-',
+    })) : [];
+
+    const buffer = await exportToPDF(`Planner - ${site}`, content);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="planner-${site}-${Date.now()}.pdf"`);
+    res.send(buffer);
+    
+    await logActivity(req.session.email, 'export_planner_pdf', { site });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Planner Export to Word
+apiRouter.get('/planner/export/word', requirePermission('canAccessPlanner'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.query.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+
+    const planner = await readPlanner(site);
+    const content = Array.isArray(planner) ? planner.map((item) => ({
+      'Datum': item.date || '-',
+      'Naziv': item.taskName || '-',
+      'Opis': item.description || '-',
+      'Status': item.status || '-',
+    })) : [];
+
+    const buffer = await exportToWord(`Planner - ${site}`, content);
+
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="planner-${site}-${Date.now()}.docx"`);
+    res.send(buffer);
+    
+    await logActivity(req.session.email, 'export_planner_word', { site });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Planner Import from Excel
+apiRouter.post('/planner/import/excel', requirePermission('canManagePlans'), upload.single('file'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) {
+      return res.status(403).json({ error: 'Read-only users cannot import' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const site = sanitizeString(req.body?.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(req.file.path);
+    const worksheet = workbook.getWorksheet(1);
+    
+    const tasks = [];
+    worksheet.eachRow({ header: 1 }, (row, rn) => {
+      if (rn === 1) return; // Skip header
+      const [date, taskName, description, status, priority, assignedTo] = row;
+      if (date || taskName) {
+        tasks.push({
+          date: sanitizeString(date || '', 50),
+          taskName: sanitizeString(taskName || '', 200),
+          description: sanitizeString(description || '', 500),
+          status: sanitizeString(status || 'pending', 50),
+          priority: sanitizeString(priority || 'normal', 50),
+          assignedTo: sanitizeString(assignedTo || '', 160),
+        });
+      }
+    });
+
+    await writePlanner(site, tasks);
+    await logActivity(req.session.email, 'import_planner_excel', { site, tasksCount: tasks.length });
+    
+    fs.unlinkSync(req.file.path);
+    
+    res.json({ ok: true, tasksImported: tasks.length });
+  } catch (error) {
+    if (req.file) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+    next(error);
+  }
+});
+
+// Backup Management
+apiRouter.get('/backups', requireAdmin, async (req, res, next) => {
+  try {
+    const backups = await listBackups(50);
+    res.json({ backups });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/backup', requireAdmin, backupLimiter, async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) {
+      return res.status(403).json({ error: 'Read-only users cannot create backups' });
+    }
+    
+    const backup = await createBackupSnapshotWithLabel(`manual-${req.session.email || 'admin'}`);
+    if (!backup) {
+      return res.status(500).json({ error: 'Failed to create backup' });
+    }
+    
+    await logActivity(req.session.email, 'manual_backup_created', {
+      file: backup.filename,
+      size: backup.size,
+      storageType: STORAGE_TYPE,
+    });
+    
+    res.json({
+      ok: true,
+      id: backup.id || null,
+      file: backup.filename,
+      path: backup.filePath || null,
+      storage: backup.storage || STORAGE_TYPE,
+      createdAt: backup.createdAt || new Date().toISOString(),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get('/backup/info', requireAdmin, async (req, res, next) => {
+  try {
+    const info = {
+      backupInterval: AUTO_BACKUP_INTERVAL_MS / (1000 * 60 * 60), // in hours
+      backupIntervalMs: AUTO_BACKUP_INTERVAL_MS,
+      storageType: STORAGE_TYPE,
+      backupsDir,
+      dataDir,
+      lastBackupTime: await getLastBackupTime(),
+      createdAt: new Date(await getLastBackupTime()).toISOString(),
+    };
+    res.json(info);
   } catch (error) {
     next(error);
   }
