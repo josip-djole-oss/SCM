@@ -1468,13 +1468,27 @@
             </label>
             <label class="notification-site-item">
               <input type="checkbox" id="surveyTargetSite" />
-              <span id="surveyTargetSiteLabel">Postavi pitanje svima na gradilistu</span>
+              <span id="surveyTargetSiteLabel"
+                >Postavi pitanje svima na gradilistu</span
+              >
             </label>
           </div>
           <div class="form-group">
-            <label id="surveyUsersLabel" for="surveyTargetUsers">Korisnici</label>
+            <label id="surveyUsersLabel" for="surveyTargetUsers"
+              >Korisnici</label
+            >
             <div class="survey-site-hint" id="surveyCurrentSiteHint"></div>
-            <div id="surveyTargetUsersCheckboxes" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; max-height: 200px; overflow-y: auto; margin-bottom: 12px;"></div>
+            <div
+              id="surveyTargetUsersCheckboxes"
+              style="
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                padding: 12px;
+                max-height: 200px;
+                overflow-y: auto;
+                margin-bottom: 12px;
+              "
+            ></div>
           </div>
           <div class="survey-time-grid">
             <div class="form-group">
@@ -1495,19 +1509,30 @@
           <div class="form-group">
             <label id="surveyAnswersLabel">Odgovori</label>
             <div id="surveyAnswers"></div>
-            <button class="btn btn-secondary" type="button" id="btnAddSurveyAnswer" onclick="addSurveyAnswerField()">
+            <button
+              class="btn btn-secondary"
+              type="button"
+              id="btnAddSurveyAnswer"
+              onclick="addSurveyAnswerField()"
+            >
               +1 odgovor
             </button>
           </div>
           <div class="form-group">
-            <label id="surveyPrivacyLabel" for="surveyPrivacy">Privatnost</label>
+            <label id="surveyPrivacyLabel" for="surveyPrivacy"
+              >Privatnost</label
+            >
             <select id="surveyPrivacy">
               <option value="anonymous">Anonimna</option>
               <option value="semiAnonymous">Poluanonimna</option>
               <option value="public">Javna</option>
             </select>
           </div>
-          <button class="btn btn-success" id="btnPublishSurvey" onclick="submitSurvey()">
+          <button
+            class="btn btn-success"
+            id="btnPublishSurvey"
+            onclick="submitSurvey()"
+          >
             Objavi
           </button>
         </div>
@@ -2300,7 +2325,11 @@
           >
           <input type="file" id="moduleImportFile" />
         </div>
-        <button class="btn" id="moduleImportUploadBtn" onclick="uploadModuleImport()">
+        <button
+          class="btn"
+          id="moduleImportUploadBtn"
+          onclick="uploadModuleImport()"
+        >
           Upload
         </button>
       </div>
