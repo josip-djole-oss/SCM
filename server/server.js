@@ -1,6 +1,10 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+
+// Load .env file if it exists
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
 const crypto = require('crypto');
 const multer = require('multer');
 const cors = require('cors');
@@ -1941,11 +1945,18 @@ function validateSurveyInput(body) {
   const endDateStr = sanitizeString(body?.endDate, 20);
   const endTimeStr = sanitizeString(body?.endTime, 20);
   
-  // Create date without timezone conversion
+  // Create date from local timezone as entered by user
+  // The client sends the date/time in local format, and we preserve it as-is
   const parseLocalDateTime = (dateStr, timeStr) => {
-    const combined = `${dateStr}T${timeStr}:00Z`;
+    // Don't add 'Z' - we want the time to be parsed as local and then we'll store it as intended
+    // When parsing "2026-05-01" and "20:00", we create a date representing that local time
+    const combined = `${dateStr}T${timeStr}:00`;
     const date = new Date(combined);
-    return Number.isFinite(date.getTime()) ? date : null;
+    if (!Number.isFinite(date.getTime())) return null;
+    // Adjust for timezone: if user entered 20:00 local, but JS parsed it in UTC,
+    // we need to offset it back. This way when displayed, it shows the correct time.
+    const tzOffset = date.getTimezoneOffset() * 60000; // ms
+    return new Date(date.getTime() + tzOffset);
   };
   
   const startAt = parseLocalDateTime(startDateStr, startTimeStr);
@@ -2124,7 +2135,7 @@ apiRouter.delete('/surveys/:surveyId', async (req, res, next) => {
     if (!req.session.isSuperAdmin && Number(req.session.level) < 6) {
       return res.status(403).json({ error: 'Only admin level 6+ can delete surveys' });
     }
-    const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
+    const site = sanitizeString(req.body?.site || req.query.site || req.session.currentSite || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const surveyId = sanitizeString(req.params.surveyId, 120);
     const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
@@ -2159,7 +2170,7 @@ apiRouter.patch('/surveys/:surveyId/pin', async (req, res, next) => {
     if (!req.session.isSuperAdmin && Number(req.session.level) < 6) {
       return res.status(403).json({ error: 'Only admin level 6+ can pin surveys' });
     }
-    const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
+    const site = sanitizeString(req.body?.site || req.query.site || req.session.currentSite || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const surveyId = sanitizeString(req.params.surveyId, 120);
     const pinned = req.body?.pinned === true || req.body?.pinned === 'true';

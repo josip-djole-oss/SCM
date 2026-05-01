@@ -2803,8 +2803,6 @@ function canAccessBinsModule() {
 }
 function canExportTidplan() { return hasPermission("canExportTidplan"); }
 function canImportTidplan() { return hasPermission("canImportTidplan"); }
-  return hasPermission("canAccessBins");
-}
 
 function canAccessWarehouseModule() {
   if (!hasPermission("canAccessWarehouse")) return false;
@@ -2849,7 +2847,6 @@ function canManageSiteAccess() {
 
 function canManageBackups() { return !appState.isReadonly && hasAdminPermission("canManageBackups"); }
 function canViewBackups() { return hasAdminPermission("canViewBackups"); }
-}
 
 function getCurrentAdminAllowedSites() {
   if (appState.isSuperAdmin) return null;
@@ -3915,7 +3912,7 @@ function renderSurveyTargetUsers() {
       newContainer.style.border = "1px solid var(--border-color)";
       newContainer.style.borderRadius = "8px";
       newContainer.style.padding = "12px";
-      newContainer.style.maxHeight = "200px";
+      newContainer.style.maxHeight = "300px";
       newContainer.style.overflowY = "auto";
       newContainer.style.marginBottom = "12px";
       label.parentElement.insertBefore(newContainer, document.getElementById("surveyTargetUsers"));
@@ -3926,22 +3923,31 @@ function renderSurveyTargetUsers() {
 
   container.innerHTML = "";
 
-  // Get all admins to find all users assigned to sites
+  // Get all admins to find all users
   const allAdmins = getAdmins();
   const usersByEmail = {};
   const sitesByUser = {};
   const allSites = new Set();
 
   allAdmins.forEach((admin) => {
-    if (admin.email && admin.allowedSites && Array.isArray(admin.allowedSites)) {
+    if (admin.email) {
       usersByEmail[admin.email] = admin.fullName || admin.email;
-      if (!sitesByUser[admin.email]) {
-        sitesByUser[admin.email] = [];
+      if (admin.allowedSites && Array.isArray(admin.allowedSites)) {
+        if (!sitesByUser[admin.email]) {
+          sitesByUser[admin.email] = [];
+        }
+        admin.allowedSites.forEach((site) => {
+          sitesByUser[admin.email].push(site);
+          allSites.add(site);
+        });
+      } else {
+        // No specific sites assigned, add to "default"
+        if (!sitesByUser[admin.email]) {
+          sitesByUser[admin.email] = [];
+        }
+        sitesByUser[admin.email].push("default");
+        allSites.add("default");
       }
-      admin.allowedSites.forEach((site) => {
-        sitesByUser[admin.email].push(site);
-        allSites.add(site);
-      });
     }
   });
 
@@ -3957,6 +3963,11 @@ function renderSurveyTargetUsers() {
     ];
     testUsers.forEach((user) => {
       usersByEmail[user.email] = user.name;
+      if (!sitesByUser[user.email]) {
+        sitesByUser[user.email] = [];
+      }
+      sitesByUser[user.email].push("default");
+      allSites.add("default");
     });
   }
 
@@ -3973,14 +3984,15 @@ function renderSurveyTargetUsers() {
   });
 
   // Sort sites
-  const sortedSites = Object.keys(siteGroups).sort();
+  const sortedSites = Array.from(allSites).sort();
 
   sortedSites.forEach((site) => {
-    // Site checkbox group
+    // Site checkbox group header
     const siteDiv = document.createElement("div");
     siteDiv.style.marginBottom = "12px";
     siteDiv.style.paddingBottom = "12px";
     siteDiv.style.borderBottom = "1px solid var(--border-color)";
+    siteDiv.dataset.site = site;
 
     const siteLabel = document.createElement("label");
     siteLabel.style.display = "flex";
@@ -3993,6 +4005,7 @@ function renderSurveyTargetUsers() {
     siteCheckbox.type = "checkbox";
     siteCheckbox.style.marginRight = "8px";
     siteCheckbox.dataset.site = site;
+    siteCheckbox.className = "site-select-checkbox";
 
     siteCheckbox.addEventListener("change", () => {
       // Auto-select/deselect all users in this site
@@ -4003,15 +4016,18 @@ function renderSurveyTargetUsers() {
 
     siteLabel.appendChild(siteCheckbox);
     const siteText = document.createElement("span");
-    siteText.textContent = site;
+    siteText.textContent = `📍 ${site}`;
     siteLabel.appendChild(siteText);
     siteDiv.appendChild(siteLabel);
 
-    // User checkboxes
+    // User checkboxes for this site
     const usersDiv = document.createElement("div");
     usersDiv.style.marginLeft = "24px";
 
-    const users = siteGroups[site];
+    const users = siteGroups[site] || [];
+    // Sort users by name
+    users.sort((a, b) => a.name.localeCompare(b.name));
+    
     users.forEach((user) => {
       const userLabel = document.createElement("label");
       userLabel.style.display = "flex";
@@ -10793,10 +10809,6 @@ function updateTidplan() {
   const addZoneBtn = document.querySelector(".zone-input-group .btn.btn-small");
   if (addZoneBtn) addZoneBtn.textContent = t("tidplanAddZone");
 
-  const btnTidplanExportPdf = document.getElementById("btnTidplanExportPdf");
-  if (btnTidplanExportPdf) btnTidplanExportPdf.textContent = t("exportPdf");
-  const btnTidplanImportPdf = document.getElementById("btnTidplanImportPdf");
-  if (btnTidplanImportPdf) btnTidplanImportPdf.textContent = t("importPdf");
   if (btnClear)
     btnClear.disabled = !editableTidplan || !hasPermission("canClearTidplan");
 
