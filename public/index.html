@@ -1086,6 +1086,12 @@
           </button>
           <button class="btn" id="btnSurveys" onclick="showSurveys()">
             <span id="btnSurveysText">Ankete/Pitanja</span>
+            <span
+              id="surveysNotifBadge"
+              class="notif-badge"
+              style="display: none"
+              >0</span
+            >
           </button>
           <button
             class="btn"
@@ -1473,22 +1479,12 @@
               >
             </label>
           </div>
-          <div class="form-group">
+          <div class="form-group survey-users-group">
             <label id="surveyUsersLabel" for="surveyTargetUsers"
               >Korisnici</label
             >
             <div class="survey-site-hint" id="surveyCurrentSiteHint"></div>
-            <div
-              id="surveyTargetUsersCheckboxes"
-              style="
-                border: 1px solid var(--border-color);
-                border-radius: 8px;
-                padding: 12px;
-                max-height: 200px;
-                overflow-y: auto;
-                margin-bottom: 12px;
-              "
-            ></div>
+            <div id="surveyTargetUsersCheckboxes"></div>
           </div>
           <div class="survey-time-grid">
             <div class="form-group">

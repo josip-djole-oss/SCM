@@ -1871,9 +1871,25 @@ function sortNaturally(items) {
   return [...items].sort(compareNaturally);
 }
 
+function isPastDate(dateValue) {
+  const text = String(dateValue || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${text}T00:00:00`);
+  return date < today;
+}
+
+function canEditDate(dateValue = appState.currentDate) {
+  if (appState.isReadonly) return false;
+  if (!isPastDate(dateValue)) return true;
+  return appState.isSuperAdmin || getCurrentAdminLevel() >= 6 || hasPermission("canUnlockPastDays");
+}
+
 function canEditTidplan() {
   return (
     !appState.isReadonly &&
+    canEditDate(appState.currentDate) &&
     canAccessTidplanModule() &&
     (appState.isSuperAdmin ||
       (appState.isAdmin && appState.permissions.canManageTidplan !== false))
@@ -1881,6 +1897,7 @@ function canEditTidplan() {
 }
 
 let currentView = "main"; // 'main' or 'bins'
+let suppressRoutePush = false;
 let autoSaveInterval = null;
 let presenceHeartbeatInterval = null;
 let presenceRefreshInterval = null;
@@ -1944,6 +1961,7 @@ const DEFAULT_PERMISSIONS = {
   canPrint: true,
   canExport: true,
   canClear: true,
+  canUnlockPastDays: false,
   canManageTidplan: true,
   canAddTidplanActivity: true,
   canDeleteTidplanActivity: true,
@@ -2224,6 +2242,7 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canImportWarehouse: false,
   canExportTidplan: false,
   canImportTidplan: false,
+  canUnlockPastDays: false,
   warehouseAccessBySite: {},
 };
 
@@ -2254,6 +2273,7 @@ const ADMIN_PERMISSION_SECTIONS = [
       "canImportWarehouse",
       "canExportTidplan",
       "canImportTidplan",
+      "canUnlockPastDays",
     ],
   },
   {
@@ -2457,6 +2477,7 @@ let appState = {
   karnas: ["Karna 1", "Karna 2", "Karna 3", "Karna 4"],
   dailyData: {},
   binsData: {}, // { date: { planCount: 20, rows: [...] } }
+  resourceHistory: [],
   binPermissions: {
     // which columns can guests edit
     totalAvailable: true,
@@ -2487,6 +2508,7 @@ const DEFAULT_SITE_TEMPLATE = {
   dailyData: {},
   binsData: {},
   tidplan: [],
+  resourceHistory: [],
   tidplanZones: [
     { name: "Zona A", color: "#8fbc8f" },
     { name: "Zona B", color: "#add8e6" },
@@ -2870,7 +2892,7 @@ function canCreateReportsAccess() {
 }
 
 function canEditBinsDataAccess() {
-  return !appState.isReadonly && hasPermission("canEditBinsData");
+  return !appState.isReadonly && canEditDate(appState.currentDate) && hasPermission("canEditBinsData");
 }
 
 function canOpenAdminPanelAccess() {
@@ -3087,7 +3109,71 @@ function saveCurrentView(view) {
   localStorage.setItem(CURRENT_VIEW_KEY, view);
 }
 
+function routeForView(view = currentView) {
+  const routes = {
+    main: "/planner",
+    home: "/home",
+    planner: "/planner",
+    tidplan: "/tidplan",
+    warehouse: "/warehouse",
+    warehouseLogs: "/warehouse",
+    warehouseGraph: "/warehouse",
+    notifications: "/notifications",
+    surveys: "/surveys",
+    bins: "/bins",
+  };
+  return routes[view] || "/planner";
+}
+
+function viewFromPath(pathname = window.location.pathname) {
+  const path = String(pathname || "/").toLowerCase();
+  if (path === "/login") return "login";
+  if (path === "/" || path === "/home" || path === "/planner") return "main";
+  if (path === "/tidplan") return "tidplan";
+  if (path === "/warehouse") return "warehouse";
+  if (path === "/notifications") return "notifications";
+  if (path === "/surveys") return "surveys";
+  if (path === "/bins" || path === "/kante") return "bins";
+  return null;
+}
+
+function pushRouteForView(view = currentView, options = {}) {
+  if (suppressRoutePush || !window.history) return;
+  const path = options.path || routeForView(view);
+  if (window.location.pathname === path) return;
+  const state = { view };
+  if (options.replace) history.replaceState(state, "", path);
+  else history.pushState(state, "", path);
+}
+
+function applyRouteFromPath(pathname = window.location.pathname) {
+  const view = viewFromPath(pathname);
+  if (!view) return false;
+  suppressRoutePush = true;
+  try {
+    if (view === "login") {
+      showLogin();
+    } else if (view === "main") {
+      showPlanner();
+    } else if (view === "tidplan") {
+      showTidplan();
+    } else if (view === "warehouse") {
+      showWarehouse();
+    } else if (view === "notifications") {
+      showNotifications();
+    } else if (view === "surveys") {
+      showSurveys();
+    } else if (view === "bins") {
+      if (currentView !== "bins") toggleBinsView();
+    }
+  } finally {
+    suppressRoutePush = false;
+  }
+  return true;
+}
+
 function restoreLastView() {
+  if (applyRouteFromPath(window.location.pathname)) return;
   const savedView = localStorage.getItem(CURRENT_VIEW_KEY) || "main";
   if (savedView === "tidplan") {
     if (document.getElementById("tidplan-section").style.display !== "block") {
@@ -3247,6 +3333,7 @@ function loadNotificationsData(site = currentSite) {
       fetch("/api/state", { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : Promise.reject()))
         .then((data) => {
+          serverStateVersion = Number(data?.version) || serverStateVersion || 1;
           const state = data?.state;
           const list =
             state &&
@@ -3657,6 +3744,7 @@ function showNotifications() {
     const binsSection = document.getElementById("binsSection");
     const tidplanSection = document.getElementById("tidplan-section");
     const notificationsSection = document.getElementById("notifications-section");
+    const surveysSection = document.getElementById("surveys-section");
     const warehouseSection = document.getElementById("warehouse-section");
     const warehouseLogsSection = document.getElementById("warehouse-logs-section");
     const warehouseGraphSection = document.getElementById("warehouse-graph-section");
@@ -3668,10 +3756,12 @@ function showNotifications() {
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (surveysSection) surveysSection.style.display = "none";
     if (notificationsSection) notificationsSection.style.display = "block";
 
     currentView = "notifications";
     saveCurrentView("notifications");
+    pushRouteForView("notifications");
 
     Promise.all(getAccessibleSites().map((site) => loadNotificationsData(site)))
       .then(() => {
@@ -3741,6 +3831,37 @@ function nextNotificationImage() {
 /* ==================== SURVEYS ==================== */
 let surveysCache = [];
 
+function getSurveyReadKey() {
+  return `cmax_surveys_read_${currentSite}_${getCurrentUserEmail() || "guest"}`;
+}
+
+function getReadSurveyIds() {
+  return safeParseStoredJson(localStorage.getItem(getSurveyReadKey()), []) || [];
+}
+
+function markSurveysRead(surveys = surveysCache) {
+  const next = new Set(getReadSurveyIds());
+  (surveys || []).forEach((survey) => {
+    if (survey?.id) next.add(survey.id);
+  });
+  localStorage.setItem(getSurveyReadKey(), JSON.stringify(Array.from(next)));
+  updateSurveysBadge();
+}
+
+function getUnreadSurveysCount() {
+  if (!hasPermission("canViewSurveys")) return 0;
+  const readIds = new Set(getReadSurveyIds());
+  return (surveysCache || []).filter((survey) => survey?.id && !readIds.has(survey.id)).length;
+}
+
+function updateSurveysBadge() {
+  const badge = document.getElementById("surveysNotifBadge");
+  if (!badge) return;
+  const count = getUnreadSurveysCount();
+  badge.textContent = count;
+  badge.style.display = count > 0 ? "inline-flex" : "none";
+}
+
 function getSurveysList() {
   if (!BACKEND_ENABLED) return Promise.resolve(surveysCache);
 
@@ -3751,9 +3872,13 @@ function getSurveysList() {
     .then((data) => {
       const surveys = Array.isArray(data.surveys) ? data.surveys : [];
       surveysCache = surveys;
+      updateSurveysBadge();
       return surveys;
     })
-    .catch(() => surveysCache);
+    .catch(() => {
+      updateSurveysBadge();
+      return surveysCache;
+    });
 }
 
 function submitSurvey() {
@@ -3799,17 +3924,14 @@ function submitSurvey() {
   const targetSite = document.getElementById("surveyTargetSite")?.checked === true;
   const targetUsers = [];
 
-  if (!targetAll && !targetSite) {
-    // Get individually selected users
-    const usersContainer = document.getElementById("surveyTargetUsersCheckboxes");
-    if (usersContainer) {
-      usersContainer.querySelectorAll("input[type='checkbox']:checked").forEach((cb) => {
-        const email = cb.value.trim().toLowerCase();
-        if (email && !targetUsers.includes(email)) {
-          targetUsers.push(email);
-        }
-      });
-    }
+  const usersContainer = document.getElementById("surveyTargetUsersCheckboxes");
+  if (usersContainer) {
+    usersContainer.querySelectorAll("input[data-survey-user]:checked").forEach((cb) => {
+      const email = cb.value.trim().toLowerCase();
+      if (email && !targetUsers.includes(email)) {
+        targetUsers.push(email);
+      }
+    });
   }
 
   if (!targetAll && !targetSite && targetUsers.length === 0) {
@@ -3824,6 +3946,7 @@ function submitSurvey() {
   formData.append("startTime", startTime);
   formData.append("endDate", endDate);
   formData.append("endTime", endTime);
+  formData.append("timezoneOffset", String(new Date().getTimezoneOffset()));
   formData.append("targetAll", targetAll);
   formData.append("targetSite", targetSite);
   formData.append("targetUsers", JSON.stringify(targetUsers));
@@ -3903,155 +4026,98 @@ function addSurveyAnswerField() {
 
 function renderSurveyTargetUsers() {
   const container = document.getElementById("surveyTargetUsersCheckboxes");
-  if (!container) {
-    // Create container if it doesn't exist
-    const label = document.querySelector("label[for='surveyTargetUsers']");
-    if (label && !label.nextElementSibling?.id?.includes("Checkboxes")) {
-      const newContainer = document.createElement("div");
-      newContainer.id = "surveyTargetUsersCheckboxes";
-      newContainer.style.border = "1px solid var(--border-color)";
-      newContainer.style.borderRadius = "8px";
-      newContainer.style.padding = "12px";
-      newContainer.style.maxHeight = "300px";
-      newContainer.style.overflowY = "auto";
-      newContainer.style.marginBottom = "12px";
-      label.parentElement.insertBefore(newContainer, document.getElementById("surveyTargetUsers"));
-    }
-    renderSurveyTargetUsers();
+  if (!container) return;
+  container.innerHTML = "";
+
+  const admins = getAdmins()
+    .filter((admin) => admin?.email)
+    .map((admin) => ({
+      email: String(admin.email || "").trim().toLowerCase(),
+      name: admin.fullName || `${admin.firstName || ""} ${admin.lastName || ""}`.trim() || admin.email,
+      sites: Array.isArray(admin.allowedSites) && admin.allowedSites.length ? admin.allowedSites : (sites || []),
+      isSuperAdmin: admin.isSuperAdmin === true,
+    }))
+    .filter((admin, index, list) => admin.email && list.findIndex((entry) => entry.email === admin.email) === index)
+    .sort((a, b) => compareNaturally(a.name, b.name));
+
+  const hint = document.getElementById("surveyCurrentSiteHint");
+  if (hint) hint.textContent = `${t("tidplanSiteSelector")}: ${currentSite}`;
+
+  if (!admins.length) {
+    container.innerHTML = `<div class="notification-empty">Nema korisnika za odabir.</div>`;
     return;
   }
 
-  container.innerHTML = "";
+  admins.forEach((user) => {
+    const label = document.createElement("label");
+    label.className = "survey-user-row";
+    label.dataset.sites = (user.sites || []).join("|");
 
-  // Get all admins to find all users
-  const allAdmins = getAdmins();
-  const usersByEmail = {};
-  const sitesByUser = {};
-  const allSites = new Set();
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = user.email;
+    checkbox.dataset.surveyUser = "true";
+    checkbox.dataset.siteMember = user.isSuperAdmin || (user.sites || []).includes(currentSite) ? "true" : "false";
 
-  allAdmins.forEach((admin) => {
-    if (admin.email) {
-      usersByEmail[admin.email] = admin.fullName || admin.email;
-      if (admin.allowedSites && Array.isArray(admin.allowedSites)) {
-        if (!sitesByUser[admin.email]) {
-          sitesByUser[admin.email] = [];
-        }
-        admin.allowedSites.forEach((site) => {
-          sitesByUser[admin.email].push(site);
-          allSites.add(site);
-        });
-      } else {
-        // No specific sites assigned, add to "default"
-        if (!sitesByUser[admin.email]) {
-          sitesByUser[admin.email] = [];
-        }
-        sitesByUser[admin.email].push("default");
-        allSites.add("default");
-      }
-    }
+    const name = document.createElement("span");
+    name.className = "survey-user-name";
+    name.textContent = user.name;
+
+    const email = document.createElement("span");
+    email.className = "survey-user-email";
+    email.textContent = user.email;
+
+    const userSites = document.createElement("span");
+    userSites.className = "survey-user-sites";
+    userSites.textContent = user.isSuperAdmin ? "Sva gradilista" : (user.sites || []).join(", ");
+
+    label.appendChild(checkbox);
+    label.appendChild(name);
+    label.appendChild(email);
+    label.appendChild(userSites);
+    container.appendChild(label);
   });
 
-  // Also check hardcoded test users if no admins exist
-  if (Object.keys(usersByEmail).length === 0) {
-    const testUsers = [
-      { email: "bane.madzar82@gmail.com", name: "Branislav Madzar" },
-      { email: "ivan.m@cmax.se", name: "Ivan Mijatovic" },
-      { email: "josip.i@gipspartner.se", name: "Josip Ivandic" },
-      { email: "mato@cmax.se", name: "Mato Mijatovic" },
-      { email: "tommie@cmax.se", name: "Tommie Andersson" },
-      { email: "zlatko@cmax.se", name: "Zlatko Lukic" },
-    ];
-    testUsers.forEach((user) => {
-      usersByEmail[user.email] = user.name;
-      if (!sitesByUser[user.email]) {
-        sitesByUser[user.email] = [];
-      }
-      sitesByUser[user.email].push("default");
-      allSites.add("default");
+  syncSurveyTargetSelection();
+}
+
+function setSurveyUserCheckboxes(predicate) {
+  document
+    .querySelectorAll("#surveyTargetUsersCheckboxes input[data-survey-user]")
+    .forEach((checkbox) => {
+      checkbox.checked = Boolean(predicate(checkbox));
+    });
+}
+
+function syncSurveyTargetSelection() {
+  const targetAll = document.getElementById("surveyTargetAll")?.checked === true;
+  const targetSite = document.getElementById("surveyTargetSite")?.checked === true;
+  if (targetAll) {
+    setSurveyUserCheckboxes(() => true);
+  } else if (targetSite) {
+    setSurveyUserCheckboxes((checkbox) => checkbox.dataset.siteMember === "true");
+  }
+}
+
+function setupSurveyTargetHandlers() {
+  const targetAll = document.getElementById("surveyTargetAll");
+  const targetSite = document.getElementById("surveyTargetSite");
+  if (targetAll && !targetAll.dataset.boundSurveyTargets) {
+    targetAll.dataset.boundSurveyTargets = "true";
+    targetAll.addEventListener("change", () => {
+      if (targetAll.checked && targetSite) targetSite.checked = false;
+      if (targetAll.checked) setSurveyUserCheckboxes(() => true);
+      else setSurveyUserCheckboxes(() => false);
     });
   }
-
-  // Group by sites
-  const siteGroups = {};
-  Object.keys(usersByEmail).forEach((email) => {
-    const sites = sitesByUser[email] || ["default"];
-    sites.forEach((site) => {
-      if (!siteGroups[site]) {
-        siteGroups[site] = [];
-      }
-      siteGroups[site].push({ email, name: usersByEmail[email] });
+  if (targetSite && !targetSite.dataset.boundSurveyTargets) {
+    targetSite.dataset.boundSurveyTargets = "true";
+    targetSite.addEventListener("change", () => {
+      if (targetSite.checked && targetAll) targetAll.checked = false;
+      if (targetSite.checked) setSurveyUserCheckboxes((checkbox) => checkbox.dataset.siteMember === "true");
+      else setSurveyUserCheckboxes(() => false);
     });
-  });
-
-  // Sort sites
-  const sortedSites = Array.from(allSites).sort();
-
-  sortedSites.forEach((site) => {
-    // Site checkbox group header
-    const siteDiv = document.createElement("div");
-    siteDiv.style.marginBottom = "12px";
-    siteDiv.style.paddingBottom = "12px";
-    siteDiv.style.borderBottom = "1px solid var(--border-color)";
-    siteDiv.dataset.site = site;
-
-    const siteLabel = document.createElement("label");
-    siteLabel.style.display = "flex";
-    siteLabel.style.alignItems = "center";
-    siteLabel.style.marginBottom = "8px";
-    siteLabel.style.fontWeight = "600";
-    siteLabel.style.cursor = "pointer";
-
-    const siteCheckbox = document.createElement("input");
-    siteCheckbox.type = "checkbox";
-    siteCheckbox.style.marginRight = "8px";
-    siteCheckbox.dataset.site = site;
-    siteCheckbox.className = "site-select-checkbox";
-
-    siteCheckbox.addEventListener("change", () => {
-      // Auto-select/deselect all users in this site
-      siteDiv.querySelectorAll("input[data-user]").forEach((userCb) => {
-        userCb.checked = siteCheckbox.checked;
-      });
-    });
-
-    siteLabel.appendChild(siteCheckbox);
-    const siteText = document.createElement("span");
-    siteText.textContent = `📍 ${site}`;
-    siteLabel.appendChild(siteText);
-    siteDiv.appendChild(siteLabel);
-
-    // User checkboxes for this site
-    const usersDiv = document.createElement("div");
-    usersDiv.style.marginLeft = "24px";
-
-    const users = siteGroups[site] || [];
-    // Sort users by name
-    users.sort((a, b) => a.name.localeCompare(b.name));
-    
-    users.forEach((user) => {
-      const userLabel = document.createElement("label");
-      userLabel.style.display = "flex";
-      userLabel.style.alignItems = "center";
-      userLabel.style.marginBottom = "6px";
-      userLabel.style.cursor = "pointer";
-      userLabel.style.fontSize = "14px";
-
-      const userCheckbox = document.createElement("input");
-      userCheckbox.type = "checkbox";
-      userCheckbox.value = user.email;
-      userCheckbox.dataset.user = user.email;
-      userCheckbox.style.marginRight = "8px";
-
-      userLabel.appendChild(userCheckbox);
-      const userText = document.createElement("span");
-      userText.textContent = user.name;
-      userLabel.appendChild(userText);
-      usersDiv.appendChild(userLabel);
-    });
-
-    siteDiv.appendChild(usersDiv);
-    container.appendChild(siteDiv);
-  });
+  }
 }
 
 function renderSurveysList() {
@@ -4105,6 +4171,11 @@ function renderSurveysList() {
 
       times.textContent = statusText;
       card.appendChild(times);
+
+      const author = document.createElement("div");
+      author.className = "survey-author";
+      author.textContent = `Objavio: ${survey.createdByName || survey.createdBy || "-"}`;
+      card.appendChild(author);
 
       // Answers
       if (survey.answers && survey.answers.length > 0) {
@@ -4305,13 +4376,14 @@ function showSurveys() {
 
     currentView = "surveys";
     saveCurrentView("surveys");
+    pushRouteForView("surveys");
 
-    // Initialize forms
+    setupSurveyTargetHandlers();
     renderSurveyTargetUsers();
 
-    // Load and display surveys
     getSurveysList().then(() => {
       renderSurveysList();
+      markSurveysRead(surveysCache);
       const composer = document.getElementById("surveysComposer");
       if (composer) {
         composer.style.display = hasAdminPermission("canPublishSurveys") ? "block" : "none";
@@ -4395,6 +4467,7 @@ function checkAuth() {
 }
 
 function showLogin() {
+  pushRouteForView("login", { path: "/login", replace: true });
   document.getElementById("loginOverlay").style.display = "flex";
   document.getElementById("mainContainer").style.display = "none";
   renderPresence([]);
@@ -4406,6 +4479,9 @@ function showLogin() {
 }
 
 function showMainApp() {
+  if (window.location.pathname === "/login") {
+    pushRouteForView("main", { path: "/home", replace: true });
+  }
   document.getElementById("loginOverlay").style.display = "none";
   document.getElementById("mainContainer").style.display = "block";
   updateLangButtons();
@@ -4413,6 +4489,11 @@ function showMainApp() {
   startReportsPolling();
   startNotificationsPolling();
   startSiteMetaRefresh();
+  if (hasPermission("canViewSurveys")) {
+    getSurveysList().catch(() => {});
+  } else {
+    updateSurveysBadge();
+  }
 
   document.getElementById("readonlyBadge").style.display = appState.isReadonly
     ? "inline-block"
@@ -4499,28 +4580,29 @@ function applyPermissionVisibility() {
   const canWarehouseLogs = canViewWarehouseLogsSection();
   const canWarehouseGraph = canViewWarehouseAnalyticsSection();
   const canReports = canCreateReportsAccess();
-  const canExportWarehouse = canExportWarehouse();
-  const canImportWarehouse = canImportWarehouse();
-  const canExportTidplan = canExportTidplan();
-  const canImportTidplan = canImportTidplan();
+  const canExportWarehouseAccess = canExportWarehouse();
+  const canImportWarehouseAccess = canImportWarehouse();
+  const canExportTidplanAccess = canExportTidplan();
+  const canImportTidplanAccess = canImportTidplan();
   const canAdminPanel = canOpenAdminPanelAccess();
   const canManagePlannerRows = !appState.isReadonly && appState.isAdmin;
 
   setVisibility("btnPrint", hasPermission("canPrint"));
   setVisibility("btnExport", hasPermission("canExport"));
-  setVisibility("btnClear", !appState.isReadonly && hasPermission("canClear"));
+  setVisibility("btnClear", !appState.isReadonly && hasPermission("canClear") && canEditDate(appState.currentDate));
   setVisibility("btnReport", canReports);
 
-  setVisibility("btnWarehouseExportExcel", canExportWarehouse);
-  setVisibility("btnWarehouseImportExcel", canImportWarehouse);
-  setVisibility("btnTidplanExportPdf", canExportTidplan);
-  setVisibility("btnTidplanImportPdf", canImportTidplan);
+  setVisibility("btnWarehouseExportExcel", canExportWarehouseAccess);
+  setVisibility("btnWarehouseImportExcel", canImportWarehouseAccess);
+  setVisibility("btnTidplanExportPdf", canExportTidplanAccess);
+  setVisibility("btnTidplanImportPdf", canImportTidplanAccess);
   setVisibility("plannerExportDropdown", canExportPlanner());
   setVisibility("btnPlannerImportExcel", canImportPlanner());
   setVisibility("btnTidplan", canTidplan);
   setVisibility("btnBins", canBins);
   setVisibility("btnWarehouse", canWarehouse);
   setVisibility("btnNotifications", canAccessNotificationsModule());
+  setVisibility("btnSurveys", hasPermission("canViewSurveys"));
   setVisibility("adminBtn", canAdminPanel);
   setVisibility("btnLogout", !appState.isReadonly);
   setVisibility("btnAddRow", canManagePlannerRows);
@@ -4542,6 +4624,7 @@ function applyPermissionVisibility() {
   const binsSection = document.getElementById("binsSection");
   const tidplanSection = document.getElementById("tidplan-section");
   const notificationsSection = document.getElementById("notifications-section");
+  const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
@@ -4668,10 +4751,18 @@ function reinitFlatpickr() {
       appState.currentDate = dateStr;
       ensureBinsDataForDate(dateStr);
       updateDateDisplay();
+      applyPermissionVisibility();
       renderPlanningTable();
       renderWorkersList();
       renderLiftsList();
+      renderMomensList();
+      renderPlansList();
+      renderKarnasList();
       if (currentView === "bins") renderBinsTable();
+      if (document.getElementById("tidplan-section")?.style.display === "block") {
+        loadTidplanData();
+        updateTidplan();
+      }
       updatePrintDate();
     },
   });
@@ -4756,6 +4847,7 @@ function handleLogin() {
       setCsrfToken(data.csrfToken || "");
       applyAuthData(authData);
       addLog("Logged in");
+      pushRouteForView("main", { path: "/home", replace: true });
       showMainApp();
       renderAll();
       hideLoading();
@@ -4791,6 +4883,7 @@ function enterReadonlyMode() {
       setCsrfToken(data.csrfToken || "");
       applyAuthData(authData);
       addLog("Entered read-only mode");
+      pushRouteForView("main", { path: "/home", replace: true });
       showMainApp();
       renderAll();
       hideLoading();
@@ -5235,7 +5328,10 @@ function refreshSiteMetadata() {
 
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((data) => syncSiteMetadata(data?.state))
+    .then((data) => {
+      serverStateVersion = Number(data?.version) || serverStateVersion || 1;
+      return syncSiteMetadata(data?.state);
+    })
     .then((changed) =>
       loadNotificationsData()
         .then(() => {
@@ -5616,7 +5712,9 @@ function manageDoAdd() {
   }
 
   list.push(name);
+  recordResourceAdded(currentManageCategory, name, appState.currentDate);
   saveData();
+  syncServerState({ skipLog: true }).catch(() => {});
   markDirty();
   renderAll();
 
@@ -5674,8 +5772,10 @@ function manageRemoveItem(name) {
     } catch (e) {}
   }
 
+  recordResourceRemoved(currentManageCategory, name, appState.currentDate);
   list.splice(idx, 1);
   saveData();
+  syncServerState({ skipLog: true }).catch(() => {});
   markDirty();
   renderAll();
 
@@ -5769,6 +5869,7 @@ function loadData() {
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((data) => {
+      serverStateVersion = Number(data?.version) || serverStateVersion || 1;
       if (data && data.state) {
         if (applyServerStateSnapshot(data.state)) {
           const savedData = localStorage.getItem(STORAGE_KEY);
@@ -5780,6 +5881,7 @@ function loadData() {
             appState.plans = parsed.plans || appState.plans;
             appState.karnas = parsed.karnas || appState.karnas;
             appState.dailyData = parsed.dailyData || {};
+            if (Array.isArray(parsed.resourceHistory)) appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
           }
           renderAll();
           collectPlans();
@@ -5792,6 +5894,7 @@ function loadData() {
         appState.plans = parsed.plans || appState.plans;
         appState.karnas = parsed.karnas || appState.karnas;
         appState.dailyData = parsed.dailyData || {};
+        if (Array.isArray(parsed.resourceHistory)) appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
         renderAll();
         collectPlans();
         return;
@@ -5807,6 +5910,7 @@ function loadData() {
           appState.plans = parsed.plans || appState.plans;
           appState.karnas = parsed.karnas || appState.karnas;
           appState.dailyData = parsed.dailyData || {};
+          if (Array.isArray(parsed.resourceHistory)) appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
         } catch (e) {
           console.error("Error loading data:", e);
         }
@@ -5826,6 +5930,7 @@ function loadData() {
           appState.plans = parsed.plans || appState.plans;
           appState.karnas = parsed.karnas || appState.karnas;
           appState.dailyData = parsed.dailyData || {};
+          if (Array.isArray(parsed.resourceHistory)) appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
         } catch (e) {
           console.error("Error loading data:", e);
         }
@@ -5873,17 +5978,138 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function normalizeDateOnly(value) {
+  const text = String(value || "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : new Date().toISOString().slice(0, 10);
+}
+
+function addDaysToDate(dateValue, days) {
+  const date = new Date(`${normalizeDateOnly(dateValue)}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function normalizeResourceHistory(history) {
+  return Array.isArray(history)
+    ? history
+        .map((entry) => ({
+          type: String(entry?.type || "").trim(),
+          resourceId: String(entry?.resourceId || "").trim(),
+          siteId: String(entry?.siteId || currentSite || "default").trim(),
+          activeFrom: normalizeDateOnly(entry?.activeFrom || "1970-01-01"),
+          activeTo: entry?.activeTo ? normalizeDateOnly(entry.activeTo) : null,
+          changedAt: entry?.changedAt || new Date().toISOString(),
+          changedBy: entry?.changedBy || "",
+        }))
+        .filter((entry) => entry.type && entry.resourceId)
+    : [];
+}
+
+function seedResourceHistoryForCurrentLists() {
+  appState.resourceHistory = normalizeResourceHistory(appState.resourceHistory);
+  ["workers", "lifts", "moments", "plans", "karnas"].forEach((type) => {
+    (appState[type] || []).forEach((resourceId) => {
+      const exists = appState.resourceHistory.some(
+        (entry) =>
+          entry.type === type &&
+          entry.resourceId === resourceId &&
+          entry.siteId === currentSite &&
+          !entry.activeTo,
+      );
+      if (!exists) {
+        appState.resourceHistory.push({
+          type,
+          resourceId,
+          siteId: currentSite,
+          activeFrom: "1970-01-01",
+          activeTo: null,
+          changedAt: new Date().toISOString(),
+          changedBy: appState.currentUser || "",
+        });
+      }
+    });
+  });
+}
+
+function isResourceActiveOnDate(type, resourceId, dateValue = appState.currentDate, history = appState.resourceHistory) {
+  const date = normalizeDateOnly(dateValue);
+  return normalizeResourceHistory(history).some((entry) => {
+    if (entry.type !== type || entry.resourceId !== resourceId || entry.siteId !== currentSite) return false;
+    return entry.activeFrom <= date && (!entry.activeTo || entry.activeTo >= date);
+  });
+}
+
+function getActiveResourceList(type, dateValue = appState.currentDate) {
+  seedResourceHistoryForCurrentLists();
+  const names = new Set(Array.isArray(appState[type]) ? appState[type] : []);
+  normalizeResourceHistory(appState.resourceHistory)
+    .filter((entry) => entry.type === type && entry.siteId === currentSite)
+    .forEach((entry) => names.add(entry.resourceId));
+  return sortNaturally(
+    Array.from(names).filter((resourceId) =>
+      isResourceActiveOnDate(type, resourceId, dateValue, appState.resourceHistory),
+    ),
+  );
+}
+
+function recordResourceAdded(type, resourceId, dateValue = appState.currentDate) {
+  const activeFrom = normalizeDateOnly(dateValue);
+  appState.resourceHistory = normalizeResourceHistory(appState.resourceHistory);
+  appState.resourceHistory.push({
+    type,
+    resourceId,
+    siteId: currentSite,
+    activeFrom,
+    activeTo: null,
+    changedAt: new Date().toISOString(),
+    changedBy: appState.currentUser || "",
+  });
+}
+
+function recordResourceRemoved(type, resourceId, dateValue = appState.currentDate) {
+  const activeTo = addDaysToDate(dateValue, -1);
+  appState.resourceHistory = normalizeResourceHistory(appState.resourceHistory);
+  let touched = false;
+  appState.resourceHistory = appState.resourceHistory.map((entry) => {
+    if (
+      entry.type === type &&
+      entry.resourceId === resourceId &&
+      entry.siteId === currentSite &&
+      !entry.activeTo
+    ) {
+      touched = true;
+      return { ...entry, activeTo, changedAt: new Date().toISOString(), changedBy: appState.currentUser || "" };
+    }
+    return entry;
+  });
+  if (!touched) {
+    appState.resourceHistory.push({
+      type,
+      resourceId,
+      siteId: currentSite,
+      activeFrom: "1970-01-01",
+      activeTo,
+      changedAt: new Date().toISOString(),
+      changedBy: appState.currentUser || "",
+    });
+  }
+}
+
 function persistCurrentStateToLocalStorage() {
+  seedResourceHistoryForCurrentLists();
+  const plannerPayload = {
+    workers: appState.workers,
+    lifts: appState.lifts,
+    moments: appState.moments,
+    plans: appState.plans,
+    karnas: appState.karnas,
+    dailyData: appState.dailyData,
+    resourceHistory: normalizeResourceHistory(appState.resourceHistory),
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(plannerPayload));
   localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify({
-      workers: appState.workers,
-      lifts: appState.lifts,
-      moments: appState.moments,
-      plans: appState.plans,
-      karnas: appState.karnas,
-      dailyData: appState.dailyData,
-    }),
+    getSiteStorageKey("cmax_planner_data", currentSite),
+    JSON.stringify(plannerPayload),
   );
   localStorage.setItem(BINS_KEY, JSON.stringify(appState.binsData || {}));
   localStorage.setItem(BIN_PERMS_KEY, JSON.stringify(appState.binPermissions || {}));
@@ -5908,21 +6134,25 @@ function persistCurrentStateToLocalStorage() {
 function mergePlannerSnapshot(localPlanner, serverPlanner) {
   const local = localPlanner && typeof localPlanner === "object" ? localPlanner : {};
   const server = serverPlanner && typeof serverPlanner === "object" ? serverPlanner : {};
-  const mergeList = (localList, serverList) =>
-    sortNaturally(
-      Array.from(
-        new Set([...(Array.isArray(serverList) ? serverList : []), ...(Array.isArray(localList) ? localList : [])]),
-      ),
-    );
+  const authoritativeList = (localList, serverList) => {
+    if (Array.isArray(localList)) {
+      return sortNaturally(Array.from(new Set(localList)));
+    }
+    return sortNaturally(Array.from(new Set(Array.isArray(serverList) ? serverList : [])));
+  };
 
   return {
     ...server,
     ...local,
-    workers: mergeList(local.workers, server.workers),
-    lifts: mergeList(local.lifts, server.lifts),
-    moments: mergeList(local.moments, server.moments),
-    plans: mergeList(local.plans, server.plans),
-    karnas: mergeList(local.karnas, server.karnas),
+    workers: authoritativeList(local.workers, server.workers),
+    lifts: authoritativeList(local.lifts, server.lifts),
+    moments: authoritativeList(local.moments, server.moments),
+    plans: authoritativeList(local.plans, server.plans),
+    karnas: authoritativeList(local.karnas, server.karnas),
+    resourceHistory: normalizeResourceHistory([
+      ...(Array.isArray(server.resourceHistory) ? server.resourceHistory : []),
+      ...(Array.isArray(local.resourceHistory) ? local.resourceHistory : []),
+    ]),
     dailyData:
       local.dailyData && typeof local.dailyData === "object"
         ? local.dailyData
@@ -6155,6 +6385,16 @@ function applyServerStateSnapshot(snapshot) {
   BINS_KEY = getStorageKey("cmax_planner_bins");
   REPORTS_KEY = getStorageKey("cmax_planner_reports");
   NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+  const currentPlanner = safeParseStoredJson(localStorage.getItem(STORAGE_KEY), null);
+  if (currentPlanner) {
+    appState.workers = Array.isArray(currentPlanner.workers) ? currentPlanner.workers : appState.workers;
+    appState.lifts = Array.isArray(currentPlanner.lifts) ? currentPlanner.lifts : appState.lifts;
+    appState.moments = Array.isArray(currentPlanner.moments) ? currentPlanner.moments : appState.moments;
+    appState.plans = Array.isArray(currentPlanner.plans) ? currentPlanner.plans : appState.plans;
+    appState.karnas = Array.isArray(currentPlanner.karnas) ? currentPlanner.karnas : appState.karnas;
+    appState.dailyData = currentPlanner.dailyData || appState.dailyData;
+    appState.resourceHistory = normalizeResourceHistory(currentPlanner.resourceHistory);
+  }
   appState.guestPermissions = getGuestPermissions();
   populateSiteSelect();
   updateMainTitle();
@@ -6162,6 +6402,7 @@ function applyServerStateSnapshot(snapshot) {
 }
 
 let serverSyncTimeout = null;
+let serverStateVersion = 1;
 
 function syncServerState(options = {}) {
   const {
@@ -6185,9 +6426,11 @@ function syncServerState(options = {}) {
   }
 
   return fetch("/api/state", { cache: "no-store" })
-    .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((data) => data?.state || null)
-    .catch(() => null)
+    .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`STATE_LOAD_${res.status}`))))
+    .then((data) => {
+      serverStateVersion = Number(data?.version) || serverStateVersion || 1;
+      return data?.state || null;
+    })
     .then((serverState) =>
       fetch("/api/state", {
         method: "POST",
@@ -6199,6 +6442,7 @@ function syncServerState(options = {}) {
             includeBinPermissions,
             includeSites,
           }),
+          lastKnownVersion: serverStateVersion || 1,
           userEmail: appState.currentUser || null,
           skipLog,
         }),
@@ -6206,7 +6450,17 @@ function syncServerState(options = {}) {
       }),
     )
     .then((res) => {
-      if (!res.ok) throw new Error("STATE_SAVE_FAILED");
+      if (!res.ok) {
+        return res.json()
+          .catch(() => ({}))
+          .then((payload) => {
+            throw new Error(payload?.error || "STATE_SAVE_FAILED");
+          });
+      }
+      return res.json().catch(() => ({}));
+    })
+    .then((payload) => {
+      serverStateVersion = Number(payload?.version) || serverStateVersion || 1;
       if (markAsClean) markClean();
       if (includeAdmins) pendingServerSyncOptions.includeAdmins = false;
       if (includeGuestPermissions) pendingServerSyncOptions.includeGuestPermissions = false;
@@ -6264,6 +6518,7 @@ function getCurrentDayData() {
 
 /* ==================== RENDER FUNCTIONS ==================== */
 function renderAll() {
+  seedResourceHistoryForCurrentLists();
   updateDateDisplay();
   renderWorkersList();
   renderLiftsList();
@@ -6288,9 +6543,7 @@ function renderWorkersList() {
   const tbody = document.getElementById("workersList");
   const dayData = getCurrentDayData();
   const inUse = getWorkersInUse();
-  const sortedWorkers = [...appState.workers].sort((a, b) =>
-    a.localeCompare(b, "hr"),
-  );
+  const sortedWorkers = getActiveResourceList("workers", appState.currentDate);
   tbody.innerHTML = "";
 
   sortedWorkers.forEach((worker) => {
@@ -6309,7 +6562,7 @@ function renderWorkersList() {
     checkbox.type = "checkbox";
     checkbox.checked = isPresent;
     checkbox.onchange = () => toggleWorkerAttendance(worker);
-    if (appState.isReadonly) checkbox.disabled = true;
+    if (appState.isReadonly || !canEditDate(appState.currentDate)) checkbox.disabled = true;
     tdCheck.appendChild(checkbox);
     tr.appendChild(tdCheck);
 
@@ -6335,9 +6588,7 @@ function renderWorkersList() {
 function renderLiftsList() {
   const tbody = document.getElementById("liftsList");
   const dayData = getCurrentDayData();
-  const sortedLifts = [...appState.lifts].sort((a, b) =>
-    a.localeCompare(b),
-  );
+  const sortedLifts = getActiveResourceList("lifts", appState.currentDate);
   tbody.innerHTML = "";
 
   sortedLifts.forEach((lift) => {
@@ -6356,7 +6607,7 @@ function renderLiftsList() {
     checkbox.type = "checkbox";
     checkbox.checked = isAvailable;
     checkbox.onchange = () => toggleLiftAvailability(lift);
-    if (appState.isReadonly) checkbox.disabled = true;
+    if (appState.isReadonly || !canEditDate(appState.currentDate)) checkbox.disabled = true;
     tdCheck.appendChild(checkbox);
     tr.appendChild(tdCheck);
 
@@ -6380,7 +6631,7 @@ function renderLiftsList() {
     planInput.value = liftPlan;
     planInput.placeholder = "Plan";
     planInput.oninput = () => updateLiftPlan(lift, planInput.value);
-    if (appState.isReadonly) planInput.disabled = true;
+    if (appState.isReadonly || !canEditDate(appState.currentDate)) planInput.disabled = true;
     tdPlan.appendChild(planInput);
     tr.appendChild(tdPlan);
 
@@ -6391,7 +6642,7 @@ function renderLiftsList() {
 function renderMomensList() {
   const tbody = document.getElementById("momentsList");
   tbody.innerHTML = "";
-  appState.moments.forEach((m) => {
+  getActiveResourceList("moments", appState.currentDate).forEach((m) => {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.textContent = m;
@@ -6404,7 +6655,7 @@ function renderMomensList() {
 function renderPlansList() {
   const tbody = document.getElementById("plansList");
   tbody.innerHTML = "";
-  appState.plans.forEach((p) => {
+  getActiveResourceList("plans", appState.currentDate).forEach((p) => {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.textContent = p;
@@ -6417,7 +6668,7 @@ function renderPlansList() {
 function renderKarnasList() {
   const tbody = document.getElementById("karnasList");
   tbody.innerHTML = "";
-  appState.karnas.forEach((k) => {
+  getActiveResourceList("karnas", appState.currentDate).forEach((k) => {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
     td.textContent = k;
@@ -6434,7 +6685,7 @@ function renderPlanningTable() {
   dayData.planningRows.forEach((rowData, index) => {
     tbody.appendChild(createPlanningRow(rowData, index));
   });
-  if (!appState.isReadonly) {
+  if (!appState.isReadonly && canEditDate(appState.currentDate)) {
     tbody.appendChild(createPlanningRow({}, dayData.planningRows.length));
   }
   applyColorCoding();
@@ -6442,7 +6693,7 @@ function renderPlanningTable() {
 }
 
 function addPlanningRow() {
-  if (appState.isReadonly || !appState.isAdmin) return;
+  if (appState.isReadonly || !appState.isAdmin || !canEditDate(appState.currentDate)) return;
   const dayData = getCurrentDayData();
   dayData.planningRows.push({});
   saveData();
@@ -6451,7 +6702,7 @@ function addPlanningRow() {
 }
 
 function removePlanningRow() {
-  if (appState.isReadonly || !appState.isAdmin) return;
+  if (appState.isReadonly || !appState.isAdmin || !canEditDate(appState.currentDate)) return;
   const dayData = getCurrentDayData();
   // Ukloni zadnji puni red ako postoji (ne brišemo sve redove odjednom)
   if (dayData.planningRows.length > 0) {
@@ -6466,16 +6717,16 @@ function createPlanningRow(rowData, index) {
   const tr = document.createElement("tr");
   tr.dataset.rowIndex = index;
   const fields = [
-    ["w1", appState.workers],
-    ["w2", appState.workers],
-    ["w3", appState.workers],
-    ["plan", appState.plans],
-    ["karna", appState.karnas],
-    ["m1", appState.moments],
-    ["m2", appState.moments],
-    ["l1", appState.lifts],
-    ["l2", appState.lifts],
-    ["l3", appState.lifts],
+    ["w1", getActiveResourceList("workers", appState.currentDate)],
+    ["w2", getActiveResourceList("workers", appState.currentDate)],
+    ["w3", getActiveResourceList("workers", appState.currentDate)],
+    ["plan", getActiveResourceList("plans", appState.currentDate)],
+    ["karna", getActiveResourceList("karnas", appState.currentDate)],
+    ["m1", getActiveResourceList("moments", appState.currentDate)],
+    ["m2", getActiveResourceList("moments", appState.currentDate)],
+    ["l1", getActiveResourceList("lifts", appState.currentDate)],
+    ["l2", getActiveResourceList("lifts", appState.currentDate)],
+    ["l3", getActiveResourceList("lifts", appState.currentDate)],
   ];
   fields.forEach(([f, opts]) =>
     tr.appendChild(createSelectCell(f, rowData[f], opts, index)),
@@ -6490,15 +6741,18 @@ function createSelectCell(fieldName, selectedValue, options, rowIndex) {
   td.dataset.pval = selectedValue || "-";
 
   const select = document.createElement("select");
-  select.disabled = appState.isReadonly;
+  select.disabled = appState.isReadonly || !canEditDate(appState.currentDate);
   const emptyOpt = document.createElement("option");
   emptyOpt.value = "";
   emptyOpt.textContent = "-";
   select.appendChild(emptyOpt);
 
   const sorted = sortNaturally(options);
+  if (selectedValue && !sorted.includes(selectedValue)) {
+    sorted.push(selectedValue);
+  }
 
-  sorted.forEach((opt) => {
+  sortNaturally(sorted).forEach((opt) => {
     const o = document.createElement("option");
     o.value = opt;
     o.textContent = opt;
@@ -6522,7 +6776,7 @@ function createCommentCell(value, rowIndex) {
   input.type = "text";
   input.value = value;
   input.placeholder = "Komentar...";
-  input.disabled = appState.isReadonly;
+  input.disabled = appState.isReadonly || !canEditDate(appState.currentDate);
   input.oninput = () => {
     td.dataset.pval = input.value;
     handlePlanningCellChange(rowIndex, "comment", input.value);
@@ -6532,6 +6786,11 @@ function createCommentCell(value, rowIndex) {
 }
 
 function handlePlanningCellChange(rowIndex, fieldName, value) {
+  if (!canEditDate(appState.currentDate)) {
+    showToast("Prošli datumi su zaključani.", "error");
+    renderPlanningTable();
+    return;
+  }
   const dayData = getCurrentDayData();
   if (!dayData.planningRows[rowIndex])
     dayData.planningRows[rowIndex] = {};
@@ -6632,6 +6891,11 @@ function applyColorCoding() {
 
 /* ==================== TOGGLE FUNCTIONS ==================== */
 function toggleWorkerAttendance(worker) {
+  if (!canEditDate(appState.currentDate)) {
+    showToast("Prošli datumi su zaključani.", "error");
+    renderWorkersList();
+    return;
+  }
   const dayData = getCurrentDayData();
   if (dayData.workerAttendance[worker] === false)
     delete dayData.workerAttendance[worker];
@@ -6643,6 +6907,11 @@ function toggleWorkerAttendance(worker) {
 }
 
 function toggleLiftAvailability(lift) {
+  if (!canEditDate(appState.currentDate)) {
+    showToast("Prošli datumi su zaključani.", "error");
+    renderLiftsList();
+    return;
+  }
   const dayData = getCurrentDayData();
   if (dayData.liftAvailability[lift] === false)
     delete dayData.liftAvailability[lift];
@@ -6654,6 +6923,11 @@ function toggleLiftAvailability(lift) {
 }
 
 function updateLiftPlan(lift, plan) {
+  if (!canEditDate(appState.currentDate)) {
+    showToast("Prošli datumi su zaključani.", "error");
+    renderLiftsList();
+    return;
+  }
   const dayData = getCurrentDayData();
   dayData.liftPlans[lift] = plan;
   saveData();
@@ -6669,7 +6943,7 @@ function toggleList(name) {
 
 /* ==================== CLEAR TABLE ==================== */
 function clearAllTable() {
-  if (appState.isReadonly || !hasPermission("canClear")) {
+  if (appState.isReadonly || !hasPermission("canClear") || !canEditDate(appState.currentDate)) {
     showToast(t("accessDenied"), "error");
     return;
   }
@@ -7582,6 +7856,17 @@ async function handleManualBackup() {
   }
 }
 
+async function runManualBackup() {
+  const status = document.getElementById("manualBackupStatus");
+  if (status) status.textContent = "";
+  try {
+    await handleManualBackup();
+    if (status) status.textContent = "Backup je pokrenut. Provjerite poruku o statusu.";
+  } catch (error) {
+    if (status) status.textContent = "Backup nije uspio.";
+  }
+}
+
 async function handleListBackups() {
   if (!canViewBackups()) {
     showToast("Nemate dozvolu za pregled backupa.", "error");
@@ -8314,10 +8599,12 @@ function toggleBinsView() {
     return;
   }
   const notificationsSection = document.getElementById("notifications-section");
+  const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
   if (notificationsSection) notificationsSection.style.display = "none";
+  if (surveysSection) surveysSection.style.display = "none";
   if (warehouseSection) warehouseSection.style.display = "none";
   if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
   if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
@@ -8327,6 +8614,7 @@ function toggleBinsView() {
   if (currentView === "main") {
     currentView = "bins";
     saveCurrentView("bins");
+    pushRouteForView("bins");
     document.querySelector(".planning-section").classList.add("hidden");
     document.querySelector(".lists-container").classList.add("hidden");
     document.getElementById("binsSection").classList.add("active");
@@ -8345,6 +8633,7 @@ function toggleBinsView() {
   } else {
     currentView = "main";
     saveCurrentView("main");
+    pushRouteForView("main");
     document
       .querySelector(".planning-section")
       .classList.remove("hidden");
@@ -8427,7 +8716,7 @@ function renderBinsTable() {
     // Check permissions - super admin only
     const canEditAdditional =
       appState.isSuperAdmin || (!appState.isReadonly && hasPermission("canEditBinsData"));
-    selectAdditional.disabled = !canEditAdditional || appState.isReadonly;
+    selectAdditional.disabled = !canEditAdditional || !canEditDate(appState.currentDate);
 
     // Create options 0-25
     for (let i = 0; i <= 25; i++) {
@@ -8478,7 +8767,7 @@ function createBinInput(idx, field, value) {
     (hasPermission("canEditBinsData") &&
       appState.binPermissions[field] &&
       !appState.isReadonly);
-  select.disabled = !canEdit;
+  select.disabled = !canEdit || !canEditDate(appState.currentDate);
 
   // Create options 0-25
   for (let i = 0; i <= 25; i++) {
@@ -8500,6 +8789,11 @@ function createBinInput(idx, field, value) {
 }
 
 function updateBinCell(idx, field, value) {
+  if (!canEditDate(appState.currentDate)) {
+    showToast("Prošli datumi su zaključani.", "error");
+    renderBinsTable();
+    return;
+  }
   const binsData = getBinsDataForDate(appState.currentDate);
   const row = binsData.rows[idx];
   row[field] = value;
@@ -8648,7 +8942,7 @@ function applyBinColors() {
 }
 
 function addBinPlan() {
-  if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans"))) return;
+  if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans")) || !canEditDate(appState.currentDate)) return;
   const binsData = getBinsDataForDate(appState.currentDate);
   const newPlanNum = binsData.planCount + 1;
   for (let k = 1; k <= 4; k++) {
@@ -8670,7 +8964,7 @@ function addBinPlan() {
 }
 
 function removeBinPlan() {
-  if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans"))) return;
+  if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans")) || !canEditDate(appState.currentDate)) return;
   const binsData = getBinsDataForDate(appState.currentDate);
   if (binsData.planCount <= 1) {
     showToast("⚠️ Ne možete ukloniti sve planove!", "error");
@@ -8981,8 +9275,10 @@ function renderWarehousePage() {
   renderWarehouseAlerts();
 
   // Enable/disable warehouse action buttons
-  document.getElementById("btnWarehouseExportExcel").disabled = !canExportWarehouse();
-  document.getElementById("btnWarehouseImportExcel").disabled = !canImportWarehouse();
+  const warehouseExportExcelBtn = document.getElementById("btnWarehouseExportExcel");
+  if (warehouseExportExcelBtn) warehouseExportExcelBtn.disabled = !canExportWarehouse();
+  const warehouseImportExcelBtn = document.getElementById("btnWarehouseImportExcel");
+  if (warehouseImportExcelBtn) warehouseImportExcelBtn.disabled = !canImportWarehouse();
 
   const itemSelect = document.getElementById("warehouseStockItem");
   if (itemSelect) {
@@ -9014,18 +9310,21 @@ function showWarehouse() {
   }
   document.getElementById("tidplan-section").style.display = "none";
   document.getElementById("notifications-section").style.display = "none";
+  document.getElementById("surveys-section").style.display = "none";
   document.getElementById("planner-section").style.display = "none";
   document.getElementById("warehouse-logs-section").style.display = "none";
   document.getElementById("warehouse-graph-section").style.display = "none";
   document.getElementById("warehouse-section").style.display = "block";
   currentView = "warehouse";
   saveCurrentView("warehouse");
+  pushRouteForView("warehouse");
   renderWarehousePage();
   sendPresence(true).catch(() => {});
   // Attach event listeners for warehouse export/import
-  document.getElementById("btnWarehouseExportExcel").onclick = handleWarehouseExportExcel;
-  document.getElementById("btnWarehouseImportExcel").onclick = () => openModal('warehouseImportModal');
-  document.getElementById("warehouseImportUploadBtn").onclick = handleWarehouseImportExcel;
+  const warehouseExportExcelBtn = document.getElementById("btnWarehouseExportExcel");
+  if (warehouseExportExcelBtn) warehouseExportExcelBtn.onclick = handleWarehouseExportExcel;
+  const warehouseImportExcelBtn = document.getElementById("btnWarehouseImportExcel");
+  if (warehouseImportExcelBtn) warehouseImportExcelBtn.onclick = () => openModuleImportModal("warehouse", "excel");
   refreshPresence().catch(() => {});
 }
 
@@ -9042,6 +9341,7 @@ function showWarehouseLogs() {
   document.getElementById("warehouse-logs-section").style.display = "block";
   currentView = "warehouseLogs";
   saveCurrentView("warehouseLogs");
+  pushRouteForView("warehouseLogs");
   renderWarehouseLogsPage();
 }
 
@@ -9058,6 +9358,7 @@ function showWarehouseGraph() {
   document.getElementById("warehouse-graph-section").style.display = "block";
   currentView = "warehouseGraph";
   saveCurrentView("warehouseGraph");
+  pushRouteForView("warehouseGraph");
   renderWarehouseGraphPage();
 }
 
@@ -9694,6 +9995,117 @@ function exportBinsToPDF() {
   doc.save(fileName);
 }
 
+/* ==================== MODULE EXPORT/IMPORT ==================== */
+const MODULE_EXPORT_IMPORT_LABELS = {
+  planner: "Planner",
+  tidplan: "Tidplan",
+  warehouse: "Skladište",
+};
+
+let pendingModuleImport = null;
+
+function getModulePermission(module, action) {
+  const permissionMap = {
+    planner: { export: canExportPlanner, import: canImportPlanner },
+    tidplan: { export: canExportTidplan, import: canImportTidplan },
+    warehouse: { export: canExportWarehouse, import: canImportWarehouse },
+  };
+  return permissionMap[module]?.[action]?.() === true;
+}
+
+async function handleModuleExport(module, format) {
+  if (!getModulePermission(module, "export")) {
+    showToast("Nemate dozvolu za export.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch(`/api/${module}/export/${format}?site=${encodeURIComponent(currentSite || "default")}`);
+    const data = response.ok ? null : await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data?.error || "EXPORT_FAILED");
+    const blob = await response.blob();
+    const extension = format === "pdf" ? "pdf" : "xlsx";
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${module}-${currentSite || "site"}-${new Date().toISOString().split("T")[0]}.${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast(`${MODULE_EXPORT_IMPORT_LABELS[module] || module} export je skinut.`, "success");
+  } catch (error) {
+    console.error("Module export failed:", error);
+    showToast(error.message || "Greška pri exportu.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+function openModuleImportModal(module, format) {
+  if (!getModulePermission(module, "import")) {
+    showToast("Nemate dozvolu za import.", "error");
+    return;
+  }
+  pendingModuleImport = { module, format };
+  const title = document.getElementById("moduleImportTitle");
+  const label = document.getElementById("moduleImportFileLabel");
+  const fileInput = document.getElementById("moduleImportFile");
+  if (title) title.textContent = `Import ${MODULE_EXPORT_IMPORT_LABELS[module] || module} (${format.toUpperCase()})`;
+  if (label) label.textContent = format === "pdf" ? "PDF datoteka" : "Excel datoteka";
+  if (fileInput) {
+    fileInput.value = "";
+    fileInput.accept = format === "pdf" ? ".pdf,application/pdf" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  }
+  const modal = document.getElementById("moduleImportModal");
+  if (modal) modal.style.display = "flex";
+}
+
+function closeModuleImportModal() {
+  pendingModuleImport = null;
+  const fileInput = document.getElementById("moduleImportFile");
+  if (fileInput) fileInput.value = "";
+  const modal = document.getElementById("moduleImportModal");
+  if (modal) modal.style.display = "none";
+}
+
+async function uploadModuleImport() {
+  if (!pendingModuleImport) return;
+  const { module, format } = pendingModuleImport;
+  if (!getModulePermission(module, "import")) {
+    showToast("Nemate dozvolu za import.", "error");
+    return;
+  }
+  const fileInput = document.getElementById("moduleImportFile");
+  if (!fileInput?.files?.length) {
+    showToast("Odaberite datoteku za import.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("site", currentSite || "default");
+    const response = await fetch(`/api/${module}/import/${format}`, {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "IMPORT_FAILED");
+    showToast(`${MODULE_EXPORT_IMPORT_LABELS[module] || module} je importan.`, "success");
+    closeModuleImportModal();
+    await loadAllData();
+    if (module === "planner") renderPlanningTable();
+    if (module === "tidplan") updateTidplan();
+    if (module === "warehouse") renderWarehousePage();
+  } catch (error) {
+    console.error("Module import failed:", error);
+    showToast(error.message || "Greška pri importu.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
 /* ==================== WAREHOUSE EXPORT/IMPORT ==================== */
 async function handleWarehouseExportExcel() {
   if (!canExportWarehouse()) {
@@ -9702,7 +10114,7 @@ async function handleWarehouseExportExcel() {
   }
   showLoading("loadingDefault");
   try {
-    const response = await fetch("/api/warehouse/export/excel");
+    const response = await fetch(`/api/warehouse/export/excel?site=${encodeURIComponent(currentSite || "default")}`);
     if (!response.ok) throw new Error("Failed to export warehouse");
     const blob = await response.blob();
     const url = window.URL.createObjectURL(blob);
@@ -9996,16 +10408,18 @@ function exportToPDF() {
   doc.setTextColor(0, 0, 0);
 
   // Summary row
-  const presentWorkers = appState.workers.filter(
+  const activeWorkers = getActiveResourceList("workers", appState.currentDate);
+  const activeLifts = getActiveResourceList("lifts", appState.currentDate);
+  const presentWorkers = activeWorkers.filter(
     (w) => dayData.workerAttendance[w] !== false,
   ).length;
-  const availableLifts = appState.lifts.filter(
+  const availableLifts = activeLifts.filter(
     (l) => dayData.liftAvailability[l] !== false,
   ).length;
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
   doc.text(
-    `Resursi: ${presentWorkers}/${appState.workers.length} dostupno  |  Liftovi: ${availableLifts}/${appState.lifts.length} dostupno`,
+    `Resursi: ${presentWorkers}/${activeWorkers.length} dostupno  |  Liftovi: ${availableLifts}/${activeLifts.length} dostupno`,
     14,
     28,
   );
@@ -10655,9 +11069,9 @@ function loadTidplanData() {
   loadTidplanZones();
 
   // Use main planner data first; fall back to local storage defaults.
-  availablePlans = (appState.plans || []).slice();
-  availableMoments = (appState.moments || []).slice();
-  availableKarne = (appState.karnas || []).slice();
+  availablePlans = getActiveResourceList("plans", appState.currentDate);
+  availableMoments = getActiveResourceList("moments", appState.currentDate);
+  availableKarne = getActiveResourceList("karnas", appState.currentDate);
 
   collectPlans();
 }
@@ -10669,10 +11083,12 @@ function showTidplan() {
   }
   withLoading("loadingTidplan", () => {
     const notificationsSection = document.getElementById("notifications-section");
+    const surveysSection = document.getElementById("surveys-section");
     const warehouseSection = document.getElementById("warehouse-section");
     const warehouseLogsSection = document.getElementById("warehouse-logs-section");
     const warehouseGraphSection = document.getElementById("warehouse-graph-section");
     if (notificationsSection) notificationsSection.style.display = "none";
+    if (surveysSection) surveysSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
@@ -10684,6 +11100,7 @@ function showTidplan() {
     document.getElementById("tidplan-section").style.display = "block";
     currentView = "tidplan";
     saveCurrentView("tidplan");
+    pushRouteForView("tidplan");
     updateTidplan();
     initTidplanResizer();
     sendPresence(true).catch(() => {});
@@ -10693,10 +11110,12 @@ function showTidplan() {
 
 function showPlanner() {
   const notificationsSection = document.getElementById("notifications-section");
+  const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
   if (notificationsSection) notificationsSection.style.display = "none";
+  if (surveysSection) surveysSection.style.display = "none";
   if (warehouseSection) warehouseSection.style.display = "none";
   if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
   if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
@@ -10705,6 +11124,7 @@ function showPlanner() {
   document.getElementById("planner-section").style.display = "block";
   applyPermissionVisibility();
   saveCurrentView("main");
+  pushRouteForView("main");
   sendPresence(true).catch(() => {});
   refreshPresence().catch(() => {});
 }
@@ -10719,11 +11139,12 @@ function updateTidplan() {
   const totalWorkersEl = document.getElementById("totalWorkers");
   if (presentWorkersEl && totalWorkersEl) {
     const dayData = getCurrentDayData();
-    const presentCount = appState.workers.filter(
+    const activeWorkers = getActiveResourceList("workers", appState.currentDate);
+    const presentCount = activeWorkers.filter(
       (w) => dayData.workerAttendance[w] !== false
     ).length;
     presentWorkersEl.textContent = presentCount;
-    totalWorkersEl.textContent = appState.workers.length;
+    totalWorkersEl.textContent = activeWorkers.length;
     const availableWorkersWrap = presentWorkersEl.parentElement;
     if (availableWorkersWrap) {
       availableWorkersWrap.childNodes[0].textContent = `${t("tidplanAvailableWorkers")} `;
@@ -11142,11 +11563,12 @@ function renderTidplanTimeline() {
   const totalWorkersEl = document.getElementById("totalWorkers");
   if (presentWorkersEl && totalWorkersEl) {
     const dayData = getCurrentDayData();
-    const presentCount = appState.workers.filter(
+    const activeWorkers = getActiveResourceList("workers", appState.currentDate);
+    const presentCount = activeWorkers.filter(
       (w) => dayData.workerAttendance[w] !== false
     ).length;
     presentWorkersEl.textContent = presentCount;
-    totalWorkersEl.textContent = appState.workers.length;
+    totalWorkersEl.textContent = activeWorkers.length;
   }
 
   // Calculate date range including all activities
@@ -11363,7 +11785,7 @@ function renderTidplanTimeline() {
 
   // Add resource summary footer using present workers on current date
   const dayData = getCurrentDayData();
-  const presentWorkers = appState.workers.filter(
+  const presentWorkers = getActiveResourceList("workers", appState.currentDate).filter(
     (w) => dayData.workerAttendance[w] !== false
   ).length;
   
@@ -12171,8 +12593,17 @@ window.onload = function () {
   }
 };
 
+window.addEventListener("popstate", () => {
+  if (document.getElementById("mainContainer")?.style.display !== "none") {
+    applyRouteFromPath(window.location.pathname);
+  } else if (window.location.pathname !== "/login") {
+    pushRouteForView("login", { path: "/login", replace: true });
+  }
+});
+
 /* ==================== DYNAMIC UI INJECTION ==================== */
 document.addEventListener("DOMContentLoaded", () => {
+  return;
   // Inject Warehouse Export/Import buttons and modal
   const warehouseActionsBar = document.createElement("div");
   warehouseActionsBar.className = "warehouse-actions-bar";

@@ -1,10 +1,6 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
-
-// Load .env file if it exists
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
-
 const crypto = require('crypto');
 const multer = require('multer');
 const cors = require('cors');
@@ -398,36 +394,34 @@ async function exportToExcel(data, columns) {
 
 async function exportModuleWorkbook(payload, readableSheets = []) {
   const workbook = new ExcelJS.Workbook();
-  const meta = workbook.addWorksheet('CMAX_EXPORT');
-  meta.columns = [
-    { header: 'Key', key: 'key', width: 24 },
-    { header: 'Value', key: 'value', width: 120 },
-  ];
-  meta.addRows([
-    { key: 'format', value: 'cmax-module-export-v1' },
-    { key: 'module', value: payload.module },
-    { key: 'site', value: payload.site || 'global' },
-    { key: 'exportedAt', value: payload.exportedAt },
-    { key: 'payloadJson', value: JSON.stringify(payload) },
-  ]);
-  meta.getRow(1).font = { bold: true };
+  workbook.creator = 'CMAX SCM';
+  workbook.created = new Date();
 
-  readableSheets.forEach(({ name, rows }) => {
+  readableSheets.forEach(({ name, rows, columns }) => {
     const sheet = workbook.addWorksheet(String(name || 'Data').slice(0, 31));
     const safeRows = Array.isArray(rows) ? rows : [];
-    const columns = Array.from(
-      safeRows.reduce((keys, row) => {
+    const sheetColumns = Array.isArray(columns) && columns.length
+      ? columns
+      : Array.from(safeRows.reduce((keys, row) => {
         Object.keys(row || {}).forEach((key) => keys.add(key));
         return keys;
-      }, new Set()),
-    );
-    if (!columns.length) {
-      sheet.addRow(['No data']);
-      return;
-    }
-    sheet.columns = columns.map((key) => ({ header: key, key, width: 24 }));
+      }, new Set()));
+    sheet.columns = sheetColumns.map((key) => ({ header: key, key, width: 24 }));
     safeRows.forEach((row) => sheet.addRow(row));
     sheet.getRow(1).font = { bold: true };
+    sheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFE9EEF7' },
+    };
+    sheet.columns.forEach((column) => {
+      let maxLength = String(column.header || '').length;
+      column.eachCell({ includeEmpty: true }, (cell) => {
+        maxLength = Math.max(maxLength, String(cell.value || '').length);
+      });
+      column.width = Math.min(Math.max(maxLength + 2, 12), 42);
+    });
+    if (!safeRows.length) sheet.addRow([]);
   });
 
   return workbook.xlsx.writeBuffer();
@@ -478,7 +472,6 @@ async function exportModulePDF(title, payload, readableText = '') {
     try {
       const doc = new PDFDocument({ size: 'A4', margin: 50 });
       const chunks = [];
-      const payloadBase64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
 
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(chunks)));
@@ -486,15 +479,11 @@ async function exportModulePDF(title, payload, readableText = '') {
 
       doc.fontSize(20).font('Helvetica-Bold').text(title, { align: 'center' });
       doc.moveDown();
-      doc.fontSize(10).font('Helvetica').text(`Generated: ${new Date().toISOString()}`);
+      doc.fontSize(10).font('Helvetica').text(`Generirano: ${new Date().toLocaleString('hr-HR')}`);
       doc.moveDown();
-      doc.fontSize(11).text(readableText || 'CMAX module export');
-      doc.addPage();
-      doc.fontSize(8).font('Courier').text('CMAX_EXPORT_JSON_BASE64_START');
-      for (let i = 0; i < payloadBase64.length; i += 90) {
-        doc.text(payloadBase64.slice(i, i + 90));
-      }
-      doc.text('CMAX_EXPORT_JSON_BASE64_END');
+      doc.fontSize(9).font('Courier').text(readableText || 'Nema podataka.', {
+        lineGap: 2,
+      });
       doc.end();
     } catch (error) {
       reject(error);
@@ -517,39 +506,25 @@ async function extractPdfText(filePath) {
 }
 
 function parseModulePayloadFromPdfText(text, expectedModule) {
-  const match = String(text || '').match(/CMAX_EXPORT_JSON_BASE64_START\s*([\s\S]*?)\s*CMAX_EXPORT_JSON_BASE64_END/);
-  if (!match) {
-    throw new Error('PDF_STRUCTURE_NOT_RECOGNIZED');
-  }
-  const encoded = match[1].replace(/\s+/g, '');
-  let payload;
-  try {
-    payload = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
-  } catch (_) {
-    throw new Error('PDF_STRUCTURE_NOT_RECOGNIZED');
-  }
-  if (!payload || payload.module !== expectedModule) {
-    throw new Error('PDF_STRUCTURE_NOT_RECOGNIZED');
-  }
-  return payload;
+  return parseReadableDelimitedLines(String(text || ''), expectedModule, 'PDF_STRUCTURE_NOT_RECOGNIZED');
 }
 
 async function parseModulePayloadFromExcel(filePath, expectedModule) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.readFile(filePath);
   const meta = workbook.getWorksheet('CMAX_EXPORT');
-  if (!meta) throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
-  const values = {};
-  meta.eachRow((row, rowNumber) => {
-    if (rowNumber === 1) return;
-    values[String(row.getCell(1).value || '')] = row.getCell(2).value;
-  });
-  if (values.format !== 'cmax-module-export-v1' || values.module !== expectedModule || !values.payloadJson) {
-    throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
+  if (meta) {
+    const values = {};
+    meta.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      values[String(row.getCell(1).value || '')] = row.getCell(2).value;
+    });
+    if (values.format === 'cmax-module-export-v1' && values.module === expectedModule && values.payloadJson) {
+      const payload = JSON.parse(String(values.payloadJson));
+      if (payload && payload.module === expectedModule) return payload;
+    }
   }
-  const payload = JSON.parse(String(values.payloadJson));
-  if (!payload || payload.module !== expectedModule) throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
-  return payload;
+  return parseReadableWorkbook(workbook, expectedModule);
 }
 
 function getSiteEntryFromState(state, site) {
@@ -567,6 +542,329 @@ function buildModulePayload(module, site, data, extra = {}) {
     data: sanitizeObject(data),
     ...extra,
   };
+}
+
+function cellValueToText(value) {
+  if (value == null) return '';
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === 'object') {
+    if (value.text) return String(value.text);
+    if (Array.isArray(value.richText)) return value.richText.map((part) => part.text || '').join('');
+    if (value.result != null) return String(value.result);
+  }
+  return String(value).trim();
+}
+
+function normalizeImportHeader(value) {
+  return cellValueToText(value)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+function worksheetToObjects(sheet) {
+  if (!sheet) return [];
+  const headers = [];
+  sheet.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    headers[colNumber] = normalizeImportHeader(cell.value);
+  });
+  const rows = [];
+  sheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    const item = {};
+    let hasValue = false;
+    headers.forEach((header, colNumber) => {
+      if (!header) return;
+      const value = cellValueToText(row.getCell(colNumber).value);
+      if (value) hasValue = true;
+      item[header] = value;
+    });
+    if (hasValue) rows.push(item);
+  });
+  return rows;
+}
+
+function pickImportValue(row, aliases, fallback = '') {
+  for (const alias of aliases) {
+    const key = normalizeImportHeader(alias);
+    if (row[key] != null && row[key] !== '') return row[key];
+  }
+  return fallback;
+}
+
+function splitListValue(value) {
+  return cellValueToText(value)
+    .split(/[,;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function normalizeImportDate(value) {
+  const text = cellValueToText(value);
+  if (!text) return '';
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const local = text.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if (local) {
+    const day = local[1].padStart(2, '0');
+    const month = local[2].padStart(2, '0');
+    return `${local[3]}-${month}-${day}`;
+  }
+  return text.slice(0, 10);
+}
+
+function numberFromImport(value, fallback = 0) {
+  const numeric = Number(String(value || '').replace(',', '.'));
+  return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function plannerRowsForExport(planner) {
+  return Object.entries(planner?.dailyData || {}).flatMap(([date, day]) =>
+    (Array.isArray(day?.planningRows) ? day.planningRows : []).map((row, index) => ({
+      Datum: date,
+      Red: index + 1,
+      Radnik1: row.w1 || '',
+      Radnik2: row.w2 || '',
+      Radnik3: row.w3 || '',
+      Plan: row.plan || '',
+      Karna: row.karna || '',
+      Moment1: row.m1 || '',
+      Moment2: row.m2 || '',
+      Lift1: row.l1 || '',
+      Lift2: row.l2 || '',
+      Lift3: row.l3 || '',
+      Komentar: row.comment || '',
+    })),
+  );
+}
+
+function tidplanRowsForExport(tidplan) {
+  return (Array.isArray(tidplan) ? tidplan : []).map((row, index) => ({
+    Red: index + 1,
+    Plan: row.plan || '',
+    Zona: row.zona || '',
+    Karna: row.karna || '',
+    Moment: row.moment || '',
+    Resursi: row.resursi || 0,
+    Start: row.start || '',
+    End: row.end || '',
+    Komentar: row.komentar || row.comment || '',
+    Aktivno: row.active === false ? 'Ne' : 'Da',
+  }));
+}
+
+function warehouseItemRowsForExport(warehouse) {
+  const catalog = Array.isArray(warehouse?.catalog) ? warehouse.catalog : [];
+  const stock = warehouse?.stock && typeof warehouse.stock === 'object' ? warehouse.stock : {};
+  return catalog.map((item, index) => {
+    const itemStock = stock[item.id] || {};
+    return {
+      Red: index + 1,
+      Naziv: item.name || '',
+      Jedinica: item.unit || 'kom',
+      Stanje: Number(itemStock.current) || 0,
+      UkupnoIzdano: Number(itemStock.totalIssued) || 0,
+      UkupnoZaprimljeno: Number(itemStock.totalReceived) || 0,
+      Minimum: Number(item.minimum) || 0,
+      ObavijestiOsobu: item.notifyPerson || '',
+      Sifra: item.id || '',
+    };
+  });
+}
+
+function warehouseLogRowsForExport(logs) {
+  return (Array.isArray(logs) ? logs : []).map((entry, index) => ({
+    Red: index + 1,
+    Datum: entry.timestamp || entry.date || '',
+    Tip: entry.type || '',
+    Radnik: entry.worker || '',
+    Materijal: entry.itemName || entry.item || entry.itemId || '',
+    Kolicina: entry.quantity || '',
+    Smjer: entry.direction || entry.flow || '',
+    Komentar: entry.comment || '',
+    StanjeNakon: entry.balanceAfter || '',
+    Upisao: entry.author || entry.createdBy || '',
+  }));
+}
+
+function rowsToDelimitedText(title, rows, columns) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const safeColumns = Array.isArray(columns) && columns.length ? columns : Object.keys(safeRows[0] || {});
+  return [
+    `## ${title}`,
+    safeColumns.join(' | '),
+    ...safeRows.map((row) => safeColumns.map((key) => cellValueToText(row[key]).replace(/\s*\|\s*/g, '/')).join(' | ')),
+    '',
+  ].join('\n');
+}
+
+function buildReadableExport(module, payload) {
+  if (module === 'planner') {
+    const rows = plannerRowsForExport(payload.data);
+    const columns = ['Datum', 'Red', 'Radnik1', 'Radnik2', 'Radnik3', 'Plan', 'Karna', 'Moment1', 'Moment2', 'Lift1', 'Lift2', 'Lift3', 'Komentar'];
+    return {
+      sheets: [{ name: 'Planner', rows, columns }],
+      text: rowsToDelimitedText('Planner', rows, columns),
+    };
+  }
+  if (module === 'tidplan') {
+    const rows = tidplanRowsForExport(payload.data);
+    const columns = ['Red', 'Plan', 'Zona', 'Karna', 'Moment', 'Resursi', 'Start', 'End', 'Komentar', 'Aktivno'];
+    return {
+      sheets: [{ name: 'Tidplan', rows, columns }],
+      text: rowsToDelimitedText('Tidplan', rows, columns),
+    };
+  }
+  if (module === 'warehouse') {
+    const itemRows = warehouseItemRowsForExport(payload.data);
+    const logRows = warehouseLogRowsForExport(payload.logs || payload.data?.logs || []);
+    const itemColumns = ['Red', 'Naziv', 'Jedinica', 'Stanje', 'UkupnoIzdano', 'UkupnoZaprimljeno', 'Minimum', 'ObavijestiOsobu', 'Sifra'];
+    const logColumns = ['Red', 'Datum', 'Tip', 'Radnik', 'Materijal', 'Kolicina', 'Smjer', 'Komentar', 'StanjeNakon', 'Upisao'];
+    return {
+      sheets: [
+        { name: 'Skladiste', rows: itemRows, columns: itemColumns },
+        { name: 'Warehouse logs', rows: logRows, columns: logColumns },
+      ],
+      text: [
+        rowsToDelimitedText('Skladiste', itemRows, itemColumns),
+        rowsToDelimitedText('Warehouse logs', logRows, logColumns),
+      ].join('\n'),
+    };
+  }
+  throw new Error('UNKNOWN_MODULE');
+}
+
+function parsePlannerRows(rows, site) {
+  const dailyData = {};
+  rows.forEach((row) => {
+    const date = normalizeImportDate(pickImportValue(row, ['Datum', 'Date']));
+    if (!date) return;
+    if (!dailyData[date]) dailyData[date] = { planningRows: [] };
+    dailyData[date].planningRows.push({
+      w1: pickImportValue(row, ['Radnik1', 'W1', 'Worker1']),
+      w2: pickImportValue(row, ['Radnik2', 'W2', 'Worker2']),
+      w3: pickImportValue(row, ['Radnik3', 'W3', 'Worker3']),
+      plan: pickImportValue(row, ['Plan']),
+      karna: pickImportValue(row, ['Karna']),
+      m1: pickImportValue(row, ['Moment1', 'M1']),
+      m2: pickImportValue(row, ['Moment2', 'M2']),
+      l1: pickImportValue(row, ['Lift1', 'L1']),
+      l2: pickImportValue(row, ['Lift2', 'L2']),
+      l3: pickImportValue(row, ['Lift3', 'L3']),
+      comment: pickImportValue(row, ['Komentar', 'Comment']),
+    });
+  });
+  return buildModulePayload('planner', site || 'import', { dailyData });
+}
+
+function parseTidplanRows(rows, site) {
+  const data = rows.map((row) => ({
+    plan: pickImportValue(row, ['Plan']),
+    zona: pickImportValue(row, ['Zona', 'Zone']),
+    karna: pickImportValue(row, ['Karna']),
+    moment: pickImportValue(row, ['Moment']),
+    resursi: Math.max(numberFromImport(pickImportValue(row, ['Resursi', 'Resources']), 1), 1),
+    start: normalizeImportDate(pickImportValue(row, ['Start', 'Pocetak'])),
+    end: normalizeImportDate(pickImportValue(row, ['End', 'Kraj'])),
+    komentar: pickImportValue(row, ['Komentar', 'Comment']),
+    active: !['ne', 'no', 'false', '0'].includes(String(pickImportValue(row, ['Aktivno', 'Active'], 'Da')).trim().toLowerCase()),
+  })).filter((row) => row.plan || row.zona || row.karna || row.moment || row.start || row.end);
+  return buildModulePayload('tidplan', site || 'import', data);
+}
+
+function parseWarehouseRows(itemRows, logRows, site) {
+  const catalog = [];
+  const stock = {};
+  itemRows.forEach((row, index) => {
+    const name = pickImportValue(row, ['Naziv', 'Name', 'Materijal']);
+    if (!name) return;
+    const id = pickImportValue(row, ['Sifra', 'ID']) || `itm_${Date.now()}_${index}`;
+    catalog.push({
+      id,
+      name,
+      unit: pickImportValue(row, ['Jedinica', 'Unit'], 'kom') || 'kom',
+      minimum: Math.max(numberFromImport(pickImportValue(row, ['Minimum']), 0), 0),
+      notifyPerson: pickImportValue(row, ['ObavijestiOsobu', 'NotifyPerson', 'Obavijesti']),
+    });
+    stock[id] = {
+      current: numberFromImport(pickImportValue(row, ['Stanje', 'Current', 'Quantity']), 0),
+      totalIssued: numberFromImport(pickImportValue(row, ['UkupnoIzdano', 'TotalIssued']), 0),
+      totalReceived: numberFromImport(pickImportValue(row, ['UkupnoZaprimljeno', 'TotalReceived']), 0),
+    };
+  });
+  const logs = logRows.map((row, index) => ({
+    id: pickImportValue(row, ['ID', 'Sifra']) || `log_${Date.now()}_${index}`,
+    timestamp: pickImportValue(row, ['Datum', 'Date']) || new Date().toISOString(),
+    type: pickImportValue(row, ['Tip', 'Type']),
+    worker: pickImportValue(row, ['Radnik', 'Worker']),
+    itemName: pickImportValue(row, ['Materijal', 'Item']),
+    quantity: numberFromImport(pickImportValue(row, ['Kolicina', 'Quantity']), 0),
+    direction: pickImportValue(row, ['Smjer', 'Flow', 'Direction']),
+    comment: pickImportValue(row, ['Komentar', 'Comment']),
+    balanceAfter: numberFromImport(pickImportValue(row, ['StanjeNakon', 'BalanceAfter']), 0),
+    author: pickImportValue(row, ['Upisao', 'Author']),
+  })).filter((row) => row.itemName || row.worker || row.type);
+  return buildModulePayload('warehouse', site || 'import', { catalog, stock, logs }, { logs });
+}
+
+function parseReadableWorkbook(workbook, expectedModule) {
+  if (expectedModule === 'planner') {
+    const rows = worksheetToObjects(workbook.getWorksheet('Planner') || workbook.worksheets[0]);
+    if (!rows.length) throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
+    return parsePlannerRows(rows);
+  }
+  if (expectedModule === 'tidplan') {
+    const rows = worksheetToObjects(workbook.getWorksheet('Tidplan') || workbook.worksheets[0]);
+    if (!rows.length) throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
+    return parseTidplanRows(rows);
+  }
+  if (expectedModule === 'warehouse') {
+    const itemRows = worksheetToObjects(workbook.getWorksheet('Skladiste') || workbook.getWorksheet('Warehouse') || workbook.worksheets[0]);
+    const logRows = worksheetToObjects(workbook.getWorksheet('Warehouse logs') || workbook.getWorksheet('Logs'));
+    if (!itemRows.length) throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
+    return parseWarehouseRows(itemRows, logRows);
+  }
+  throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
+}
+
+function parseDelimitedSection(text, heading) {
+  const lines = String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const headingIndex = lines.findIndex((line) => normalizeImportHeader(line.replace(/^#+\s*/, '')) === normalizeImportHeader(heading));
+  if (headingIndex < 0 || !lines[headingIndex + 1]) return [];
+  const headers = lines[headingIndex + 1].split('|').map((part) => normalizeImportHeader(part));
+  const rows = [];
+  for (let index = headingIndex + 2; index < lines.length; index += 1) {
+    if (lines[index].startsWith('##')) break;
+    if (!lines[index].includes('|')) continue;
+    const parts = lines[index].split('|').map((part) => part.trim());
+    const row = {};
+    headers.forEach((header, columnIndex) => {
+      if (header) row[header] = parts[columnIndex] || '';
+    });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseReadableDelimitedLines(text, expectedModule, errorCode) {
+  if (expectedModule === 'planner') {
+    const rows = parseDelimitedSection(text, 'Planner');
+    if (!rows.length) throw new Error(errorCode);
+    return parsePlannerRows(rows);
+  }
+  if (expectedModule === 'tidplan') {
+    const rows = parseDelimitedSection(text, 'Tidplan');
+    if (!rows.length) throw new Error(errorCode);
+    return parseTidplanRows(rows);
+  }
+  if (expectedModule === 'warehouse') {
+    const itemRows = parseDelimitedSection(text, 'Skladiste');
+    const logRows = parseDelimitedSection(text, 'Warehouse logs');
+    if (!itemRows.length) throw new Error(errorCode);
+    return parseWarehouseRows(itemRows, logRows);
+  }
+  throw new Error(errorCode);
 }
 
 async function exportToWord(title, content) {
@@ -751,6 +1049,10 @@ async function buildPublicStatePayload(document, session) {
     : null;
 
   if (responseState) {
+    const canAccessPlannerState = sessionHasPermission(session, 'canAccessPlanner') || sessionHasPermission(session, 'canViewPlanner');
+    const canAccessTidplanState = sessionHasPermission(session, 'canAccessTidplan') || sessionHasPermission(session, 'canViewTidplan');
+    const canAccessBinsState = sessionHasPermission(session, 'canAccessBins') || sessionHasPermission(session, 'canViewBins');
+    const canAccessResourceState = canAccessPlannerState || canAccessTidplanState || canAccessBinsState;
     const allowedSites = Array.isArray(responseState.sites)
       ? responseState.sites.filter((site) => canAccessSite(session || {}, site))
       : [];
@@ -767,12 +1069,61 @@ async function buildPublicStatePayload(document, session) {
       const entry = originalSiteData[site];
       if (!entry || typeof entry !== 'object') return;
       const nextEntry = { ...entry };
+      if (!canAccessPlannerState) {
+        delete nextEntry.planner;
+      }
+      if (!canAccessTidplanState) {
+        delete nextEntry.tidplan;
+        delete nextEntry.tidplanZones;
+      }
+      if (!canAccessBinsState) {
+        delete nextEntry.bins;
+      }
       if (!canViewWarehouseInState(session)) {
         delete nextEntry.warehouse;
+      }
+      if (!sessionHasPermission(session, 'canViewReports')) {
+        delete nextEntry.reports;
+      }
+      if (!sessionHasPermission(session, 'canViewNotifications')) {
+        delete nextEntry.notifications;
       }
       delete nextEntry.surveys;
       responseState.siteData[site] = nextEntry;
     });
+
+    if (!canAccessResourceState) {
+      delete responseState.workers;
+      delete responseState.lifts;
+      delete responseState.moments;
+      delete responseState.plans;
+      delete responseState.karnas;
+      delete responseState.resourceHistory;
+    }
+    if (!canAccessPlannerState) {
+      delete responseState.dailyData;
+    }
+    if (!canAccessBinsState) {
+      delete responseState.binsData;
+      delete responseState.binPermissions;
+    }
+    if (!canAccessTidplanState) {
+      delete responseState.tidplan;
+      delete responseState.tidplanZones;
+    }
+    if (!sessionHasPermission(session, 'canViewReports')) {
+      delete responseState.reports;
+    }
+    if (!sessionHasPermission(session, 'canViewNotifications')) {
+      delete responseState.notifications;
+    }
+    if (!canViewWarehouseInState(session)) {
+      delete responseState.warehouse;
+      delete responseState.warehouseData;
+    }
+    delete responseState.backups;
+    delete responseState.logs;
+    delete responseState.warehouseLogs;
 
     if (sessionHasPermission(session, 'canOpenAdminPanel') || sessionHasPermission(session, 'canManageAdmins')) {
       const admins = await readAdmins();
@@ -1095,6 +1446,44 @@ function hasPastPlannerDayChanges(previousState, nextState) {
       isPastDateString(date) && stableJson(previousDaily[date]) !== stableJson(nextDaily[date]),
     );
   });
+}
+
+function hasPastBinsDayChanges(previousState, nextState) {
+  const previousSiteData = previousState?.siteData && typeof previousState.siteData === 'object' ? previousState.siteData : {};
+  const nextSiteData = nextState?.siteData && typeof nextState.siteData === 'object' ? nextState.siteData : {};
+  return Object.keys(nextSiteData).some((site) => {
+    const previousBins = previousSiteData[site]?.bins || {};
+    const nextBins = nextSiteData[site]?.bins || {};
+    return Object.keys(nextBins).some((date) =>
+      isPastDateString(date) && stableJson(previousBins[date]) !== stableJson(nextBins[date]),
+    );
+  });
+}
+
+function getTidplanPastDates(list) {
+  const dates = new Set();
+  (Array.isArray(list) ? list : []).forEach((activity) => {
+    if (isPastDateString(activity?.start)) dates.add(activity.start);
+    if (isPastDateString(activity?.end)) dates.add(activity.end);
+  });
+  return dates;
+}
+
+function hasPastTidplanChanges(previousState, nextState) {
+  const previousSiteData = previousState?.siteData && typeof previousState.siteData === 'object' ? previousState.siteData : {};
+  const nextSiteData = nextState?.siteData && typeof nextState.siteData === 'object' ? nextState.siteData : {};
+  return Object.keys(nextSiteData).some((site) => {
+    const previousTidplan = previousSiteData[site]?.tidplan || [];
+    const nextTidplan = nextSiteData[site]?.tidplan || [];
+    const pastDates = new Set([...getTidplanPastDates(previousTidplan), ...getTidplanPastDates(nextTidplan)]);
+    return pastDates.size > 0 && stableJson(previousTidplan) !== stableJson(nextTidplan);
+  });
+}
+
+function hasLockedPastChanges(previousState, nextState) {
+  return hasPastPlannerDayChanges(previousState, nextState) ||
+    hasPastBinsDayChanges(previousState, nextState) ||
+    hasPastTidplanChanges(previousState, nextState);
 }
 
 async function logActivity(userEmail, action, details = {}) {
@@ -1463,7 +1852,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     }
 
     const currentDocument = await getStateDocument();
-    if (!canUnlockPastDays(req.session) && hasPastPlannerDayChanges(currentDocument.data, state)) {
+    if (!canUnlockPastDays(req.session) && hasLockedPastChanges(currentDocument.data, state)) {
       return res.status(403).json({ error: 'Past days are locked' });
     }
 
@@ -1919,6 +2308,7 @@ function redactSurveyForSession(survey, session, site) {
     finished,
     createdAt: survey.createdAt,
     createdBy: survey.createdBy,
+    createdByName: survey.createdByName || survey.createdBy || '',
     pinned: survey.pinned === true,
     allowVoteChange: survey.allowVoteChange === true,
     myVote: ownVote ? ownVote.answerId : null,
@@ -1938,25 +2328,30 @@ function validateSurveyInput(body) {
     ? body.privacy
     : 'semiAnonymous';
   
-  // Parse dates in local timezone and treat as intended time
-  // This preserves the time as entered by the user
   const startDateStr = sanitizeString(body?.startDate, 20);
   const startTimeStr = sanitizeString(body?.startTime, 20);
   const endDateStr = sanitizeString(body?.endDate, 20);
   const endTimeStr = sanitizeString(body?.endTime, 20);
+  const timezoneOffset = Number(body?.timezoneOffset);
+  const offsetMinutes = Number.isFinite(timezoneOffset) ? timezoneOffset : 0;
   
-  // Create date from local timezone as entered by user
-  // The client sends the date/time in local format, and we preserve it as-is
   const parseLocalDateTime = (dateStr, timeStr) => {
-    // Don't add 'Z' - we want the time to be parsed as local and then we'll store it as intended
-    // When parsing "2026-05-01" and "20:00", we create a date representing that local time
-    const combined = `${dateStr}T${timeStr}:00`;
-    const date = new Date(combined);
-    if (!Number.isFinite(date.getTime())) return null;
-    // Adjust for timezone: if user entered 20:00 local, but JS parsed it in UTC,
-    // we need to offset it back. This way when displayed, it shows the correct time.
-    const tzOffset = date.getTimezoneOffset() * 60000; // ms
-    return new Date(date.getTime() + tzOffset);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr || '');
+    const timeMatch = /^(\d{2}):(\d{2})$/.exec(timeStr || '');
+    if (!match || !timeMatch) return null;
+    const [, year, month, day] = match;
+    const [, hour, minute] = timeMatch;
+    const utcMs = Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      0,
+      0,
+    ) + offsetMinutes * 60 * 1000;
+    const date = new Date(utcMs);
+    return Number.isFinite(date.getTime()) ? date : null;
   };
   
   const startAt = parseLocalDateTime(startDateStr, startTimeStr);
@@ -1992,7 +2387,7 @@ function validateSurveyInput(body) {
 
 apiRouter.get('/surveys', requirePermission('canViewSurveys'), async (req, res, next) => {
   try {
-    const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
+    const site = sanitizeString(req.body?.site || req.query.site || req.session.currentSite || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const document = await getStateDocument();
     const surveys = getSurveyListFromState(document.data || {}, site)
@@ -2029,6 +2424,15 @@ apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single(
     const parsed = validateSurveyInput(req.body || {});
     if (parsed.error) return res.status(400).json({ error: parsed.error });
     const now = new Date().toISOString();
+    const creatorEmail = sanitizeString(req.session.email || '', 160).toLowerCase();
+    const creatorRecord = (await readAdmins()).find((admin) => admin.email === creatorEmail);
+    const creatorName = sanitizeString(
+      creatorRecord?.fullName ||
+        `${creatorRecord?.firstName || ''} ${creatorRecord?.lastName || ''}`.trim() ||
+        req.session.fullName ||
+        creatorEmail,
+      180,
+    );
     const survey = {
       id: `survey_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
       site,
@@ -2041,7 +2445,8 @@ apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single(
       endAt: parsed.endAt.toISOString(),
       allowVoteChange: req.body?.allowVoteChange === true || req.body?.allowVoteChange === 'true',
       createdAt: now,
-      createdBy: sanitizeString(req.session.email || '', 160).toLowerCase(),
+      createdBy: creatorEmail,
+      createdByName: creatorName,
       votes: [],
     };
     const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
@@ -2170,7 +2575,7 @@ apiRouter.patch('/surveys/:surveyId/pin', async (req, res, next) => {
     if (!req.session.isSuperAdmin && Number(req.session.level) < 6) {
       return res.status(403).json({ error: 'Only admin level 6+ can pin surveys' });
     }
-    const site = sanitizeString(req.body?.site || req.query.site || req.session.currentSite || 'default', 80);
+    const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const surveyId = sanitizeString(req.params.surveyId, 120);
     const pinned = req.body?.pinned === true || req.body?.pinned === 'true';
@@ -2496,6 +2901,21 @@ async function importModulePayload(module, site, payload, userEmail) {
     if (module === 'warehouse') {
       const logs = Array.isArray(payload.logs) ? payload.logs : Array.isArray(payload.data?.logs) ? payload.data.logs : [];
       nextState.siteData[site] = { ...currentEntry, warehouse: { ...(payload.data || {}), logs } };
+    } else if (module === 'planner') {
+      const currentPlanner = currentEntry.planner && typeof currentEntry.planner === 'object' ? currentEntry.planner : {};
+      const importedPlanner = payload.data && typeof payload.data === 'object' ? payload.data : {};
+      const importedDaily = importedPlanner.dailyData && typeof importedPlanner.dailyData === 'object' ? importedPlanner.dailyData : {};
+      nextState.siteData[site] = {
+        ...currentEntry,
+        planner: {
+          ...currentPlanner,
+          ...importedPlanner,
+          dailyData: {
+            ...(currentPlanner.dailyData || {}),
+            ...importedDaily,
+          },
+        },
+      };
     } else {
       nextState.siteData[site] = { ...currentEntry, [module]: payload.data };
     }
@@ -2515,17 +2935,14 @@ apiRouter.get('/warehouse/export/:format(excel|pdf)', requirePermission('canExpo
   try {
     const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    if (!sessionHasPermission(req.session, 'canViewLogs')) return res.status(403).json({ error: 'Warehouse export includes logs. Missing canViewLogs permission.' });
     const payload = await getModulePayload('warehouse', site);
+    const readable = buildReadableExport('warehouse', payload);
     if (req.params.format === 'pdf') {
-      const itemCount = Array.isArray(payload.data?.catalog) ? payload.data.catalog.length : 0;
-      const logCount = Array.isArray(payload.logs) ? payload.logs.length : 0;
-      const buffer = await exportModulePDF(`Warehouse - ${site}`, payload, `Items: ${itemCount}\nLogs: ${logCount}`);
+      const buffer = await exportModulePDF(`Skladiste - ${site}`, payload, readable.text);
       sendModuleDownload(res, buffer, 'application/pdf', `skladiste-${site}-${Date.now()}.pdf`);
     } else {
-      const buffer = await exportModuleWorkbook(payload, [
-        { name: 'Items', rows: Array.isArray(payload.data?.catalog) ? payload.data.catalog : [] },
-        { name: 'Logs', rows: Array.isArray(payload.logs) ? payload.logs : [] },
-      ]);
+      const buffer = await exportModuleWorkbook(payload, readable.sheets);
       sendModuleDownload(res, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', `skladiste-${site}-${Date.now()}.xlsx`);
     }
     await logActivity(req.session.email, `export_warehouse_${req.params.format}`, { site, includeLogs: true });
@@ -2540,6 +2957,7 @@ apiRouter.post('/warehouse/import/:format(excel|pdf)', requirePermission('canImp
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const site = sanitizeString(req.body?.site || req.session.currentSite || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    if (!sessionHasPermission(req.session, 'canViewLogs')) return res.status(403).json({ error: 'Warehouse import includes logs. Missing canViewLogs permission.' });
     const payload = req.params.format === 'pdf'
       ? parseModulePayloadFromPdfText(await extractPdfText(req.file.path), 'warehouse')
       : await parseModulePayloadFromExcel(req.file.path, 'warehouse');
@@ -2560,11 +2978,12 @@ apiRouter.get('/tidplan/export/:format(excel|pdf)', requirePermission('canExport
     const site = sanitizeString(req.query.site || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const payload = await getModulePayload('tidplan', site);
+    const readable = buildReadableExport('tidplan', payload);
     if (req.params.format === 'pdf') {
-      const buffer = await exportModulePDF(`Tidplan - ${site}`, payload, `Activities: ${Array.isArray(payload.data) ? payload.data.length : 0}`);
+      const buffer = await exportModulePDF(`Tidplan - ${site}`, payload, readable.text);
       sendModuleDownload(res, buffer, 'application/pdf', `tidplan-${site}-${Date.now()}.pdf`);
     } else {
-      const buffer = await exportModuleWorkbook(payload, [{ name: 'Tidplan', rows: Array.isArray(payload.data) ? payload.data : [] }]);
+      const buffer = await exportModuleWorkbook(payload, readable.sheets);
       sendModuleDownload(res, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', `tidplan-${site}-${Date.now()}.xlsx`);
     }
     await logActivity(req.session.email, `export_tidplan_${req.params.format}`, { site });
@@ -2600,14 +3019,12 @@ apiRouter.get('/planner/export/:format(excel|pdf)', requirePermission('canExport
     const site = sanitizeString(req.query.site || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const payload = await getModulePayload('planner', site);
-    const rows = Object.entries(payload.data?.dailyData || {}).flatMap(([date, day]) =>
-      (day?.planningRows || []).map((row) => ({ date, ...row })),
-    );
+    const readable = buildReadableExport('planner', payload);
     if (req.params.format === 'pdf') {
-      const buffer = await exportModulePDF(`Planner - ${site}`, payload, `Planning rows: ${rows.length}`);
+      const buffer = await exportModulePDF(`Planner - ${site}`, payload, readable.text);
       sendModuleDownload(res, buffer, 'application/pdf', `planner-${site}-${Date.now()}.pdf`);
     } else {
-      const buffer = await exportModuleWorkbook(payload, [{ name: 'PlannerRows', rows }]);
+      const buffer = await exportModuleWorkbook(payload, readable.sheets);
       sendModuleDownload(res, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', `planner-${site}-${Date.now()}.xlsx`);
     }
     await logActivity(req.session.email, `export_planner_${req.params.format}`, { site });
