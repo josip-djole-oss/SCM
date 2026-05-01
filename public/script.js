@@ -1,4 +1,4 @@
-﻿/* ==================== TRANSLATIONS ==================== */
+/* ==================== TRANSLATIONS ==================== */
 const TRANSLATIONS = {
   hr: {
     loginTitle: "CMAX SCM",
@@ -108,6 +108,10 @@ const TRANSLATIONS = {
     perm_canManageKarnas: "Upravljanje karnama",
     perm_canViewReports: "Pregled prijava",
     perm_canApproveReports: "Odobravanje prijava",
+    perm_canExportPlanner: "Export Plannera",
+    perm_canImportPlanner: "Import Plannera",
+    perm_canManageBackups: "Upravljanje backupima",
+    perm_canViewBackups: "Pregled backupa",
     perm_canViewLogs: "Pregledavanje logova",
     perm_canClearLogs: "Brisanje logova",
     btnAddAdmin: "Dodaj Admina",
@@ -232,6 +236,10 @@ const TRANSLATIONS = {
     settingsLayoutNote: "Vraća spremljeni layout i temu na početne vrijednosti bez brisanja podataka.",
     permSectionGeneralTitle: "Opće",
     permSectionGeneralNote: "Osnovni pristup modulima i glavnim komandama.",
+    permSectionExportImportTitle: "Export/Import",
+    permSectionExportImportNote: "Dozvole za export i import podataka.",
+    permSectionBackupTitle: "Backup",
+    permSectionBackupNote: "Upravljanje backupima.",
     permSectionTidplanTitle: "Tidplan",
     permSectionTidplanNote: "Pristup i sve funkcije vezane uz Tidplan.",
     permSectionBinsTitle: "Bins",
@@ -245,8 +253,6 @@ const TRANSLATIONS = {
     permSectionGuestTitle: "Gost mode",
     permSectionGuestNote: "Što posjetitelj vidi i koje komande može koristiti.",
     loadingDefault: "Učitavanje...",
-    loadingBooting: "Pokretanje aplikacije...",
-    loadingConnectingDb: "Povezivanje s bazom podataka...",
     loadingLogin: "Provjera prijave...",
     loadingAdminPanel: "Otvaranje admin panela...",
     loadingSiteChange: "Učitavanje podataka gradilišta...",
@@ -325,6 +331,10 @@ const TRANSLATIONS = {
     perm_canManageNotifications: "Objava obavijesti",
     perm_canDeleteNotifications: "Brisanje obavijesti",
     notificationFilterLabel: "Gradilište:",
+    backupTabTitle: "Backup",
+    backupManualBtn: "Kreiraj Backup odmah",
+    backupListBtn: "Osvježi listu",
+    backupInfoBtn: "Osvježi info",
     notificationSearchLabel: "Pretraga:",
     notificationPinnedOnlyLabel: "Samo pinned",
     // Warehouse translations
@@ -599,6 +609,10 @@ const TRANSLATIONS = {
     settingsLayoutNote: "Resets saved layout and theme to defaults without deleting data.",
     permSectionGeneralTitle: "General",
     permSectionGeneralNote: "Basic access to modules and main commands.",
+    permSectionExportImportTitle: "Export/Import",
+    permSectionExportImportNote: "Permissions for data export and import.",
+    permSectionBackupTitle: "Backup",
+    permSectionBackupNote: "Backup management.",
     permSectionTidplanTitle: "Tidplan",
     permSectionTidplanNote: "Access and all functions related to Tidplan.",
     permSectionBinsTitle: "Bins",
@@ -612,8 +626,6 @@ const TRANSLATIONS = {
     permSectionGuestTitle: "Guest mode",
     permSectionGuestNote: "What a visitor can see and which commands can be used.",
     loadingDefault: "Loading...",
-    loadingBooting: "Starting application...",
-    loadingConnectingDb: "Connecting to database...",
     loadingLogin: "Checking login...",
     loadingAdminPanel: "Opening admin panel...",
     loadingSiteChange: "Loading site data...",
@@ -692,6 +704,10 @@ const TRANSLATIONS = {
     perm_canManageNotifications: "Publish notifications",
     perm_canDeleteNotifications: "Delete notifications",
     notificationFilterLabel: "Site:",
+    backupTabTitle: "Backup",
+    backupManualBtn: "Create Backup Now",
+    backupListBtn: "Refresh List",
+    backupInfoBtn: "Refresh Info",
     notificationSearchLabel: "Search:",
     notificationPinnedOnlyLabel: "Pinned only",
     btnWarehouse: "Warehouse",
@@ -735,6 +751,12 @@ const TRANSLATIONS = {
     readOnlyModeEnabled: "Read-only mode ENABLED",
     readOnlyModeDisabled: "Read-only mode DISABLED",
     readOnlyAllowedSites: "Allowed sites:",
+    // Export/Import
+    export: "Export",
+    import: "Import",
+    exportExcel: "Export Excel",
+    exportPdf: "Export PDF",
+    exportWord: "Export Word",
   },
   sv: {
     loginTitle: "CMAX SCM",
@@ -967,6 +989,10 @@ const TRANSLATIONS = {
     settingsLayoutNote: "Återställer sparad layout och tema till standard utan att radera data.",
     permSectionGeneralTitle: "Allmänt",
     permSectionGeneralNote: "Grundläggande åtkomst till moduler och huvudkommandon.",
+    permSectionExportImportTitle: "Exportera/Importera",
+    permSectionExportImportNote: "Behörigheter för dataexport och import.",
+    permSectionBackupTitle: "Backup",
+    permSectionBackupNote: "Säkerhetskopieringshantering.",
     permSectionTidplanTitle: "Tidplan",
     permSectionTidplanNote: "Åtkomst och alla funktioner som hör till Tidplan.",
     permSectionBinsTitle: "Bins",
@@ -980,8 +1006,6 @@ const TRANSLATIONS = {
     permSectionGuestTitle: "Gastläge",
     permSectionGuestNote: "Vad en besökare kan se och vilka kommandon som kan användas.",
     loadingDefault: "Laddar...",
-    loadingBooting: "Startar applikationen...",
-    loadingConnectingDb: "Ansluter till databasen...",
     loadingLogin: "Kontrollerar inloggning...",
     loadingAdminPanel: "Öppnar adminpanelen...",
     loadingSiteChange: "Laddar arbetsplatsdata...",
@@ -1059,64 +1083,16 @@ const TRANSLATIONS = {
     perm_canManageNotifications: "Publicera notiser",
     perm_canDeleteNotifications: "Ta bort notiser",
     notificationFilterLabel: "Byggarbetsplats:",
+    backupTabTitle: "Säkerhetskopiering",
+    backupManualBtn: "Skapa säkerhetskopia nu",
+    backupListBtn: "Uppdatera lista",
+    backupInfoBtn: "Uppdatera info",
     notificationSearchLabel: "Sök:",
     notificationPinnedOnlyLabel: "Endast pinned",
   },
 };
 
 Object.assign(TRANSLATIONS.hr, {
-  exportImport: "Export/Import",
-  btnSurveys: "Ankete/Pitanja",
-  surveysTitle: "Ankete/Pitanja",
-  surveyComposerTitle: "Novo pitanje",
-  surveyQuestionLabel: "Pitanje",
-  surveyImageLabel: "Slika",
-  surveyTargetAllLabel: "Postavi pitanje svima",
-  surveyTargetSiteLabel: "Postavi pitanje svima na gradilistu",
-  surveyUsersLabel: "Korisnici",
-  surveyStartLabel: "Pocetak",
-  surveyEndLabel: "Zavrsetak",
-  surveyAnswersLabel: "Odgovori",
-  surveyAddAnswer: "+1 odgovor",
-  surveyPrivacyLabel: "Privatnost",
-  surveyPublish: "Objavi",
-  surveyEmpty: "Nema anketa.",
-  surveyCreated: "Anketa je objavljena.",
-  surveyVoted: "Glas je spremljen.",
-  surveyMinAnswers: "Upisite barem 2 odgovora.",
-  surveyTargetError: "Odaberite primatelje.",
-  surveyLoadFailed: "Ucitavanje anketa nije uspjelo.",
-  surveySaveFailed: "Spremanje ankete nije uspjelo.",
-  surveyVoteFailed: "Glasanje nije uspjelo.",
-  permSectionSurveysTitle: "Ankete/Pitanja",
-  permSectionSurveysNote: "Kreiranje, glasanje i rezultati anketa.",
-  perm_canViewSurveys: "Pregled anketa",
-  perm_canCreateSurveys: "Kreiranje anketa",
-  perm_canEditSurveys: "Uredjivanje anketa",
-  perm_canPublishSurveys: "Objava anketa",
-  perm_canViewSurveyResults: "Pregled rezultata anketa",
-  perm_canViewAnonymousSurveyVoters: "Pregled glasaca anonimnih anketa",
-  perm_canViewBackups: "Pregled backupova",
-  perm_canManageBackups: "Rucni backup",
-  manualBackup: "Manual Backup",
-  manualBackupSuccess: "Backup je napravljen.",
-  manualBackupFailed: "Backup nije uspio.",
-  importTitle: "Import {module} ({format})",
-  importFileLabel: "Datoteka",
-  upload: "Upload",
-  exportExcel: "Export Excel",
-  exportPdf: "Export PDF",
-  importExcel: "Import Excel",
-  importPdf: "Import PDF",
-  permSectionExportImportTitle: "Export/Import",
-  permSectionExportImportNote: "Dozvole za export i import po modulima.",
-  perm_canExportPlanner: "Export Plannera",
-  perm_canImportPlanner: "Import Plannera",
-  perm_canExportTidplan: "Export Tidplana",
-  perm_canImportTidplan: "Import Tidplana",
-  perm_canExportWarehouse: "Export skladišta",
-  perm_canImportWarehouse: "Import skladišta",
-  perm_canUnlockPastDays: "Otključavanje prošlih dana",
   perm_canAccessWarehouse: "Pristup skladištu",
   perm_canManageWarehouse: "Uređivanje skladišta",
   perm_canViewWarehouseLogs: "Pregled logova skladišta",
@@ -1128,14 +1104,18 @@ Object.assign(TRANSLATIONS.hr, {
   guestWarehouseItemsNote: "Ove stavke vrijede za trenutno odabrano gradilište.",
   guestWarehouseNoItems: "Nema stavki u skladištu za ovo gradilište.",
   warehouseIssueTitle: "Izdavanje radnicima",
-  warehouseIssueSubtitle: "",
+    warehouseExportExcel: "Export Excel",
+    warehouseImportExcel: "Import Excel",
+    tidplanExportPdf: "Export PDF",
+    tidplanImportPdf: "Import PDF",
+    plannerImportExcel: "Import Excel",
+    backupManual: "Kreiraj Backup",
+  warehouseIssueSubtitle: "8 stupaca za alat ili materijal",
   warehouseIssueColWorker: "Ime i prezime",
   warehouseIssueColComment: "Komentar",
   warehouseIssueColSave: "Spremi",
-  warehouseStockTitle: "Ulaz / izlaz materijala/alata",
+  warehouseStockTitle: "Ulaz / izlaz robe",
   warehouseStockSubtitle: "Sve ide u logove",
-  warehouseProcurementLabel: "Osoba zadužena za nabavku",
-  warehouseProcurementPlaceholder: "Odaberi osobe",
   warehouseStockItemLabel: "Alat / materijal",
   warehouseStockDirectionLabel: "Radnja",
   warehouseStockDirectionIn: "Dodaj",
@@ -1153,6 +1133,7 @@ Object.assign(TRANSLATIONS.hr, {
   warehouseInventoryColIssued: "Ukupno dano",
   warehouseInventoryColReceived: "Ukupno došlo",
   warehouseInventoryColMinimum: "Min. limit",
+  warehouseInventoryColNotify: "Obavijesti osobu",
   warehouseCatalogTitle: "Popis alata / materijala",
   warehouseCatalogAdd: "Dodaj",
   warehouseLogsTitle: "Logovi skladišta",
@@ -1195,7 +1176,7 @@ Object.assign(TRANSLATIONS.hr, {
   warehouseGraphItemsTitle: "Najtraženiji materijali",
   warehouseGraphInsightTitle: "Izdvajanje iz prosjeka po alatu / materijalu",
   warehouseNoAssignedAdmin: "nema dodijeljenog admina",
-  warehouseCatalogMeta: "Stanje {current} | min {minimum}",
+  warehouseCatalogMeta: "Stanje {current} | min {minimum} | obavijesti {admins}",
   warehouseAlertsEmpty: "Trenutno nema upozorenja za skladište.",
   warehouseAlertMessage: "{name} je na {current} {unit} i pao je ispod limita {minimum}.",
   warehouseAlertNotify: "Obavijest: {admins}",
@@ -1227,58 +1208,6 @@ Object.assign(TRANSLATIONS.hr, {
 });
 
 Object.assign(TRANSLATIONS.en, {
-  exportImport: "Export/Import",
-  btnSurveys: "Surveys/Questions",
-  surveysTitle: "Surveys/Questions",
-  surveyComposerTitle: "New question",
-  surveyQuestionLabel: "Question",
-  surveyImageLabel: "Image",
-  surveyTargetAllLabel: "Ask everyone",
-  surveyTargetSiteLabel: "Ask everyone on this site",
-  surveyUsersLabel: "Users",
-  surveyStartLabel: "Start",
-  surveyEndLabel: "End",
-  surveyAnswersLabel: "Answers",
-  surveyAddAnswer: "+1 answer",
-  surveyPrivacyLabel: "Privacy",
-  surveyPublish: "Publish",
-  surveyEmpty: "No surveys.",
-  surveyCreated: "Survey published.",
-  surveyVoted: "Vote saved.",
-  surveyMinAnswers: "Enter at least 2 answers.",
-  surveyTargetError: "Select recipients.",
-  surveyLoadFailed: "Could not load surveys.",
-  surveySaveFailed: "Could not save survey.",
-  surveyVoteFailed: "Could not vote.",
-  permSectionSurveysTitle: "Surveys/Questions",
-  permSectionSurveysNote: "Create, vote and view survey results.",
-  perm_canViewSurveys: "View surveys",
-  perm_canCreateSurveys: "Create surveys",
-  perm_canEditSurveys: "Edit surveys",
-  perm_canPublishSurveys: "Publish surveys",
-  perm_canViewSurveyResults: "View survey results",
-  perm_canViewAnonymousSurveyVoters: "View anonymous survey voters",
-  perm_canViewBackups: "View backups",
-  perm_canManageBackups: "Manual backup",
-  manualBackup: "Manual Backup",
-  manualBackupSuccess: "Backup created.",
-  manualBackupFailed: "Backup failed.",
-  importTitle: "Import {module} ({format})",
-  importFileLabel: "File",
-  upload: "Upload",
-  exportExcel: "Export Excel",
-  exportPdf: "Export PDF",
-  importExcel: "Import Excel",
-  importPdf: "Import PDF",
-  permSectionExportImportTitle: "Export/Import",
-  permSectionExportImportNote: "Permissions for module exports and imports.",
-  perm_canExportPlanner: "Export Planner",
-  perm_canImportPlanner: "Import Planner",
-  perm_canExportTidplan: "Export Tidplan",
-  perm_canImportTidplan: "Import Tidplan",
-  perm_canExportWarehouse: "Export warehouse",
-  perm_canImportWarehouse: "Import warehouse",
-  perm_canUnlockPastDays: "Unlock past days",
   perm_canAccessWarehouse: "Access warehouse",
   perm_canManageWarehouse: "Manage warehouse",
   perm_canViewWarehouseLogs: "View warehouse logs",
@@ -1290,14 +1219,18 @@ Object.assign(TRANSLATIONS.en, {
   guestWarehouseItemsNote: "These items apply to the currently selected site.",
   guestWarehouseNoItems: "No warehouse items exist for this site.",
   warehouseIssueTitle: "Issue to workers",
-  warehouseIssueSubtitle: "",
+    warehouseExportExcel: "Export Excel",
+    warehouseImportExcel: "Import Excel",
+    tidplanExportPdf: "Export PDF",
+    tidplanImportPdf: "Import PDF",
+    plannerImportExcel: "Import Excel",
+    backupManual: "Create Backup",
+  warehouseIssueSubtitle: "8 columns for tools or materials",
   warehouseIssueColWorker: "Full name",
   warehouseIssueColComment: "Comment",
   warehouseIssueColSave: "Save",
-  warehouseStockTitle: "Incoming / outgoing materials/tools",
+  warehouseStockTitle: "Incoming / outgoing stock",
   warehouseStockSubtitle: "Everything goes to the logs",
-  warehouseProcurementLabel: "Procurement contacts",
-  warehouseProcurementPlaceholder: "Select people",
   warehouseStockItemLabel: "Tool / material",
   warehouseStockDirectionLabel: "Action",
   warehouseStockDirectionIn: "Add",
@@ -1315,6 +1248,7 @@ Object.assign(TRANSLATIONS.en, {
   warehouseInventoryColIssued: "Total issued",
   warehouseInventoryColReceived: "Total received",
   warehouseInventoryColMinimum: "Min. limit",
+  warehouseInventoryColNotify: "Notify person",
   warehouseCatalogTitle: "Tool / material list",
   warehouseCatalogAdd: "Add",
   warehouseLogsTitle: "Warehouse logs",
@@ -1357,7 +1291,7 @@ Object.assign(TRANSLATIONS.en, {
   warehouseGraphItemsTitle: "Most requested materials",
   warehouseGraphInsightTitle: "Deviation from average by tool / material",
   warehouseNoAssignedAdmin: "no assigned admin",
-  warehouseCatalogMeta: "Stock {current} | min {minimum}",
+  warehouseCatalogMeta: "Stock {current} | min {minimum} | alerts {admins}",
   warehouseAlertsEmpty: "There are currently no warehouse alerts.",
   warehouseAlertMessage: "{name} is at {current} {unit} and dropped below the limit of {minimum}.",
   warehouseAlertNotify: "Alert: {admins}",
@@ -1389,58 +1323,6 @@ Object.assign(TRANSLATIONS.en, {
 });
 
 Object.assign(TRANSLATIONS.sv, {
-  exportImport: "Export/Import",
-  btnSurveys: "Enkater/Fragor",
-  surveysTitle: "Enkater/Fragor",
-  surveyComposerTitle: "Ny fraga",
-  surveyQuestionLabel: "Fraga",
-  surveyImageLabel: "Bild",
-  surveyTargetAllLabel: "Stall fragan till alla",
-  surveyTargetSiteLabel: "Stall fragan till alla pa arbetsplatsen",
-  surveyUsersLabel: "Anvandare",
-  surveyStartLabel: "Start",
-  surveyEndLabel: "Slut",
-  surveyAnswersLabel: "Svar",
-  surveyAddAnswer: "+1 svar",
-  surveyPrivacyLabel: "Integritet",
-  surveyPublish: "Publicera",
-  surveyEmpty: "Inga enkater.",
-  surveyCreated: "Enkaten ar publicerad.",
-  surveyVoted: "Rosten sparades.",
-  surveyMinAnswers: "Ange minst 2 svar.",
-  surveyTargetError: "Valj mottagare.",
-  surveyLoadFailed: "Kunde inte ladda enkater.",
-  surveySaveFailed: "Kunde inte spara enkaten.",
-  surveyVoteFailed: "Kunde inte rosta.",
-  permSectionSurveysTitle: "Enkater/Fragor",
-  permSectionSurveysNote: "Skapa, rosta och visa resultat.",
-  perm_canViewSurveys: "Visa enkater",
-  perm_canCreateSurveys: "Skapa enkater",
-  perm_canEditSurveys: "Redigera enkater",
-  perm_canPublishSurveys: "Publicera enkater",
-  perm_canViewSurveyResults: "Visa resultat",
-  perm_canViewAnonymousSurveyVoters: "Visa anonyma rostare",
-  perm_canViewBackups: "Visa backups",
-  perm_canManageBackups: "Manuell backup",
-  manualBackup: "Manual Backup",
-  manualBackupSuccess: "Backup skapad.",
-  manualBackupFailed: "Backup misslyckades.",
-  importTitle: "Importera {module} ({format})",
-  importFileLabel: "Fil",
-  upload: "Upload",
-  exportExcel: "Exportera Excel",
-  exportPdf: "Exportera PDF",
-  importExcel: "Importera Excel",
-  importPdf: "Importera PDF",
-  permSectionExportImportTitle: "Export/Import",
-  permSectionExportImportNote: "Behörigheter för modulernas export och import.",
-  perm_canExportPlanner: "Exportera Planner",
-  perm_canImportPlanner: "Importera Planner",
-  perm_canExportTidplan: "Exportera Tidplan",
-  perm_canImportTidplan: "Importera Tidplan",
-  perm_canExportWarehouse: "Exportera lager",
-  perm_canImportWarehouse: "Importera lager",
-  perm_canUnlockPastDays: "Lås upp tidigare dagar",
   perm_canAccessWarehouse: "Åtkomst till lager",
   perm_canManageWarehouse: "Hantera lager",
   perm_canViewWarehouseLogs: "Visa lagerloggar",
@@ -1452,6 +1334,12 @@ Object.assign(TRANSLATIONS.sv, {
   guestWarehouseItemsNote: "Dessa artiklar gäller för den valda arbetsplatsen.",
   guestWarehouseNoItems: "Det finns inga lagerartiklar för den här arbetsplatsen.",
   warehouseIssueTitle: "Utlämning till arbetare",
+    warehouseExportExcel: "Exportera Excel",
+    warehouseImportExcel: "Importera Excel",
+    tidplanExportPdf: "Exportera PDF",
+    tidplanImportPdf: "Importera PDF",
+    plannerImportExcel: "Importera Excel",
+    backupManual: "Skapa säkerhetskopia",
   warehouseIssueSubtitle: "8 kolumner för verktyg eller material",
   warehouseIssueColWorker: "För- och efternamn",
   warehouseIssueColComment: "Kommentar",
@@ -1619,7 +1507,6 @@ function applyTranslations() {
     btnReportText: "btnReport",
     btnBinsText: "btnBins",
     btnNotificationsText: "btnNotifications",
-    btnSurveysText: "btnSurveys",
     btnSaveText: "btnSave",
     btnAdminText: "btnAdmin",
     btnLogoutText: "btnLogout",
@@ -1649,20 +1536,6 @@ function applyTranslations() {
     notificationFilterLabel: "notificationFilterLabel",
     notificationSearchLabel: "notificationSearchLabel",
     notificationPinnedOnlyLabel: "notificationPinnedOnlyLabel",
-    surveysTitle: "surveysTitle",
-    surveyComposerTitle: "surveyComposerTitle",
-    surveyQuestionLabel: "surveyQuestionLabel",
-    surveyImageLabel: "surveyImageLabel",
-    surveyTargetAllLabel: "surveyTargetAllLabel",
-    surveyTargetSiteLabel: "surveyTargetSiteLabel",
-    surveyUsersLabel: "surveyUsersLabel",
-    surveyStartLabel: "surveyStartLabel",
-    surveyEndLabel: "surveyEndLabel",
-    surveyAnswersLabel: "surveyAnswersLabel",
-    btnAddSurveyAnswer: "surveyAddAnswer",
-    surveyPrivacyLabel: "surveyPrivacyLabel",
-    btnPublishSurvey: "surveyPublish",
-    btnManualBackupText: "manualBackup",
     btnAddTidplanActivity: "tidplanAddActivity",
     btnManageZones: "tidplanManageZones",
     btnPrintTidplan: "tidplanPrint",
@@ -1766,6 +1639,10 @@ function applyTranslations() {
     if (el) el.textContent = t(key);
   });
 
+  const exportBtn = document.getElementById("plannerExportDropdownBtn");
+  if (exportBtn) exportBtn.textContent = t("export");
+  const importBtn = document.getElementById("plannerImportExcelBtn");
+  if (importBtn) importBtn.textContent = t("importExcel");
   const warehouseMap = {
     warehousePageTitle: "btnWarehouse",
     warehouseNavLogsBtn: "warehouseLogsTitle",
@@ -1773,11 +1650,12 @@ function applyTranslations() {
     warehouseIssueTitle: "warehouseIssueTitle",
     warehouseIssueSubtitle: "warehouseIssueSubtitle",
     warehouseIssueColWorker: "warehouseIssueColWorker",
+    btnWarehouseExportExcel: "warehouseExportExcel",
+    btnWarehouseImportExcel: "warehouseImportExcel",
     warehouseIssueColComment: "warehouseIssueColComment",
     warehouseIssueColSave: "warehouseIssueColSave",
     warehouseStockTitle: "warehouseStockTitle",
     warehouseStockSubtitle: "warehouseStockSubtitle",
-    warehouseProcurementLabel: "warehouseProcurementLabel",
     warehouseStockItemLabel: "warehouseStockItemLabel",
     warehouseStockDirectionLabel: "warehouseStockDirectionLabel",
     warehouseStockDirectionIn: "warehouseStockDirectionIn",
@@ -1795,6 +1673,7 @@ function applyTranslations() {
     warehouseInventoryColIssued: "warehouseInventoryColIssued",
     warehouseInventoryColReceived: "warehouseInventoryColReceived",
     warehouseInventoryColMinimum: "warehouseInventoryColMinimum",
+    warehouseInventoryColNotify: "warehouseInventoryColNotify",
     warehouseCatalogTitle: "warehouseCatalogTitle",
     warehouseCatalogAddBtn: "warehouseCatalogAdd",
     warehouseLogsTitle: "warehouseLogsTitle",
@@ -1839,6 +1718,10 @@ function applyTranslations() {
     warehouseGraphWorkersTitle: "warehouseGraphWorkersTitle",
     warehouseGraphItemsTitle: "warehouseGraphItemsTitle",
     warehouseGraphInsightTitle: "warehouseGraphInsightTitle",
+    backupTabTitle: "backupTabTitle",
+    btnManualBackup: "backupManualBtn",
+    btnListBackups: "backupListBtn",
+    btnBackupInfo: "backupInfoBtn",
   };
   Object.entries(warehouseMap).forEach(([id, key]) => {
     const el = document.getElementById(id);
@@ -1846,6 +1729,21 @@ function applyTranslations() {
   });
   const warehouseComment = document.getElementById("warehouseStockComment");
   if (warehouseComment) warehouseComment.placeholder = t("warehouseStockCommentPlaceholder");
+
+  const tidplanExportPdfBtn = document.getElementById("btnTidplanExportPdf");
+  if (tidplanExportPdfBtn) tidplanExportPdfBtn.textContent = t("exportPdf");
+  const tidplanImportPdfBtn = document.getElementById("btnTidplanImportPdf");
+  if (tidplanImportPdfBtn) tidplanImportPdfBtn.textContent = t("importPdf");
+
+  const plannerExportExcelBtn = document.getElementById("btnPlannerExportExcel");
+  if (plannerExportExcelBtn) plannerExportExcelBtn.textContent = t("exportExcel");
+  const plannerExportPdfBtn = document.getElementById("btnPlannerExportPdf");
+  if (plannerExportPdfBtn) plannerExportPdfBtn.textContent = t("exportPdf");
+  const plannerExportWordBtn = document.getElementById("btnPlannerExportWord");
+  if (plannerExportWordBtn) plannerExportWordBtn.textContent = t("exportWord");
+  const plannerImportExcelBtn = document.getElementById("btnPlannerImportExcel");
+  if (plannerImportExcelBtn) plannerImportExcelBtn.textContent = t("importExcel");
+
 
   // Login button text (inside login-btn)
   const loginBtnEl = document.getElementById("loginBtnEl");
@@ -1927,159 +1825,11 @@ function applyAuthData(authData) {
   appState.guestPermissions = getGuestPermissions();
 }
 
-function isStoragePendingPayload(payload) {
-  return Boolean(
-    payload &&
-      payload.error === "Storage not ready" &&
-      payload.storage &&
-      payload.storage.ready === false,
-  );
-}
-
-function getHealthRetryDelay(storageStatus) {
-  const nextRetryInMs = Number(storageStatus?.nextRetryInMs);
-  if (Number.isFinite(nextRetryInMs) && nextRetryInMs > 0) {
-    return Math.max(1000, Math.min(nextRetryInMs + 250, 10000));
-  }
-  return 3000;
-}
-
-function setDocumentVersion(kind, version, site = "default") {
-  const safeVersion = Number(version);
-  if (!Number.isFinite(safeVersion) || safeVersion < 1) return;
-  if (kind === "state") {
-    documentVersions.state = safeVersion;
-    return;
-  }
-  if (kind === "reports") {
-    documentVersions.reportsBySite[site] = safeVersion;
-    return;
-  }
-  if (kind === "notifications") {
-    documentVersions.notificationsBySite[site] = safeVersion;
-  }
-}
-
-function getDocumentVersion(kind, site = "default") {
-  if (kind === "state") return documentVersions.state || 1;
-  if (kind === "reports") return documentVersions.reportsBySite[site] || 1;
-  if (kind === "notifications") return documentVersions.notificationsBySite[site] || 1;
-  return 1;
-}
-
-function showVersionConflictMessage(onReloadLatest) {
-  showConfirm(
-    "Netko je u međuvremenu promijenio podatke. Želiš učitati najnoviju verziju sa servera?",
-    "Promjene u konfliktu",
-    "⚠️",
-    () => {
-      Promise.resolve(onReloadLatest && onReloadLatest()).catch(() => {});
-    },
-    () => {
-      showToast("Tvoja lokalna verzija je zastarjela. Spremanje je zaustavljeno.", "error");
-    },
-  );
-}
-
-function getCachedBootReadyState() {
-  return sessionStorage.getItem(BOOT_READY_CACHE_KEY) === "ready";
-}
-
-function setBootState(nextState) {
-  appBootState = nextState;
-  const loginOverlay = document.getElementById("loginOverlay");
-  const mainContainer = document.getElementById("mainContainer");
-
-  if (nextState === BOOT_STATES.READY) {
-    sessionStorage.setItem(BOOT_READY_CACHE_KEY, "ready");
-  }
-
-  if (nextState === BOOT_STATES.READY) {
-    hideLoading();
-    return;
-  }
-
-  if (loginOverlay) loginOverlay.style.display = "none";
-  if (mainContainer) mainContainer.style.display = "none";
-  showLoading(nextState === BOOT_STATES.CONNECTING_DB ? "loadingConnectingDb" : "loadingBooting");
-}
-
-function fetchHealthStatus() {
-  return originalFetch("/api/health", {
-    cache: "no-store",
-    credentials: "include",
-  }).then((response) => {
-    if (!response.ok) {
-      throw new Error("HEALTH_UNAVAILABLE");
-    }
-    return response.json();
-  });
-}
-
-function waitForBackendReady(options = {}) {
-  const allowTimeoutFallback = options.allowTimeoutFallback !== false;
-  if (!BACKEND_ENABLED) {
-    setBootState(BOOT_STATES.READY);
-    return Promise.resolve({ storageReady: true });
-  }
-
-  if (backendBootPromise) return backendBootPromise;
-
-  setBootState(BOOT_STATES.BOOTING);
-  backendBootPromise = new Promise((resolve) => {
-    const startedAt = Date.now();
-    const cachedReadyState = getCachedBootReadyState();
-
-    const resolveDegraded = () => {
-      backendBootPromise = null;
-      resolve({
-        storageReady: false,
-        degraded: true,
-        storage: {
-          ready: false,
-          retrying: true,
-          cachedReadyState,
-        },
-      });
-    };
-
-    const poll = () => {
-      fetchHealthStatus()
-        .then((payload) => {
-          const storageStatus = payload?.storage || {};
-          if (payload?.storageReady || storageStatus.ready) {
-            backendBootPromise = null;
-            resolve(payload);
-            return;
-          }
-          if (allowTimeoutFallback && Date.now() - startedAt >= BOOT_HEALTH_TIMEOUT_MS) {
-            resolveDegraded();
-            return;
-          }
-          setBootState(BOOT_STATES.CONNECTING_DB);
-          setTimeout(poll, getHealthRetryDelay(storageStatus));
-        })
-        .catch(() => {
-          if (allowTimeoutFallback && Date.now() - startedAt >= BOOT_HEALTH_TIMEOUT_MS) {
-            resolveDegraded();
-            return;
-          }
-          setBootState(BOOT_STATES.CONNECTING_DB);
-          setTimeout(poll, 5000);
-        });
-    };
-
-    poll();
-  });
-
-  return backendBootPromise;
-}
-
 const originalFetch = window.fetch.bind(window);
 window.fetch = function patchedFetch(resource, options = {}) {
   const requestUrl = typeof resource === "string" ? resource : resource?.url || "";
   const nextOptions = { ...options };
-  nextOptions.credentials = nextOptions.credentials || "include";
+  nextOptions.credentials = nextOptions.credentials || "same-origin";
   const method = (nextOptions.method || "GET").toUpperCase();
   const isApiRequest = requestUrl.startsWith("/api/");
   if (isApiRequest) {
@@ -2092,17 +1842,6 @@ window.fetch = function patchedFetch(resource, options = {}) {
     }
   }
   return originalFetch(resource, nextOptions).then((response) => {
-    if (isApiRequest && response.status === 503) {
-      response
-        .clone()
-        .json()
-        .then((payload) => {
-          if (isStoragePendingPayload(payload)) {
-            setBootState(BOOT_STATES.CONNECTING_DB);
-          }
-        })
-        .catch(() => {});
-    }
     if (isApiRequest && response.status === 401 && !requestUrl.includes("/api/login")) {
       clearAuthSessionLocal();
       appState.isAdmin = false;
@@ -2121,11 +1860,6 @@ window.fetch = function patchedFetch(resource, options = {}) {
   });
 };
 
-window.addEventListener("popstate", () => {
-  if (document.getElementById("loginOverlay")?.style.display === "flex") return;
-  applyRouteFromPath(window.location.pathname);
-});
-
 function compareNaturally(a, b) {
   return (a || "").toString().localeCompare((b || "").toString(), "hr", {
     numeric: true,
@@ -2140,7 +1874,6 @@ function sortNaturally(items) {
 function canEditTidplan() {
   return (
     !appState.isReadonly &&
-    canEditDate(appState.currentDate) &&
     canAccessTidplanModule() &&
     (appState.isSuperAdmin ||
       (appState.isAdmin && appState.permissions.canManageTidplan !== false))
@@ -2148,7 +1881,6 @@ function canEditTidplan() {
 }
 
 let currentView = "main"; // 'main' or 'bins'
-let suppressRoutePush = false;
 let autoSaveInterval = null;
 let presenceHeartbeatInterval = null;
 let presenceRefreshInterval = null;
@@ -2185,28 +1917,12 @@ let tidplanDataChanged = false;
 let notificationViewerImages = [];
 let notificationViewerIndex = 0;
 let notificationsRefreshInterval = null;
-let surveysCache = [];
 let pendingAdminLevelSelections = {};
 const WAREHOUSE_SLOTS_PER_ROW = 8;
 const BACKEND_ENABLED =
   typeof window !== "undefined" &&
   window.location &&
   window.location.protocol !== "file:";
-const BOOT_STATES = {
-  BOOTING: "booting",
-  CONNECTING_DB: "connecting_db",
-  READY: "ready",
-};
-const BOOT_READY_CACHE_KEY = "cmax_boot_ready";
-const BOOT_HEALTH_TIMEOUT_MS = 10000;
-let appBootState = BOOT_STATES.BOOTING;
-let backendBootPromise = null;
-const documentVersions = {
-  state: 1,
-  reportsBySite: {},
-  notificationsBySite: {},
-};
-const WAREHOUSE_ALERTS_SEEN_KEY = "cmax_warehouse_alerts_seen";
 
 const DEFAULT_PERMISSIONS = {
   canAccessPlanner: true,
@@ -2214,8 +1930,6 @@ const DEFAULT_PERMISSIONS = {
   canAccessBins: true,
   canAccessWarehouse: true,
   canManageWarehouse: true,
-  canManageWarehouseStock: false,
-  canManageWarehouseIssue: false,
   canViewWarehouseLogs: true,
   canViewWarehouseAnalytics: true,
   canViewNotifications: true,
@@ -2229,19 +1943,6 @@ const DEFAULT_PERMISSIONS = {
   canManageGuestAccess: false,
   canPrint: true,
   canExport: true,
-  canExportPlanner: true,
-  canImportPlanner: true,
-  canExportTidplan: true,
-  canImportTidplan: true,
-  canExportWarehouse: true,
-  canImportWarehouse: true,
-  canUnlockPastDays: false,
-  canViewSurveys: true,
-  canCreateSurveys: false,
-  canEditSurveys: false,
-  canPublishSurveys: false,
-  canViewSurveyResults: false,
-  canViewAnonymousSurveyVoters: false,
   canClear: true,
   canManageTidplan: true,
   canAddTidplanActivity: true,
@@ -2262,8 +1963,6 @@ const DEFAULT_PERMISSIONS = {
   canDeleteReports: false,
   canViewLogs: true,
   canClearLogs: true,
-  canViewBackups: true,
-  canManageBackups: true,
 };
 
 const ADMIN_LEVELS = [1, 2, 3, 4, 5, 6];
@@ -2275,7 +1974,6 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canViewNotifications",
-    "canViewSurveys",
     "canCreateReports",
   ],
   2: [
@@ -2284,13 +1982,9 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canViewNotifications",
-    "canViewSurveys",
     "canCreateReports",
     "canPrint",
     "canExport",
-    "canExportPlanner",
-    "canExportTidplan",
-    "canExportWarehouse",
     "canViewReports",
   ],
   3: [
@@ -2299,21 +1993,10 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canManageWarehouse",
-    "canManageWarehouseStock",
-    "canManageWarehouseIssue",
     "canViewNotifications",
-    "canViewSurveys",
-    "canCreateSurveys",
     "canCreateReports",
     "canPrint",
     "canExport",
-    "canExportPlanner",
-    "canImportPlanner",
-    "canExportTidplan",
-    "canImportTidplan",
-    "canExportWarehouse",
-    "canImportWarehouse",
-    "canUnlockPastDays",
     "canViewReports",
     "canOpenAdminPanel",
     "canManageWorkers",
@@ -2336,25 +2019,16 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canManageWarehouse",
-    "canManageWarehouseStock",
-    "canManageWarehouseIssue",
     "canViewWarehouseLogs",
     "canViewWarehouseAnalytics",
+      "canExportWarehouse",
+      "canImportWarehouse",
+      "canExportTidplan",
+      "canImportTidplan",
     "canViewNotifications",
-    "canViewSurveys",
-    "canCreateSurveys",
-    "canPublishSurveys",
-    "canViewSurveyResults",
     "canCreateReports",
     "canPrint",
     "canExport",
-    "canExportPlanner",
-    "canImportPlanner",
-    "canExportTidplan",
-    "canImportTidplan",
-    "canExportWarehouse",
-    "canImportWarehouse",
-    "canUnlockPastDays",
     "canViewReports",
     "canOpenAdminPanel",
     "canManageWorkers",
@@ -2371,8 +2045,6 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canEditBinsData",
     "canManageBinsPlans",
     "canManageBinsPermissions",
-    "canManageWarehouseStock",
-    "canManageWarehouseIssue",
     "canManageNotifications",
     "canApproveReports",
     "canViewLogs",
@@ -2384,26 +2056,16 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canManageWarehouse",
-    "canManageWarehouseStock",
-    "canManageWarehouseIssue",
     "canViewWarehouseLogs",
     "canViewWarehouseAnalytics",
+      "canExportWarehouse",
+      "canImportWarehouse",
+      "canExportTidplan",
+      "canImportTidplan",
     "canViewNotifications",
-    "canViewSurveys",
-    "canCreateSurveys",
-    "canEditSurveys",
-    "canPublishSurveys",
-    "canViewSurveyResults",
     "canCreateReports",
     "canPrint",
     "canExport",
-    "canExportPlanner",
-    "canImportPlanner",
-    "canExportTidplan",
-    "canImportTidplan",
-    "canExportWarehouse",
-    "canImportWarehouse",
-    "canUnlockPastDays",
     "canViewReports",
     "canOpenAdminPanel",
     "canManageWorkers",
@@ -2429,8 +2091,6 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canManageGuestAccess",
     "canViewLogs",
     "canClearLogs",
-    "canViewBackups",
-    "canManageBackups",
     "canViewSettings",
   ],
   6: Object.keys(DEFAULT_PERMISSIONS),
@@ -2553,8 +2213,6 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canAccessTidplan: true,
   canAccessBins: false,
   canAccessWarehouse: false,
-  canManageWarehouseStock: false,
-  canManageWarehouseIssue: false,
   canViewWarehouseLogs: false,
   canViewWarehouseAnalytics: false,
   canViewNotifications: false,
@@ -2562,21 +2220,10 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canCreateReports: true,
   canPrint: false,
   canExport: false,
-  canExportPlanner: false,
-  canImportPlanner: false,
-  canExportTidplan: false,
-  canImportTidplan: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
-  canUnlockPastDays: false,
-  canViewSurveys: false,
-  canCreateSurveys: false,
-  canEditSurveys: false,
-  canPublishSurveys: false,
-  canViewSurveyResults: false,
-  canViewAnonymousSurveyVoters: false,
-  canViewBackups: false,
-  canManageBackups: false,
+  canExportTidplan: false,
+  canImportTidplan: false,
   warehouseAccessBySite: {},
 };
 
@@ -2603,13 +2250,10 @@ const ADMIN_PERMISSION_SECTIONS = [
     titleKey: "permSectionExportImportTitle",
     noteKey: "permSectionExportImportNote",
     keys: [
-      "canExportPlanner",
-      "canImportPlanner",
-      "canExportTidplan",
-      "canImportTidplan",
       "canExportWarehouse",
       "canImportWarehouse",
-      "canUnlockPastDays",
+      "canExportTidplan",
+      "canImportTidplan",
     ],
   },
   {
@@ -2641,8 +2285,6 @@ const ADMIN_PERMISSION_SECTIONS = [
     keys: [
       "canAccessWarehouse",
       "canManageWarehouse",
-      "canManageWarehouseStock",
-      "canManageWarehouseIssue",
       "canViewWarehouseLogs",
       "canViewWarehouseAnalytics",
     ],
@@ -2651,18 +2293,6 @@ const ADMIN_PERMISSION_SECTIONS = [
     titleKey: "permSectionNotificationsTitle",
     noteKey: "permSectionNotificationsNote",
     keys: ["canViewNotifications", "canManageNotifications", "canDeleteNotifications"],
-  },
-  {
-    titleKey: "permSectionSurveysTitle",
-    noteKey: "permSectionSurveysNote",
-    keys: [
-      "canViewSurveys",
-      "canCreateSurveys",
-      "canEditSurveys",
-      "canPublishSurveys",
-      "canViewSurveyResults",
-      "canViewAnonymousSurveyVoters",
-    ],
   },
   {
     titleKey: "permSectionReportsTitle",
@@ -2682,10 +2312,16 @@ const ADMIN_PERMISSION_SECTIONS = [
       "canManageSiteAccess",
       "canViewLogs",
       "canClearLogs",
-      "canViewBackups",
-      "canManageBackups",
       "canViewSettings",
       "canManageGuestAccess",
+    ],
+  },
+  {
+    titleKey: "permSectionBackupTitle",
+    noteKey: "permSectionBackupNote",
+    keys: [
+      "canManageBackups",
+      "canViewBackups",
     ],
   },
 ];
@@ -2701,11 +2337,18 @@ const GUEST_PERMISSION_SECTIONS = [
       "canAccessWarehouse",
       "canViewWarehouseLogs",
       "canViewWarehouseAnalytics",
+      "canExportWarehouse",
+      "canImportWarehouse",
+      "canExportTidplan",
+      "canImportTidplan",
       "canViewNotifications",
-      "canViewSurveys",
       "canCreateReports",
       "canPrint",
       "canExport",
+      "canExportWarehouse",
+      "canImportWarehouse",
+      "canExportTidplan",
+      "canImportTidplan",
     ],
   },
 ];
@@ -2812,7 +2455,6 @@ let appState = {
   ],
   plans: [],
   karnas: ["Karna 1", "Karna 2", "Karna 3", "Karna 4"],
-  resourceHistory: [],
   dailyData: {},
   binsData: {}, // { date: { planCount: 20, rows: [...] } }
   binPermissions: {
@@ -2842,7 +2484,6 @@ const DEFAULT_SITE_TEMPLATE = {
   moments: [...appState.moments],
   plans: [...appState.plans],
   karnas: [...appState.karnas],
-  resourceHistory: [],
   dailyData: {},
   binsData: {},
   tidplan: [],
@@ -2912,7 +2553,6 @@ function getDefaultWarehouseData() {
   return {
     catalog,
     stock,
-    procurementOwners: [],
     issueDraft: createWarehouseIssueDraft(),
     stockForm: {
       itemId: catalog[0]?.id || "",
@@ -2920,7 +2560,6 @@ function getDefaultWarehouseData() {
       direction: "in",
       comment: "",
     },
-    alertSeenByUser: {},
     logs: [],
   };
 }
@@ -2961,22 +2600,10 @@ function normalizeWarehouseData(rawWarehouse) {
 
   const stockFormItemId =
     raw.stockForm?.itemId && stock[raw.stockForm.itemId] ? raw.stockForm.itemId : catalog[0]?.id || "";
-  const procurementOwners = Array.isArray(raw.procurementOwners)
-    ? raw.procurementOwners
-        .map((email) => String(email || "").trim().toLowerCase())
-        .filter(Boolean)
-    : Array.from(
-        new Set(
-          catalog
-            .map((item) => String(item.notifyPerson || "").trim().toLowerCase())
-            .filter(Boolean),
-        ),
-      );
 
   return {
     catalog,
     stock,
-    procurementOwners: Array.from(new Set(procurementOwners)),
     issueDraft: {
       worker: (raw.issueDraft?.worker || "").toString(),
       comment: (raw.issueDraft?.comment || "").toString(),
@@ -2988,10 +2615,6 @@ function normalizeWarehouseData(rawWarehouse) {
       direction: raw.stockForm?.direction === "out" ? "out" : "in",
       comment: (raw.stockForm?.comment || "").toString(),
     },
-    alertSeenByUser:
-      raw.alertSeenByUser && typeof raw.alertSeenByUser === "object"
-        ? { ...raw.alertSeenByUser }
-        : {},
     logs: Array.isArray(raw.logs)
       ? raw.logs.map((entry) => createWarehouseLogEntry(entry))
       : [],
@@ -3125,60 +2748,7 @@ function saveGuestPermissions(permissions) {
 }
 
 function getPermissionLabel(key) {
-  const translated = t(`perm_${key}`);
-  if (translated && translated !== `perm_${key}`) return translated;
-  return key
-    .replace(/^can/, "")
-    .replace(/([A-Z])/g, " $1")
-    .trim();
-}
-
-function routeForView(view = currentView) {
-  const routes = {
-    main: "/planner",
-    bins: "/bins",
-    tidplan: "/tidplan",
-    warehouse: "/warehouse",
-    warehouseLogs: "/warehouse",
-    warehouseGraph: "/warehouse",
-    notifications: "/notifications",
-    surveys: "/surveys",
-  };
-  return routes[view] || "/planner";
-}
-
-function pushRouteForView(view = currentView) {
-  if (suppressRoutePush || !window.history || !document.getElementById("mainContainer")) return;
-  const path = routeForView(view);
-  if (window.location.pathname !== path) {
-    history.pushState({ view }, "", path);
-  }
-}
-
-function applyRouteFromPath(pathname = window.location.pathname) {
-  const path = String(pathname || "/").toLowerCase();
-  suppressRoutePush = true;
-  try {
-    if (path === "/login") {
-      showLogin();
-    } else if (path === "/" || path === "/home" || path === "/planner") {
-      showPlanner();
-    } else if (path === "/tidplan") {
-      showTidplan();
-    } else if (path === "/bins" || path === "/kante") {
-      if (currentView !== "bins") toggleBinsView();
-    } else if (path === "/warehouse") {
-      showWarehouse();
-    } else if (path === "/notifications") {
-      showNotifications();
-    } else if (path === "/surveys") {
-      showSurveys();
-    } else {
-      showPlanner();
-    }
-  } finally {
-    suppressRoutePush = false;
-  }
+  return t(`perm_${key}`);
 }
 
 function hasPermission(key) {
@@ -3191,10 +2761,6 @@ function hasPermission(key) {
 
 function hasAdminPermission(key) {
   return appState.isSuperAdmin || (!appState.isReadonly && appState.permissions[key] !== false);
-}
-
-function getCurrentUserEmail() {
-  return (appState.currentUser || "").trim().toLowerCase();
 }
 
 function getGuestWarehouseSiteAccess(site = currentSite) {
@@ -3222,6 +2788,10 @@ function canAccessPlannerModule() {
   return hasPermission("canAccessPlanner");
 }
 
+function canExportPlanner() { return hasPermission("canExportPlanner"); }
+function canImportPlanner() { return hasPermission("canImportPlanner"); }
+
+
 function canAccessTidplanModule() {
   return appState.isReadonly
     ? hasPermission("canAccessTidplan")
@@ -3231,34 +2801,9 @@ function canAccessTidplanModule() {
 function canAccessBinsModule() {
   return hasPermission("canAccessBins");
 }
-
-function isPastDate(dateValue) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const date = new Date(`${normalizeDateOnly(dateValue)}T00:00:00`);
-  return date < today;
-}
-
-function canEditDate(dateValue = appState.currentDate) {
-  if (appState.isReadonly) return false;
-  if (!isPastDate(dateValue)) return true;
-  return getCurrentAdminLevel() >= 6 || hasPermission("canUnlockPastDays");
-}
-
-function canExportPlannerModule() {
-  return canAccessPlannerModule() && hasPermission("canExportPlanner");
-}
-
-function canImportPlannerModule() {
-  return !appState.isReadonly && canAccessPlannerModule() && hasPermission("canImportPlanner");
-}
-
-function canExportTidplanModule() {
-  return canAccessTidplanModule() && hasPermission("canExportTidplan");
-}
-
-function canImportTidplanModule() {
-  return !appState.isReadonly && canAccessTidplanModule() && hasPermission("canImportTidplan");
+function canExportTidplan() { return hasPermission("canExportTidplan"); }
+function canImportTidplan() { return hasPermission("canImportTidplan"); }
+  return hasPermission("canAccessBins");
 }
 
 function canAccessWarehouseModule() {
@@ -3267,48 +2812,11 @@ function canAccessWarehouseModule() {
   return getGuestWarehouseSiteAccess().allowedItemIds.length > 0;
 }
 
-function canExportWarehouseModule() {
-  return canAccessWarehouseModule() && hasPermission("canExportWarehouse");
-}
-
-function canImportWarehouseModule() {
-  return !appState.isReadonly && canAccessWarehouseModule() && hasPermission("canImportWarehouse");
-}
+function canExportWarehouse() { return hasPermission("canExportWarehouse"); }
+function canImportWarehouse() { return hasPermission("canImportWarehouse"); }
 
 function canEditWarehouse() {
   return !appState.isReadonly && hasPermission("canManageWarehouse");
-}
-
-function isWarehouseElevatedUser() {
-  return appState.isSuperAdmin || getCurrentAdminLevel() >= 6;
-}
-
-function isWarehouseProcurementOwner(item) {
-  const currentUserEmail = getCurrentUserEmail();
-  return Boolean(currentUserEmail) && getWarehouseProcurementOwnerEmails().includes(currentUserEmail);
-}
-
-function canManageWarehouseCatalog() {
-  if (appState.isReadonly || !hasPermission("canManageWarehouse")) return false;
-  if (isWarehouseElevatedUser()) return true;
-  return getVisibleWarehouseCatalog().some((item) => isWarehouseProcurementOwner(item));
-}
-
-function canManageWarehouseCatalogItem(item) {
-  if (appState.isReadonly || !hasPermission("canManageWarehouse")) return false;
-  return isWarehouseElevatedUser() || isWarehouseProcurementOwner(item);
-}
-
-function canManageWarehouseStock() {
-  if (appState.isReadonly) return false;
-  if (isWarehouseElevatedUser()) return true;
-  return hasPermission("canManageWarehouseStock");
-}
-
-function canManageWarehouseIssue() {
-  if (appState.isReadonly) return false;
-  if (isWarehouseElevatedUser()) return true;
-  return hasPermission("canManageWarehouseIssue");
 }
 
 function canViewWarehouseLogsSection() {
@@ -3323,138 +2831,8 @@ function canViewWarehouseAnalyticsSection() {
   return getGuestWarehouseSiteAccess().allowedItemIds.length > 0;
 }
 
-function getWarehouseResponsibleOptions(site = currentSite) {
-  return getAdmins()
-    .filter((admin) => {
-      if (!admin || !admin.email) return false;
-      if (admin.isSuperAdmin) return true;
-      if (!Array.isArray(admin.allowedSites)) return true;
-      return admin.allowedSites.includes(site);
-    })
-    .sort((a, b) => compareNaturally(a.fullName || a.email, b.fullName || b.email));
-}
-
-function getWarehouseResponsibleLabel(email, site = currentSite) {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  if (!normalizedEmail) return t("warehouseNoAssignedAdmin");
-  const admin = getWarehouseResponsibleOptions(site).find((entry) => entry.email === normalizedEmail);
-  return admin?.fullName || admin?.email || normalizedEmail;
-}
-
-function getWarehouseResponsibleLabels(emails, site = currentSite) {
-  const normalizedEmails = Array.isArray(emails)
-    ? emails.map((email) => String(email || "").trim().toLowerCase()).filter(Boolean)
-    : [];
-  if (!normalizedEmails.length) return t("warehouseNoAssignedAdmin");
-  return normalizedEmails
-    .map((email) => getWarehouseResponsibleLabel(email, site))
-    .join(", ");
-}
-
-function getWarehouseProcurementOwnerEmails() {
-  if (!warehouseData) loadWarehouseData();
-  const selected = Array.isArray(warehouseData?.procurementOwners)
-    ? warehouseData.procurementOwners
-    : [];
-  if (selected.length) return Array.from(new Set(selected.map((email) => String(email || "").trim().toLowerCase()).filter(Boolean)));
-  return Array.from(
-    new Set(
-      (warehouseData?.catalog || [])
-        .map((item) => String(item.notifyPerson || "").trim().toLowerCase())
-        .filter(Boolean),
-    ),
-  );
-}
-
-function getWarehouseProcurementOwnersLabel() {
-  return getWarehouseResponsibleLabels(getWarehouseProcurementOwnerEmails());
-}
-
-function getWarehouseAlertKey(alert) {
-  return [
-    currentSite,
-    alert?.item?.id || "",
-    alert?.stock?.current || 0,
-    alert?.item?.minimum || 0,
-  ].join(":");
-}
-
-function getWarehouseSeenAlertsMap() {
-  return safeParseStoredJson(localStorage.getItem(WAREHOUSE_ALERTS_SEEN_KEY), {}) || {};
-}
-
-function saveWarehouseSeenAlertsMap(map) {
-  localStorage.setItem(WAREHOUSE_ALERTS_SEEN_KEY, JSON.stringify(map || {}));
-}
-
-function getWarehouseSeenAlertsForUser() {
-  const all = getWarehouseSeenAlertsMap();
-  const userKey = `${currentSite}::${getCurrentUserEmail() || "guest"}`;
-  return Array.isArray(all[userKey]) ? all[userKey] : [];
-}
-
-function setWarehouseSeenAlertsForUser(alertKeys) {
-  const all = getWarehouseSeenAlertsMap();
-  const userKey = `${currentSite}::${getCurrentUserEmail() || "guest"}`;
-  all[userKey] = Array.from(new Set((alertKeys || []).filter(Boolean)));
-  saveWarehouseSeenAlertsMap(all);
-}
-
-function canSeeWarehouseAlert(alert) {
-  if (!alert || appState.isReadonly) return false;
-  return isWarehouseElevatedUser() || isWarehouseProcurementOwner(alert.item);
-}
-
-function markVisibleWarehouseAlertsSeen() {
-  const visibleAlertKeys = getWarehouseAlerts()
-    .filter((alert) => canSeeWarehouseAlert(alert))
-    .map((alert) => getWarehouseAlertKey(alert));
-  if (!visibleAlertKeys.length) return;
-  const seen = new Set(getWarehouseSeenAlertsForUser());
-  visibleAlertKeys.forEach((key) => seen.add(key));
-  setWarehouseSeenAlertsForUser(Array.from(seen));
-}
-
-function updateWarehouseAlertBadge() {
-  let badge = document.getElementById("warehouseNotifBadge");
-  if (!badge) {
-    const button = document.getElementById("btnWarehouse");
-    if (button) {
-      badge = document.createElement("span");
-      badge.id = "warehouseNotifBadge";
-      badge.className = "notif-badge";
-      badge.style.display = "none";
-      button.appendChild(badge);
-    }
-  }
-  if (!badge) return;
-  const seen = getWarehouseSeenAlertsForUser();
-  const unseenCount = getWarehouseAlerts().filter((alert) => {
-    if (!canSeeWarehouseAlert(alert)) return false;
-    return !seen.includes(getWarehouseAlertKey(alert));
-  }).length;
-  badge.textContent = unseenCount;
-  badge.style.display = unseenCount > 0 && canAccessWarehouseModule() ? "inline-flex" : "none";
-}
-
 function canAccessNotificationsModule() {
   return hasPermission("canViewNotifications");
-}
-
-function canAccessSurveysModule() {
-  return hasPermission("canViewSurveys");
-}
-
-function canCreateSurveysAccess() {
-  return !appState.isReadonly && hasPermission("canCreateSurveys") && hasPermission("canPublishSurveys");
-}
-
-function canViewSurveyResultsAccess() {
-  return hasPermission("canViewSurveyResults") || getCurrentAdminLevel() >= 6;
-}
-
-function canManageBackupsAccess() {
-  return !appState.isReadonly && hasAdminPermission("canManageBackups");
 }
 
 function canManageNotificationsAccess() {
@@ -3467,6 +2845,10 @@ function canDeleteNotificationsAccess() {
 
 function canManageSiteAccess() {
   return appState.isSuperAdmin || hasAdminPermission("canManageSiteAccess");
+}
+
+function canManageBackups() { return !appState.isReadonly && hasAdminPermission("canManageBackups"); }
+function canViewBackups() { return hasAdminPermission("canViewBackups"); }
 }
 
 function getCurrentAdminAllowedSites() {
@@ -3491,7 +2873,7 @@ function canCreateReportsAccess() {
 }
 
 function canEditBinsDataAccess() {
-  return canEditDate(appState.currentDate) && hasPermission("canEditBinsData");
+  return !appState.isReadonly && hasPermission("canEditBinsData");
 }
 
 function canOpenAdminPanelAccess() {
@@ -3666,7 +3048,7 @@ function initApp() {
   appState.guestPermissions = getGuestPermissions();
   checkAuth();
   setupEventListeners();
-  const initialLoadPromise = loadAllData()
+  loadAllData()
     .catch((error) => {
       console.error("Initial data load failed:", error);
     })
@@ -3702,7 +3084,6 @@ function initApp() {
     }
     sendPresence(false, true).catch(() => {});
   });
-  return initialLoadPromise;
 }
 
 function saveCurrentView(view) {
@@ -3719,10 +3100,6 @@ function restoreLastView() {
   }
   if (savedView === "notifications") {
     showNotifications();
-    return;
-  }
-  if (savedView === "surveys") {
-    showSurveys();
     return;
   }
   if (savedView === "bins") {
@@ -3789,25 +3166,10 @@ function saveReports(reports) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         reports,
-        lastKnownVersion: getDocumentVersion("reports", currentSite),
         userEmail: appState.currentUser || null,
         site: currentSite,
       }),
-    })
-      .then((res) => {
-        if (res.status === 409) {
-          return res.json().then((payload) => {
-            showVersionConflictMessage(() => loadReportsData(currentSite));
-            throw new Error("REPORTS_CONFLICT");
-          });
-        }
-        if (!res.ok) throw new Error("REPORTS_SAVE_FAILED");
-        return res.json();
-      })
-      .then((payload) => {
-        setDocumentVersion("reports", payload?.version, currentSite);
-      })
-      .catch(() => {});
+    }).catch(() => {});
   }
   scheduleServerSync();
 }
@@ -3821,11 +3183,9 @@ function loadReportsData() {
     cache: "no-store",
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((payload) => {
-      const reports = Array.isArray(payload?.reports) ? payload.reports : [];
-      setDocumentVersion("reports", payload?.version, currentSite);
-      localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
-      return reports;
+    .then((reports) => {
+      localStorage.setItem(REPORTS_KEY, JSON.stringify(reports || []));
+      return reports || [];
     })
     .catch(() => getReports());
 }
@@ -3854,30 +3214,11 @@ function saveNotificationsForSite(site, notifications) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       notifications,
-      lastKnownVersion: getDocumentVersion("notifications", site),
       userEmail: appState.currentUser || null,
       site,
     }),
   })
-    .then((res) => {
-      if (res.status === 409) {
-        return res.json().then(() => {
-          showVersionConflictMessage(() =>
-            loadNotificationsData(site).then(() => {
-              if (currentView === "notifications") {
-                renderNotificationsList();
-              }
-            }),
-          );
-          return false;
-        });
-      }
-      if (!res.ok) return Promise.reject();
-      return res.json().then((payload) => {
-        setDocumentVersion("notifications", payload?.version, site);
-        return true;
-      });
-    })
+    .then((res) => (res.ok ? true : Promise.reject()))
     .catch(() => {
       scheduleServerSync();
       return false;
@@ -3893,9 +3234,8 @@ function loadNotificationsData(site = currentSite) {
     cache: "no-store",
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((payload) => {
-      const list = Array.isArray(payload?.notifications) ? payload.notifications : [];
-      setDocumentVersion("notifications", payload?.version, site);
+    .then((notifications) => {
+      const list = Array.isArray(notifications) ? notifications : [];
       localStorage.setItem(
         getNotificationStorageKey(site),
         JSON.stringify(list),
@@ -4320,7 +3660,6 @@ function showNotifications() {
     const binsSection = document.getElementById("binsSection");
     const tidplanSection = document.getElementById("tidplan-section");
     const notificationsSection = document.getElementById("notifications-section");
-    const surveysSection = document.getElementById("surveys-section");
     const warehouseSection = document.getElementById("warehouse-section");
     const warehouseLogsSection = document.getElementById("warehouse-logs-section");
     const warehouseGraphSection = document.getElementById("warehouse-graph-section");
@@ -4332,12 +3671,10 @@ function showNotifications() {
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
-    if (surveysSection) surveysSection.style.display = "none";
     if (notificationsSection) notificationsSection.style.display = "block";
 
     currentView = "notifications";
     saveCurrentView("notifications");
-    pushRouteForView("notifications");
 
     Promise.all(getAccessibleSites().map((site) => loadNotificationsData(site)))
       .then(() => {
@@ -4359,266 +3696,6 @@ function showNotifications() {
     sendPresence(true).catch(() => {});
     refreshPresence().catch(() => {});
   });
-}
-
-function getSurveyUsersForPicker() {
-  const siteOnly = document.getElementById("surveyTargetSite")?.checked === true;
-  return getAdmins()
-    .filter((admin) => {
-      if (!admin?.email) return false;
-      if (!siteOnly) return true;
-      if (admin.isSuperAdmin) return true;
-      if (!Array.isArray(admin.allowedSites)) return true;
-      return admin.allowedSites.includes(currentSite);
-    })
-    .sort((a, b) => compareNaturally(a.fullName || a.email, b.fullName || b.email));
-}
-
-function renderSurveyUserPicker() {
-  const select = document.getElementById("surveyTargetUsers");
-  const hint = document.getElementById("surveyCurrentSiteHint");
-  if (!select) return;
-  const selected = Array.from(select.selectedOptions || []).map((option) => option.value);
-  const users = getSurveyUsersForPicker();
-  select.innerHTML = users
-    .map((admin) => {
-      const label = admin.fullName ? `${admin.fullName} (${admin.email})` : admin.email;
-      const isSelected = selected.includes(admin.email) ? " selected" : "";
-      return `<option value="${escapeHtml(admin.email)}"${isSelected}>${escapeHtml(label)}</option>`;
-    })
-    .join("");
-  if (hint) {
-    hint.textContent = `${t("tidplanSiteSelector")}: ${currentSite}`;
-  }
-}
-
-function addSurveyAnswerField(value = "") {
-  const container = document.getElementById("surveyAnswers");
-  if (!container) return;
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "survey-answer-input";
-  input.placeholder = `${t("surveyAnswersLabel")} ${container.children.length + 1}`;
-  input.value = value;
-  container.appendChild(input);
-}
-
-function resetSurveyForm() {
-  const question = document.getElementById("surveyQuestion");
-  const image = document.getElementById("surveyImage");
-  const answers = document.getElementById("surveyAnswers");
-  const targetAll = document.getElementById("surveyTargetAll");
-  const targetSite = document.getElementById("surveyTargetSite");
-  const users = document.getElementById("surveyTargetUsers");
-  const privacy = document.getElementById("surveyPrivacy");
-  const startDate = document.getElementById("surveyStartDate");
-  const startTime = document.getElementById("surveyStartTime");
-  const endDate = document.getElementById("surveyEndDate");
-  const endTime = document.getElementById("surveyEndTime");
-  if (question) question.value = "";
-  if (image) image.value = "";
-  if (targetAll) targetAll.checked = false;
-  if (targetSite) targetSite.checked = true;
-  if (users) Array.from(users.options).forEach((option) => (option.selected = false));
-  if (privacy) privacy.value = "semiAnonymous";
-  const now = new Date();
-  const later = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-  const toDate = (date) => date.toISOString().slice(0, 10);
-  const toTime = (date) => date.toTimeString().slice(0, 5);
-  if (startDate) startDate.value = toDate(now);
-  if (startTime) startTime.value = toTime(now);
-  if (endDate) endDate.value = toDate(later);
-  if (endTime) endTime.value = toTime(later);
-  if (answers) answers.innerHTML = "";
-  addSurveyAnswerField();
-  addSurveyAnswerField();
-  renderSurveyUserPicker();
-}
-
-function getSurveyFormAnswers() {
-  return Array.from(document.querySelectorAll("#surveyAnswers .survey-answer-input"))
-    .map((input) => input.value.trim())
-    .filter(Boolean);
-}
-
-function getSurveySelectedUsers() {
-  const select = document.getElementById("surveyTargetUsers");
-  return select ? Array.from(select.selectedOptions || []).map((option) => option.value) : [];
-}
-
-function loadSurveys() {
-  if (!BACKEND_ENABLED) {
-    surveysCache = [];
-    renderSurveysList();
-    return Promise.resolve([]);
-  }
-  return fetch(`/api/surveys?site=${encodeURIComponent(currentSite)}`)
-    .then((res) => {
-      if (!res.ok) throw new Error("SURVEYS_LOAD_FAILED");
-      return res.json();
-    })
-    .then((payload) => {
-      surveysCache = Array.isArray(payload?.surveys) ? payload.surveys : [];
-      renderSurveysList();
-      return surveysCache;
-    })
-    .catch((error) => {
-      console.error(error);
-      showToast(t("surveyLoadFailed"), "error");
-      renderSurveysList();
-    });
-}
-
-function submitSurvey() {
-  if (!canCreateSurveysAccess()) {
-    showToast(t("accessAdminDenied"), "error");
-    return;
-  }
-  const answers = getSurveyFormAnswers();
-  if (answers.length < 2) {
-    showToast(t("surveyMinAnswers"), "error");
-    return;
-  }
-  const targetAll = document.getElementById("surveyTargetAll")?.checked === true;
-  const targetSite = document.getElementById("surveyTargetSite")?.checked === true;
-  const targetUsers = getSurveySelectedUsers();
-  if (!targetAll && !targetSite && !targetUsers.length) {
-    showToast(t("surveyTargetError"), "error");
-    return;
-  }
-  const formData = new FormData();
-  formData.append("site", currentSite);
-  formData.append("question", document.getElementById("surveyQuestion")?.value || "");
-  formData.append("targetAll", String(targetAll));
-  formData.append("targetSite", String(targetSite));
-  formData.append("targetUsers", JSON.stringify(targetUsers));
-  formData.append("answers", JSON.stringify(answers));
-  formData.append("privacy", document.getElementById("surveyPrivacy")?.value || "semiAnonymous");
-  formData.append("startDate", document.getElementById("surveyStartDate")?.value || "");
-  formData.append("startTime", document.getElementById("surveyStartTime")?.value || "");
-  formData.append("endDate", document.getElementById("surveyEndDate")?.value || "");
-  formData.append("endTime", document.getElementById("surveyEndTime")?.value || "");
-  const image = document.getElementById("surveyImage")?.files?.[0];
-  if (image) formData.append("image", image);
-  fetch("/api/surveys", { method: "POST", body: formData })
-    .then((res) => {
-      if (!res.ok) return res.json().then((payload) => Promise.reject(payload));
-      return res.json();
-    })
-    .then(() => {
-      showToast(t("surveyCreated"), "success");
-      resetSurveyForm();
-      return loadSurveys();
-    })
-    .catch((error) => {
-      showToast(error?.error || t("surveySaveFailed"), "error");
-    });
-}
-
-function voteSurvey(surveyId, answerId) {
-  fetch(`/api/surveys/${encodeURIComponent(surveyId)}/vote`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ site: currentSite, answerId }),
-  })
-    .then((res) => {
-      if (!res.ok) return res.json().then((payload) => Promise.reject(payload));
-      return res.json();
-    })
-    .then(() => {
-      showToast(t("surveyVoted"), "success");
-      return loadSurveys();
-    })
-    .catch((error) => {
-      showToast(error?.error || t("surveyVoteFailed"), "error");
-    });
-}
-
-function renderSurveyResults(survey) {
-  if (!survey.canViewResults || !Array.isArray(survey.results)) return "";
-  const total = survey.results.reduce((sum, result) => sum + Number(result.count || 0), 0) || 1;
-  return `<div class="survey-results">${survey.results
-    .map((result) => {
-      const percent = Math.round((Number(result.count || 0) / total) * 100);
-      const voters = Array.isArray(result.voters) && result.voters.length
-        ? `<div class="survey-voters">${result.voters.map((voter) => escapeHtml(voter.name || voter.email)).join(", ")}</div>`
-        : "";
-      return `<div class="survey-result-row">
-        <div class="survey-result-label">${escapeHtml(result.text)} (${result.count})</div>
-        <div class="survey-result-bar"><span style="width:${percent}%"></span></div>
-        ${voters}
-      </div>`;
-    })
-    .join("")}</div>`;
-}
-
-function renderSurveysList() {
-  const container = document.getElementById("surveysList");
-  if (!container) return;
-  if (!surveysCache.length) {
-    container.innerHTML = `<div class="notification-empty">${escapeHtml(t("surveyEmpty"))}</div>`;
-    return;
-  }
-  container.innerHTML = surveysCache
-    .map((survey) => {
-      const status = survey.finished ? "Zavrsena" : survey.active ? "Aktivna" : "Nije aktivna";
-      const startLabel = survey.startAt ? new Date(survey.startAt).toLocaleString() : "";
-      const endLabel = survey.endAt ? new Date(survey.endAt).toLocaleString() : "";
-      const image = survey.imageUrl ? `<img src="${escapeHtml(survey.imageUrl)}" alt="" />` : "";
-      const answers = Array.isArray(survey.answers)
-        ? survey.answers.map((answer) => {
-            const disabled = survey.active ? "" : " disabled";
-            const checked = survey.myVote === answer.id ? " checked" : "";
-            return `<label class="survey-answer-choice">
-              <input type="radio" name="survey_${escapeHtml(survey.id)}" value="${escapeHtml(answer.id)}"${checked}${disabled}
-                onchange="voteSurvey('${escapeHtml(survey.id)}', '${escapeHtml(answer.id)}')" />
-              <span>${escapeHtml(answer.text)}</span>
-            </label>`;
-          }).join("")
-        : "";
-      return `<div class="notification-card survey-card">
-        <div class="notification-meta">${escapeHtml(status)} | ${escapeHtml(survey.privacy || "")} | ${escapeHtml(startLabel)} - ${escapeHtml(endLabel)}</div>
-        <h4>${escapeHtml(survey.question || "")}</h4>
-        ${image ? `<div class="survey-image">${image}</div>` : ""}
-        <div class="survey-answer-list">${answers}</div>
-        ${renderSurveyResults(survey)}
-      </div>`;
-    })
-    .join("");
-}
-
-function showSurveys() {
-  if (!canAccessSurveysModule()) {
-    showToast(t("accessAdminDenied"), "error");
-    return;
-  }
-  const surveysSection = document.getElementById("surveys-section");
-  const notificationsSection = document.getElementById("notifications-section");
-  const warehouseSection = document.getElementById("warehouse-section");
-  const warehouseLogsSection = document.getElementById("warehouse-logs-section");
-  const warehouseGraphSection = document.getElementById("warehouse-graph-section");
-  if (notificationsSection) notificationsSection.style.display = "none";
-  if (warehouseSection) warehouseSection.style.display = "none";
-  if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
-  if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
-  document.getElementById("tidplan-section").style.display = "none";
-  document.getElementById("planner-section").style.display = "none";
-  document.querySelector(".lists-container")?.classList.add("hidden");
-  document.getElementById("binsSection")?.classList.remove("active");
-  if (surveysSection) surveysSection.style.display = "block";
-  currentView = "surveys";
-  saveCurrentView("surveys");
-  pushRouteForView("surveys");
-  const composer = document.getElementById("surveysComposer");
-  if (composer) composer.style.display = canCreateSurveysAccess() ? "block" : "none";
-  if (!document.querySelector("#surveyAnswers .survey-answer-input")) resetSurveyForm();
-  const targetSite = document.getElementById("surveyTargetSite");
-  if (targetSite && !targetSite.dataset.boundSurveyPicker) {
-    targetSite.dataset.boundSurveyPicker = "true";
-    targetSite.addEventListener("change", renderSurveyUserPicker);
-  }
-  renderSurveyUserPicker();
-  loadSurveys();
 }
 
 function openNotificationViewer(images, startIndex = 0) {
@@ -4662,6 +3739,571 @@ function nextNotificationImage() {
   notificationViewerIndex =
     (notificationViewerIndex + 1) % notificationViewerImages.length;
   updateNotificationViewer();
+}
+
+/* ==================== SURVEYS ==================== */
+let surveysCache = [];
+
+function getSurveysList() {
+  if (!BACKEND_ENABLED) return Promise.resolve(surveysCache);
+
+  return fetch(`/api/surveys?site=${encodeURIComponent(currentSite)}`, {
+    cache: "no-store",
+  })
+    .then((res) => (res.ok ? res.json() : Promise.reject()))
+    .then((data) => {
+      const surveys = Array.isArray(data.surveys) ? data.surveys : [];
+      surveysCache = surveys;
+      return surveys;
+    })
+    .catch(() => surveysCache);
+}
+
+function submitSurvey() {
+  if (!hasAdminPermission("canCreateSurveys") || !hasAdminPermission("canPublishSurveys")) {
+    showToast("Nemate dozvolu za objavu anketa.", "error");
+    return;
+  }
+
+  const question = (document.getElementById("surveyQuestion")?.value || "").trim();
+  const imageFile = document.getElementById("surveyImage")?.files[0];
+  const startDate = document.getElementById("surveyStartDate")?.value;
+  const startTime = document.getElementById("surveyStartTime")?.value;
+  const endDate = document.getElementById("surveyEndDate")?.value;
+  const endTime = document.getElementById("surveyEndTime")?.value;
+  
+  if (!question) {
+    showToast("Molim unesite pitanje.", "error");
+    return;
+  }
+
+  if (!startDate || !startTime || !endDate || !endTime) {
+    showToast("Molim postavite datum i vrijeme početka i kraja.", "error");
+    return;
+  }
+
+  // Collect answers
+  const answersContainer = document.getElementById("surveyAnswers");
+  const answers = [];
+  if (answersContainer) {
+    answersContainer.querySelectorAll("input[type='text']").forEach((input) => {
+      const answer = input.value.trim();
+      if (answer) answers.push(answer);
+    });
+  }
+
+  if (answers.length < 2) {
+    showToast("Molim dodajte najmanje 2 odgovora.", "error");
+    return;
+  }
+
+  // Collect target users with construction site grouping
+  const targetAll = document.getElementById("surveyTargetAll")?.checked === true;
+  const targetSite = document.getElementById("surveyTargetSite")?.checked === true;
+  const targetUsers = [];
+
+  if (!targetAll && !targetSite) {
+    // Get individually selected users
+    const usersContainer = document.getElementById("surveyTargetUsersCheckboxes");
+    if (usersContainer) {
+      usersContainer.querySelectorAll("input[type='checkbox']:checked").forEach((cb) => {
+        const email = cb.value.trim().toLowerCase();
+        if (email && !targetUsers.includes(email)) {
+          targetUsers.push(email);
+        }
+      });
+    }
+  }
+
+  if (!targetAll && !targetSite && targetUsers.length === 0) {
+    showToast("Molim odaberite barem jednu osobu ili cijelo gradilište.", "error");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("question", question);
+  formData.append("answers", JSON.stringify(answers));
+  formData.append("startDate", startDate);
+  formData.append("startTime", startTime);
+  formData.append("endDate", endDate);
+  formData.append("endTime", endTime);
+  formData.append("targetAll", targetAll);
+  formData.append("targetSite", targetSite);
+  formData.append("targetUsers", JSON.stringify(targetUsers));
+  formData.append("privacy", document.getElementById("surveyPrivacy")?.value || "semiAnonymous");
+  formData.append("site", currentSite);
+  
+  if (imageFile) {
+    formData.append("image", imageFile);
+  }
+
+  withLoadingPromise("loadingNotificationUpload", () =>
+    fetch("/api/surveys", {
+      method: "POST",
+      body: formData,
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then(() => {
+        showToast("Anketa je objavljena!", "success");
+        resetSurveyForm();
+        return getSurveysList();
+      })
+      .then(() => {
+        renderSurveysList();
+      })
+      .catch((err) => {
+        console.error("Greška pri objavi ankete:", err);
+        showToast("Greška pri objavi ankete.", "error");
+      })
+  );
+}
+
+function resetSurveyForm() {
+  document.getElementById("surveyQuestion").value = "";
+  document.getElementById("surveyImage").value = "";
+  document.getElementById("surveyStartDate").value = "";
+  document.getElementById("surveyStartTime").value = "";
+  document.getElementById("surveyEndDate").value = "";
+  document.getElementById("surveyEndTime").value = "";
+  const answersContainer = document.getElementById("surveyAnswers");
+  if (answersContainer) answersContainer.innerHTML = "";
+  document.getElementById("surveyTargetAll").checked = false;
+  document.getElementById("surveyTargetSite").checked = false;
+  renderSurveyTargetUsers();
+}
+
+function addSurveyAnswerField() {
+  const container = document.getElementById("surveyAnswers");
+  if (!container) return;
+
+  const wrapper = document.createElement("div");
+  wrapper.style.display = "flex";
+  wrapper.style.marginBottom = "8px";
+  wrapper.style.gap = "8px";
+  wrapper.style.alignItems = "center";
+
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "form-group";
+  input.style.flex = "1";
+  input.style.padding = "10px 12px";
+  input.style.border = "2px solid var(--border-color)";
+  input.style.borderRadius = "8px";
+  input.style.fontSize = "14px";
+  input.style.backgroundColor = "var(--input-bg)";
+  input.style.color = "var(--text-dark)";
+  input.placeholder = "Odgovor...";
+
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "btn btn-danger btn-small";
+  removeBtn.textContent = "Ukloni";
+  removeBtn.onclick = () => wrapper.remove();
+
+  wrapper.appendChild(input);
+  wrapper.appendChild(removeBtn);
+  container.appendChild(wrapper);
+}
+
+function renderSurveyTargetUsers() {
+  const container = document.getElementById("surveyTargetUsersCheckboxes");
+  if (!container) {
+    // Create container if it doesn't exist
+    const label = document.querySelector("label[for='surveyTargetUsers']");
+    if (label && !label.nextElementSibling?.id?.includes("Checkboxes")) {
+      const newContainer = document.createElement("div");
+      newContainer.id = "surveyTargetUsersCheckboxes";
+      newContainer.style.border = "1px solid var(--border-color)";
+      newContainer.style.borderRadius = "8px";
+      newContainer.style.padding = "12px";
+      newContainer.style.maxHeight = "200px";
+      newContainer.style.overflowY = "auto";
+      newContainer.style.marginBottom = "12px";
+      label.parentElement.insertBefore(newContainer, document.getElementById("surveyTargetUsers"));
+    }
+    renderSurveyTargetUsers();
+    return;
+  }
+
+  container.innerHTML = "";
+
+  // Get all admins to find all users assigned to sites
+  const allAdmins = getAdmins();
+  const usersByEmail = {};
+  const sitesByUser = {};
+  const allSites = new Set();
+
+  allAdmins.forEach((admin) => {
+    if (admin.email && admin.allowedSites && Array.isArray(admin.allowedSites)) {
+      usersByEmail[admin.email] = admin.fullName || admin.email;
+      if (!sitesByUser[admin.email]) {
+        sitesByUser[admin.email] = [];
+      }
+      admin.allowedSites.forEach((site) => {
+        sitesByUser[admin.email].push(site);
+        allSites.add(site);
+      });
+    }
+  });
+
+  // Also check hardcoded test users if no admins exist
+  if (Object.keys(usersByEmail).length === 0) {
+    const testUsers = [
+      { email: "bane.madzar82@gmail.com", name: "Branislav Madzar" },
+      { email: "ivan.m@cmax.se", name: "Ivan Mijatovic" },
+      { email: "josip.i@gipspartner.se", name: "Josip Ivandic" },
+      { email: "mato@cmax.se", name: "Mato Mijatovic" },
+      { email: "tommie@cmax.se", name: "Tommie Andersson" },
+      { email: "zlatko@cmax.se", name: "Zlatko Lukic" },
+    ];
+    testUsers.forEach((user) => {
+      usersByEmail[user.email] = user.name;
+    });
+  }
+
+  // Group by sites
+  const siteGroups = {};
+  Object.keys(usersByEmail).forEach((email) => {
+    const sites = sitesByUser[email] || ["default"];
+    sites.forEach((site) => {
+      if (!siteGroups[site]) {
+        siteGroups[site] = [];
+      }
+      siteGroups[site].push({ email, name: usersByEmail[email] });
+    });
+  });
+
+  // Sort sites
+  const sortedSites = Object.keys(siteGroups).sort();
+
+  sortedSites.forEach((site) => {
+    // Site checkbox group
+    const siteDiv = document.createElement("div");
+    siteDiv.style.marginBottom = "12px";
+    siteDiv.style.paddingBottom = "12px";
+    siteDiv.style.borderBottom = "1px solid var(--border-color)";
+
+    const siteLabel = document.createElement("label");
+    siteLabel.style.display = "flex";
+    siteLabel.style.alignItems = "center";
+    siteLabel.style.marginBottom = "8px";
+    siteLabel.style.fontWeight = "600";
+    siteLabel.style.cursor = "pointer";
+
+    const siteCheckbox = document.createElement("input");
+    siteCheckbox.type = "checkbox";
+    siteCheckbox.style.marginRight = "8px";
+    siteCheckbox.dataset.site = site;
+
+    siteCheckbox.addEventListener("change", () => {
+      // Auto-select/deselect all users in this site
+      siteDiv.querySelectorAll("input[data-user]").forEach((userCb) => {
+        userCb.checked = siteCheckbox.checked;
+      });
+    });
+
+    siteLabel.appendChild(siteCheckbox);
+    const siteText = document.createElement("span");
+    siteText.textContent = site;
+    siteLabel.appendChild(siteText);
+    siteDiv.appendChild(siteLabel);
+
+    // User checkboxes
+    const usersDiv = document.createElement("div");
+    usersDiv.style.marginLeft = "24px";
+
+    const users = siteGroups[site];
+    users.forEach((user) => {
+      const userLabel = document.createElement("label");
+      userLabel.style.display = "flex";
+      userLabel.style.alignItems = "center";
+      userLabel.style.marginBottom = "6px";
+      userLabel.style.cursor = "pointer";
+      userLabel.style.fontSize = "14px";
+
+      const userCheckbox = document.createElement("input");
+      userCheckbox.type = "checkbox";
+      userCheckbox.value = user.email;
+      userCheckbox.dataset.user = user.email;
+      userCheckbox.style.marginRight = "8px";
+
+      userLabel.appendChild(userCheckbox);
+      const userText = document.createElement("span");
+      userText.textContent = user.name;
+      userLabel.appendChild(userText);
+      usersDiv.appendChild(userLabel);
+    });
+
+    siteDiv.appendChild(usersDiv);
+    container.appendChild(siteDiv);
+  });
+}
+
+function renderSurveysList() {
+  const container = document.getElementById("surveysList");
+  if (!container) return;
+
+  getSurveysList().then((surveys) => {
+    if (!surveys || surveys.length === 0) {
+      container.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-light);">Nema objavljenih anketa.</div>`;
+      return;
+    }
+
+    container.innerHTML = "";
+
+    surveys.forEach((survey) => {
+      const card = document.createElement("div");
+      card.className = "notification-card";
+      card.style.marginBottom = "16px";
+
+      // Header with pin status
+      const header = document.createElement("div");
+      header.style.display = "flex";
+      header.style.justifyContent = "space-between";
+      header.style.alignItems = "center";
+      header.style.marginBottom = "12px";
+
+      const title = document.createElement("h4");
+      title.textContent = `${survey.pinned ? "📌 " : ""}Anketa: ${survey.question?.substring(0, 50)}...`;
+      header.appendChild(title);
+
+      card.appendChild(header);
+
+      // Time window
+      const times = document.createElement("div");
+      times.style.fontSize = "12px";
+      times.style.color = "var(--text-light)";
+      times.style.marginBottom = "8px";
+
+      const startDate = new Date(survey.startAt);
+      const endDate = new Date(survey.endAt);
+      const now = new Date();
+
+      let statusText = "";
+      if (now < startDate) {
+        statusText = `Počinje: ${startDate.toLocaleString(getCurrentLocale())}`;
+      } else if (now > endDate) {
+        statusText = `Završena`;
+      } else {
+        statusText = `Aktivna do: ${endDate.toLocaleString(getCurrentLocale())}`;
+      }
+
+      times.textContent = statusText;
+      card.appendChild(times);
+
+      // Answers
+      if (survey.answers && survey.answers.length > 0) {
+        const answersDiv = document.createElement("div");
+        answersDiv.style.marginBottom = "12px";
+
+        if (survey.active && !survey.myVote) {
+          const subtitle = document.createElement("div");
+          subtitle.style.fontSize = "14px";
+          subtitle.style.marginBottom = "8px";
+          subtitle.textContent = "Odaberi odgovor:";
+          answersDiv.appendChild(subtitle);
+
+          survey.answers.forEach((answer) => {
+            const label = document.createElement("label");
+            label.style.display = "flex";
+            label.style.alignItems = "center";
+            label.style.marginBottom = "6px";
+            label.style.cursor = "pointer";
+            label.style.padding = "8px";
+            label.style.borderRadius = "6px";
+            label.style.backgroundColor = "var(--hover-bg)";
+
+            const radio = document.createElement("input");
+            radio.type = "radio";
+            radio.name = `survey_${survey.id}`;
+            radio.value = answer.id;
+            radio.style.marginRight = "8px";
+            radio.addEventListener("change", () => {
+              voteSurvey(survey.id, answer.id);
+            });
+
+            label.appendChild(radio);
+            const span = document.createElement("span");
+            span.textContent = answer.text;
+            label.appendChild(span);
+            answersDiv.appendChild(label);
+          });
+        } else if (survey.results && survey.results.length > 0) {
+          const resultsTitle = document.createElement("div");
+          resultsTitle.style.fontSize = "14px";
+          resultsTitle.style.fontWeight = "600";
+          resultsTitle.style.marginBottom = "8px";
+          resultsTitle.textContent = survey.myVote ? "Moj odgovor: " + (survey.results.find(r => r.id === survey.myVote)?.text || "?") : "Rezultati:";
+          answersDiv.appendChild(resultsTitle);
+
+          survey.results.forEach((result) => {
+            const totalVotes = survey.results.reduce((sum, r) => sum + r.count, 0);
+            const percentage = totalVotes > 0 ? Math.round((result.count / totalVotes) * 100) : 0;
+
+            const resultDiv = document.createElement("div");
+            resultDiv.style.marginBottom = "8px";
+
+            const labelDiv = document.createElement("div");
+            labelDiv.style.fontSize = "13px";
+            labelDiv.style.marginBottom = "4px";
+            labelDiv.textContent = `${result.text}: ${result.count} (${percentage}%)`;
+            resultDiv.appendChild(labelDiv);
+
+            const barDiv = document.createElement("div");
+            barDiv.style.height = "6px";
+            barDiv.style.backgroundColor = "var(--border-color)";
+            barDiv.style.borderRadius = "3px";
+            barDiv.style.overflow = "hidden";
+
+            const fillDiv = document.createElement("div");
+            fillDiv.style.height = "100%";
+            fillDiv.style.width = `${percentage}%`;
+            fillDiv.style.backgroundColor = "#4CAF50";
+            barDiv.appendChild(fillDiv);
+            resultDiv.appendChild(barDiv);
+
+            answersDiv.appendChild(resultDiv);
+          });
+        }
+
+        card.appendChild(answersDiv);
+      }
+
+      // Actions (pin/delete for admin level 6+)
+      if (survey.canDelete || survey.canPin) {
+        const actions = document.createElement("div");
+        actions.style.display = "flex";
+        actions.style.gap = "8px";
+        actions.style.marginTop = "12px";
+        actions.style.borderTop = "1px solid var(--border-color)";
+        actions.style.paddingTop = "12px";
+
+        if (survey.canPin) {
+          const pinBtn = document.createElement("button");
+          pinBtn.className = "btn btn-small";
+          pinBtn.textContent = survey.pinned ? "Ukloni pin" : "Piniraj";
+          pinBtn.onclick = () => toggleSurveyPin(survey.id, !survey.pinned);
+          actions.appendChild(pinBtn);
+        }
+
+        if (survey.canDelete) {
+          const deleteBtn = document.createElement("button");
+          deleteBtn.className = "btn btn-small btn-danger";
+          deleteBtn.textContent = "Obriši";
+          deleteBtn.onclick = () => deleteSurvey(survey.id);
+          actions.appendChild(deleteBtn);
+        }
+
+        card.appendChild(actions);
+      }
+
+      container.appendChild(card);
+    });
+  });
+}
+
+function voteSurvey(surveyId, answerId) {
+  if (!BACKEND_ENABLED) return;
+
+  fetch(`/api/surveys/${encodeURIComponent(surveyId)}/vote`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      answerId,
+      site: currentSite,
+    }),
+  })
+    .then((res) => (res.ok ? res.json() : Promise.reject()))
+    .then(() => {
+      showToast("Hvala na glasanju!", "success");
+      getSurveysList().then(() => renderSurveysList());
+    })
+    .catch(() => {
+      showToast("Greška pri glasanju.", "error");
+    });
+}
+
+function toggleSurveyPin(surveyId, pinned) {
+  if (!BACKEND_ENABLED) return;
+
+  fetch(`/api/surveys/${encodeURIComponent(surveyId)}/pin`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      pinned,
+      site: currentSite,
+    }),
+  })
+    .then((res) => (res.ok ? res.json() : Promise.reject()))
+    .then(() => {
+      getSurveysList().then(() => renderSurveysList());
+    })
+    .catch(() => {
+      showToast("Greška pri promjeni statusa.", "error");
+    });
+}
+
+function deleteSurvey(surveyId) {
+  showConfirm("Jeste li sigurni da želite obrisati ovu anketu?", null, "⚠️", () => {
+    if (!BACKEND_ENABLED) return;
+
+    fetch(`/api/surveys/${encodeURIComponent(surveyId)}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        site: currentSite,
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then(() => {
+        showToast("Anketa je obrisana!", "success");
+        getSurveysList().then(() => renderSurveysList());
+      })
+      .catch(() => {
+        showToast("Greška pri brisanju ankete.", "error");
+      });
+  });
+}
+
+function showSurveys() {
+  if (!hasPermission("canViewSurveys")) {
+    showToast("Nemate pristup anketama.", "error");
+    return;
+  }
+
+  withLoading("loadingNotifications", () => {
+    const plannerSection = document.getElementById("planner-section");
+    const listsContainer = document.querySelector(".lists-container");
+    const binsSection = document.getElementById("binsSection");
+    const tidplanSection = document.getElementById("tidplan-section");
+    const notificationsSection = document.getElementById("notifications-section");
+    const surveysSection = document.getElementById("surveys-section");
+    const warehouseSection = document.getElementById("warehouse-section");
+
+    if (tidplanSection) tidplanSection.style.display = "none";
+    if (plannerSection) plannerSection.style.display = "none";
+    if (listsContainer) listsContainer.classList.add("hidden");
+    if (binsSection) binsSection.classList.remove("active");
+    if (notificationsSection) notificationsSection.style.display = "none";
+    if (warehouseSection) warehouseSection.style.display = "none";
+    if (surveysSection) surveysSection.style.display = "block";
+
+    currentView = "surveys";
+    saveCurrentView("surveys");
+
+    // Initialize forms
+    renderSurveyTargetUsers();
+
+    // Load and display surveys
+    getSurveysList().then(() => {
+      renderSurveysList();
+      const composer = document.getElementById("surveysComposer");
+      if (composer) {
+        composer.style.display = hasAdminPermission("canPublishSurveys") ? "block" : "none";
+      }
+    });
+
+    sendPresence(true).catch(() => {});
+  });
 }
 
 function checkAuth() {
@@ -4710,16 +4352,6 @@ function checkAuth() {
   if (BACKEND_ENABLED) {
     fetch("/api/session", { cache: "no-store" })
       .then((res) => {
-        if (res.status === 503) {
-          return res.json().catch(() => null).then((payload) => {
-            if (isStoragePendingPayload(payload)) {
-              setBootState(BOOT_STATES.CONNECTING_DB);
-              waitForBackendReady().catch(() => {});
-              throw new Error("STORAGE_NOT_READY");
-            }
-            throw new Error("SESSION_INVALID");
-          });
-        }
         if (!res.ok) throw new Error("SESSION_INVALID");
         return res.json();
       })
@@ -4737,10 +4369,7 @@ function checkAuth() {
         }
         showMainApp();
       })
-      .catch((error) => {
-        if (error && error.message === "STORAGE_NOT_READY") {
-          return;
-        }
+      .catch(() => {
         clearAuthSessionLocal();
         showLogin();
       });
@@ -4789,7 +4418,6 @@ function showMainApp() {
   document.getElementById("datePicker").value = appState.currentDate;
   reinitFlatpickr();
   updateNotifBadge();
-  applyRouteFromPath(window.location.pathname);
 }
 
 function hide(id) {
@@ -4855,36 +4483,28 @@ function applyPermissionVisibility() {
   const canWarehouseLogs = canViewWarehouseLogsSection();
   const canWarehouseGraph = canViewWarehouseAnalyticsSection();
   const canReports = canCreateReportsAccess();
+  const canExportWarehouse = canExportWarehouse();
+  const canImportWarehouse = canImportWarehouse();
+  const canExportTidplan = canExportTidplan();
+  const canImportTidplan = canImportTidplan();
   const canAdminPanel = canOpenAdminPanelAccess();
   const canManagePlannerRows = !appState.isReadonly && appState.isAdmin;
 
   setVisibility("btnPrint", hasPermission("canPrint"));
   setVisibility("btnExport", hasPermission("canExport"));
-  setVisibility("btnPlannerExportImport", canExportPlannerModule() || canImportPlannerModule());
-  setVisibility("btnPlannerExportExcel", canExportPlannerModule());
-  setVisibility("btnPlannerExportPdf", canExportPlannerModule());
-  setVisibility("btnPlannerExportWord", false);
-  setVisibility("btnPlannerImportExcel", canImportPlannerModule());
-  setVisibility("btnPlannerImportPdf", canImportPlannerModule());
-  setVisibility("btnTidplanExportImport", canExportTidplanModule() || canImportTidplanModule());
-  setVisibility("btnTidplanExportExcel", canExportTidplanModule());
-  setVisibility("btnTidplanExportPdf", canExportTidplanModule());
-  setVisibility("btnTidplanImportExcel", canImportTidplanModule());
-  setVisibility("btnTidplanImportPdf", canImportTidplanModule());
-  setVisibility("btnWarehouseExportImport", canExportWarehouseModule() || canImportWarehouseModule());
-  setVisibility("btnWarehouseExportExcel", canExportWarehouseModule());
-  setVisibility("btnWarehouseExportPdf", canExportWarehouseModule());
-  setVisibility("btnWarehouseImportExcel", canImportWarehouseModule());
-  setVisibility("btnWarehouseImportPdf", canImportWarehouseModule());
   setVisibility("btnClear", !appState.isReadonly && hasPermission("canClear"));
   setVisibility("btnReport", canReports);
+
+  setVisibility("btnWarehouseExportExcel", canExportWarehouse);
+  setVisibility("btnWarehouseImportExcel", canImportWarehouse);
+  setVisibility("btnTidplanExportPdf", canExportTidplan);
+  setVisibility("btnTidplanImportPdf", canImportTidplan);
+  setVisibility("plannerExportDropdown", canExportPlanner());
+  setVisibility("btnPlannerImportExcel", canImportPlanner());
   setVisibility("btnTidplan", canTidplan);
   setVisibility("btnBins", canBins);
   setVisibility("btnWarehouse", canWarehouse);
   setVisibility("btnNotifications", canAccessNotificationsModule());
-  setVisibility("btnSurveys", canAccessSurveysModule());
-  setVisibility("backupSettingsSection", hasAdminPermission("canViewBackups") || hasAdminPermission("canManageBackups"));
-  setVisibility("btnManualBackup", !appState.isReadonly && hasAdminPermission("canManageBackups"));
   setVisibility("adminBtn", canAdminPanel);
   setVisibility("btnLogout", !appState.isReadonly);
   setVisibility("btnAddRow", canManagePlannerRows);
@@ -4897,18 +4517,20 @@ function applyPermissionVisibility() {
   setElVisibility("plansControls", !appState.isReadonly && hasPermission("canManagePlans"));
   setElVisibility("karnasControls", !appState.isReadonly && hasPermission("canManageKarnas"));
 
+  // Admin panel specific permissions
+  setVisibility("tabBtnBackup", canViewBackups());
+
+
   const planningSection = document.querySelector(".planning-section");
   const listsContainer = document.querySelector(".lists-container");
   const binsSection = document.getElementById("binsSection");
   const tidplanSection = document.getElementById("tidplan-section");
   const notificationsSection = document.getElementById("notifications-section");
-  const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
   const accessNotice = document.getElementById("accessNotice");
   const canNotifications = canAccessNotificationsModule();
-  const canSurveys = canAccessSurveysModule();
 
   if (currentView === "bins" && !canBins) {
     currentView = "main";
@@ -4920,12 +4542,6 @@ function applyPermissionVisibility() {
   if (currentView === "notifications" && !canNotifications) {
     currentView = "main";
     if (notificationsSection) notificationsSection.style.display = "none";
-    if (surveysSection) surveysSection.style.display = "none";
-  }
-
-  if (currentView === "surveys" && !canSurveys) {
-    currentView = "main";
-    if (surveysSection) surveysSection.style.display = "none";
   }
 
   if (currentView === "warehouse" && !canWarehouse) {
@@ -4954,7 +4570,6 @@ function applyPermissionVisibility() {
     if (listsContainer) listsContainer.classList.toggle("hidden", !canPlanner);
     if (binsSection) binsSection.classList.remove("active");
     if (notificationsSection) notificationsSection.style.display = "none";
-    if (surveysSection) surveysSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
@@ -4963,7 +4578,6 @@ function applyPermissionVisibility() {
     if (listsContainer) listsContainer.classList.add("hidden");
     if (binsSection) binsSection.classList.add("active");
     if (notificationsSection) notificationsSection.style.display = "none";
-    if (surveysSection) surveysSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
@@ -4972,16 +4586,6 @@ function applyPermissionVisibility() {
     if (listsContainer) listsContainer.classList.add("hidden");
     if (binsSection) binsSection.classList.remove("active");
     if (notificationsSection) notificationsSection.style.display = "block";
-    if (surveysSection) surveysSection.style.display = "none";
-    if (warehouseSection) warehouseSection.style.display = "none";
-    if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
-    if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
-  } else if (currentView === "surveys") {
-    if (planningSection) planningSection.classList.add("hidden");
-    if (listsContainer) listsContainer.classList.add("hidden");
-    if (binsSection) binsSection.classList.remove("active");
-    if (notificationsSection) notificationsSection.style.display = "none";
-    if (surveysSection) surveysSection.style.display = "block";
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
@@ -4990,7 +4594,6 @@ function applyPermissionVisibility() {
     if (listsContainer) listsContainer.classList.add("hidden");
     if (binsSection) binsSection.classList.remove("active");
     if (notificationsSection) notificationsSection.style.display = "none";
-    if (surveysSection) surveysSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = currentView === "warehouse" ? "block" : "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = currentView === "warehouseLogs" ? "block" : "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = currentView === "warehouseGraph" ? "block" : "none";
@@ -5009,10 +4612,6 @@ function applyPermissionVisibility() {
       showNotifications();
       return;
     }
-    if (canSurveys) {
-      showSurveys();
-      return;
-    }
     if (canWarehouse) {
       showWarehouse();
       return;
@@ -5028,8 +4627,6 @@ function applyPermissionVisibility() {
   setElVisibility("warehouseNavGraphBtn", canWarehouseGraph);
   setElVisibility("warehouseLogsGraphBtn", canWarehouseGraph);
   setElVisibility("warehouseGraphLogsBtn", canWarehouseLogs);
-  updateSaveButtonVisibility();
-  updateWarehouseAlertBadge();
 }
 
 /* ==================== FLATPICKR INIT ==================== */
@@ -5102,11 +4699,6 @@ function initTidplanDatePickers() {
 
 /* ==================== AUTH ==================== */
 function handleLogin() {
-  if (appBootState !== BOOT_STATES.READY) {
-    setBootState(BOOT_STATES.CONNECTING_DB);
-    waitForBackendReady().catch(() => {});
-    return;
-  }
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
   if (!email || !password) {
@@ -5121,16 +4713,6 @@ function handleLogin() {
     body: JSON.stringify({ email, password }),
   })
     .then((res) => {
-      if (res.status === 503) {
-        return res.json().catch(() => null).then((payload) => {
-          if (isStoragePendingPayload(payload)) {
-            setBootState(BOOT_STATES.CONNECTING_DB);
-            waitForBackendReady().catch(() => {});
-            throw new Error("STORAGE_NOT_READY");
-          }
-          throw new Error("LOGIN_FAILED");
-        });
-      }
       if (!res.ok) throw new Error("LOGIN_FAILED");
       return res.json();
     })
@@ -5162,37 +4744,19 @@ function handleLogin() {
       renderAll();
       hideLoading();
     })
-    .catch((error) => {
-      if (error && error.message === "STORAGE_NOT_READY") {
-        return;
-      }
+    .catch(() => {
       showToast(t("errWrongCredentials"), "error");
       hideLoading();
     });
 }
 
 function enterReadonlyMode() {
-  if (appBootState !== BOOT_STATES.READY) {
-    setBootState(BOOT_STATES.CONNECTING_DB);
-    waitForBackendReady().catch(() => {});
-    return;
-  }
   showLoading("loadingLogin");
   fetch("/api/login/guest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   })
     .then((res) => {
-      if (res.status === 503) {
-        return res.json().catch(() => null).then((payload) => {
-          if (isStoragePendingPayload(payload)) {
-            setBootState(BOOT_STATES.CONNECTING_DB);
-            waitForBackendReady().catch(() => {});
-            throw new Error("STORAGE_NOT_READY");
-          }
-          throw new Error("READONLY_FAILED");
-        });
-      }
       if (!res.ok) throw new Error("READONLY_FAILED");
       return res.json();
     })
@@ -5215,10 +4779,7 @@ function enterReadonlyMode() {
       renderAll();
       hideLoading();
     })
-    .catch((error) => {
-      if (error && error.message === "STORAGE_NOT_READY") {
-        return;
-      }
+    .catch(() => {
       showToast("Read-only prijava nije uspjela.", "error");
       hideLoading();
     });
@@ -5322,43 +4883,23 @@ function updateDateDisplay() {
 
 function updatePrintDate() {
   const el = document.getElementById("printHeaderDate");
-  if (!el) return;
-  const date = new Date(appState.currentDate + "T00:00:00");
-  const locale =
-    { hr: "hr-HR", en: "en-US", sv: "sv-SE" }[currentLang] || "hr-HR";
-  const formattedDate = date
-    .toLocaleDateString(locale, {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-    .toUpperCase();
-  el.innerHTML = `
-    <div class="print-brand-block">
-      <img src="cmaxlogo.png" alt="CMAX Logo" class="print-brand-logo" />
-      <div class="print-brand-title">CMAX SCM</div>
-      <div class="print-brand-site">${escapeHtml(currentSite || "")}</div>
-      <div class="print-brand-date">${escapeHtml(formattedDate)}</div>
-    </div>
-  `;
+  if (el) {
+    const date = new Date(appState.currentDate + "T00:00:00");
+    const locale =
+      { hr: "hr-HR", en: "en-US", sv: "sv-SE" }[currentLang] || "hr-HR";
+    el.textContent =
+      "CMAX SCM — " +
+      date
+        .toLocaleDateString(locale, {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+        .toUpperCase();
+  }
 }
 
-function getPlannerPrintHeaderData() {
-  const date = new Date(appState.currentDate + "T00:00:00");
-  return {
-    site: currentSite || "",
-    dateText: date
-      .toLocaleDateString("hr-HR", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      })
-      .toUpperCase(),
-    logo: document.getElementById("mainLogoImg"),
-  };
-}
 function getCurrentLocale() {
   return { hr: "hr-HR", en: "en-US", sv: "sv-SE" }[currentLang] || "hr-HR";
 }
@@ -5678,10 +5219,7 @@ function refreshSiteMetadata() {
 
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((data) => {
-      setDocumentVersion("state", data?.version);
-      return syncSiteMetadata(data?.state);
-    })
+    .then((data) => syncSiteMetadata(data?.state))
     .then((changed) =>
       loadNotificationsData()
         .then(() => {
@@ -6062,9 +5600,7 @@ function manageDoAdd() {
   }
 
   list.push(name);
-  recordResourceAdded(currentManageCategory, name, appState.currentDate);
   saveData();
-  syncServerState({ markAsClean: true }).catch(() => {});
   markDirty();
   renderAll();
 
@@ -6123,9 +5659,7 @@ function manageRemoveItem(name) {
   }
 
   list.splice(idx, 1);
-  recordResourceRemoved(currentManageCategory, name, appState.currentDate);
   saveData();
-  syncServerState({ markAsClean: true }).catch(() => {});
   markDirty();
   renderAll();
 
@@ -6165,7 +5699,6 @@ function updateNotifBadge() {
   }
 
   updateNotificationsBadge();
-  updateWarehouseAlertBadge();
 }
 
 function getUnreadNotificationsCount() {
@@ -6206,7 +5739,6 @@ function loadData() {
         appState.moments = parsed.moments || appState.moments;
         appState.plans = parsed.plans || appState.plans;
         appState.karnas = parsed.karnas || appState.karnas;
-        appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
         appState.dailyData = parsed.dailyData || {};
       } catch (e) {
         console.error("Error loading data:", e);
@@ -6221,7 +5753,6 @@ function loadData() {
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((data) => {
-      setDocumentVersion("state", data?.version);
       if (data && data.state) {
         if (applyServerStateSnapshot(data.state)) {
           const savedData = localStorage.getItem(STORAGE_KEY);
@@ -6232,7 +5763,6 @@ function loadData() {
             appState.moments = parsed.moments || appState.moments;
             appState.plans = parsed.plans || appState.plans;
             appState.karnas = parsed.karnas || appState.karnas;
-            appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
             appState.dailyData = parsed.dailyData || {};
           }
           renderAll();
@@ -6245,7 +5775,6 @@ function loadData() {
         appState.moments = parsed.moments || appState.moments;
         appState.plans = parsed.plans || appState.plans;
         appState.karnas = parsed.karnas || appState.karnas;
-        appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
         appState.dailyData = parsed.dailyData || {};
         renderAll();
         collectPlans();
@@ -6261,7 +5790,6 @@ function loadData() {
           appState.moments = parsed.moments || appState.moments;
           appState.plans = parsed.plans || appState.plans;
           appState.karnas = parsed.karnas || appState.karnas;
-          appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
           appState.dailyData = parsed.dailyData || {};
         } catch (e) {
           console.error("Error loading data:", e);
@@ -6281,7 +5809,6 @@ function loadData() {
           appState.moments = parsed.moments || appState.moments;
           appState.plans = parsed.plans || appState.plans;
           appState.karnas = parsed.karnas || appState.karnas;
-          appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
           appState.dailyData = parsed.dailyData || {};
         } catch (e) {
           console.error("Error loading data:", e);
@@ -6330,152 +5857,6 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
-function normalizeDateOnly(value) {
-  const text = String(value || "").slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : appState.currentDate;
-}
-
-function normalizeResourceHistory(history) {
-  return Array.isArray(history)
-    ? history
-        .filter((entry) => entry && entry.resourceType && entry.resourceId)
-        .map((entry) => ({
-          resourceType: String(entry.resourceType),
-          resourceId: String(entry.resourceId),
-          siteId: String(entry.siteId || currentSite || "default"),
-          activeFrom: normalizeDateOnly(entry.activeFrom || "1970-01-01"),
-          activeTo: entry.activeTo ? normalizeDateOnly(entry.activeTo) : null,
-          removedAt: entry.removedAt || null,
-          action: entry.action || (entry.activeTo ? "remove" : "add"),
-          changedAt: entry.changedAt || new Date().toISOString(),
-          changedBy: entry.changedBy || appState.currentUser || null,
-        }))
-    : [];
-}
-
-function mergeResourceHistory(localHistory, serverHistory) {
-  const merged = new Map();
-  [...normalizeResourceHistory(serverHistory), ...normalizeResourceHistory(localHistory)].forEach((entry) => {
-    const key = [
-      entry.resourceType,
-      entry.resourceId,
-      entry.siteId,
-      entry.activeFrom,
-      entry.activeTo || "",
-      entry.action,
-      entry.changedAt,
-    ].join("|");
-    merged.set(key, entry);
-  });
-  return Array.from(merged.values()).sort((a, b) => String(a.changedAt).localeCompare(String(b.changedAt)));
-}
-
-function ensureResourceHistoryForCurrentLists() {
-  appState.resourceHistory = normalizeResourceHistory(appState.resourceHistory);
-  ["workers", "lifts", "moments", "plans", "karnas"].forEach((type) => {
-    (appState[type] || []).forEach((resourceId) => {
-      const exists = appState.resourceHistory.some(
-        (entry) =>
-          entry.resourceType === type &&
-          entry.resourceId === resourceId &&
-          entry.siteId === currentSite &&
-          !entry.activeTo,
-      );
-      if (!exists) {
-        appState.resourceHistory.push({
-          resourceType: type,
-          resourceId,
-          siteId: currentSite,
-          activeFrom: "1970-01-01",
-          activeTo: null,
-          removedAt: null,
-          action: "seed",
-          changedAt: new Date().toISOString(),
-          changedBy: appState.currentUser || null,
-        });
-      }
-    });
-  });
-}
-
-function isResourceActiveOnDate(type, resourceId, date = appState.currentDate, history = appState.resourceHistory) {
-  const day = normalizeDateOnly(date);
-  const entries = normalizeResourceHistory(history).filter(
-    (entry) => entry.resourceType === type && entry.resourceId === resourceId && entry.siteId === currentSite,
-  );
-  if (!entries.length) return true;
-  return entries.some((entry) => {
-    const from = normalizeDateOnly(entry.activeFrom || "1970-01-01");
-    const to = entry.activeTo ? normalizeDateOnly(entry.activeTo) : null;
-    return from <= day && (!to || day <= to);
-  });
-}
-
-function getActiveResourceList(type, date = appState.currentDate) {
-  ensureResourceHistoryForCurrentLists();
-  const historyNames = normalizeResourceHistory(appState.resourceHistory)
-    .filter((entry) => entry.resourceType === type && entry.siteId === currentSite)
-    .map((entry) => entry.resourceId);
-  const names = Array.from(new Set([...(appState[type] || []), ...historyNames]));
-  return sortNaturally(names.filter((name) => isResourceActiveOnDate(type, name, date)));
-}
-
-function recordResourceAdded(type, resourceId, date = appState.currentDate) {
-  ensureResourceHistoryForCurrentLists();
-  const day = normalizeDateOnly(date);
-  appState.resourceHistory.push({
-    resourceType: type,
-    resourceId,
-    siteId: currentSite,
-    activeFrom: day,
-    activeTo: null,
-    removedAt: null,
-    action: "add",
-    changedAt: new Date().toISOString(),
-    changedBy: appState.currentUser || null,
-  });
-}
-
-function recordResourceRemoved(type, resourceId, date = appState.currentDate) {
-  ensureResourceHistoryForCurrentLists();
-  const previousDay = new Date(`${normalizeDateOnly(date)}T00:00:00`);
-  previousDay.setDate(previousDay.getDate() - 1);
-  const activeTo = previousDay.toISOString().slice(0, 10);
-  let closed = false;
-  appState.resourceHistory = appState.resourceHistory.map((entry) => {
-    if (
-      entry.resourceType === type &&
-      entry.resourceId === resourceId &&
-      entry.siteId === currentSite &&
-      !entry.activeTo
-    ) {
-      closed = true;
-      return {
-        ...entry,
-        activeTo,
-        removedAt: new Date().toISOString(),
-        action: "remove",
-        changedAt: new Date().toISOString(),
-        changedBy: appState.currentUser || null,
-      };
-    }
-    return entry;
-  });
-  if (!closed) {
-    appState.resourceHistory.push({
-      resourceType: type,
-      resourceId,
-      siteId: currentSite,
-      activeFrom: "1970-01-01",
-      activeTo,
-      removedAt: new Date().toISOString(),
-      action: "remove",
-      changedAt: new Date().toISOString(),
-      changedBy: appState.currentUser || null,
-    });
-  }
-}
-
 function persistCurrentStateToLocalStorage() {
   localStorage.setItem(
     STORAGE_KEY,
@@ -6485,7 +5866,6 @@ function persistCurrentStateToLocalStorage() {
       moments: appState.moments,
       plans: appState.plans,
       karnas: appState.karnas,
-      resourceHistory: normalizeResourceHistory(appState.resourceHistory),
       dailyData: appState.dailyData,
     }),
   );
@@ -6512,25 +5892,21 @@ function persistCurrentStateToLocalStorage() {
 function mergePlannerSnapshot(localPlanner, serverPlanner) {
   const local = localPlanner && typeof localPlanner === "object" ? localPlanner : {};
   const server = serverPlanner && typeof serverPlanner === "object" ? serverPlanner : {};
-  const resourceHistory = mergeResourceHistory(local.resourceHistory, server.resourceHistory);
-  const mergeList = (type, localList, serverList) => {
-    const merged = Array.from(
-      new Set([...(Array.isArray(serverList) ? serverList : []), ...(Array.isArray(localList) ? localList : [])]),
+  const mergeList = (localList, serverList) =>
+    sortNaturally(
+      Array.from(
+        new Set([...(Array.isArray(serverList) ? serverList : []), ...(Array.isArray(localList) ? localList : [])]),
+      ),
     );
-    return sortNaturally(
-      merged.filter((name) => isResourceActiveOnDate(type, name, appState.currentDate, resourceHistory)),
-    );
-  };
 
   return {
     ...server,
     ...local,
-    resourceHistory,
-    workers: mergeList("workers", local.workers, server.workers),
-    lifts: mergeList("lifts", local.lifts, server.lifts),
-    moments: mergeList("moments", local.moments, server.moments),
-    plans: mergeList("plans", local.plans, server.plans),
-    karnas: mergeList("karnas", local.karnas, server.karnas),
+    workers: mergeList(local.workers, server.workers),
+    lifts: mergeList(local.lifts, server.lifts),
+    moments: mergeList(local.moments, server.moments),
+    plans: mergeList(local.plans, server.plans),
+    karnas: mergeList(local.karnas, server.karnas),
     dailyData:
       local.dailyData && typeof local.dailyData === "object"
         ? local.dailyData
@@ -6605,19 +5981,9 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
       Array.isArray(serverState.siteData[site].notifications)
         ? serverState.siteData[site].notifications
         : null;
-    const serverReports =
-      serverState.siteData &&
-      serverState.siteData[site] &&
-      Array.isArray(serverState.siteData[site].reports)
-        ? serverState.siteData[site].reports
-        : null;
     const localNotifications = safeParseStoredJson(
       localStorage.getItem(getSiteStorageKey("cmax_planner_notifications", site)),
       null,
-    );
-    const localReports = safeParseStoredJson(
-      localStorage.getItem(getSiteStorageKey("cmax_planner_reports", site)),
-      [],
     );
     siteData[site] = {
       planner: mergePlannerSnapshot(localPlanner, serverPlanner),
@@ -6639,9 +6005,12 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
           null,
         ),
       ),
-      reports: Array.isArray(serverReports) ? serverReports : (Array.isArray(localReports) ? localReports : []),
+      reports: safeParseStoredJson(
+        localStorage.getItem(getSiteStorageKey("cmax_planner_reports", site)),
+        [],
+      ),
       notifications: Array.isArray(localNotifications)
-        ? (Array.isArray(serverNotifications) ? serverNotifications : localNotifications)
+        ? localNotifications
         : Array.isArray(serverNotifications)
           ? serverNotifications
           : [],
@@ -6801,10 +6170,7 @@ function syncServerState(options = {}) {
 
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((data) => {
-      setDocumentVersion("state", data?.version);
-      return data?.state || null;
-    })
+    .then((data) => data?.state || null)
     .catch(() => null)
     .then((serverState) =>
       fetch("/api/state", {
@@ -6817,7 +6183,6 @@ function syncServerState(options = {}) {
             includeBinPermissions,
             includeSites,
           }),
-          lastKnownVersion: getDocumentVersion("state"),
           userEmail: appState.currentUser || null,
           skipLog,
         }),
@@ -6825,26 +6190,7 @@ function syncServerState(options = {}) {
       }),
     )
     .then((res) => {
-      if (res.status === 409) {
-        return res.json().then((payload) => {
-          showVersionConflictMessage(() =>
-            Promise.resolve(payload?.latest?.state)
-              .then((latestState) => {
-                if (latestState) {
-                  applyServerStateSnapshot(latestState);
-                  return loadAllData().then(() => renderAll());
-                }
-                return loadAllData().then(() => renderAll());
-              }),
-          );
-          throw new Error("STATE_VERSION_CONFLICT");
-        });
-      }
       if (!res.ok) throw new Error("STATE_SAVE_FAILED");
-      return res.json();
-    })
-    .then((payload) => {
-      setDocumentVersion("state", payload?.version);
       if (markAsClean) markClean();
       if (includeAdmins) pendingServerSyncOptions.includeAdmins = false;
       if (includeGuestPermissions) pendingServerSyncOptions.includeGuestPermissions = false;
@@ -6855,9 +6201,6 @@ function syncServerState(options = {}) {
       return true;
     })
     .catch((error) => {
-      if (error && error.message === "STATE_VERSION_CONFLICT") {
-        return false;
-      }
       console.error("Server sync failed:", error);
       if (showSuccess) showToast("Server save failed.", "error");
       return false;
@@ -6905,7 +6248,6 @@ function getCurrentDayData() {
 
 /* ==================== RENDER FUNCTIONS ==================== */
 function renderAll() {
-  ensureResourceHistoryForCurrentLists();
   updateDateDisplay();
   renderWorkersList();
   renderLiftsList();
@@ -6930,7 +6272,9 @@ function renderWorkersList() {
   const tbody = document.getElementById("workersList");
   const dayData = getCurrentDayData();
   const inUse = getWorkersInUse();
-  const sortedWorkers = getActiveResourceList("workers", appState.currentDate);
+  const sortedWorkers = [...appState.workers].sort((a, b) =>
+    a.localeCompare(b, "hr"),
+  );
   tbody.innerHTML = "";
 
   sortedWorkers.forEach((worker) => {
@@ -6949,7 +6293,7 @@ function renderWorkersList() {
     checkbox.type = "checkbox";
     checkbox.checked = isPresent;
     checkbox.onchange = () => toggleWorkerAttendance(worker);
-    if (!canEditDate(appState.currentDate)) checkbox.disabled = true;
+    if (appState.isReadonly) checkbox.disabled = true;
     tdCheck.appendChild(checkbox);
     tr.appendChild(tdCheck);
 
@@ -6975,7 +6319,9 @@ function renderWorkersList() {
 function renderLiftsList() {
   const tbody = document.getElementById("liftsList");
   const dayData = getCurrentDayData();
-  const sortedLifts = getActiveResourceList("lifts", appState.currentDate);
+  const sortedLifts = [...appState.lifts].sort((a, b) =>
+    a.localeCompare(b),
+  );
   tbody.innerHTML = "";
 
   sortedLifts.forEach((lift) => {
@@ -6994,7 +6340,7 @@ function renderLiftsList() {
     checkbox.type = "checkbox";
     checkbox.checked = isAvailable;
     checkbox.onchange = () => toggleLiftAvailability(lift);
-    if (!canEditDate(appState.currentDate)) checkbox.disabled = true;
+    if (appState.isReadonly) checkbox.disabled = true;
     tdCheck.appendChild(checkbox);
     tr.appendChild(tdCheck);
 
@@ -7018,7 +6364,7 @@ function renderLiftsList() {
     planInput.value = liftPlan;
     planInput.placeholder = "Plan";
     planInput.oninput = () => updateLiftPlan(lift, planInput.value);
-    if (!canEditDate(appState.currentDate)) planInput.disabled = true;
+    if (appState.isReadonly) planInput.disabled = true;
     tdPlan.appendChild(planInput);
     tr.appendChild(tdPlan);
 
@@ -7072,7 +6418,7 @@ function renderPlanningTable() {
   dayData.planningRows.forEach((rowData, index) => {
     tbody.appendChild(createPlanningRow(rowData, index));
   });
-  if (canEditDate(appState.currentDate)) {
+  if (!appState.isReadonly) {
     tbody.appendChild(createPlanningRow({}, dayData.planningRows.length));
   }
   applyColorCoding();
@@ -7080,7 +6426,7 @@ function renderPlanningTable() {
 }
 
 function addPlanningRow() {
-  if (!canEditDate(appState.currentDate) || !appState.isAdmin) return;
+  if (appState.isReadonly || !appState.isAdmin) return;
   const dayData = getCurrentDayData();
   dayData.planningRows.push({});
   saveData();
@@ -7089,7 +6435,7 @@ function addPlanningRow() {
 }
 
 function removePlanningRow() {
-  if (!canEditDate(appState.currentDate) || !appState.isAdmin) return;
+  if (appState.isReadonly || !appState.isAdmin) return;
   const dayData = getCurrentDayData();
   // Ukloni zadnji puni red ako postoji (ne brišemo sve redove odjednom)
   if (dayData.planningRows.length > 0) {
@@ -7104,16 +6450,16 @@ function createPlanningRow(rowData, index) {
   const tr = document.createElement("tr");
   tr.dataset.rowIndex = index;
   const fields = [
-    ["w1", getActiveResourceList("workers", appState.currentDate)],
-    ["w2", getActiveResourceList("workers", appState.currentDate)],
-    ["w3", getActiveResourceList("workers", appState.currentDate)],
-    ["plan", getActiveResourceList("plans", appState.currentDate)],
-    ["karna", getActiveResourceList("karnas", appState.currentDate)],
-    ["m1", getActiveResourceList("moments", appState.currentDate)],
-    ["m2", getActiveResourceList("moments", appState.currentDate)],
-    ["l1", getActiveResourceList("lifts", appState.currentDate)],
-    ["l2", getActiveResourceList("lifts", appState.currentDate)],
-    ["l3", getActiveResourceList("lifts", appState.currentDate)],
+    ["w1", appState.workers],
+    ["w2", appState.workers],
+    ["w3", appState.workers],
+    ["plan", appState.plans],
+    ["karna", appState.karnas],
+    ["m1", appState.moments],
+    ["m2", appState.moments],
+    ["l1", appState.lifts],
+    ["l2", appState.lifts],
+    ["l3", appState.lifts],
   ];
   fields.forEach(([f, opts]) =>
     tr.appendChild(createSelectCell(f, rowData[f], opts, index)),
@@ -7128,7 +6474,7 @@ function createSelectCell(fieldName, selectedValue, options, rowIndex) {
   td.dataset.pval = selectedValue || "-";
 
   const select = document.createElement("select");
-  select.disabled = !canEditDate(appState.currentDate);
+  select.disabled = appState.isReadonly;
   const emptyOpt = document.createElement("option");
   emptyOpt.value = "";
   emptyOpt.textContent = "-";
@@ -7160,7 +6506,7 @@ function createCommentCell(value, rowIndex) {
   input.type = "text";
   input.value = value;
   input.placeholder = "Komentar...";
-  input.disabled = !canEditDate(appState.currentDate);
+  input.disabled = appState.isReadonly;
   input.oninput = () => {
     td.dataset.pval = input.value;
     handlePlanningCellChange(rowIndex, "comment", input.value);
@@ -7170,11 +6516,6 @@ function createCommentCell(value, rowIndex) {
 }
 
 function handlePlanningCellChange(rowIndex, fieldName, value) {
-  if (!canEditDate(appState.currentDate)) {
-    showToast("Prošli datumi su zaključani.", "error");
-    renderPlanningTable();
-    return;
-  }
   const dayData = getCurrentDayData();
   if (!dayData.planningRows[rowIndex])
     dayData.planningRows[rowIndex] = {};
@@ -7275,11 +6616,6 @@ function applyColorCoding() {
 
 /* ==================== TOGGLE FUNCTIONS ==================== */
 function toggleWorkerAttendance(worker) {
-  if (!canEditDate(appState.currentDate)) {
-    showToast("Prošli datumi su zaključani.", "error");
-    renderWorkersList();
-    return;
-  }
   const dayData = getCurrentDayData();
   if (dayData.workerAttendance[worker] === false)
     delete dayData.workerAttendance[worker];
@@ -7291,11 +6627,6 @@ function toggleWorkerAttendance(worker) {
 }
 
 function toggleLiftAvailability(lift) {
-  if (!canEditDate(appState.currentDate)) {
-    showToast("Prošli datumi su zaključani.", "error");
-    renderLiftsList();
-    return;
-  }
   const dayData = getCurrentDayData();
   if (dayData.liftAvailability[lift] === false)
     delete dayData.liftAvailability[lift];
@@ -7667,6 +6998,8 @@ function openAdminPanel() {
     const canViewReports = hasAdminPermission("canViewReports");
     const canViewLogs = hasAdminPermission("canViewLogs");
     const canViewSettings = hasAdminPermission("canViewSettings") || appState.isSuperAdmin;
+    const canViewBackups = canViewBackups();
+
 
     setVisibility("tabBtnAdmins", canManageAdmins);
     document.getElementById("tabAdmins").style.display = canManageAdmins ? "" : "none";
@@ -7678,6 +7011,8 @@ function openAdminPanel() {
     document.getElementById("tabLogs").style.display = canViewLogs ? "" : "none";
     setVisibility("tabBtnSettings", canViewSettings);
     document.getElementById("tabSettings").style.display = canViewSettings ? "" : "none";
+    setVisibility("tabBtnBackup", canViewBackups);
+    document.getElementById("tabBackup").style.display = canViewBackups ? "" : "none";
 
     renderNewAdminLevelSelector();
     renderNewAdminPermissionsPanel();
@@ -7708,6 +7043,8 @@ function openAdminPanel() {
       (canViewReports && "tabReports") ||
       (canViewLogs && "tabLogs") ||
       (canViewSettings && "tabSettings");
+      (canViewSettings && "tabSettings") ||
+      (canViewBackups && "tabBackup");
 
     if (!firstTab) {
       document.getElementById("adminModal").style.display = "none";
@@ -7751,6 +7088,7 @@ function switchTab(tabId) {
     tabReports: "tabBtnReports",
     tabLogs: "tabBtnLogs",
     tabSettings: "tabBtnSettings",
+    tabBtnBackup: "tabBtnBackup",
   };
   if (btnMap[tabId])
     document.getElementById(btnMap[tabId]).classList.add("active");
@@ -7770,6 +7108,10 @@ function switchTab(tabId) {
   }
   if (tabId === "tabGuest") {
     renderGuestAccessPanel();
+  }
+  if (tabId === "tabBackup") {
+    handleListBackups();
+    handleBackupInfo();
   }
 }
 
@@ -7958,6 +7300,19 @@ function renderAdminList() {
         saveBtn.onclick = () => saveAdminPerms(admin.email, idx);
         permsDiv.appendChild(saveBtn);
       }
+      div.appendChild(permsDiv);
+    } else {
+      // For Super Admin, just display info
+      const permsDiv = document.createElement("div");
+      permsDiv.className = "admin-permissions";
+      permsDiv.style.display = "block"; // Always show for Super Admin
+      permsDiv.innerHTML = `
+        <div class="permission-section">
+          <div class="permission-section-header">
+            <div class="permission-section-title">Super Admin</div>
+            <div class="permission-section-note">This user has all permissions.</div>
+          </div>
+        </div>`;
       div.appendChild(permsDiv);
     }
 
@@ -8182,6 +7537,101 @@ function removeAdminAction(email) {
     );
   });
 }
+
+/* ==================== BACKUP MANAGEMENT ==================== */
+async function handleManualBackup() {
+  if (!canManageBackups()) {
+    showToast("Nemate dozvolu za kreiranje backupa.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch("/api/backup", {
+      method: "POST",
+    });
+    if (response.status === 429) {
+      showToast(BACKUP_RATE_LIMIT_MESSAGE, "error");
+      return;
+    }
+    if (!response.ok) throw new Error("Failed to create backup");
+    const data = await response.json();
+    showToast(`Backup created: ${data.file}`, "success");
+    addLog("Manual backup created", data.file);
+    handleListBackups(); // Refresh list after creating
+  } catch (error) {
+    console.error("Error creating backup:", error);
+    showToast("Failed to create backup.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handleListBackups() {
+  if (!canViewBackups()) {
+    showToast("Nemate dozvolu za pregled backupa.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch("/api/backups");
+    if (!response.ok) throw new Error("Failed to list backups");
+    const data = await response.json();
+    renderBackupList(data.backups);
+  } catch (error) {
+    console.error("Error listing backups:", error);
+    showToast("Failed to list backups.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderBackupList(backups) {
+  const container = document.getElementById("backupListContainer");
+  if (!container) return;
+  container.innerHTML = "";
+  if (!backups || backups.length === 0) {
+    container.innerHTML = "<p>No backups found.</p>";
+    return;
+  }
+  const ul = document.createElement("ul");
+  backups.forEach((backup) => {
+    const li = document.createElement("li");
+    li.textContent = `${backup.filename} (${(backup.size / 1024).toFixed(2)} KB) - ${new Date(backup.createdAt).toLocaleString()}`;
+    ul.appendChild(li);
+  });
+  container.appendChild(ul);
+}
+
+async function handleBackupInfo() {
+  if (!canViewBackups()) {
+    showToast("Nemate dozvolu za pregled informacija o backupu.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch("/api/backup/info");
+    if (!response.ok) throw new Error("Failed to get backup info");
+    const data = await response.json();
+    renderBackupInfo(data);
+  } catch (error) {
+    console.error("Error getting backup info:", error);
+    showToast("Failed to get backup info.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+function renderBackupInfo(info) {
+  const container = document.getElementById("backupInfoContainer");
+  if (!container) return;
+  container.innerHTML = `
+    <p><strong>Interval:</strong> ${info.backupInterval} hours (${info.backupIntervalMs} ms)</p>
+    <p><strong>Storage Type:</strong> ${info.storageType}</p>
+    <p><strong>Backup Location:</strong> ${info.backupsDir}</p>
+    <p><strong>Last Backup:</strong> ${info.lastBackupTime ? new Date(info.lastBackupTime).toLocaleString() : 'N/A'}</p>
+  `;
+}
+
 
 /* ==================== REPORTS ==================== */
 let currentReportFilter = "all";
@@ -8722,31 +8172,6 @@ function clearLogs() {
   );
 }
 
-function runManualBackup() {
-  if (!canManageBackupsAccess()) {
-    showToast(t("manualBackupFailed"), "error");
-    return;
-  }
-  const status = document.getElementById("manualBackupStatus");
-  if (status) status.textContent = "Backup...";
-  fetch("/api/backup", { method: "POST" })
-    .then((res) => {
-      if (!res.ok) return res.json().then((payload) => Promise.reject(payload));
-      return res.json();
-    })
-    .then((payload) => {
-      const message = `${t("manualBackupSuccess")} ${payload?.backup?.file || ""}`.trim();
-      if (status) status.textContent = message;
-      showToast(message, "success");
-      addLog("Manual backup", payload?.backup?.file || "");
-    })
-    .catch((error) => {
-      const message = error?.error || t("manualBackupFailed");
-      if (status) status.textContent = message;
-      showToast(message, "error");
-    });
-}
-
 function clearLogs() {
   if (!hasAdminPermission("canClearLogs")) {
     showToast(`❌ ${t("accessLogsClearDenied")}`, "error");
@@ -8880,7 +8305,7 @@ function toggleBinsView() {
   if (warehouseSection) warehouseSection.style.display = "none";
   if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
   if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
-  if (currentView === "notifications" || currentView === "surveys") {
+  if (currentView === "notifications") {
     currentView = "main";
   }
   if (currentView === "main") {
@@ -8890,13 +8315,15 @@ function toggleBinsView() {
     document.querySelector(".lists-container").classList.add("hidden");
     document.getElementById("binsSection").classList.add("active");
     document.getElementById("btnBins").classList.add("btn-success");
-    updateSaveButtonVisibility();
+    // Show Save button if there are unsaved changes
+    if (appState.hasUnsavedChanges) {
+      document.getElementById("btnSave").style.display = "inline-flex";
+    }
     if (appState.isSuperAdmin) {
       document.getElementById("binsAdminControls").style.display = "flex";
     }
     renderBinsTable();
     addLog("Switched to Bins view");
-    pushRouteForView("bins");
     sendPresence(true).catch(() => {});
     refreshPresence().catch(() => {});
   } else {
@@ -8908,9 +8335,11 @@ function toggleBinsView() {
     document.querySelector(".lists-container").classList.remove("hidden");
     document.getElementById("binsSection").classList.remove("active");
     document.getElementById("btnBins").classList.remove("btn-success");
-    updateSaveButtonVisibility();
+    // Show Save button if there are unsaved changes
+    if (appState.hasUnsavedChanges) {
+      document.getElementById("btnSave").style.display = "inline-flex";
+    }
     addLog("Switched to Main view");
-    pushRouteForView("main");
     sendPresence(true).catch(() => {});
     refreshPresence().catch(() => {});
   }
@@ -9055,11 +8484,6 @@ function createBinInput(idx, field, value) {
 }
 
 function updateBinCell(idx, field, value) {
-  if (!canEditBinsDataAccess()) {
-    showToast("Prošli datumi su zaključani.", "error");
-    renderBinsTable();
-    return;
-  }
   const binsData = getBinsDataForDate(appState.currentDate);
   const row = binsData.rows[idx];
   row[field] = value;
@@ -9208,10 +8632,6 @@ function applyBinColors() {
 }
 
 function addBinPlan() {
-  if (!canEditBinsDataAccess()) {
-    showToast("Prošli datumi su zaključani.", "error");
-    return;
-  }
   if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans"))) return;
   const binsData = getBinsDataForDate(appState.currentDate);
   const newPlanNum = binsData.planCount + 1;
@@ -9234,10 +8654,6 @@ function addBinPlan() {
 }
 
 function removeBinPlan() {
-  if (!canEditBinsDataAccess()) {
-    showToast("Prošli datumi su zaključani.", "error");
-    return;
-  }
   if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans"))) return;
   const binsData = getBinsDataForDate(appState.currentDate);
   if (binsData.planCount <= 1) {
@@ -9307,6 +8723,7 @@ function persistWarehouseData() {
 }
 
 function getWarehouseAlerts() {
+  const responsibleAdminsLabel = getWarehouseResponsibleAdminsLabel();
   return getVisibleWarehouseCatalog()
     .map((item) => {
       const stock = ensureWarehouseStockRecord(item.id);
@@ -9320,14 +8737,19 @@ function getWarehouseAlerts() {
           unit: item.unit || "kom",
           minimum: item.minimum,
         }),
-        notifyLabel: getWarehouseProcurementOwnersLabel(),
+        notifyLabel: responsibleAdminsLabel,
       };
     })
     .filter(Boolean);
 }
 
 function getWarehouseResponsibleAdmins(site = currentSite) {
-  return getWarehouseResponsibleOptions(site);
+  return getAdmins().filter((admin) => {
+    if (!admin || !admin.email) return false;
+    if (admin.isSuperAdmin) return true;
+    if (!Array.isArray(admin.allowedSites)) return true;
+    return admin.allowedSites.includes(site);
+  });
 }
 
 function getWarehouseResponsibleAdminsLabel(site = currentSite) {
@@ -9352,7 +8774,7 @@ function createWarehouseSelect(selectedValue, onchange) {
     if (item.id === selectedValue) option.selected = true;
     select.appendChild(option);
   });
-  select.disabled = !canManageWarehouseIssue();
+  select.disabled = !canEditWarehouse();
   select.addEventListener("change", onchange);
   return select;
 }
@@ -9371,7 +8793,7 @@ function createWorkerSelect(selectedValue, onchange) {
     if (worker === selectedValue) option.selected = true;
     select.appendChild(option);
   });
-  select.disabled = !canManageWarehouseIssue();
+  select.disabled = !canEditWarehouse();
   select.addEventListener("change", onchange);
   return select;
 }
@@ -9379,7 +8801,6 @@ function createWorkerSelect(selectedValue, onchange) {
 function saveWarehouseDraft() {
   persistWarehouseData();
   renderWarehouseIssueTable();
-  updateWarehouseAlertBadge();
 }
 
 function renderWarehouseIssueTable() {
@@ -9412,7 +8833,7 @@ function renderWarehouseIssueTable() {
     qtyInput.min = "1";
     qtyInput.value = Math.max(Number(slot.quantity) || 1, 1);
     qtyInput.className = "warehouse-qty-input";
-    qtyInput.disabled = !canManageWarehouseIssue();
+    qtyInput.disabled = !canEditWarehouse();
     qtyInput.addEventListener("change", () => {
       warehouseData.issueDraft.slots[slotIndex].quantity = Math.max(Number(qtyInput.value) || 1, 1);
       saveWarehouseDraft();
@@ -9428,7 +8849,7 @@ function renderWarehouseIssueTable() {
   commentInput.className = "warehouse-comment-input";
   commentInput.placeholder = t("warehouseStockCommentPlaceholder");
   commentInput.value = warehouseData.issueDraft.comment || "";
-  commentInput.disabled = !canManageWarehouseIssue();
+  commentInput.disabled = !canEditWarehouse();
   commentInput.addEventListener("change", () => {
     warehouseData.issueDraft.comment = commentInput.value;
     saveWarehouseDraft();
@@ -9440,7 +8861,7 @@ function renderWarehouseIssueTable() {
   const saveBtn = document.createElement("button");
   saveBtn.className = "btn";
   saveBtn.textContent = t("warehouseSave");
-  saveBtn.disabled = !canManageWarehouseIssue();
+  saveBtn.disabled = !canEditWarehouse();
   saveBtn.addEventListener("click", saveWarehouseIssueRow);
   actionsTd.appendChild(saveBtn);
   tr.appendChild(actionsTd);
@@ -9451,9 +8872,10 @@ function renderWarehouseInventorySummary() {
   const tbody = document.getElementById("warehouseInventoryBody");
   if (!tbody || !warehouseData) return;
   tbody.innerHTML = "";
+  const responsibleAdminsLabel = getWarehouseResponsibleAdminsLabel();
   const visibleCatalog = getVisibleWarehouseCatalog();
   if (!visibleCatalog.length) {
-    tbody.innerHTML = `<tr><td colspan="6">${escapeHtml(t("warehouseNoVisibleItems"))}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("warehouseNoVisibleItems"))}</td></tr>`;
     return;
   }
   visibleCatalog.forEach((item) => {
@@ -9469,6 +8891,7 @@ function renderWarehouseInventorySummary() {
       <td>${stock.totalIssued}</td>
       <td>${stock.totalReceived}</td>
       <td>${item.minimum || 0}</td>
+      <td>${escapeHtml(responsibleAdminsLabel)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -9487,7 +8910,7 @@ function renderWarehouseCatalogManager() {
     const stock = ensureWarehouseStockRecord(item.id);
     const row = document.createElement("div");
     row.className = "warehouse-catalog-item";
-    row.innerHTML = `<strong>${escapeHtml(item.name)} (${escapeHtml(item.unit || "kom")})</strong><span class="warehouse-catalog-meta">${escapeHtml(tFormat("warehouseCatalogMeta", { current: stock.current, minimum: item.minimum || 0 }))}</span>`;
+    row.innerHTML = `<strong>${escapeHtml(item.name)} (${escapeHtml(item.unit || "kom")})</strong><span class="warehouse-catalog-meta">${escapeHtml(tFormat("warehouseCatalogMeta", { current: stock.current, minimum: item.minimum || 0, admins: getWarehouseResponsibleAdminsLabel() }))}</span>`;
 
     const actions = document.createElement("div");
     actions.className = "warehouse-catalog-actions";
@@ -9495,7 +8918,7 @@ function renderWarehouseCatalogManager() {
     const limitBtn = document.createElement("button");
     limitBtn.className = "btn btn-small";
     limitBtn.textContent = t("warehouseThreshold");
-    limitBtn.style.display = canManageWarehouseCatalogItem(item) ? "inline-flex" : "none";
+    limitBtn.disabled = !canEditWarehouse();
     limitBtn.onclick = () => {
       showPromptDialog(t("warehouseLimitPrompt"), "⚙️", String(item.minimum || 0), (value) => {
         item.minimum = Math.max(Number(value) || 0, 0);
@@ -9508,7 +8931,7 @@ function renderWarehouseCatalogManager() {
     const removeBtn = document.createElement("button");
     removeBtn.className = "btn btn-small btn-danger";
     removeBtn.textContent = t("warehouseRemoveItem");
-    removeBtn.style.display = canManageWarehouseCatalogItem(item) ? "inline-flex" : "none";
+    removeBtn.disabled = !canEditWarehouse();
     removeBtn.onclick = () => removeWarehouseCatalogItem(item.id);
     actions.appendChild(removeBtn);
 
@@ -9520,7 +8943,7 @@ function renderWarehouseCatalogManager() {
 function renderWarehouseAlerts() {
   const container = document.getElementById("warehouseAlerts");
   if (!container || !warehouseData) return;
-  const alerts = getWarehouseAlerts().filter((alert) => canSeeWarehouseAlert(alert));
+  const alerts = getWarehouseAlerts();
   if (!alerts.length) {
     container.innerHTML = `<div class="warehouse-alert-empty">${escapeHtml(t("warehouseAlertsEmpty"))}</div>`;
     return;
@@ -9534,75 +8957,16 @@ function renderWarehouseAlerts() {
   });
 }
 
-function renderWarehouseProcurementOwners() {
-  const details = document.getElementById("warehouseProcurementDetails");
-  const summary = document.getElementById("warehouseProcurementSummary");
-  const options = document.getElementById("warehouseProcurementOptions");
-  const label = document.getElementById("warehouseProcurementLabel");
-  if (!details || !summary || !options || !label || !warehouseData) return;
-
-  const procurementLabelText = t("warehouseProcurementLabel");
-  const procurementPlaceholderText = t("warehouseProcurementPlaceholder");
-  label.textContent =
-    procurementLabelText === "warehouseProcurementLabel"
-      ? "Osoba zadužena za nabavku"
-      : procurementLabelText;
-  const selectedEmails = getWarehouseProcurementOwnerEmails();
-  summary.textContent = selectedEmails.length
-    ? getWarehouseResponsibleLabels(selectedEmails)
-    : procurementPlaceholderText === "warehouseProcurementPlaceholder"
-      ? "Odaberi osobe"
-      : procurementPlaceholderText;
-  options.innerHTML = "";
-
-  const canManageContacts = canManageWarehouseCatalog();
-  details.classList.toggle("is-disabled", !canManageContacts);
-  if (!canManageContacts) details.open = false;
-
-  const admins = getWarehouseResponsibleOptions();
-  if (!admins.length) {
-    const empty = document.createElement("div");
-    empty.className = "warehouse-alert-empty";
-    empty.textContent = t("warehouseNoAssignedAdmin");
-    options.appendChild(empty);
-    return;
-  }
-
-  admins.forEach((admin) => {
-    const row = document.createElement("label");
-    row.className = "warehouse-multi-select-option";
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = selectedEmails.includes(admin.email);
-    checkbox.disabled = !canManageContacts;
-    checkbox.addEventListener("change", () => {
-      if (!canManageWarehouseCatalog()) return;
-      const next = new Set(getWarehouseProcurementOwnerEmails());
-      if (checkbox.checked) next.add(admin.email);
-      else next.delete(admin.email);
-      warehouseData.procurementOwners = Array.from(next);
-      persistWarehouseData();
-      renderWarehousePage();
-    });
-    const text = document.createElement("span");
-    text.textContent = admin.fullName || admin.email;
-    row.appendChild(checkbox);
-    row.appendChild(text);
-    options.appendChild(row);
-  });
-}
-
 function renderWarehousePage() {
   if (!warehouseData) loadWarehouseData();
   renderWarehouseIssueTable();
   renderWarehouseInventorySummary();
   renderWarehouseCatalogManager();
   renderWarehouseAlerts();
-  renderWarehouseProcurementOwners();
-  if (currentView === "warehouse") {
-    markVisibleWarehouseAlertsSeen();
-  }
-  updateWarehouseAlertBadge();
+
+  // Enable/disable warehouse action buttons
+  document.getElementById("btnWarehouseExportExcel").disabled = !canExportWarehouse();
+  document.getElementById("btnWarehouseImportExcel").disabled = !canImportWarehouse();
 
   const itemSelect = document.getElementById("warehouseStockItem");
   if (itemSelect) {
@@ -9622,13 +8986,9 @@ function renderWarehousePage() {
   const commentInput = document.getElementById("warehouseStockComment");
   if (commentInput) commentInput.value = warehouseData.stockForm.comment || "";
   const saveButton = document.getElementById("warehouseStockSaveBtn");
-  if (saveButton) saveButton.disabled = !canManageWarehouseStock();
+  if (saveButton) saveButton.disabled = !canEditWarehouse();
   const catalogAddButton = document.getElementById("warehouseCatalogAddBtn");
-  if (catalogAddButton) catalogAddButton.style.display = canManageWarehouseCatalog() ? "inline-flex" : "none";
-  const issueCard = document.getElementById("warehouseIssueCard");
-  if (issueCard) issueCard.style.display = canManageWarehouseIssue() ? "block" : "none";
-  const stockCard = document.getElementById("warehouseStockCard");
-  if (stockCard) stockCard.style.display = canManageWarehouseStock() ? "grid" : "none";
+  if (catalogAddButton) catalogAddButton.disabled = !canEditWarehouse();
 }
 
 function showWarehouse() {
@@ -9638,16 +8998,18 @@ function showWarehouse() {
   }
   document.getElementById("tidplan-section").style.display = "none";
   document.getElementById("notifications-section").style.display = "none";
-  document.getElementById("surveys-section").style.display = "none";
   document.getElementById("planner-section").style.display = "none";
   document.getElementById("warehouse-logs-section").style.display = "none";
   document.getElementById("warehouse-graph-section").style.display = "none";
   document.getElementById("warehouse-section").style.display = "block";
   currentView = "warehouse";
   saveCurrentView("warehouse");
-  pushRouteForView("warehouse");
   renderWarehousePage();
   sendPresence(true).catch(() => {});
+  // Attach event listeners for warehouse export/import
+  document.getElementById("btnWarehouseExportExcel").onclick = handleWarehouseExportExcel;
+  document.getElementById("btnWarehouseImportExcel").onclick = () => openModal('warehouseImportModal');
+  document.getElementById("warehouseImportUploadBtn").onclick = handleWarehouseImportExcel;
   refreshPresence().catch(() => {});
 }
 
@@ -9658,14 +9020,12 @@ function showWarehouseLogs() {
   }
   document.getElementById("tidplan-section").style.display = "none";
   document.getElementById("notifications-section").style.display = "none";
-  document.getElementById("surveys-section").style.display = "none";
   document.getElementById("planner-section").style.display = "none";
   document.getElementById("warehouse-section").style.display = "none";
   document.getElementById("warehouse-graph-section").style.display = "none";
   document.getElementById("warehouse-logs-section").style.display = "block";
   currentView = "warehouseLogs";
   saveCurrentView("warehouseLogs");
-  pushRouteForView("warehouseLogs");
   renderWarehouseLogsPage();
 }
 
@@ -9676,19 +9036,20 @@ function showWarehouseGraph() {
   }
   document.getElementById("tidplan-section").style.display = "none";
   document.getElementById("notifications-section").style.display = "none";
-  document.getElementById("surveys-section").style.display = "none";
   document.getElementById("planner-section").style.display = "none";
   document.getElementById("warehouse-section").style.display = "none";
   document.getElementById("warehouse-logs-section").style.display = "none";
   document.getElementById("warehouse-graph-section").style.display = "block";
   currentView = "warehouseGraph";
   saveCurrentView("warehouseGraph");
-  pushRouteForView("warehouseGraph");
   renderWarehouseGraphPage();
 }
 
+
+
+
+
 function updateWarehouseStockForm(field, value) {
-  if (!canManageWarehouseStock()) return;
   warehouseData.stockForm[field] = value;
   persistWarehouseData();
 }
@@ -9729,7 +9090,7 @@ function applyWarehouseMovement(itemId, quantity, direction, extra = {}) {
 }
 
 function saveWarehouseIssueRow() {
-  if (!canManageWarehouseIssue()) return;
+  if (!canEditWarehouse()) return;
   const worker = (warehouseData.issueDraft.worker || "").trim();
   if (!worker) {
     showToast(t("warehouseSelectWorker"), "error");
@@ -9759,7 +9120,7 @@ function saveWarehouseIssueRow() {
 }
 
 function saveWarehouseStockAdjustment() {
-  if (!canManageWarehouseStock()) return;
+  if (!canEditWarehouse()) return;
   const { itemId, quantity, direction, comment } = warehouseData.stockForm || {};
   if (!itemId) {
     showToast("Odaberi alat ili materijal.", "error");
@@ -9777,7 +9138,7 @@ function saveWarehouseStockAdjustment() {
 }
 
 function addWarehouseCatalogItem() {
-  if (!canManageWarehouseCatalog()) return;
+  if (!canEditWarehouse()) return;
   showPromptDialog(t("warehouseNewItemPrompt"), "📦", "", (nameValue) => {
     const name = (nameValue || "").trim();
     if (!name) return;
@@ -9788,13 +9149,7 @@ function addWarehouseCatalogItem() {
     showPromptDialog(t("warehouseUnitPrompt"), "📏", "kom", (unitValue) => {
       const unit = (unitValue || "kom").trim() || "kom";
       const id = `itm_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-      warehouseData.catalog.push({
-        id,
-        name,
-        unit,
-        minimum: 0,
-        notifyPerson: "",
-      });
+      warehouseData.catalog.push({ id, name, unit, minimum: 0, notifyPerson: "" });
       warehouseData.stock[id] = { current: 0, totalIssued: 0, totalReceived: 0 };
       warehouseData.stockForm.itemId = id;
       persistWarehouseData();
@@ -9805,8 +9160,8 @@ function addWarehouseCatalogItem() {
 }
 
 function removeWarehouseCatalogItem(itemId) {
+  if (!canEditWarehouse()) return;
   const item = getWarehouseItemById(itemId);
-  if (!canManageWarehouseCatalogItem(item)) return;
   if (!item) return;
   showConfirm(tFormat("warehouseRemoveItemConfirm", { name: item.name }), null, "⚠️", () => {
     warehouseData.catalog = warehouseData.catalog.filter((entry) => entry.id !== itemId);
@@ -10084,22 +9439,27 @@ function renderWarehouseGraphPage() {
   }
 }
 
+function togglePlannerExportDropdown() {
+  document.getElementById("plannerExportDropdownMenu").classList.toggle("show");
+}
+
 function markDirty() {
   appState.hasUnsavedChanges = true;
   trackEditActivity();
-  updateSaveButtonVisibility();
+  // Show Save button
+  const btnSave = document.getElementById("btnSave");
+  if (btnSave && currentView === "main") {
+    btnSave.style.display = "inline-flex";
+  }
 }
 
 function markClean() {
   appState.hasUnsavedChanges = false;
-  updateSaveButtonVisibility();
-}
-
-function updateSaveButtonVisibility() {
+  // Hide Save button if in main view
   const btnSave = document.getElementById("btnSave");
-  if (!btnSave) return;
-  const showSave = appState.hasUnsavedChanges && ["main", "bins"].includes(currentView);
-  btnSave.style.display = showSave ? "inline-flex" : "none";
+  if (btnSave && currentView === "main") {
+    btnSave.style.display = "none";
+  }
 }
 
 function saveAllData() {
@@ -10121,42 +9481,6 @@ function startAutoSave() {
   }, 300000); // 5 minutes
 }
 
-function getPrintDateLabel() {
-  const date = new Date(appState.currentDate + "T00:00:00");
-  return date
-    .toLocaleDateString(getCurrentLocale(), {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-    .toUpperCase();
-}
-
-function drawPdfBrandHeader(doc, title) {
-  const pageWidth = doc.internal.pageSize.width;
-  doc.setFillColor(246, 248, 252);
-  doc.rect(0, 0, pageWidth, 26, "F");
-  doc.setDrawColor(102, 126, 234);
-  doc.setLineWidth(0.8);
-  doc.line(12, 24, pageWidth - 12, 24);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.setTextColor(31, 42, 68);
-  doc.text("CMAX SCM", pageWidth / 2, 9, { align: "center" });
-  doc.setFontSize(11);
-  doc.text(currentSite || "", pageWidth / 2, 15, { align: "center" });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9.5);
-  doc.setTextColor(75, 85, 99);
-  doc.text(getPrintDateLabel(), pageWidth / 2, 20, { align: "center" });
-  if (title) {
-    doc.setTextColor(102, 126, 234);
-    doc.text(title, 14, 18);
-  }
-  doc.setTextColor(0, 0, 0);
-}
-
 /* ==================== HANDLE PRINT/EXPORT WITH VIEW ==================== */
 function handlePrint() {
   if (!hasPermission("canPrint")) {
@@ -10171,6 +9495,10 @@ function handlePrint() {
   addLog("Printed", currentView === "bins" ? "Bins table" : "Main table");
 }
 
+function handlePlannerExportExcel() { exportPlannerToExcel(); }
+function handlePlannerExportPdf() { exportPlannerToPDF(); }
+function handlePlannerExportWord() { exportPlannerToWord(); }
+
 function handleExport() {
   if (!hasPermission("canExport")) {
     showToast(t("accessExportDenied"), "error");
@@ -10181,182 +9509,14 @@ function handleExport() {
   } else {
     exportToPDF();
   }
+  // For planner, the dropdown handles specific exports
+  if (currentView === "main") {
+    // This is handled by specific planner export functions
+  }
   addLog(
     "Exported to PDF",
     currentView === "bins" ? "Bins table" : "Main table",
   );
-}
-
-let pendingModuleImport = { module: "", format: "" };
-
-function getModulePermission(moduleName, action) {
-  const map = {
-    planner: {
-      export: canExportPlannerModule,
-      import: canImportPlannerModule,
-    },
-    tidplan: {
-      export: canExportTidplanModule,
-      import: canImportTidplanModule,
-    },
-    warehouse: {
-      export: canExportWarehouseModule,
-      import: canImportWarehouseModule,
-    },
-  };
-  return Boolean(map[moduleName]?.[action]?.());
-}
-
-function getModuleExportFileName(moduleName, format) {
-  const ext = format === "excel" ? "xlsx" : "pdf";
-  const site = (currentSite || "default").replace(/[^A-Za-z0-9_-]/g, "_");
-  return `${moduleName}-${site}-${new Date().toISOString().slice(0, 10)}.${ext}`;
-}
-
-function getImportResultCount(moduleName, payload) {
-  if (moduleName === "tidplan") return payload.itemsImported ?? payload.imported ?? "";
-  if (moduleName === "warehouse") return payload.logsImported != null ? `logs: ${payload.logsImported}` : "OK";
-  return payload.imported ? "OK" : "";
-}
-
-async function handleModuleExport(moduleName, format) {
-  if (!getModulePermission(moduleName, "export")) {
-    showToast(t("accessExportDenied"), "error");
-    return;
-  }
-  const safeFormat = format === "pdf" ? "pdf" : "excel";
-  showLoading("loadingDefault");
-  try {
-    const response = await fetch(
-      `/api/${moduleName}/export/${safeFormat}?site=${encodeURIComponent(currentSite || "default")}`,
-      { cache: "no-store" },
-    );
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || "Export failed");
-    }
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = getModuleExportFileName(moduleName, safeFormat);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-    showToast(`${moduleName} export ${safeFormat.toUpperCase()} OK.`, "success");
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || "Export failed.", "error");
-  } finally {
-    hideLoading();
-  }
-}
-
-function openModuleImportModal(moduleName, format) {
-  if (!getModulePermission(moduleName, "import")) {
-    showToast(t("accessDenied"), "error");
-    return;
-  }
-  pendingModuleImport = { module: moduleName, format: format === "pdf" ? "pdf" : "excel" };
-  const modal = document.getElementById("moduleImportModal");
-  const title = document.getElementById("moduleImportTitle");
-  const label = document.getElementById("moduleImportFileLabel");
-  const file = document.getElementById("moduleImportFile");
-  const upload = document.getElementById("moduleImportUploadBtn");
-  if (title) title.textContent = tFormat("importTitle", { module: moduleName, format: pendingModuleImport.format.toUpperCase() });
-  if (label) label.textContent = t("importFileLabel");
-  if (upload) upload.textContent = t("upload");
-  if (file) {
-    file.value = "";
-    file.accept = pendingModuleImport.format === "pdf" ? ".pdf,application/pdf" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-  }
-  if (modal) modal.style.display = "flex";
-}
-
-function closeModuleImportModal() {
-  const modal = document.getElementById("moduleImportModal");
-  if (modal) modal.style.display = "none";
-  pendingModuleImport = { module: "", format: "" };
-}
-
-async function uploadModuleImport() {
-  const { module: moduleName, format } = pendingModuleImport;
-  if (!moduleName || !format || !getModulePermission(moduleName, "import")) {
-    showToast(t("accessDenied"), "error");
-    return;
-  }
-  const fileInput = document.getElementById("moduleImportFile");
-  const file = fileInput?.files?.[0];
-  if (!file) {
-    showToast("Odaberite datoteku za import.", "error");
-    return;
-  }
-  const expectedExt = format === "pdf" ? ".pdf" : ".xlsx";
-  if (!file.name.toLowerCase().endsWith(expectedExt)) {
-    showToast(`Odaberite ${expectedExt} datoteku.`, "error");
-    return;
-  }
-  showLoading("loadingDefault");
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("site", currentSite || "default");
-    const response = await fetch(`/api/${moduleName}/import/${format}`, {
-      method: "POST",
-      body: formData,
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "Import failed");
-    closeModuleImportModal();
-    showToast(`${moduleName} import OK ${getImportResultCount(moduleName, payload)}`.trim(), "success");
-    await syncServerState();
-    if (moduleName === "planner") renderPlanningTable();
-    if (moduleName === "tidplan") {
-      loadTidplanData();
-      updateTidplan();
-    }
-    if (moduleName === "warehouse") {
-      loadWarehouseData();
-      renderWarehousePage();
-    }
-  } catch (error) {
-    console.error(error);
-    showToast(error.message || "Import failed.", "error");
-  } finally {
-    hideLoading();
-  }
-}
-
-function togglePlannerExportImportDropdown() {
-  const menu = document.getElementById("plannerExportImportDropdown");
-  if (menu) menu.style.display = menu.style.display === "block" ? "none" : "block";
-}
-
-function toggleTidplanExportImportDropdown() {
-  const menu = document.getElementById("tidplanExportImportDropdown");
-  if (menu) menu.style.display = menu.style.display === "block" ? "none" : "block";
-}
-
-function toggleWarehouseExportImportDropdown() {
-  const menu = document.getElementById("warehouseExportImportDropdown");
-  if (menu) menu.style.display = menu.style.display === "block" ? "none" : "block";
-}
-
-function exportPlannerToExcel() {
-  return handleModuleExport("planner", "excel");
-}
-
-function exportPlannerToPDF() {
-  return handleModuleExport("planner", "pdf");
-}
-
-function handleTidplanExportPdf() {
-  return handleModuleExport("tidplan", "pdf");
-}
-
-function handleWarehouseExportExcel() {
-  return handleModuleExport("warehouse", "excel");
 }
 
 function printBinsTable() {
@@ -10503,7 +9663,7 @@ function exportBinsToPDF() {
       ],
     ],
     body: tableData,
-    startY: 30,
+    startY: 26,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: {
       fillColor: [102, 126, 234],
@@ -10511,11 +9671,255 @@ function exportBinsToPDF() {
       fontStyle: "bold",
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
-    margin: { top: 30, left: 12, right: 12 },
+    margin: { top: 26, left: 14, right: 14 },
   });
 
   const fileName = `CMAX_Bins_${appState.currentDate}.pdf`;
   doc.save(fileName);
+}
+
+/* ==================== WAREHOUSE EXPORT/IMPORT ==================== */
+async function handleWarehouseExportExcel() {
+  if (!canExportWarehouse()) {
+    showToast("Nemate dozvolu za export skladišta.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch("/api/warehouse/export/excel");
+    if (!response.ok) throw new Error("Failed to export warehouse");
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `skladiste-${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast("Skladište uspješno exportano u Excel.", "success");
+    addLog("Exported warehouse to Excel");
+  } catch (error) {
+    console.error("Error exporting warehouse:", error);
+    showToast("Greška pri exportu skladišta.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handleWarehouseImportExcel() {
+  if (!canImportWarehouse()) {
+    showToast("Nemate dozvolu za import skladišta.", "error");
+    return;
+  }
+  const fileInput = document.getElementById("warehouseImportFile");
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    showToast("Odaberite Excel datoteku za import.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    const response = await fetch("/api/warehouse/import/excel", {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) throw new Error("Failed to import warehouse");
+    const data = await response.json();
+    showToast(`Uspješno importano ${data.itemsImported} stavki u skladište.`, "success");
+    addLog("Imported warehouse from Excel", { itemsImported: data.itemsImported });
+    closeModal('warehouseImportModal');
+    loadWarehouseData();
+    renderWarehousePage();
+  } catch (error) {
+    console.error("Error importing warehouse:", error);
+    showToast("Greška pri importu skladišta.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+/* ==================== TIDPLAN EXPORT/IMPORT ==================== */
+async function handleTidplanExportPdf() {
+  if (!canExportTidplan()) {
+    showToast("Nemate dozvolu za export Tidplana.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch(`/api/tidplan/export/pdf?site=${encodeURIComponent(currentSite)}`);
+    if (!response.ok) throw new Error("Failed to export Tidplan");
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `tidplan-${currentSite}-${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast("Tidplan uspješno exportan u PDF.", "success");
+    addLog("Exported Tidplan to PDF", { site: currentSite });
+  } catch (error) {
+    console.error("Error exporting Tidplan:", error);
+    showToast("Greška pri exportu Tidplana.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handleTidplanImportPdf() {
+  if (!canImportTidplan()) {
+    showToast("Nemate dozvolu za import Tidplana.", "error");
+    return;
+  }
+  const fileInput = document.getElementById("tidplanImportFile");
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    showToast("Odaberite PDF datoteku za import.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("site", currentSite);
+    const response = await fetch("/api/tidplan/import/pdf", {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) throw new Error("Failed to import Tidplan");
+    const data = await response.json();
+    showToast(`Uspješno importano ${data.itemsImported} stavki u Tidplan.`, "success");
+    addLog("Imported Tidplan from PDF", { site: currentSite, itemsImported: data.itemsImported });
+    closeModal('tidplanImportModal');
+    loadTidplanData();
+    updateTidplan();
+  } catch (error) {
+    console.error("Error importing Tidplan:", error);
+    showToast("Greška pri importu Tidplana.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+/* ==================== PLANNER EXPORT/IMPORT ==================== */
+async function exportPlannerToExcel() {
+  if (!canExportPlanner()) {
+    showToast("Nemate dozvolu za export Plannera.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch(`/api/planner/export/excel?site=${encodeURIComponent(currentSite)}`);
+    if (!response.ok) throw new Error("Failed to export Planner");
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `planner-${currentSite}-${new Date().toISOString().split('T')[0]}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast("Planner uspješno exportan u Excel.", "success");
+    addLog("Exported Planner to Excel", { site: currentSite });
+  } catch (error) {
+    console.error("Error exporting Planner:", error);
+    showToast("Greška pri exportu Plannera.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+async function exportPlannerToPDF() {
+  if (!canExportPlanner()) {
+    showToast("Nemate dozvolu za export Plannera.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch(`/api/planner/export/pdf?site=${encodeURIComponent(currentSite)}`);
+    if (!response.ok) throw new Error("Failed to export Planner");
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `planner-${currentSite}-${new Date().toISOString().split('T')[0]}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast("Planner uspješno exportan u PDF.", "success");
+    addLog("Exported Planner to PDF", { site: currentSite });
+  } catch (error) {
+    console.error("Error exporting Planner:", error);
+    showToast("Greška pri exportu Plannera.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+async function exportPlannerToWord() {
+  if (!canExportPlanner()) {
+    showToast("Nemate dozvolu za export Plannera.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const response = await fetch(`/api/planner/export/word?site=${encodeURIComponent(currentSite)}`);
+    if (!response.ok) throw new Error("Failed to export Planner");
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `planner-${currentSite}-${new Date().toISOString().split('T')[0]}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast("Planner uspješno exportan u Word.", "success");
+    addLog("Exported Planner to Word", { site: currentSite });
+  } catch (error) {
+    console.error("Error exporting Planner:", error);
+    showToast("Greška pri exportu Plannera.", "error");
+  } finally {
+    hideLoading();
+  }
+}
+
+async function handlePlannerImportExcel() {
+  if (!canImportPlanner()) {
+    showToast("Nemate dozvolu za import Plannera.", "error");
+    return;
+  }
+  const fileInput = document.getElementById("plannerImportFile");
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    showToast("Odaberite Excel datoteku za import.", "error");
+    return;
+  }
+  showLoading("loadingDefault");
+  try {
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("site", currentSite);
+    const response = await fetch("/api/planner/import/excel", {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok) throw new Error("Failed to import Planner");
+    const data = await response.json();
+    showToast(`Uspješno importano ${data.tasksImported} zadataka u Planner.`, "success");
+    addLog("Imported Planner from Excel", { site: currentSite, tasksImported: data.tasksImported });
+    closeModal('plannerImportModal');
+    loadData(); // Reload planner data
+    renderPlanningTable();
+  } catch (error) {
+    console.error("Error importing Planner:", error);
+    showToast("Greška pri importu Plannera.", "error");
+  } finally {
+    hideLoading();
+  }
 }
 
 /* ==================== DELETE REPORT (SUPER ADMIN) ==================== */
@@ -10539,6 +9943,10 @@ function deleteReport(reportId) {
   });
 }
 
+function toggleDropdown(id) {
+  document.getElementById(id).classList.toggle("show");
+}
+
 /* ==================== PDF EXPORT ==================== */
 function exportToPDF() {
   const { jsPDF } = window.jspdf;
@@ -10549,24 +9957,42 @@ function exportToPDF() {
   });
 
   const dayData = getCurrentDayData();
-  const header = getPlannerPrintHeaderData();
-  const pageWidth = doc.internal.pageSize.getWidth();
+  const date = new Date(appState.currentDate + "T00:00:00");
+  const dateStr = date
+    .toLocaleDateString("hr-HR", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+    .toUpperCase();
 
-  doc.setDrawColor(210, 214, 220);
-  doc.setLineWidth(0.35);
-  if (header.logo && header.logo.complete) {
-    doc.addImage(header.logo, "PNG", (pageWidth - 20) / 2, 8, 20, 12);
-  }
+  // Header
+  doc.setFillColor(102, 126, 234);
+  doc.rect(0, 0, 297, 22, "F");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.setTextColor(31, 42, 68);
-  doc.text("TIDPLAN", pageWidth / 2, 26, { align: "center" });
+  doc.setTextColor(255, 255, 255);
+  doc.text("CMAX PLANNER", 14, 10);
+  doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(11);
-  doc.setTextColor(75, 85, 99);
-  doc.text(header.site, pageWidth / 2, 33, { align: "center" });
-  doc.text(header.dateText, pageWidth / 2, 39, { align: "center" });
-  doc.line(12, 43, pageWidth - 12, 43);
+  doc.text(dateStr, 14, 17);
+  doc.setTextColor(0, 0, 0);
+
+  // Summary row
+  const presentWorkers = appState.workers.filter(
+    (w) => dayData.workerAttendance[w] !== false,
+  ).length;
+  const availableLifts = appState.lifts.filter(
+    (l) => dayData.liftAvailability[l] !== false,
+  ).length;
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text(
+    `Resursi: ${presentWorkers}/${appState.workers.length} dostupno  |  Liftovi: ${availableLifts}/${appState.lifts.length} dostupno`,
+    14,
+    28,
+  );
   doc.setTextColor(0, 0, 0);
 
   const headers = [
@@ -10605,7 +10031,7 @@ function exportToPDF() {
   doc.autoTable({
     head: [headers],
     body: rows,
-    startY: 48,
+    startY: 32,
     styles: {
       fontSize: 8,
       cellPadding: 3,
@@ -10680,9 +10106,31 @@ function exportToPDF() {
     },
   });
 
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(
+    `CMAX SCM | ${dateStr}`,
+      10,
+      doc.internal.pageSize.height - 6,
+    );
+    doc.text(
+      `${i} / ${pageCount}`,
+      doc.internal.pageSize.width - 20,
+      doc.internal.pageSize.height - 6,
+    );
+  }
+
   const fileName = `CMAX_Planner_${appState.currentDate}.pdf`;
   doc.save(fileName);
 }
+
+
+
+
 
 /* ==================== SITE MANAGEMENT ==================== */
 function populateSiteSelect() {
@@ -10801,6 +10249,10 @@ window.addEventListener("click", (event) => {
     dropdown.style.display = "none";
   }
 
+  const plannerExportDropdown = document.getElementById("plannerExportDropdownMenu");
+  if (plannerExportDropdown && !event.target.closest("#plannerExportDropdown")) {
+    plannerExportDropdown.classList.remove("show");
+  }
   const sortGroup = document.querySelector(".tidplan-controls .sort-group");
   if (sortGroup && !sortGroup.contains(event.target)) {
     closeTidplanSortMenu();
@@ -11208,7 +10660,7 @@ function showTidplan() {
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
-    if (currentView === "notifications" || currentView === "surveys") {
+    if (currentView === "notifications") {
       currentView = "main";
       saveCurrentView("main");
     }
@@ -11216,7 +10668,6 @@ function showTidplan() {
     document.getElementById("tidplan-section").style.display = "block";
     currentView = "tidplan";
     saveCurrentView("tidplan");
-    pushRouteForView("tidplan");
     updateTidplan();
     initTidplanResizer();
     sendPresence(true).catch(() => {});
@@ -11226,12 +10677,10 @@ function showTidplan() {
 
 function showPlanner() {
   const notificationsSection = document.getElementById("notifications-section");
-  const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
   if (notificationsSection) notificationsSection.style.display = "none";
-  if (surveysSection) surveysSection.style.display = "none";
   if (warehouseSection) warehouseSection.style.display = "none";
   if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
   if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
@@ -11240,7 +10689,6 @@ function showPlanner() {
   document.getElementById("planner-section").style.display = "block";
   applyPermissionVisibility();
   saveCurrentView("main");
-  pushRouteForView("main");
   sendPresence(true).catch(() => {});
   refreshPresence().catch(() => {});
 }
@@ -11313,6 +10761,10 @@ function updateTidplan() {
   const btnSave = document.getElementById("btnSaveTidplan");
   if (btnSave) btnSave.textContent = t("tidplanSave");
 
+  const btnTidplanExportPdf = document.getElementById("btnTidplanExportPdf");
+  if (btnTidplanExportPdf) btnTidplanExportPdf.textContent = t("tidplanExportPdf");
+  const btnTidplanImportPdf = document.getElementById("btnTidplanImportPdf");
+  if (btnTidplanImportPdf) btnTidplanImportPdf.textContent = t("tidplanImportPdf");
   const sortPanelHeader = document.querySelector(
     "#tidplanSortOptions .sort-panel-header",
   );
@@ -11341,6 +10793,10 @@ function updateTidplan() {
   const addZoneBtn = document.querySelector(".zone-input-group .btn.btn-small");
   if (addZoneBtn) addZoneBtn.textContent = t("tidplanAddZone");
 
+  const btnTidplanExportPdf = document.getElementById("btnTidplanExportPdf");
+  if (btnTidplanExportPdf) btnTidplanExportPdf.textContent = t("exportPdf");
+  const btnTidplanImportPdf = document.getElementById("btnTidplanImportPdf");
+  if (btnTidplanImportPdf) btnTidplanImportPdf.textContent = t("importPdf");
   if (btnClear)
     btnClear.disabled = !editableTidplan || !hasPermission("canClearTidplan");
 
@@ -12526,6 +11982,10 @@ function saveAvailableKarne() {
   syncServerState().catch(() => {});
 }
 
+
+
+
+
 /* ==================== APP START ==================== */
 window.onerror = function (msg, url, lineNo, columnNo, error) {
   const message = `JavaScript greška: ${msg} (${url}:${lineNo}:${columnNo})`;
@@ -12687,27 +12147,184 @@ function initTidplanFullscreenControls() {
   });
 }
 
-async function bootstrapApp() {
-  setBootState(BOOT_STATES.BOOTING);
-  let bootHealth = null;
-  if (BACKEND_ENABLED) {
-    bootHealth = await waitForBackendReady({ allowTimeoutFallback: true });
-  }
-  await initApp();
-  if (bootHealth?.degraded) {
-    console.warn("Booted in degraded mode while waiting for /api/health.");
-  }
-  setBootState(BOOT_STATES.READY);
-}
-
 window.onload = function () {
-  bootstrapApp().catch((err) => {
+  try {
+    initApp();
+  } catch (err) {
     console.error("initApp failed", err);
     document.body.innerHTML = `<div style="padding:20px;color:#b00;background:#fee;font-family:sans-serif;">
       <h2>Neuspjela inicijalizacija</h2>
       <pre>${err.toString()}</pre>
     </div>`;
-  });
+  }
 };
 
+/* ==================== DYNAMIC UI INJECTION ==================== */
+document.addEventListener("DOMContentLoaded", () => {
+  // Inject Warehouse Export/Import buttons and modal
+  const warehouseActionsBar = document.createElement("div");
+  warehouseActionsBar.className = "warehouse-actions-bar";
+  warehouseActionsBar.innerHTML = `
+    <button id="btnWarehouseExportExcel" class="btn btn-primary">${t("warehouseExportExcel")}</button>
+    <button id="btnWarehouseImportExcel" class="btn btn-secondary">${t("warehouseImportExcel")}</button>
+  `;
+  const warehouseTitleEl = document.getElementById("warehouseTitle");
+  if (warehouseTitleEl) {
+    warehouseTitleEl.parentNode.insertBefore(warehouseActionsBar, warehouseTitleEl.nextSibling);
+  }
 
+  const warehouseImportModal = document.createElement("div");
+  warehouseImportModal.id = "warehouseImportModal";
+  warehouseImportModal.className = "modal-overlay";
+  warehouseImportModal.style.display = "none";
+  warehouseImportModal.innerHTML = `
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2>${t("warehouseImportExcel")}</h2>
+            <button class="close-btn" onclick="closeModal('warehouseImportModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <input type="file" id="warehouseImportFile" accept=".xlsx" />
+            <button id="warehouseImportUploadBtn" class="btn">${t("btnPublishNotification")}</button>
+        </div>
+    </div>
+  `;
+  document.body.appendChild(warehouseImportModal);
+
+  // Inject TidPlan Export/Import buttons and modal
+  const tidplanControls = document.getElementById("tidplan-controls");
+  if (tidplanControls) {
+    const btnPrintTidplan = document.getElementById("btnPrintTidplan");
+    if (btnPrintTidplan) {
+      const exportBtn = document.createElement("button");
+      exportBtn.id = "btnTidplanExportPdf";
+      exportBtn.className = "btn";
+      exportBtn.textContent = t("tidplanExportPdf");
+      exportBtn.onclick = handleTidplanExportPdf;
+      btnPrintTidplan.parentNode.insertBefore(exportBtn, btnPrintTidplan.nextSibling);
+
+      const importBtn = document.createElement("button");
+      importBtn.id = "btnTidplanImportPdf";
+      importBtn.className = "btn";
+      importBtn.textContent = t("tidplanImportPdf");
+      importBtn.onclick = () => openModal('tidplanImportModal');
+      exportBtn.parentNode.insertBefore(importBtn, exportBtn.nextSibling);
+    }
+  }
+
+  const tidplanImportModal = document.createElement("div");
+  tidplanImportModal.id = "tidplanImportModal";
+  tidplanImportModal.className = "modal-overlay";
+  tidplanImportModal.style.display = "none";
+  tidplanImportModal.innerHTML = `
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2>${t("tidplanImportPdf")}</h2>
+            <button class="close-btn" onclick="closeModal('tidplanImportModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <input type="file" id="tidplanImportFile" accept=".pdf" />
+            <button id="tidplanImportUploadBtn" class="btn">${t("btnPublishNotification")}</button>
+        </div>
+    </div>
+  `;
+  document.body.appendChild(tidplanImportModal);
+
+  // Inject Planner Export/Import buttons and modal
+  const mainControls = document.getElementById("main-controls");
+  if (mainControls) {
+    const btnExport = document.getElementById("btnExport"); // Existing Export PDF button
+    if (btnExport) {
+      const plannerExportDropdown = document.createElement("div");
+      plannerExportDropdown.id = "plannerExportDropdown";
+      plannerExportDropdown.className = "dropdown";
+      plannerExportDropdown.innerHTML = `
+        <button id="plannerExportDropdownBtn" class="btn dropdown-toggle" onclick="toggleDropdown('plannerExportDropdownMenu')">${t("export")} <span class="arrow-down"></span></button>
+        <div id="plannerExportDropdownMenu" class="dropdown-menu">
+            <a href="#" id="btnPlannerExportExcel" onclick="exportPlannerToExcel(); return false;">${t("exportExcel")}</a>
+            <a href="#" id="btnPlannerExportPdf" onclick="exportPlannerToPDF(); return false;">${t("exportPdf")}</a>
+            <a href="#" id="btnPlannerExportWord" onclick="exportPlannerToWord(); return false;">${t("exportWord")}</a>
+        </div>
+      `;
+      mainControls.insertBefore(plannerExportDropdown, btnExport);
+      btnExport.style.display = "none"; // Hide old Export PDF button
+
+      const plannerImportExcelBtn = document.createElement("button");
+      plannerImportExcelBtn.id = "btnPlannerImportExcel";
+      plannerImportExcelBtn.className = "btn";
+      plannerImportExcelBtn.textContent = t("plannerImportExcel");
+      plannerImportExcelBtn.onclick = () => openModal('plannerImportModal');
+      mainControls.insertBefore(plannerImportExcelBtn, plannerExportDropdown.nextSibling);
+    }
+  }
+
+  const plannerImportModal = document.createElement("div");
+  plannerImportModal.id = "plannerImportModal";
+  plannerImportModal.className = "modal-overlay";
+  plannerImportModal.style.display = "none";
+  plannerImportModal.innerHTML = `
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2>${t("plannerImportExcel")}</h2>
+            <button class="close-btn" onclick="closeModal('plannerImportModal')">×</button>
+        </div>
+        <div class="modal-body">
+            <input type="file" id="plannerImportFile" accept=".xlsx" />
+            <button id="plannerImportUploadBtn" class="btn">${t("btnPublishNotification")}</button>
+        </div>
+    </div>
+  `;
+  document.body.appendChild(plannerImportModal);
+
+  // Inject Admin Panel Backup Tab
+  const adminTabs = document.getElementById("admin-tabs");
+  if (adminTabs) {
+    const tabBtnBackup = document.createElement("button");
+    tabBtnBackup.id = "tabBtnBackup";
+    tabBtnBackup.className = "tab-btn";
+    tabBtnBackup.textContent = t("backupTabTitle");
+    tabBtnBackup.onclick = () => switchTab('tabBackup');
+    adminTabs.appendChild(tabBtnBackup);
+  }
+
+  const adminTabContent = document.getElementById("admin-tab-content");
+  if (adminTabContent) {
+    const tabBackup = document.createElement("div");
+    tabBackup.id = "tabBackup";
+    tabBackup.className = "tab-content";
+    tabBackup.innerHTML = `
+      <h3>${t("backupTabTitle")}</h3>
+      <div class="admin-section">
+          <h4>Manual Backup</h4>
+          <button id="btnManualBackup" class="btn">${t("backupManualBtn")}</button>
+      </div>
+      <div class="admin-section">
+          <h4>Backup List</h4>
+          <button id="btnListBackups" class="btn">${t("backupListBtn")}</button>
+          <div id="backupListContainer" class="admin-list-container"></div>
+      </div>
+      <div class="admin-section">
+          <h4>Backup Info</h4>
+          <button id="btnBackupInfo" class="btn">${t("backupInfoBtn")}</button>
+          <div id="backupInfoContainer" class="admin-info-container"></div>
+      </div>
+    `;
+    adminTabContent.appendChild(tabBackup);
+  }
+
+  // Attach event listeners for new backup buttons
+  const btnManualBackup = document.getElementById("btnManualBackup");
+  if (btnManualBackup) btnManualBackup.onclick = handleManualBackup;
+  const btnListBackups = document.getElementById("btnListBackups");
+  if (btnListBackups) btnListBackups.onclick = handleListBackups;
+  const btnBackupInfo = document.getElementById("btnBackupInfo");
+  if (btnBackupInfo) btnBackupInfo.onclick = handleBackupInfo;
+
+  // Attach event listener for Planner Import Upload
+  const plannerImportUploadBtn = document.getElementById("plannerImportUploadBtn");
+  if (plannerImportUploadBtn) plannerImportUploadBtn.onclick = handlePlannerImportExcel;
+
+  // Attach event listener for Tidplan Import Upload
+  const tidplanImportUploadBtn = document.getElementById("tidplanImportUploadBtn");
+  if (tidplanImportUploadBtn) tidplanImportUploadBtn.onclick = handleTidplanImportPdf;
+});

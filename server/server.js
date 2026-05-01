@@ -1915,9 +1915,12 @@ function redactSurveyForSession(survey, session, site) {
     finished,
     createdAt: survey.createdAt,
     createdBy: survey.createdBy,
+    pinned: survey.pinned === true,
     allowVoteChange: survey.allowVoteChange === true,
     myVote: ownVote ? ownVote.answerId : null,
     canViewResults: canSeeResults,
+    canDelete: session?.isSuperAdmin || Number(session?.level) >= 6,
+    canPin: session?.isSuperAdmin || Number(session?.level) >= 6,
   };
   if (canSeeResults) {
     response.results = buildSurveyResults(survey, session);
@@ -1930,8 +1933,24 @@ function validateSurveyInput(body) {
   const privacy = ['anonymous', 'semiAnonymous', 'public'].includes(body?.privacy)
     ? body.privacy
     : 'semiAnonymous';
-  const startAt = new Date(`${sanitizeString(body?.startDate, 20)}T${sanitizeString(body?.startTime, 20)}`);
-  const endAt = new Date(`${sanitizeString(body?.endDate, 20)}T${sanitizeString(body?.endTime, 20)}`);
+  
+  // Parse dates in local timezone and treat as intended time
+  // This preserves the time as entered by the user
+  const startDateStr = sanitizeString(body?.startDate, 20);
+  const startTimeStr = sanitizeString(body?.startTime, 20);
+  const endDateStr = sanitizeString(body?.endDate, 20);
+  const endTimeStr = sanitizeString(body?.endTime, 20);
+  
+  // Create date without timezone conversion
+  const parseLocalDateTime = (dateStr, timeStr) => {
+    const combined = `${dateStr}T${timeStr}:00Z`;
+    const date = new Date(combined);
+    return Number.isFinite(date.getTime()) ? date : null;
+  };
+  
+  const startAt = parseLocalDateTime(startDateStr, startTimeStr);
+  const endAt = parseLocalDateTime(endDateStr, endTimeStr);
+  
   const rawAnswers = typeof body?.answers === 'string'
     ? JSON.parse(body.answers || '[]')
     : body?.answers;
@@ -1951,7 +1970,7 @@ function validateSurveyInput(body) {
   };
   if (!question) return { error: 'Question is required' };
   if (answers.length < 2) return { error: 'At least two answers are required' };
-  if (!Number.isFinite(startAt.getTime()) || !Number.isFinite(endAt.getTime()) || endAt <= startAt) {
+  if (!startAt || !endAt || !Number.isFinite(startAt.getTime()) || !Number.isFinite(endAt.getTime()) || endAt <= startAt) {
     return { error: 'Invalid survey time range' };
   }
   if (!recipients.all && !recipients.site && !recipients.users.length) {
@@ -1968,7 +1987,13 @@ apiRouter.get('/surveys', requirePermission('canViewSurveys'), async (req, res, 
     const surveys = getSurveyListFromState(document.data || {}, site)
       .filter((survey) => userCanReceiveSurvey(req.session, survey, site))
       .map((survey) => redactSurveyForSession(survey, req.session, site))
-      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+      .sort((a, b) => {
+        // Pinned surveys first
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+        // Then by creation date (newest first)
+        return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+      });
     res.json({ surveys, version: document.version || 1, updatedAt: document.updatedAt || null });
   } catch (error) {
     next(error);
@@ -2085,6 +2110,80 @@ apiRouter.post('/surveys/:surveyId/vote', requirePermission('canViewSurveys'), a
       return nextState;
     });
     await logActivity(req.session.email, 'survey_voted', { site, surveyId, answerId });
+    res.json({ ok: true, survey: redactSurveyForSession(updatedSurvey, req.session, site), version: saved.version || 1 });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+// DELETE /surveys/:surveyId - Delete a survey (admin level 6+)
+apiRouter.delete('/surveys/:surveyId', async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot delete surveys' });
+    if (!req.session.isSuperAdmin && Number(req.session.level) < 6) {
+      return res.status(403).json({ error: 'Only admin level 6+ can delete surveys' });
+    }
+    const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const surveyId = sanitizeString(req.params.surveyId, 120);
+    const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
+      const surveys = getSurveyListFromState(nextState, site).slice();
+      const index = surveys.findIndex((survey) => survey.id === surveyId);
+      if (index < 0) {
+        const error = new Error('Survey not found');
+        error.statusCode = 404;
+        throw error;
+      }
+      surveys.splice(index, 1);
+      nextState.siteData[site] = { ...currentEntry, surveys };
+      nextState.savedAt = new Date().toISOString();
+      nextState.savedBy = req.session.email;
+      return nextState;
+    });
+    await logActivity(req.session.email, 'survey_deleted', { site, surveyId });
+    res.json({ ok: true, version: saved.version || 1 });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+// PATCH /surveys/:surveyId/pin - Pin/unpin a survey (admin level 6+)
+apiRouter.patch('/surveys/:surveyId/pin', async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot pin surveys' });
+    if (!req.session.isSuperAdmin && Number(req.session.level) < 6) {
+      return res.status(403).json({ error: 'Only admin level 6+ can pin surveys' });
+    }
+    const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const surveyId = sanitizeString(req.params.surveyId, 120);
+    const pinned = req.body?.pinned === true || req.body?.pinned === 'true';
+    let updatedSurvey = null;
+    const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
+      const surveys = getSurveyListFromState(nextState, site).slice();
+      const index = surveys.findIndex((survey) => survey.id === surveyId);
+      if (index < 0) {
+        const error = new Error('Survey not found');
+        error.statusCode = 404;
+        throw error;
+      }
+      const survey = { ...surveys[index], pinned };
+      surveys[index] = survey;
+      updatedSurvey = survey;
+      nextState.siteData[site] = { ...currentEntry, surveys };
+      nextState.savedAt = new Date().toISOString();
+      nextState.savedBy = req.session.email;
+      return nextState;
+    });
+    await logActivity(req.session.email, `survey_${pinned ? 'pinned' : 'unpinned'}`, { site, surveyId });
     res.json({ ok: true, survey: redactSurveyForSession(updatedSurvey, req.session, site), version: saved.version || 1 });
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
