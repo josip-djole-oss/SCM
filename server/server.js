@@ -106,10 +106,28 @@ const DEFAULT_PERMISSIONS = {
   canDeleteReports: true,
   canViewLogs: true,
   canClearLogs: true,
+  canViewBackups: true,
+  canManageBackups: true,
+  canAccessWarehouse: false,
   canViewWarehouse: false,
   canManageWarehouse: false,
   canManageWarehouseStock: false,
   canManageWarehouseIssue: false,
+  canExportWarehouse: false,
+  canImportWarehouse: false,
+  canExportTidplan: true,
+  canImportTidplan: true,
+  canExportPlanner: true,
+  canImportPlanner: true,
+  canUnlockPastDays: false,
+  canViewSurveys: true,
+  canCreateSurveys: false,
+  canEditSurveys: false,
+  canPublishSurveys: false,
+  canViewSurveyResults: false,
+  canViewAnonymousSurveyVoters: false,
+  canViewBackups: false,
+  canManageBackups: false,
   canAssignWarehouseToAdmin: false,
   canModifyReadOnly: false,
   canToggleReadOnly: false,
@@ -124,10 +142,24 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canCreateReports: true,
   canPrint: false,
   canExport: false,
+  canAccessWarehouse: false,
   canViewWarehouse: false,
   canManageWarehouse: false,
   canManageWarehouseStock: false,
   canManageWarehouseIssue: false,
+  canExportWarehouse: false,
+  canImportWarehouse: false,
+  canExportTidplan: false,
+  canImportTidplan: false,
+  canExportPlanner: false,
+  canImportPlanner: false,
+  canUnlockPastDays: false,
+  canViewSurveys: false,
+  canCreateSurveys: false,
+  canEditSurveys: false,
+  canPublishSurveys: false,
+  canViewSurveyResults: false,
+  canViewAnonymousSurveyVoters: false,
   canAssignWarehouseToAdmin: false,
   canModifyReadOnly: false,
 };
@@ -360,6 +392,43 @@ async function exportToExcel(data, columns) {
   return workbook.xlsx.writeBuffer();
 }
 
+async function exportModuleWorkbook(payload, readableSheets = []) {
+  const workbook = new ExcelJS.Workbook();
+  const meta = workbook.addWorksheet('CMAX_EXPORT');
+  meta.columns = [
+    { header: 'Key', key: 'key', width: 24 },
+    { header: 'Value', key: 'value', width: 120 },
+  ];
+  meta.addRows([
+    { key: 'format', value: 'cmax-module-export-v1' },
+    { key: 'module', value: payload.module },
+    { key: 'site', value: payload.site || 'global' },
+    { key: 'exportedAt', value: payload.exportedAt },
+    { key: 'payloadJson', value: JSON.stringify(payload) },
+  ]);
+  meta.getRow(1).font = { bold: true };
+
+  readableSheets.forEach(({ name, rows }) => {
+    const sheet = workbook.addWorksheet(String(name || 'Data').slice(0, 31));
+    const safeRows = Array.isArray(rows) ? rows : [];
+    const columns = Array.from(
+      safeRows.reduce((keys, row) => {
+        Object.keys(row || {}).forEach((key) => keys.add(key));
+        return keys;
+      }, new Set()),
+    );
+    if (!columns.length) {
+      sheet.addRow(['No data']);
+      return;
+    }
+    sheet.columns = columns.map((key) => ({ header: key, key, width: 24 }));
+    safeRows.forEach((row) => sheet.addRow(row));
+    sheet.getRow(1).font = { bold: true };
+  });
+
+  return workbook.xlsx.writeBuffer();
+}
+
 async function exportToPDF(title, content) {
   return new Promise((resolve, reject) => {
     try {
@@ -398,6 +467,102 @@ async function exportToPDF(title, content) {
       reject(error);
     }
   });
+}
+
+async function exportModulePDF(title, payload, readableText = '') {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ size: 'A4', margin: 50 });
+      const chunks = [];
+      const payloadBase64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+
+      doc.on('data', (chunk) => chunks.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      doc.fontSize(20).font('Helvetica-Bold').text(title, { align: 'center' });
+      doc.moveDown();
+      doc.fontSize(10).font('Helvetica').text(`Generated: ${new Date().toISOString()}`);
+      doc.moveDown();
+      doc.fontSize(11).text(readableText || 'CMAX module export');
+      doc.addPage();
+      doc.fontSize(8).font('Courier').text('CMAX_EXPORT_JSON_BASE64_START');
+      for (let i = 0; i < payloadBase64.length; i += 90) {
+        doc.text(payloadBase64.slice(i, i + 90));
+      }
+      doc.text('CMAX_EXPORT_JSON_BASE64_END');
+      doc.end();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function extractPdfText(filePath) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const data = new Uint8Array(fs.readFileSync(filePath));
+  const loadingTask = pdfjs.getDocument({ data, useWorkerFetch: false, isEvalSupported: false, disableFontFace: true });
+  const pdf = await loadingTask.promise;
+  const pages = [];
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+    const page = await pdf.getPage(pageNum);
+    const content = await page.getTextContent();
+    pages.push(content.items.map((item) => item.str || '').join('\n'));
+  }
+  return pages.join('\n');
+}
+
+function parseModulePayloadFromPdfText(text, expectedModule) {
+  const match = String(text || '').match(/CMAX_EXPORT_JSON_BASE64_START\s*([\s\S]*?)\s*CMAX_EXPORT_JSON_BASE64_END/);
+  if (!match) {
+    throw new Error('PDF_STRUCTURE_NOT_RECOGNIZED');
+  }
+  const encoded = match[1].replace(/\s+/g, '');
+  let payload;
+  try {
+    payload = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+  } catch (_) {
+    throw new Error('PDF_STRUCTURE_NOT_RECOGNIZED');
+  }
+  if (!payload || payload.module !== expectedModule) {
+    throw new Error('PDF_STRUCTURE_NOT_RECOGNIZED');
+  }
+  return payload;
+}
+
+async function parseModulePayloadFromExcel(filePath, expectedModule) {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(filePath);
+  const meta = workbook.getWorksheet('CMAX_EXPORT');
+  if (!meta) throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
+  const values = {};
+  meta.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return;
+    values[String(row.getCell(1).value || '')] = row.getCell(2).value;
+  });
+  if (values.format !== 'cmax-module-export-v1' || values.module !== expectedModule || !values.payloadJson) {
+    throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
+  }
+  const payload = JSON.parse(String(values.payloadJson));
+  if (!payload || payload.module !== expectedModule) throw new Error('EXCEL_STRUCTURE_NOT_RECOGNIZED');
+  return payload;
+}
+
+function getSiteEntryFromState(state, site) {
+  const safeSite = sanitizeSiteKey(site);
+  const siteData = state && typeof state.siteData === 'object' ? state.siteData : {};
+  return siteData[safeSite] || siteData[site] || {};
+}
+
+function buildModulePayload(module, site, data, extra = {}) {
+  return {
+    format: 'cmax-module-export-v1',
+    module,
+    site: site || 'global',
+    exportedAt: new Date().toISOString(),
+    data: sanitizeObject(data),
+    ...extra,
+  };
 }
 
 async function exportToWord(title, content) {
@@ -563,17 +728,58 @@ async function getStateDocument() {
   };
 }
 
-async function buildPublicStatePayload(document) {
+function sessionHasPermission(session, permissionKey) {
+  if (!session) return false;
+  if (session.isSuperAdmin) return true;
+  return session.permissions && session.permissions[permissionKey] === true;
+}
+
+function canViewWarehouseInState(session) {
+  return sessionHasPermission(session, 'canViewWarehouse') ||
+    sessionHasPermission(session, 'canAccessWarehouse') ||
+    sessionHasPermission(session, 'canExportWarehouse') ||
+    sessionHasPermission(session, 'canImportWarehouse');
+}
+
+async function buildPublicStatePayload(document, session) {
   const responseState = document?.data && typeof document.data === 'object'
     ? { ...document.data }
     : null;
 
   if (responseState) {
-    if (Array.isArray(responseState.admins)) {
-      responseState.admins = responseState.admins.map((admin) => redactAdminRecord(admin));
-    } else if (responseState.version === 2) {
+    const allowedSites = Array.isArray(responseState.sites)
+      ? responseState.sites.filter((site) => canAccessSite(session || {}, site))
+      : [];
+    responseState.sites = allowedSites;
+    if (!allowedSites.includes(responseState.currentSite)) {
+      responseState.currentSite = allowedSites[0] || 'default';
+    }
+
+    const originalSiteData = responseState.siteData && typeof responseState.siteData === 'object'
+      ? responseState.siteData
+      : {};
+    responseState.siteData = {};
+    allowedSites.forEach((site) => {
+      const entry = originalSiteData[site];
+      if (!entry || typeof entry !== 'object') return;
+      const nextEntry = { ...entry };
+      if (!canViewWarehouseInState(session)) {
+        delete nextEntry.warehouse;
+      }
+      delete nextEntry.surveys;
+      responseState.siteData[site] = nextEntry;
+    });
+
+    if (sessionHasPermission(session, 'canOpenAdminPanel') || sessionHasPermission(session, 'canManageAdmins')) {
       const admins = await readAdmins();
       responseState.admins = admins.map((admin) => redactAdminRecord(admin));
+    } else {
+      delete responseState.admins;
+      delete responseState.adminRemovalNotices;
+    }
+
+    if (!sessionHasPermission(session, 'canManageGuestAccess')) {
+      delete responseState.guestPermissions;
     }
   }
 
@@ -857,6 +1063,34 @@ async function ensureAutoBackupCurrent(label = 'auto') {
 
 function validateStatePayload(state) {
   return Boolean(state && typeof state === 'object' && !Array.isArray(state));
+}
+
+function isPastDateString(dateValue) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue || ''))) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const date = new Date(`${dateValue}T00:00:00`);
+  return date < today;
+}
+
+function canUnlockPastDays(session) {
+  return Boolean(session?.isSuperAdmin || Number(session?.level) >= 6 || session?.permissions?.canUnlockPastDays === true);
+}
+
+function stableJson(value) {
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+function hasPastPlannerDayChanges(previousState, nextState) {
+  const previousSiteData = previousState?.siteData && typeof previousState.siteData === 'object' ? previousState.siteData : {};
+  const nextSiteData = nextState?.siteData && typeof nextState.siteData === 'object' ? nextState.siteData : {};
+  return Object.keys(nextSiteData).some((site) => {
+    const previousDaily = previousSiteData[site]?.planner?.dailyData || {};
+    const nextDaily = nextSiteData[site]?.planner?.dailyData || {};
+    return Object.keys(nextDaily).some((date) =>
+      isPastDateString(date) && stableJson(previousDaily[date]) !== stableJson(nextDaily[date]),
+    );
+  });
 }
 
 async function logActivity(userEmail, action, details = {}) {
@@ -1185,6 +1419,16 @@ app.get('/uploads/*', requireAuth, (req, res) => {
   return res.sendFile(resolvedPath);
 });
 
+app.get('/api/health', (req, res) => {
+  const storage = getStorageStatusPayload();
+  res.json({
+    ok: true,
+    storageReady: storage.ready,
+    storage,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 const apiRouter = express.Router();
 apiRouter.use(requireAuth);
 apiRouter.use(requireCsrf);
@@ -1192,7 +1436,7 @@ apiRouter.use(requireCsrf);
 apiRouter.get('/state', async (req, res, next) => {
   try {
     const document = await getStateDocument();
-    res.json(await buildPublicStatePayload(document));
+    res.json(await buildPublicStatePayload(document, req.session));
   } catch (error) {
     next(error);
   }
@@ -1212,6 +1456,11 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     // Read-only users cannot modify state
     if (req.session.isReadonly) {
       return res.status(403).json({ error: 'Read-only users cannot modify state' });
+    }
+
+    const currentDocument = await getStateDocument();
+    if (!canUnlockPastDays(req.session) && hasPastPlannerDayChanges(currentDocument.data, state)) {
+      return res.status(403).json({ error: 'Past days are locked' });
     }
 
     if (!state.siteData || typeof state.siteData !== 'object' || Object.keys(state.siteData).length === 0) {
@@ -1236,7 +1485,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     });
   } catch (error) {
     if (isVersionConflictError(error)) {
-      return sendVersionConflict(res, async () => buildPublicStatePayload(await getStateDocument()));
+      return sendVersionConflict(res, async () => buildPublicStatePayload(await getStateDocument(), req.session));
     }
     next(error);
   }
@@ -1466,7 +1715,7 @@ apiRouter.get('/files', requireAdmin, (req, res) => {
   res.json({ files });
 });
 
-apiRouter.get('/reports', requireAuth, async (req, res, next) => {
+apiRouter.get('/reports', requirePermission('canViewReports'), async (req, res, next) => {
   try {
     const site = sanitizeString(req.query.site || 'default', 80);
     if (!canAccessSite(req.session, site)) {
@@ -1574,6 +1823,271 @@ apiRouter.post('/notifications', requirePermission('canManageNotifications'), as
         };
       });
     }
+    next(error);
+  }
+});
+
+function getSurveyListFromState(state, site) {
+  const entry = state?.siteData?.[site];
+  return Array.isArray(entry?.surveys) ? entry.surveys : [];
+}
+
+function getSurveyWindow(survey) {
+  const startAt = new Date(survey?.startAt || 0);
+  const endAt = new Date(survey?.endAt || 0);
+  return { startAt, endAt };
+}
+
+function isSurveyActive(survey, now = new Date()) {
+  const { startAt, endAt } = getSurveyWindow(survey);
+  return Number.isFinite(startAt.getTime()) &&
+    Number.isFinite(endAt.getTime()) &&
+    now >= startAt &&
+    now <= endAt;
+}
+
+function isSurveyFinished(survey, now = new Date()) {
+  const { endAt } = getSurveyWindow(survey);
+  return Number.isFinite(endAt.getTime()) && now > endAt;
+}
+
+function userCanReceiveSurvey(session, survey, site) {
+  if (!session || !survey) return false;
+  if (session.isSuperAdmin || session.email === survey.createdBy) return true;
+  const recipients = survey.recipients || {};
+  const email = sanitizeString(session.email || '', 160).toLowerCase();
+  if (recipients.all === true) return true;
+  if (recipients.site === true && survey.site === site) return true;
+  return Array.isArray(recipients.users) && recipients.users.includes(email);
+}
+
+function canViewSurveyVoters(session, survey) {
+  if (!session || !survey) return false;
+  if (session.isSuperAdmin || Number(session.level) >= 6) return true;
+  if (survey.privacy === 'anonymous') {
+    return sessionHasPermission(session, 'canViewAnonymousSurveyVoters');
+  }
+  if (survey.privacy === 'public') return sessionHasPermission(session, 'canViewSurveyResults');
+  return false;
+}
+
+function buildSurveyResults(survey, session) {
+  const answers = Array.isArray(survey.answers) ? survey.answers : [];
+  const votes = Array.isArray(survey.votes) ? survey.votes : [];
+  const showVoters = canViewSurveyVoters(session, survey);
+  return answers.map((answer) => {
+    const answerVotes = votes.filter((vote) => vote.answerId === answer.id);
+    const result = {
+      id: answer.id,
+      text: answer.text,
+      count: answerVotes.length,
+    };
+    if (showVoters) {
+      result.voters = answerVotes.map((vote) => ({
+        email: vote.email,
+        name: vote.name || vote.email,
+        votedAt: vote.votedAt,
+      }));
+    }
+    return result;
+  });
+}
+
+function redactSurveyForSession(survey, session, site) {
+  const active = isSurveyActive(survey);
+  const finished = isSurveyFinished(survey);
+  const canViewResults = sessionHasPermission(session, 'canViewSurveyResults');
+  const canSeeResults = finished || canViewResults || session?.isSuperAdmin || Number(session?.level) >= 6;
+  const userEmail = sanitizeString(session?.email || '', 160).toLowerCase();
+  const ownVote = Array.isArray(survey.votes)
+    ? survey.votes.find((vote) => vote.email === userEmail)
+    : null;
+  const response = {
+    id: survey.id,
+    site: survey.site || site,
+    question: survey.question,
+    imageUrl: survey.imageUrl || '',
+    answers: Array.isArray(survey.answers) ? survey.answers : [],
+    privacy: survey.privacy,
+    startAt: survey.startAt,
+    endAt: survey.endAt,
+    active,
+    finished,
+    createdAt: survey.createdAt,
+    createdBy: survey.createdBy,
+    allowVoteChange: survey.allowVoteChange === true,
+    myVote: ownVote ? ownVote.answerId : null,
+    canViewResults: canSeeResults,
+  };
+  if (canSeeResults) {
+    response.results = buildSurveyResults(survey, session);
+  }
+  return response;
+}
+
+function validateSurveyInput(body) {
+  const question = sanitizeString(body?.question, 1000);
+  const privacy = ['anonymous', 'semiAnonymous', 'public'].includes(body?.privacy)
+    ? body.privacy
+    : 'semiAnonymous';
+  const startAt = new Date(`${sanitizeString(body?.startDate, 20)}T${sanitizeString(body?.startTime, 20)}`);
+  const endAt = new Date(`${sanitizeString(body?.endDate, 20)}T${sanitizeString(body?.endTime, 20)}`);
+  const rawAnswers = typeof body?.answers === 'string'
+    ? JSON.parse(body.answers || '[]')
+    : body?.answers;
+  const answers = Array.isArray(rawAnswers)
+    ? rawAnswers.map((answer) => sanitizeString(answer, 300)).filter(Boolean)
+    : [];
+  const rawUsers = typeof body?.targetUsers === 'string'
+    ? JSON.parse(body.targetUsers || '[]')
+    : body?.targetUsers;
+  const targetUsers = Array.isArray(rawUsers)
+    ? Array.from(new Set(rawUsers.map((email) => sanitizeString(email, 160).toLowerCase()).filter(isValidEmail)))
+    : [];
+  const recipients = {
+    all: body?.targetAll === true || body?.targetAll === 'true',
+    site: body?.targetSite === true || body?.targetSite === 'true',
+    users: targetUsers,
+  };
+  if (!question) return { error: 'Question is required' };
+  if (answers.length < 2) return { error: 'At least two answers are required' };
+  if (!Number.isFinite(startAt.getTime()) || !Number.isFinite(endAt.getTime()) || endAt <= startAt) {
+    return { error: 'Invalid survey time range' };
+  }
+  if (!recipients.all && !recipients.site && !recipients.users.length) {
+    return { error: 'At least one recipient is required' };
+  }
+  return { question, privacy, startAt, endAt, answers, recipients };
+}
+
+apiRouter.get('/surveys', requirePermission('canViewSurveys'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const document = await getStateDocument();
+    const surveys = getSurveyListFromState(document.data || {}, site)
+      .filter((survey) => userCanReceiveSurvey(req.session, survey, site))
+      .map((survey) => redactSurveyForSession(survey, req.session, site))
+      .sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+    res.json({ surveys, version: document.version || 1, updatedAt: document.updatedAt || null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single('image'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot create surveys' });
+    if (!sessionHasPermission(req.session, 'canPublishSurveys')) {
+      return res.status(403).json({ error: 'Insufficient publish permissions' });
+    }
+    const site = sanitizeString(req.body?.site || req.session.currentSite || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    if (req.file) {
+      const ext = path.extname(req.file.originalname || req.file.path).toLowerCase();
+      if (!['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext) || !String(req.file.mimetype || '').startsWith('image/')) {
+        fs.promises.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ error: 'Invalid image upload' });
+      }
+    }
+    const parsed = validateSurveyInput(req.body || {});
+    if (parsed.error) return res.status(400).json({ error: parsed.error });
+    const now = new Date().toISOString();
+    const survey = {
+      id: `survey_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      site,
+      question: parsed.question,
+      imageUrl: req.file ? getUploadUrl(req.file.path) : '',
+      answers: parsed.answers.map((text, index) => ({ id: `a${index + 1}`, text })),
+      recipients: parsed.recipients,
+      privacy: parsed.privacy,
+      startAt: parsed.startAt.toISOString(),
+      endAt: parsed.endAt.toISOString(),
+      allowVoteChange: req.body?.allowVoteChange === true || req.body?.allowVoteChange === 'true',
+      createdAt: now,
+      createdBy: sanitizeString(req.session.email || '', 160).toLowerCase(),
+      votes: [],
+    };
+    const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
+      const surveys = getSurveyListFromState(nextState, site).slice();
+      surveys.push(survey);
+      nextState.siteData[site] = { ...currentEntry, surveys };
+      nextState.savedAt = now;
+      nextState.savedBy = req.session.email;
+      return nextState;
+    });
+    await logActivity(req.session.email, 'survey_created', { site, surveyId: survey.id });
+    res.json({ ok: true, survey: redactSurveyForSession(survey, req.session, site), version: saved.version || 1 });
+  } catch (error) {
+    if (error instanceof SyntaxError) return res.status(400).json({ error: 'Invalid survey payload' });
+    next(error);
+  }
+});
+
+apiRouter.post('/surveys/:surveyId/vote', requirePermission('canViewSurveys'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot vote' });
+    const site = sanitizeString(req.body?.site || req.query.site || req.session.currentSite || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const surveyId = sanitizeString(req.params.surveyId, 120);
+    const answerId = sanitizeString(req.body?.answerId, 80);
+    const email = sanitizeString(req.session.email || '', 160).toLowerCase();
+    let updatedSurvey = null;
+    const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
+      const surveys = getSurveyListFromState(nextState, site).slice();
+      const index = surveys.findIndex((survey) => survey.id === surveyId);
+      if (index < 0) {
+        const error = new Error('Survey not found');
+        error.statusCode = 404;
+        throw error;
+      }
+      const survey = { ...surveys[index], votes: Array.isArray(surveys[index].votes) ? surveys[index].votes.slice() : [] };
+      if (!userCanReceiveSurvey(req.session, survey, site)) {
+        const error = new Error('Access denied to this survey');
+        error.statusCode = 403;
+        throw error;
+      }
+      if (!isSurveyActive(survey)) {
+        const error = new Error('Survey is not active');
+        error.statusCode = 400;
+        throw error;
+      }
+      if (!Array.isArray(survey.answers) || !survey.answers.some((answer) => answer.id === answerId)) {
+        const error = new Error('Invalid answer');
+        error.statusCode = 400;
+        throw error;
+      }
+      const existingIndex = survey.votes.findIndex((vote) => vote.email === email);
+      if (existingIndex >= 0 && survey.allowVoteChange !== true) {
+        const error = new Error('User already voted');
+        error.statusCode = 409;
+        throw error;
+      }
+      const vote = {
+        email,
+        name: sanitizeString(req.session.fullName || req.session.email || '', 180),
+        answerId,
+        votedAt: new Date().toISOString(),
+      };
+      if (existingIndex >= 0) survey.votes[existingIndex] = vote;
+      else survey.votes.push(vote);
+      surveys[index] = survey;
+      updatedSurvey = survey;
+      nextState.siteData[site] = { ...currentEntry, surveys };
+      nextState.savedAt = new Date().toISOString();
+      nextState.savedBy = req.session.email;
+      return nextState;
+    });
+    await logActivity(req.session.email, 'survey_voted', { site, surveyId, answerId });
+    res.json({ ok: true, survey: redactSurveyForSession(updatedSurvey, req.session, site), version: saved.version || 1 });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);
   }
 });
@@ -1851,8 +2365,171 @@ apiRouter.delete('/warehouse-logs', requirePermission('canClearLogs'), async (re
 
 /* ==================== EXPORT/IMPORT ENDPOINTS ==================== */
 
+async function getModulePayload(module, site) {
+  const stateDocument = await getStateDocument();
+  const siteEntry = getSiteEntryFromState(stateDocument.data || {}, site);
+  if (module === 'planner') return buildModulePayload('planner', site, siteEntry.planner || {});
+  if (module === 'tidplan') return buildModulePayload('tidplan', site, siteEntry.tidplan || []);
+  if (module === 'warehouse') {
+    const warehouse = siteEntry.warehouse || {};
+    const logs = Array.isArray(warehouse.logs) ? warehouse.logs : await readJsonFile(warehouseLogsFile, []);
+    return buildModulePayload('warehouse', site, warehouse, { logs: sanitizeObject(logs) });
+  }
+  throw new Error('UNKNOWN_MODULE');
+}
+
+async function importModulePayload(module, site, payload, userEmail) {
+  await mutateVersionedJsonFile(stateFile, null, async (state) => {
+    const nextState = state && typeof state === 'object' ? { ...state } : {};
+    nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+    const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
+    if (module === 'warehouse') {
+      const logs = Array.isArray(payload.logs) ? payload.logs : Array.isArray(payload.data?.logs) ? payload.data.logs : [];
+      nextState.siteData[site] = { ...currentEntry, warehouse: { ...(payload.data || {}), logs } };
+    } else {
+      nextState.siteData[site] = { ...currentEntry, [module]: payload.data };
+    }
+    nextState.savedAt = new Date().toISOString();
+    nextState.savedBy = userEmail;
+    return nextState;
+  });
+}
+
+function sendModuleDownload(res, buffer, contentType, filename) {
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buffer);
+}
+
+apiRouter.get('/warehouse/export/:format(excel|pdf)', requirePermission('canExportWarehouse'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const payload = await getModulePayload('warehouse', site);
+    if (req.params.format === 'pdf') {
+      const itemCount = Array.isArray(payload.data?.catalog) ? payload.data.catalog.length : 0;
+      const logCount = Array.isArray(payload.logs) ? payload.logs.length : 0;
+      const buffer = await exportModulePDF(`Warehouse - ${site}`, payload, `Items: ${itemCount}\nLogs: ${logCount}`);
+      sendModuleDownload(res, buffer, 'application/pdf', `skladiste-${site}-${Date.now()}.pdf`);
+    } else {
+      const buffer = await exportModuleWorkbook(payload, [
+        { name: 'Items', rows: Array.isArray(payload.data?.catalog) ? payload.data.catalog : [] },
+        { name: 'Logs', rows: Array.isArray(payload.logs) ? payload.logs : [] },
+      ]);
+      sendModuleDownload(res, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', `skladiste-${site}-${Date.now()}.xlsx`);
+    }
+    await logActivity(req.session.email, `export_warehouse_${req.params.format}`, { site, includeLogs: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/warehouse/import/:format(excel|pdf)', requirePermission('canImportWarehouse'), upload.single('file'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot import' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const site = sanitizeString(req.body?.site || req.session.currentSite || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const payload = req.params.format === 'pdf'
+      ? parseModulePayloadFromPdfText(await extractPdfText(req.file.path), 'warehouse')
+      : await parseModulePayloadFromExcel(req.file.path, 'warehouse');
+    await importModulePayload('warehouse', site, payload, req.session.email);
+    await logActivity(req.session.email, `import_warehouse_${req.params.format}`, { site, includeLogs: true });
+    fs.unlinkSync(req.file.path);
+    res.json({ ok: true, imported: true, logsImported: Array.isArray(payload.logs) ? payload.logs.length : 0 });
+  } catch (error) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+    if (error?.message === 'PDF_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'PDF structure not recognized' });
+    if (error?.message === 'EXCEL_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'Excel structure not recognized' });
+    next(error);
+  }
+});
+
+apiRouter.get('/tidplan/export/:format(excel|pdf)', requirePermission('canExportTidplan'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.query.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const payload = await getModulePayload('tidplan', site);
+    if (req.params.format === 'pdf') {
+      const buffer = await exportModulePDF(`Tidplan - ${site}`, payload, `Activities: ${Array.isArray(payload.data) ? payload.data.length : 0}`);
+      sendModuleDownload(res, buffer, 'application/pdf', `tidplan-${site}-${Date.now()}.pdf`);
+    } else {
+      const buffer = await exportModuleWorkbook(payload, [{ name: 'Tidplan', rows: Array.isArray(payload.data) ? payload.data : [] }]);
+      sendModuleDownload(res, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', `tidplan-${site}-${Date.now()}.xlsx`);
+    }
+    await logActivity(req.session.email, `export_tidplan_${req.params.format}`, { site });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/tidplan/import/:format(excel|pdf)', requirePermission('canImportTidplan'), upload.single('file'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot import' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const site = sanitizeString(req.body?.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const payload = req.params.format === 'pdf'
+      ? parseModulePayloadFromPdfText(await extractPdfText(req.file.path), 'tidplan')
+      : await parseModulePayloadFromExcel(req.file.path, 'tidplan');
+    if (!Array.isArray(payload.data)) return res.status(400).json({ error: 'Tidplan import data must be an array' });
+    await importModulePayload('tidplan', site, payload, req.session.email);
+    await logActivity(req.session.email, `import_tidplan_${req.params.format}`, { site, itemsCount: payload.data.length });
+    fs.unlinkSync(req.file.path);
+    res.json({ ok: true, itemsImported: payload.data.length });
+  } catch (error) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+    if (error?.message === 'PDF_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'PDF structure not recognized' });
+    if (error?.message === 'EXCEL_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'Excel structure not recognized' });
+    next(error);
+  }
+});
+
+apiRouter.get('/planner/export/:format(excel|pdf)', requirePermission('canExportPlanner'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.query.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const payload = await getModulePayload('planner', site);
+    const rows = Object.entries(payload.data?.dailyData || {}).flatMap(([date, day]) =>
+      (day?.planningRows || []).map((row) => ({ date, ...row })),
+    );
+    if (req.params.format === 'pdf') {
+      const buffer = await exportModulePDF(`Planner - ${site}`, payload, `Planning rows: ${rows.length}`);
+      sendModuleDownload(res, buffer, 'application/pdf', `planner-${site}-${Date.now()}.pdf`);
+    } else {
+      const buffer = await exportModuleWorkbook(payload, [{ name: 'PlannerRows', rows }]);
+      sendModuleDownload(res, buffer, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', `planner-${site}-${Date.now()}.xlsx`);
+    }
+    await logActivity(req.session.email, `export_planner_${req.params.format}`, { site });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/planner/import/:format(excel|pdf)', requirePermission('canImportPlanner'), upload.single('file'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot import' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const site = sanitizeString(req.body?.site || 'default', 80);
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    const payload = req.params.format === 'pdf'
+      ? parseModulePayloadFromPdfText(await extractPdfText(req.file.path), 'planner')
+      : await parseModulePayloadFromExcel(req.file.path, 'planner');
+    if (!payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) return res.status(400).json({ error: 'Planner import data must be an object' });
+    await importModulePayload('planner', site, payload, req.session.email);
+    await logActivity(req.session.email, `import_planner_${req.params.format}`, { site });
+    fs.unlinkSync(req.file.path);
+    res.json({ ok: true, imported: true });
+  } catch (error) {
+    if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+    if (error?.message === 'PDF_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'PDF structure not recognized' });
+    if (error?.message === 'EXCEL_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'Excel structure not recognized' });
+    next(error);
+  }
+});
+
 // Warehouse Export to Excel
-apiRouter.get('/warehouse/export/excel', requirePermission('canViewWarehouse'), async (req, res, next) => {
+apiRouter.get('/warehouse/export/excel', requirePermission('canExportWarehouse'), async (req, res, next) => {
   try {
     const warehouse = await readJsonFile(warehouseFile, { items: [] });
     const data = Array.isArray(warehouse.items) ? warehouse.items.map((item) => ({
@@ -1882,7 +2559,7 @@ apiRouter.get('/warehouse/export/excel', requirePermission('canViewWarehouse'), 
 });
 
 // Warehouse Import from Excel
-apiRouter.post('/warehouse/import/excel', requirePermission('canManageWarehouse'), upload.single('file'), async (req, res, next) => {
+apiRouter.post('/warehouse/import/excel', requirePermission('canImportWarehouse'), upload.single('file'), async (req, res, next) => {
   try {
     if (req.session.isReadonly) {
       return res.status(403).json({ error: 'Read-only users cannot import' });
@@ -1937,7 +2614,7 @@ apiRouter.post('/warehouse/import/excel', requirePermission('canManageWarehouse'
 });
 
 // TidPlan Export to PDF
-apiRouter.get('/tidplan/export/pdf', requirePermission('canAccessTidplan'), async (req, res, next) => {
+apiRouter.get('/tidplan/export/pdf', requirePermission('canExportTidplan'), async (req, res, next) => {
   try {
     const site = sanitizeString(req.query.site || 'default', 80);
     if (!canAccessSite(req.session, site)) {
@@ -1965,7 +2642,7 @@ apiRouter.get('/tidplan/export/pdf', requirePermission('canAccessTidplan'), asyn
 });
 
 // TidPlan Import from PDF (extract text data)
-apiRouter.post('/tidplan/import/pdf', requirePermission('canManageTidplan'), upload.single('file'), async (req, res, next) => {
+apiRouter.post('/tidplan/import/pdf', requirePermission('canImportTidplan'), upload.single('file'), async (req, res, next) => {
   try {
     if (req.session.isReadonly) {
       return res.status(403).json({ error: 'Read-only users cannot import' });
@@ -2021,7 +2698,7 @@ apiRouter.post('/tidplan/import/pdf', requirePermission('canManageTidplan'), upl
 });
 
 // Planner Export to Excel
-apiRouter.get('/planner/export/excel', requirePermission('canAccessPlanner'), async (req, res, next) => {
+apiRouter.get('/planner/export/excel', requirePermission('canExportPlanner'), async (req, res, next) => {
   try {
     const site = sanitizeString(req.query.site || 'default', 80);
     if (!canAccessSite(req.session, site)) {
@@ -2053,7 +2730,7 @@ apiRouter.get('/planner/export/excel', requirePermission('canAccessPlanner'), as
 });
 
 // Planner Export to PDF
-apiRouter.get('/planner/export/pdf', requirePermission('canAccessPlanner'), async (req, res, next) => {
+apiRouter.get('/planner/export/pdf', requirePermission('canExportPlanner'), async (req, res, next) => {
   try {
     const site = sanitizeString(req.query.site || 'default', 80);
     if (!canAccessSite(req.session, site)) {
@@ -2081,7 +2758,7 @@ apiRouter.get('/planner/export/pdf', requirePermission('canAccessPlanner'), asyn
 });
 
 // Planner Export to Word
-apiRouter.get('/planner/export/word', requirePermission('canAccessPlanner'), async (req, res, next) => {
+apiRouter.get('/planner/export/word', requirePermission('canExportPlanner'), async (req, res, next) => {
   try {
     const site = sanitizeString(req.query.site || 'default', 80);
     if (!canAccessSite(req.session, site)) {
@@ -2109,7 +2786,7 @@ apiRouter.get('/planner/export/word', requirePermission('canAccessPlanner'), asy
 });
 
 // Planner Import from Excel
-apiRouter.post('/planner/import/excel', requirePermission('canManagePlans'), upload.single('file'), async (req, res, next) => {
+apiRouter.post('/planner/import/excel', requirePermission('canImportPlanner'), upload.single('file'), async (req, res, next) => {
   try {
     if (req.session.isReadonly) {
       return res.status(403).json({ error: 'Read-only users cannot import' });
@@ -2158,7 +2835,7 @@ apiRouter.post('/planner/import/excel', requirePermission('canManagePlans'), upl
 });
 
 // Backup Management
-apiRouter.get('/backups', requireAdmin, async (req, res, next) => {
+apiRouter.get('/backups', requirePermission('canViewBackups'), async (req, res, next) => {
   try {
     const backups = await listBackups(50);
     res.json({ backups });
@@ -2167,7 +2844,7 @@ apiRouter.get('/backups', requireAdmin, async (req, res, next) => {
   }
 });
 
-apiRouter.post('/backup', requireAdmin, backupLimiter, async (req, res, next) => {
+apiRouter.post('/backup', requirePermission('canManageBackups'), backupLimiter, async (req, res, next) => {
   try {
     if (req.session.isReadonly) {
       return res.status(403).json({ error: 'Read-only users cannot create backups' });
@@ -2197,7 +2874,7 @@ apiRouter.post('/backup', requireAdmin, backupLimiter, async (req, res, next) =>
   }
 });
 
-apiRouter.get('/backup/info', requireAdmin, async (req, res, next) => {
+apiRouter.get('/backup/info', requirePermission('canViewBackups'), async (req, res, next) => {
   try {
     const info = {
       backupInterval: AUTO_BACKUP_INTERVAL_MS / (1000 * 60 * 60), // in hours
@@ -2216,7 +2893,7 @@ apiRouter.get('/backup/info', requireAdmin, async (req, res, next) => {
 
 app.use('/api', apiRouter);
 
-app.get('/', (req, res) => {
+app.get(['/', '/login', '/home', '/planner', '/tidplan', '/bins', '/kante', '/warehouse', '/notifications', '/surveys'], (req, res) => {
   res.sendFile(path.join(STATIC_DIR, 'index.html'));
 });
 
