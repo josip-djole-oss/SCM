@@ -1789,77 +1789,6 @@ function sanitizeSiteId(site) {
   return String(site || "").replace(/[^A-Za-z0-9_-]/g, "_");
 }
 
-function getCsrfToken() {
-  return sessionStorage.getItem(CSRF_TOKEN_KEY) || localStorage.getItem(CSRF_TOKEN_KEY) || "";
-}
-
-function setCsrfToken(token) {
-  if (!token) {
-    sessionStorage.removeItem(CSRF_TOKEN_KEY);
-    localStorage.removeItem(CSRF_TOKEN_KEY);
-    return;
-  }
-  sessionStorage.setItem(CSRF_TOKEN_KEY, token);
-  localStorage.setItem(CSRF_TOKEN_KEY, token);
-}
-
-function clearCsrfToken() {
-  setCsrfToken("");
-}
-
-function clearAuthSessionLocal() {
-  localStorage.removeItem(AUTH_KEY);
-  clearCsrfToken();
-}
-
-function applyAuthData(authData) {
-  if (!authData) return;
-  localStorage.setItem(AUTH_KEY, JSON.stringify(authData));
-  appState.isAdmin = authData.isAdmin;
-  appState.isSuperAdmin = authData.isSuperAdmin;
-  appState.isReadonly = authData.isReadonly;
-  appState.currentUser = authData.email;
-  appState.currentUserName = authData.fullName || "";
-  appState.adminLevel = authData.level || 1;
-  appState.permissions = authData.permissions || normalizePermissions({});
-  appState.guestPermissions = getGuestPermissions();
-}
-
-const originalFetch = window.fetch.bind(window);
-window.fetch = function patchedFetch(resource, options = {}) {
-  const requestUrl = typeof resource === "string" ? resource : resource?.url || "";
-  const nextOptions = { ...options };
-  nextOptions.credentials = nextOptions.credentials || "same-origin";
-  const method = (nextOptions.method || "GET").toUpperCase();
-  const isApiRequest = requestUrl.startsWith("/api/");
-  if (isApiRequest) {
-    nextOptions.headers = new Headers(nextOptions.headers || {});
-    if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && !requestUrl.includes("/api/login")) {
-      const csrfToken = getCsrfToken();
-      if (csrfToken && !nextOptions.headers.has("x-csrf-token")) {
-        nextOptions.headers.set("x-csrf-token", csrfToken);
-      }
-    }
-  }
-  return originalFetch(resource, nextOptions).then((response) => {
-    if (isApiRequest && response.status === 401 && !requestUrl.includes("/api/login")) {
-      clearAuthSessionLocal();
-      appState.isAdmin = false;
-      appState.isSuperAdmin = false;
-      appState.isReadonly = false;
-      appState.currentUser = null;
-      appState.currentUserName = "";
-      appState.adminLevel = 1;
-      appState.permissions = normalizePermissions({});
-      if (document.getElementById("mainContainer")?.style.display !== "none") {
-        showToast("Sesija je istekla. Prijavi se ponovno.", "error");
-        showLogin();
-      }
-    }
-    return response;
-  });
-};
-
 function compareNaturally(a, b) {
   return (a || "").toString().localeCompare((b || "").toString(), "hr", {
     numeric: true,
@@ -1935,6 +1864,11 @@ let notificationViewerImages = [];
 let notificationViewerIndex = 0;
 let notificationsRefreshInterval = null;
 let pendingAdminLevelSelections = {};
+let reportsStateVersionBySite = {};
+let notificationsStateVersionBySite = {};
+let lastEditArea = "";
+let lastAppliedRemoteStateKey = sessionStorage.getItem("cmax_last_remote_state_key") || "";
+let ignoredRemoteStateKey = sessionStorage.getItem("cmax_ignored_remote_state_key") || "";
 const WAREHOUSE_SLOTS_PER_ROW = 8;
 const BACKEND_ENABLED =
   typeof window !== "undefined" &&
@@ -2777,18 +2711,6 @@ function getPermissionLabel(key) {
   return t(`perm_${key}`);
 }
 
-function hasPermission(key) {
-  if (appState.isSuperAdmin) return true;
-  if (appState.isReadonly) {
-    return appState.guestPermissions[key] !== false;
-  }
-  return appState.permissions[key] !== false;
-}
-
-function hasAdminPermission(key) {
-  return appState.isSuperAdmin || (!appState.isReadonly && appState.permissions[key] !== false);
-}
-
 function getGuestWarehouseSiteAccess(site = currentSite) {
   const map = appState.guestPermissions?.warehouseAccessBySite;
   const rawEntry = map && typeof map === "object" ? map[site] : null;
@@ -2808,99 +2730,6 @@ function setGuestWarehouseSiteAccess(permissions, site, access = {}) {
     },
   };
   return next;
-}
-
-function canAccessPlannerModule() {
-  return hasPermission("canAccessPlanner");
-}
-
-function canExportPlanner() { return hasPermission("canExportPlanner"); }
-function canImportPlanner() { return hasPermission("canImportPlanner"); }
-
-
-function canAccessTidplanModule() {
-  return appState.isReadonly
-    ? hasPermission("canAccessTidplan")
-    : appState.isSuperAdmin || appState.permissions.canAccessTidplan !== false;
-}
-
-function canAccessBinsModule() {
-  return hasPermission("canAccessBins");
-}
-function canExportTidplan() { return hasPermission("canExportTidplan"); }
-function canImportTidplan() { return hasPermission("canImportTidplan"); }
-
-function canAccessWarehouseModule() {
-  if (!hasPermission("canAccessWarehouse")) return false;
-  if (!appState.isReadonly) return true;
-  return getGuestWarehouseSiteAccess().allowedItemIds.length > 0;
-}
-
-function canExportWarehouse() { return hasPermission("canExportWarehouse"); }
-function canImportWarehouse() { return hasPermission("canImportWarehouse"); }
-
-function canEditWarehouse() {
-  return !appState.isReadonly && hasPermission("canManageWarehouse");
-}
-
-function canViewWarehouseLogsSection() {
-  if (!hasPermission("canViewWarehouseLogs")) return false;
-  if (!appState.isReadonly) return true;
-  return getGuestWarehouseSiteAccess().allowedItemIds.length > 0;
-}
-
-function canViewWarehouseAnalyticsSection() {
-  if (!hasPermission("canViewWarehouseAnalytics")) return false;
-  if (!appState.isReadonly) return true;
-  return getGuestWarehouseSiteAccess().allowedItemIds.length > 0;
-}
-
-function canAccessNotificationsModule() {
-  return hasPermission("canViewNotifications");
-}
-
-function canManageNotificationsAccess() {
-  return !appState.isReadonly && hasPermission("canManageNotifications");
-}
-
-function canDeleteNotificationsAccess() {
-  return !appState.isReadonly && hasPermission("canDeleteNotifications");
-}
-
-function canManageSiteAccess() {
-  return appState.isSuperAdmin || hasAdminPermission("canManageSiteAccess");
-}
-
-function canManageBackups() { return !appState.isReadonly && hasAdminPermission("canManageBackups"); }
-function canViewBackups() { return hasAdminPermission("canViewBackups"); }
-
-function getCurrentAdminAllowedSites() {
-  if (appState.isSuperAdmin) return null;
-  if (!canManageSiteAccess()) return null;
-  if (!appState.currentUser) return null;
-  const admin = getAdmins().find((a) => a.email === appState.currentUser);
-  if (admin && Array.isArray(admin.allowedSites)) {
-    return admin.allowedSites;
-  }
-  return null;
-}
-
-function getAccessibleSites() {
-  const allowed = getCurrentAdminAllowedSites();
-  if (allowed === null) return (sites || []).slice();
-  return (sites || []).filter((site) => allowed.includes(site));
-}
-
-function canCreateReportsAccess() {
-  return hasPermission("canCreateReports");
-}
-
-function canEditBinsDataAccess() {
-  return !appState.isReadonly && canEditDate(appState.currentDate) && hasPermission("canEditBinsData");
-}
-
-function canOpenAdminPanelAccess() {
-  return !appState.isReadonly && appState.isAdmin && hasPermission("canOpenAdminPanel");
 }
 
 function renderPermissionEditor(containerId, prefix, permissionSource, sections) {
@@ -3109,107 +2938,6 @@ function initApp() {
   });
 }
 
-function saveCurrentView(view) {
-  localStorage.setItem(CURRENT_VIEW_KEY, view);
-}
-
-function routeForView(view = currentView) {
-  const routes = {
-    main: "/planner",
-    home: "/home",
-    planner: "/planner",
-    tidplan: "/tidplan",
-    warehouse: "/warehouse",
-    warehouseLogs: "/warehouse",
-    warehouseGraph: "/warehouse",
-    notifications: "/notifications",
-    surveys: "/surveys",
-    bins: "/bins",
-  };
-  return routes[view] || "/planner";
-}
-
-function viewFromPath(pathname = window.location.pathname) {
-  const path = String(pathname || "/").toLowerCase();
-  if (path === "/login") return "login";
-  if (path === "/" || path === "/home" || path === "/planner") return "main";
-  if (path === "/tidplan") return "tidplan";
-  if (path === "/warehouse") return "warehouse";
-  if (path === "/notifications") return "notifications";
-  if (path === "/surveys") return "surveys";
-  if (path === "/bins" || path === "/kante") return "bins";
-  return null;
-}
-
-function pushRouteForView(view = currentView, options = {}) {
-  if (suppressRoutePush || !window.history) return;
-  const path = options.path || routeForView(view);
-  if (window.location.pathname === path) return;
-  const state = { view };
-  if (options.replace) history.replaceState(state, "", path);
-  else history.pushState(state, "", path);
-}
-
-function applyRouteFromPath(pathname = window.location.pathname) {
-  const view = viewFromPath(pathname);
-  if (!view) return false;
-  suppressRoutePush = true;
-  try {
-    if (view === "login") {
-      showLogin();
-    } else if (view === "main") {
-      showPlanner();
-    } else if (view === "tidplan") {
-      showTidplan();
-    } else if (view === "warehouse") {
-      showWarehouse();
-    } else if (view === "notifications") {
-      showNotifications();
-    } else if (view === "surveys") {
-      showSurveys();
-    } else if (view === "bins") {
-      if (currentView !== "bins") toggleBinsView();
-    }
-  } finally {
-    suppressRoutePush = false;
-  }
-  return true;
-}
-
-function restoreLastView() {
-  if (applyRouteFromPath(window.location.pathname)) return;
-  const savedView = localStorage.getItem(CURRENT_VIEW_KEY) || "main";
-  if (savedView === "tidplan") {
-    if (document.getElementById("tidplan-section").style.display !== "block") {
-      showTidplan();
-    }
-    return;
-  }
-  if (savedView === "notifications") {
-    showNotifications();
-    return;
-  }
-  if (savedView === "bins") {
-    if (currentView !== "bins") {
-      toggleBinsView();
-    }
-    return;
-  }
-  if (savedView === "warehouse") {
-    showWarehouse();
-    return;
-  }
-  if (savedView === "warehouseLogs") {
-    showWarehouseLogs();
-    return;
-  }
-  if (savedView === "warehouseGraph") {
-    showWarehouseGraph();
-    return;
-  }
-  // main view: leave defaults as-is
-}
-
 function initAdmins() {
   if (BACKEND_ENABLED) return;
   const admins = getAdmins();
@@ -3245,18 +2973,37 @@ function getReports() {
   return Array.isArray(parsed) ? parsed : [];
 }
 
+function extractListPayload(payload, key) {
+  if (Array.isArray(payload)) return { list: payload, version: null, updatedAt: null };
+  if (payload && typeof payload === "object" && Array.isArray(payload[key])) {
+    return {
+      list: payload[key],
+      version: Number(payload.version) || null,
+      updatedAt: payload.updatedAt || null,
+    };
+  }
+  return { list: [], version: null, updatedAt: null };
+}
+
 function saveReports(reports) {
   localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
   if (BACKEND_ENABLED) {
+    const site = currentSite;
     fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         reports,
         userEmail: appState.currentUser || null,
-        site: currentSite,
+        site,
+        lastKnownVersion: reportsStateVersionBySite[site] || 1,
       }),
-    }).catch(() => {});
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((payload) => {
+        reportsStateVersionBySite[site] = Number(payload?.version) || reportsStateVersionBySite[site] || 1;
+      })
+      .catch(() => {});
   }
   scheduleServerSync();
 }
@@ -3266,13 +3013,19 @@ function loadReportsData() {
     return Promise.resolve(getReports());
   }
 
-  return fetch(`/api/reports?site=${encodeURIComponent(currentSite)}`, {
+  const site = currentSite;
+  return fetch(`/api/reports?site=${encodeURIComponent(site)}`, {
     cache: "no-store",
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((reports) => {
-      localStorage.setItem(REPORTS_KEY, JSON.stringify(reports || []));
-      return reports || [];
+    .then((payload) => {
+      const parsed = extractListPayload(payload, "reports");
+      if (parsed.version) reportsStateVersionBySite[site] = parsed.version;
+      localStorage.setItem(getSiteStorageKey("cmax_planner_reports", site), JSON.stringify(parsed.list));
+      if (site === currentSite) {
+        localStorage.setItem(REPORTS_KEY, JSON.stringify(parsed.list));
+      }
+      return parsed.list;
     })
     .catch(() => getReports());
 }
@@ -3303,9 +3056,15 @@ function saveNotificationsForSite(site, notifications) {
       notifications,
       userEmail: appState.currentUser || null,
       site,
+      lastKnownVersion: notificationsStateVersionBySite[site] || 1,
     }),
   })
-    .then((res) => (res.ok ? true : Promise.reject()))
+    .then((res) => (res.ok ? res.json().catch(() => ({})) : Promise.reject(res)))
+    .then((payload) => {
+      notificationsStateVersionBySite[site] =
+        Number(payload?.version) || notificationsStateVersionBySite[site] || 1;
+      return true;
+    })
     .catch(() => {
       scheduleServerSync();
       return false;
@@ -3321,8 +3080,10 @@ function loadNotificationsData(site = currentSite) {
     cache: "no-store",
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((notifications) => {
-      const list = Array.isArray(notifications) ? notifications : [];
+    .then((payload) => {
+      const parsed = extractListPayload(payload, "notifications");
+      const list = parsed.list;
+      if (parsed.version) notificationsStateVersionBySite[site] = parsed.version;
       localStorage.setItem(
         getNotificationStorageKey(site),
         JSON.stringify(list),
@@ -5265,9 +5026,10 @@ function canUserPerformEdits() {
   return editKeys.some((key) => hasPermission(key));
 }
 
-function trackEditActivity() {
+function trackEditActivity(area = "") {
   if (!canUserPerformEdits()) return;
   lastEditAt = Date.now();
+  lastEditArea = area || getPresenceView();
   const now = Date.now();
   if (
     BACKEND_ENABLED &&
@@ -5309,6 +5071,21 @@ function getPresenceView() {
   return "planner";
 }
 
+function getPresenceAreaLabel(view = "") {
+  const labels = {
+    planner: "Planner",
+    main: "Planner",
+    bins: "Bins",
+    tidplan: "Tidplan",
+    warehouse: "Skladište",
+    warehouseLogs: "Skladište logovi",
+    warehouseGraph: "Skladište graf",
+    notifications: "Obavijesti",
+    surveys: "Ankete",
+  };
+  return labels[view] || "Planner";
+}
+
 function getPresenceInitials(email) {
   const base = (email || "?").split("@")[0].replace(/[^A-Za-z0-9]/g, "");
   return (base.slice(0, 2) || "?").toUpperCase();
@@ -5333,9 +5110,15 @@ function renderPresence(users = []) {
     const avatar = document.createElement("span");
     avatar.className = `presence-avatar ${user.mode === "viewing" ? "is-viewing" : "is-editing"}`;
     avatar.textContent = user.initials || getPresenceInitials(user.email);
+    const areaLabel = getPresenceAreaLabel(
+      user.mode === "viewing" ? user.currentView : user.editingArea || user.currentView,
+    );
     const statusLabel =
-      user.mode === "viewing" ? t("presenceViewing") : t("presenceEditing");
-    avatar.title = `${user.displayName || user.email} - ${statusLabel}`;
+      user.mode === "viewing"
+        ? `${t("presenceViewing")} ${areaLabel}`
+        : `${t("presenceEditing")} ${areaLabel}`;
+    const timeLabel = user.lastEditAt ? ` - ${new Date(user.lastEditAt).toLocaleTimeString(getCurrentLocale())}` : "";
+    avatar.title = `${user.displayName || user.email} - ${statusLabel}${timeLabel}`;
     list.appendChild(avatar);
   });
 
@@ -5365,31 +5148,120 @@ function canRefreshSharedData() {
   return !appState.hasUnsavedChanges && !tidplanDataChanged;
 }
 
+function getRemoteStateKey(snapshot, version = serverStateVersion) {
+  if (!snapshot || typeof snapshot !== "object") return "";
+  return [
+    Number(version) || 1,
+    snapshot.savedAt || "",
+    snapshot.savedBy || "",
+  ].join("|");
+}
+
+function rememberAppliedRemoteState(snapshot, version = serverStateVersion) {
+  const key = getRemoteStateKey(snapshot, version);
+  if (!key) return;
+  lastAppliedRemoteStateKey = key;
+  sessionStorage.setItem("cmax_last_remote_state_key", key);
+  if (ignoredRemoteStateKey === key) {
+    ignoredRemoteStateKey = "";
+    sessionStorage.removeItem("cmax_ignored_remote_state_key");
+  }
+}
+
+function rememberIgnoredRemoteState(key) {
+  ignoredRemoteStateKey = key || "";
+  if (ignoredRemoteStateKey) {
+    sessionStorage.setItem("cmax_ignored_remote_state_key", ignoredRemoteStateKey);
+  } else {
+    sessionStorage.removeItem("cmax_ignored_remote_state_key");
+  }
+}
+
+function formatRemoteEditTime(value) {
+  const date = new Date(value || 0);
+  if (!Number.isFinite(date.getTime())) return "";
+  return date.toLocaleString(getCurrentLocale());
+}
+
+function getRemoteEditorName(snapshot) {
+  const email = snapshot?.savedBy || "";
+  if (!email) return "Netko";
+  const admin = getAdmins().find((entry) => entry.email === email);
+  return admin?.fullName || email;
+}
+
+function renderAfterSharedDataRefresh() {
+  renderAll();
+  if (currentView === "bins") {
+    renderBinsTable();
+  }
+  if (currentView === "warehouse") {
+    renderWarehousePage();
+  }
+  if (currentView === "warehouseLogs") {
+    renderWarehouseLogsPage();
+  }
+  if (currentView === "warehouseGraph") {
+    renderWarehouseGraphPage();
+  }
+  if (document.getElementById("tidplan-section")?.style.display === "block") {
+    updateTidplan();
+  }
+  if (currentView === "notifications") {
+    renderNotificationsList();
+  }
+  updateNotifBadge();
+}
+
+function applySharedDataRefresh(snapshot, version) {
+  rememberAppliedRemoteState(snapshot, version);
+  return loadAllData()
+    .then(() => {
+      renderAfterSharedDataRefresh();
+      return true;
+    })
+    .catch(() => false);
+}
+
 function refreshSharedDataIfSafe() {
-  if (!BACKEND_ENABLED || !canRefreshSharedData()) {
+  if (!BACKEND_ENABLED) {
     return Promise.resolve(false);
   }
 
-  return loadAllData()
-    .then(() => {
-      renderAll();
-      if (currentView === "bins") {
-        renderBinsTable();
+  return fetch("/api/state", { cache: "no-store" })
+    .then((res) => (res.ok ? res.json() : Promise.reject()))
+    .then((payload) => {
+      serverStateVersion = Number(payload?.version) || serverStateVersion || 1;
+      const snapshot = payload?.state;
+      const remoteKey = getRemoteStateKey(snapshot, serverStateVersion);
+      if (!remoteKey || remoteKey === lastAppliedRemoteStateKey || remoteKey === ignoredRemoteStateKey) {
+        return false;
       }
-      if (currentView === "warehouse") {
-        renderWarehousePage();
+      if (!snapshot?.savedBy || snapshot.savedBy === appState.currentUser) {
+        rememberAppliedRemoteState(snapshot, serverStateVersion);
+        return false;
       }
-      if (currentView === "warehouseLogs") {
-        renderWarehouseLogsPage();
+      if (!canRefreshSharedData()) {
+        return false;
       }
-      if (currentView === "warehouseGraph") {
-        renderWarehouseGraphPage();
-      }
-      if (document.getElementById("tidplan-section")?.style.display === "block") {
-        updateTidplan();
-      }
-      updateNotifBadge();
-      return true;
+
+      const editor = getRemoteEditorName(snapshot);
+      const time = formatRemoteEditTime(snapshot.savedAt);
+      const message = `${editor} je uređivao podatke${time ? ` u ${time}` : ""}. Želite li povući najnovije podatke?`;
+      return new Promise((resolve) => {
+        showConfirm(
+          message,
+          "Promjena na serveru",
+          "i",
+          () => {
+            applySharedDataRefresh(snapshot, serverStateVersion).then(resolve);
+          },
+          () => {
+            rememberIgnoredRemoteState(remoteKey);
+            resolve(false);
+          },
+        );
+      });
     })
     .catch(() => false);
 }
@@ -5513,6 +5385,7 @@ function syncSiteMetadata(snapshot) {
   STORAGE_KEY = getStorageKey("cmax_planner_data");
   BINS_KEY = getStorageKey("cmax_planner_bins");
   REPORTS_KEY = getStorageKey("cmax_planner_reports");
+  NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
 
   populateSiteSelect();
   updateMainTitle();
@@ -5594,6 +5467,8 @@ function sendPresence(active = true, keepalive = false) {
       displayName: getPresenceDisplayName(appState.currentUser),
       initials: getPresenceInitials(appState.currentUser),
       mode: getPresenceMode(),
+      editingArea: lastEditArea || getPresenceView(),
+      lastEditAt: lastEditAt || null,
       currentSite,
       currentView: getPresenceView(),
       active,
@@ -6558,6 +6433,7 @@ function applyServerStateSnapshot(snapshot) {
   if (!snapshot || typeof snapshot !== "object" || snapshot.version !== 2) {
     return false;
   }
+  rememberAppliedRemoteState(snapshot, serverStateVersion);
 
   const snapshotSites =
     Array.isArray(snapshot.sites) && snapshot.sites.length

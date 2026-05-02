@@ -14,6 +14,9 @@ const { PDFDocument: PDFLibDocument } = require('pdf-lib');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell } = require('docx');
 const { VersionConflictError, createStorage } = require('./services/storage');
 const authHelpers = require('./middleware/auth');
+const { registerPlannerRoutes } = require('./routes/planner');
+const { registerTidplanRoutes } = require('./routes/tidplan');
+const { registerWarehouseRoutes } = require('./routes/warehouse');
 
 const app = express();
 
@@ -2281,8 +2284,10 @@ apiRouter.get('/presence', (req, res) => {
       displayName: entry.displayName,
       initials: entry.initials,
       mode: entry.mode,
+      editingArea: entry.editingArea,
       currentSite: entry.currentSite,
       currentView: entry.currentView,
+      lastEditAt: entry.lastEditAt,
       lastSeen: entry.lastSeen,
     }));
   res.json({ users });
@@ -2303,8 +2308,10 @@ apiRouter.post('/presence', (req, res) => {
     displayName: sanitizeString(body.displayName || req.session.fullName || req.session.email, 160),
     initials: sanitizeString(body.initials || '?', 8),
     mode: body.mode === 'viewing' ? 'viewing' : 'editing',
+    editingArea: sanitizeString(body.editingArea || body.currentView || 'planner', 80),
     currentSite: sanitizeString(body.currentSite || 'default', 80),
     currentView: sanitizeString(body.currentView || 'planner', 80),
+    lastEditAt: Number(body.lastEditAt) || null,
     lastSeen: Date.now(),
   });
   res.json({ success: true });
@@ -2370,6 +2377,17 @@ apiRouter.get('/reports', requirePermission('canViewReports'), async (req, res, 
   }
 });
 
+function mergeCreatedReports(existingReports, submittedReports) {
+  const existing = Array.isArray(existingReports) ? existingReports : [];
+  const submitted = Array.isArray(submittedReports) ? submittedReports : [];
+  const existingIds = new Set(existing.map((report) => String(report?.id || '')));
+  const created = submitted.filter((report) => {
+    const id = String(report?.id || '');
+    return id && !existingIds.has(id);
+  });
+  return [...existing, ...created];
+}
+
 apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, res, next) => {
   try {
   if (req.session.isReadonly) {
@@ -2384,13 +2402,20 @@ apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, re
   if (!Array.isArray(reports)) {
     return res.status(400).json({ error: 'Invalid reports payload' });
   }
-  if (!Number.isFinite(lastKnownVersion) || lastKnownVersion < 1) {
+  const canProcessReports =
+    sessionHasPermission(req.session, 'canApproveReports') ||
+    sessionHasPermission(req.session, 'canDeleteReports');
+  if (canProcessReports && (!Number.isFinite(lastKnownVersion) || lastKnownVersion < 1)) {
     return res.status(400).json({ error: 'Missing lastKnownVersion' });
   }
-  const savedDocument = await writeVersionedJsonFile(getReportsFilePath(site), reports, {
-    lastKnownVersion,
-    fallbackValue: [],
-  });
+  const savedDocument = canProcessReports
+    ? await writeVersionedJsonFile(getReportsFilePath(site), reports, {
+        lastKnownVersion,
+        fallbackValue: [],
+      })
+    : await mutateVersionedJsonFile(getReportsFilePath(site), [], (existingReports) =>
+        mergeCreatedReports(existingReports, reports),
+      );
   await logActivity(req.session.email, 'save_reports', { count: reports.length, site });
   res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt });
   } catch (error) {
@@ -2426,6 +2451,21 @@ apiRouter.get('/notifications', requirePermission('canViewNotifications'), async
   }
 });
 
+function mergeNotificationsById(existingNotifications, submittedNotifications) {
+  const mergedById = new Map();
+  (Array.isArray(existingNotifications) ? existingNotifications : []).forEach((notification) => {
+    const id = String(notification?.id || '');
+    if (id) mergedById.set(id, notification);
+  });
+  (Array.isArray(submittedNotifications) ? submittedNotifications : []).forEach((notification) => {
+    const id = String(notification?.id || '');
+    if (id) mergedById.set(id, notification);
+  });
+  return Array.from(mergedById.values()).sort((a, b) =>
+    String(b?.createdAt || '').localeCompare(String(a?.createdAt || '')),
+  );
+}
+
 apiRouter.post('/notifications', requirePermission('canManageNotifications'), async (req, res, next) => {
   try {
   if (req.session.isReadonly) {
@@ -2440,13 +2480,20 @@ apiRouter.post('/notifications', requirePermission('canManageNotifications'), as
   if (!Array.isArray(notifications)) {
     return res.status(400).json({ error: 'Invalid notifications payload' });
   }
-  if (!Number.isFinite(lastKnownVersion) || lastKnownVersion < 1) {
-    return res.status(400).json({ error: 'Missing lastKnownVersion' });
-  }
-  const savedDocument = await writeVersionedJsonFile(getNotificationsFilePath(site), notifications, {
-    lastKnownVersion,
-    fallbackValue: [],
-  });
+  const savedDocument = await mutateVersionedJsonFile(
+    getNotificationsFilePath(site),
+    [],
+    (existingNotifications, documentInfo) => {
+      if (
+        Number.isFinite(lastKnownVersion) &&
+        lastKnownVersion >= 1 &&
+        Number(lastKnownVersion) === Number(documentInfo.version)
+      ) {
+        return notifications;
+      }
+      return mergeNotificationsById(existingNotifications, notifications);
+    },
+  );
   await logActivity(req.session.email, 'save_notifications', { count: notifications.length, site });
   res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt });
   } catch (error) {
@@ -3180,6 +3227,35 @@ function sendModuleDownload(res, buffer, contentType, filename) {
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.send(buffer);
 }
+
+function unlinkUpload(filePath) {
+  try {
+    fs.unlinkSync(filePath);
+  } catch (_) {}
+}
+
+const moduleRouteDeps = {
+  buildReadableExport,
+  canAccessSite,
+  extractPdfText,
+  exportModulePDF,
+  exportModuleWorkbook,
+  getModulePayload,
+  importModulePayload,
+  logActivity,
+  parseModulePayloadFromExcel,
+  parseModulePayloadFromPdfText,
+  requirePermission,
+  sanitizeString,
+  sendModuleDownload,
+  sessionHasPermission,
+  unlinkUpload,
+  upload,
+};
+
+registerWarehouseRoutes(apiRouter, moduleRouteDeps);
+registerTidplanRoutes(apiRouter, moduleRouteDeps);
+registerPlannerRoutes(apiRouter, moduleRouteDeps);
 
 apiRouter.get('/warehouse/export/:format(excel|pdf)', requirePermission('canExportWarehouse'), async (req, res, next) => {
   try {
