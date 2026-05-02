@@ -10327,7 +10327,7 @@ function exportBinsToPDF() {
       ],
     ],
     body: tableData,
-    startY: contentStartY + 6,
+    startY: contentStartY + 10,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: {
       fillColor: [102, 126, 234],
@@ -10335,7 +10335,7 @@ function exportBinsToPDF() {
       fontStyle: "bold",
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
-    margin: { top: contentStartY + 6, left: 14, right: 14 },
+    margin: { top: contentStartY + 10, left: 14, right: 14 },
   });
 
   const fileName = `CMAX_Bins_${appState.currentDate}.pdf`;
@@ -10764,17 +10764,19 @@ function getCmaxLogoImage() {
 function drawCmaxPdfHeader(doc, site = currentSite, dateLabel = formatCmaxPrintDate(), options = {}) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const logo = getCmaxLogoImage();
-  const logoSize = options.logoSize || 34;
+  const logoSize = options.logoSize || 39;
   const title = `CMAX SCM - ${site || currentSite}`;
-  const titleWidth = Math.min(Math.max(doc.getTextWidth(title) + 20, 94), pageWidth - 96);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  const titleWidth = Math.min(Math.max(doc.getTextWidth(title) + 24, 118), pageWidth - 104);
   const groupWidth = logoSize + 7 + titleWidth;
   const startX = (pageWidth - groupWidth) / 2;
   const topY = options.topY || 7;
   const titleX = startX + logoSize + 7;
-  const titleY = topY + 9;
+  const titleY = topY + 10;
 
   doc.setFillColor(102, 88, 190);
-  doc.roundedRect(startX, topY, logoSize, logoSize, 4, 4, "F");
+  doc.roundedRect(startX, topY, logoSize, logoSize, 5, 5, "F");
 
   if (logo) {
     try {
@@ -10804,25 +10806,27 @@ function drawCmaxPdfHeader(doc, site = currentSite, dateLabel = formatCmaxPrintD
   }
 
   doc.setFillColor(102, 88, 190);
-  doc.roundedRect(titleX, titleY, titleWidth, 13, 2, 2, "F");
+  doc.roundedRect(titleX, titleY, titleWidth, 15, 2, 2, "F");
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(titleX + 4, titleY + 5.4, 3, 3, 0.8, 0.8, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15.5);
+  doc.setFontSize(18);
   doc.setTextColor(255, 255, 255);
-  doc.text(`• ${title}`, titleX + titleWidth / 2, titleY + 9, { align: "center" });
+  doc.text(title, titleX + 10, titleY + 10.6);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
+  doc.setFontSize(7.8);
   doc.setTextColor(70, 70, 70);
-  doc.text(dateLabel, titleX + titleWidth / 2, titleY + 21, { align: "center" });
+  doc.text(dateLabel, titleX + titleWidth / 2, titleY + 24, { align: "center" });
 
   doc.setDrawColor(102, 88, 190);
   doc.setLineWidth(0.35);
-  doc.line(10, topY + logoSize + 4, pageWidth - 10, topY + logoSize + 4);
+  doc.line(10, topY + logoSize + 5, pageWidth - 10, topY + logoSize + 5);
   doc.setTextColor(0, 0, 0);
-  return topY + logoSize + 12;
+  return topY + logoSize + 20;
 }
 
-function getCmaxPrintHeaderHtml(site = currentSite, dateLabel = formatCmaxPrintDate()) {
+function getCmaxPrintHeaderHtmlLegacy(site = currentSite, dateLabel = formatCmaxPrintDate()) {
   return `
     <div class="header cmax-print-header">
       <div class="logo-section">
@@ -11040,7 +11044,7 @@ function exportToPDF() {
   doc.autoTable({
     head: [headers],
     body: rows,
-    startY: 32,
+    startY: contentStartY + 14,
     styles: {
       fontSize: 8,
       cellPadding: 3,
@@ -11183,7 +11187,7 @@ function exportWarehouseInventoryToPDF() {
   doc.autoTable({
     head: [["Alat / materijal", "Jedinica", "Trenutno", "Ukupno dano", "Ukupno doslo", "Min. limit"]],
     body: rows.map((row) => [row.name, row.unit, row.current, row.issued, row.received, row.minimum]),
-    startY: contentStartY + 8,
+    startY: contentStartY + 14,
     styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.3 },
     headStyles: {
       fillColor: [102, 126, 234],
