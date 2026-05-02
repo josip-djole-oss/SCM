@@ -3713,12 +3713,11 @@ function printNotificationDocument(note) {
         <meta charset="UTF-8">
         <title>Obavijest ${escapeHtml(formatNotificationId(note.id))}</title>
         <style>
+          ${getCmaxPrintHeaderCss()}
           @page { size: A4 portrait; margin: 12mm; }
           * { box-sizing: border-box; }
           body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; background: #fff; }
-          .pdf-header { background: #667eea; color: #fff; padding: 12px 16px; margin: -12mm -12mm 18px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .pdf-header h1 { font-size: 20px; margin: 0 0 6px; letter-spacing: 0; }
-          .pdf-header .meta { font-size: 11px; opacity: 0.95; display: flex; gap: 14px; flex-wrap: wrap; }
+          .note-meta { color: #667085; font-size: 12px; display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
           .card { border: 1px solid #d0d5dd; border-radius: 6px; padding: 16px; }
           .post-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px; }
           .post-title h2 { margin: 0; font-size: 18px; color: #101828; }
@@ -3730,13 +3729,11 @@ function printNotificationDocument(note) {
         </style>
       </head>
       <body>
-        <div class="pdf-header">
-          <h1>CMAX SCM</h1>
-          <div class="meta">
-            <span>OBAVIJEST - ${escapeHtml(note.site || currentSite)}</span>
-            <span>${escapeHtml(createdAt)}</span>
-            <span>${escapeHtml(formatNotificationId(note.id))}</span>
-          </div>
+        ${getCmaxPrintHeaderHtml(note.site || currentSite, formatCmaxPrintDate(note.createdAt ? new Date(note.createdAt) : new Date()))}
+        <div class="note-meta">
+          <span>OBAVIJEST</span>
+          <span>${escapeHtml(createdAt)}</span>
+          <span>${escapeHtml(formatNotificationId(note.id))}</span>
         </div>
         <div class="card">
           <div class="post-title">
@@ -10196,6 +10193,7 @@ function printBinsTable() {
     .toUpperCase();
 
   let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Kante za smeće - ${dateStr}</title><style>
+    ${getCmaxPrintHeaderCss()}
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { font-size: 24px; margin-bottom: 10px; }
     .date { font-size: 14px; color: #666; margin-bottom: 20px; }
@@ -10209,6 +10207,7 @@ function printBinsTable() {
   </style></head><body>
     <h1>CMAX SCM - Kante za smeće</h1>
     <div class="date">${dateStr}</div>
+    ${getCmaxPrintHeaderHtml(currentSite, dateStr)}
     <table>
       <thead><tr>
         <th>Plan</th><th>Kärna</th><th>Total available</th><th>Empty available</th>
@@ -10300,6 +10299,9 @@ function exportBinsToPDF() {
   doc.setFont("helvetica", "normal");
   doc.text(dateStr, 14, 17);
   doc.setTextColor(0, 0, 0);
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 52, "F");
+  const contentStartY = drawCmaxPdfHeader(doc, currentSite, dateStr);
 
   // Table
   const tableData = binsData.rows.map((row) => [
@@ -10325,7 +10327,7 @@ function exportBinsToPDF() {
       ],
     ],
     body: tableData,
-    startY: 26,
+    startY: contentStartY + 6,
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: {
       fillColor: [102, 126, 234],
@@ -10333,7 +10335,7 @@ function exportBinsToPDF() {
       fontStyle: "bold",
     },
     alternateRowStyles: { fillColor: [245, 247, 250] },
-    margin: { top: 26, left: 14, right: 14 },
+    margin: { top: contentStartY + 6, left: 14, right: 14 },
   });
 
   const fileName = `CMAX_Bins_${appState.currentDate}.pdf`;
@@ -10743,6 +10745,90 @@ function toggleWarehouseExportImportDropdown() {
   toggleDropdown("warehouseExportImportDropdown");
 }
 
+function formatCmaxPrintDate(value = appState.currentDate, options = {}) {
+  const date = value instanceof Date ? value : new Date(`${value || appState.currentDate}T00:00:00`);
+  const safeDate = Number.isFinite(date.getTime()) ? date : new Date();
+  return safeDate.toLocaleDateString(options.locale || "hr-HR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  }).toUpperCase();
+}
+
+function getCmaxLogoImage() {
+  const img = document.getElementById("mainLogoImg") || document.getElementById("loginLogoImg");
+  return img && img.complete && img.naturalWidth > 0 ? img : null;
+}
+
+function drawCmaxPdfHeader(doc, site = currentSite, dateLabel = formatCmaxPrintDate(), options = {}) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const logo = getCmaxLogoImage();
+  const logoSize = options.logoSize || 28;
+  const title = `CMAX SCM - ${site || currentSite}`;
+  const titleWidth = Math.min(Math.max(doc.getTextWidth(title) + 18, 86), pageWidth - 92);
+  const groupWidth = logoSize + 8 + titleWidth;
+  const startX = (pageWidth - groupWidth) / 2;
+  const topY = options.topY || 8;
+  const titleX = startX + logoSize + 8;
+  const titleY = topY + 8;
+
+  if (logo) {
+    try {
+      doc.addImage(logo, "PNG", startX, topY, logoSize, logoSize);
+    } catch (error) {
+      doc.setFillColor(102, 126, 234);
+      doc.roundedRect(startX, topY, logoSize, logoSize, 4, 4, "F");
+    }
+  } else {
+    doc.setFillColor(102, 126, 234);
+    doc.roundedRect(startX, topY, logoSize, logoSize, 4, 4, "F");
+  }
+
+  doc.setFillColor(102, 88, 190);
+  doc.roundedRect(titleX, titleY, titleWidth, 12, 2, 2, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.setTextColor(255, 255, 255);
+  doc.text(title, titleX + titleWidth / 2, titleY + 8.2, { align: "center" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(70, 70, 70);
+  doc.text(dateLabel, titleX + titleWidth / 2, titleY + 20, { align: "center" });
+
+  doc.setDrawColor(102, 88, 190);
+  doc.setLineWidth(0.35);
+  doc.line(10, topY + logoSize + 4, pageWidth - 10, topY + logoSize + 4);
+  doc.setTextColor(0, 0, 0);
+  return topY + logoSize + 12;
+}
+
+function getCmaxPrintHeaderHtml(site = currentSite, dateLabel = formatCmaxPrintDate()) {
+  return `
+    <div class="cmax-print-header">
+      <div class="cmax-print-brand">
+        <img src="/cmaxlogo.png" alt="CMAX Logo" />
+        <div class="cmax-print-title-wrap">
+          <div class="cmax-print-title">• CMAX SCM - ${escapeHtml(site || currentSite)}</div>
+          <div class="cmax-print-date">${escapeHtml(dateLabel)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function getCmaxPrintHeaderCss() {
+  return `
+    .cmax-print-header { border-bottom: 2px solid #8b83c7; padding: 0 0 8px; margin: 0 0 18px; }
+    .cmax-print-brand { display: flex; align-items: center; justify-content: center; gap: 12px; }
+    .cmax-print-brand img { width: 72px; height: 72px; object-fit: contain; border-radius: 10px; }
+    .cmax-print-title-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .cmax-print-title { background: #6658be; color: #fff; border-radius: 6px; padding: 5px 14px; font-size: 22px; font-weight: 800; letter-spacing: 1px; line-height: 1; }
+    .cmax-print-date { color: #4b5563; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+  `;
+}
+
 /* ==================== PDF EXPORT ==================== */
 function exportToPDF() {
   const { jsPDF } = window.jspdf;
@@ -10763,17 +10849,7 @@ function exportToPDF() {
     })
     .toUpperCase();
 
-  // Header
-  doc.setFillColor(102, 126, 234);
-  doc.rect(0, 0, 297, 22, "F");
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.setTextColor(255, 255, 255);
-  doc.text("CMAX PLANNER", 14, 10);
-  doc.setFontSize(10);
-  doc.setFont("helvetica", "normal");
-  doc.text(dateStr, 14, 17);
-  doc.setTextColor(0, 0, 0);
+  const contentStartY = drawCmaxPdfHeader(doc, currentSite, dateStr);
 
   // Summary row
   const activeWorkers = getActiveResourceList("workers", appState.currentDate);
@@ -10789,7 +10865,7 @@ function exportToPDF() {
   doc.text(
     `Resursi: ${presentWorkers}/${activeWorkers.length} dostupno  |  Liftovi: ${availableLifts}/${activeLifts.length} dostupno`,
     14,
-    28,
+    contentStartY + 4,
   );
   doc.setTextColor(0, 0, 0);
 
@@ -10961,15 +11037,18 @@ function exportWarehouseInventoryToPDF() {
   doc.setFont("helvetica", "normal");
   doc.text(`SKLADISTE - ${currentSite} | ${generatedAt}`, 14, 17);
   doc.setTextColor(0, 0, 0);
+  doc.setFillColor(255, 255, 255);
+  doc.rect(0, 0, doc.internal.pageSize.getWidth(), 52, "F");
+  const contentStartY = drawCmaxPdfHeader(doc, currentSite, formatCmaxPrintDate(new Date()));
   doc.setFontSize(9);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Stavke: ${rows.length}`, 14, 28);
+  doc.text(`Skladiste | ${generatedAt} | Stavke: ${rows.length}`, 14, contentStartY + 4);
   doc.setTextColor(0, 0, 0);
 
   doc.autoTable({
     head: [["Alat / materijal", "Jedinica", "Trenutno", "Ukupno dano", "Ukupno doslo", "Min. limit"]],
     body: rows.map((row) => [row.name, row.unit, row.current, row.issued, row.received, row.minimum]),
-    startY: 32,
+    startY: contentStartY + 8,
     styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.3 },
     headStyles: {
       fillColor: [102, 126, 234],
@@ -11026,6 +11105,7 @@ function printWarehouseInventory() {
       <head>
         <title>CMAX Skladiste</title>
         <style>
+          ${getCmaxPrintHeaderCss()}
           body { font-family: Arial, sans-serif; padding: 24px; color: #1f2937; }
           h1 { margin: 0 0 4px; font-size: 22px; }
           .meta { color: #667085; margin-bottom: 18px; }
@@ -11036,7 +11116,8 @@ function printWarehouseInventory() {
         </style>
       </head>
       <body>
-        <h1>CMAX SKLADISTE - ${escapeHtml(currentSite)}</h1>
+        ${getCmaxPrintHeaderHtml(currentSite, formatCmaxPrintDate(new Date()))}
+        <h1>Skladiste</h1>
         <div class="meta">${escapeHtml(new Date().toLocaleString(getCurrentLocale()))}</div>
         <table>
           <thead>
@@ -12788,14 +12869,12 @@ function printTidplanTimelineView() {
 
     return `
       <section class="print-page">
-        <div class="header">
-          <h1>CMAX TIDPLAN - ${escapeHtml(currentSite)}</h1>
-          <div class="meta">
-            <span>Trenutni prikaz</span>
-            <span>${escapeHtml(weekRange)}</span>
-            <span>${escapeHtml(new Date().toLocaleString(locale))}</span>
-            <span>Aktivnosti: ${activities.length}</span>
-          </div>
+        ${getCmaxPrintHeaderHtml(currentSite, formatCmaxPrintDate(new Date()))}
+        <div class="meta">
+          <span>Tidplan - trenutni prikaz</span>
+          <span>${escapeHtml(weekRange)}</span>
+          <span>${escapeHtml(new Date().toLocaleString(locale))}</span>
+          <span>Aktivnosti: ${activities.length}</span>
         </div>
         <table>
           <thead>
@@ -12827,6 +12906,7 @@ function printTidplanTimelineView() {
       <head>
         <title>Tidplan trenutni prikaz ${escapeHtml(currentSite)}</title>
         <style>
+          ${getCmaxPrintHeaderCss()}
           @page { size: A4 landscape; margin: 7mm; }
           * { box-sizing: border-box; }
           body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; background: #fff; }
@@ -12858,7 +12938,7 @@ function printTidplanTimelineView() {
         </style>
       </head>
       <body>
-        ${pages || `<section class="print-page"><div class="header"><h1>CMAX TIDPLAN - ${escapeHtml(currentSite)}</h1></div><div class="empty">Nema aktivnosti za trenutni prikaz.</div></section>`}
+        ${pages || `<section class="print-page">${getCmaxPrintHeaderHtml(currentSite, formatCmaxPrintDate(new Date()))}<div class="empty">Nema aktivnosti za trenutni prikaz.</div></section>`}
       </body>
     </html>
   `);
@@ -12911,6 +12991,7 @@ function printTidplanDocument(mode = "current") {
       <head>
         <title>Tidplan ${escapeHtml(currentSite)}</title>
         <style>
+          ${getCmaxPrintHeaderCss()}
           @page { size: A4 landscape; margin: 10mm; }
           * { box-sizing: border-box; }
           body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; background: #fff; }
@@ -12930,13 +13011,11 @@ function printTidplanDocument(mode = "current") {
         </style>
       </head>
       <body>
-        <div class="header">
-          <h1>CMAX TIDPLAN - ${escapeHtml(currentSite)}</h1>
-          <div class="meta">
-            <span>${mode === "full" ? "Cijeli Tidplan" : "Trenutni prikaz / filter"}</span>
-            <span>${escapeHtml(new Date().toLocaleString(locale))}</span>
-            <span>Aktivnosti: ${activities.length}</span>
-          </div>
+        ${getCmaxPrintHeaderHtml(currentSite, formatCmaxPrintDate(new Date()))}
+        <div class="meta">
+          <span>${mode === "full" ? "Cijeli Tidplan" : "Trenutni prikaz / filter"}</span>
+          <span>${escapeHtml(new Date().toLocaleString(locale))}</span>
+          <span>Aktivnosti: ${activities.length}</span>
         </div>
         <table>
           <thead>
