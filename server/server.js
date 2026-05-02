@@ -12,7 +12,8 @@ const ExcelJS = require('exceljs');
 const PDFDocument = require('pdfkit');
 const { PDFDocument: PDFLibDocument } = require('pdf-lib');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell } = require('docx');
-const { VersionConflictError, createStorage } = require('./storage');
+const { VersionConflictError, createStorage } = require('./services/storage');
+const authHelpers = require('./middleware/auth');
 
 const app = express();
 
@@ -1064,15 +1065,63 @@ async function writeAdmins(admins) {
   );
 }
 
-async function persistAdmins(adminsInput) {
+function getSessionLevel(session) {
+  return Math.max(1, Math.min(6, Number(session?.level) || 1));
+}
+
+function canActorManageAdmin(actorSession, targetAdmin) {
+  if (!actorSession || !sessionHasPermission(actorSession, 'canManageAdmins')) return false;
+  if (actorSession.isSuperAdmin) return true;
+  if (!targetAdmin) return true;
+  if (targetAdmin.isSuperAdmin) return false;
+  if (targetAdmin.email === actorSession.email) return false;
+  return (Number(targetAdmin.level) || 1) < getSessionLevel(actorSession);
+}
+
+function clampAdminForActor(candidate, existingAdmin, actorSession) {
+  if (!actorSession || actorSession.isSuperAdmin) return candidate;
+  const actorLevel = getSessionLevel(actorSession);
+  const next = { ...candidate };
+  next.isSuperAdmin = false;
+  next.level = Math.max(1, Math.min(actorLevel - 1, Number(next.level) || 1));
+
+  const existingPermissions = normalizePermissions(existingAdmin?.permissions || {});
+  const requestedPermissions = normalizePermissions(next.permissions || {});
+  const clampedPermissions = {};
+  Object.keys(DEFAULT_PERMISSIONS).forEach((key) => {
+    if (sessionHasPermission(actorSession, key)) {
+      clampedPermissions[key] = requestedPermissions[key] === true;
+    } else {
+      clampedPermissions[key] = existingAdmin ? existingPermissions[key] === true : false;
+    }
+  });
+  next.permissions = clampedPermissions;
+
+  if (Array.isArray(actorSession.allowedSites)) {
+    const allowed = new Set(actorSession.allowedSites);
+    next.allowedSites = Array.isArray(next.allowedSites)
+      ? next.allowedSites.filter((site) => allowed.has(site))
+      : [...allowed];
+  }
+
+  return next;
+}
+
+async function persistAdmins(adminsInput, actorSession = null) {
   const existingAdmins = await readAdmins();
   const existingByEmail = new Map(existingAdmins.map((admin) => [admin.email, admin]));
   const nextAdmins = [];
+  const submittedEmails = new Set();
 
   for (const candidate of Array.isArray(adminsInput) ? adminsInput : []) {
     const normalized = normalizeAdminRecord(candidate);
     if (!normalized.email || !isValidEmail(normalized.email)) continue;
+    submittedEmails.add(normalized.email);
     const existing = existingByEmail.get(normalized.email);
+    if (actorSession && !canActorManageAdmin(actorSession, existing)) {
+      if (existing) nextAdmins.push(existing);
+      continue;
+    }
     if (normalized.password) {
       normalized.password = isPasswordHash(normalized.password)
         ? normalized.password
@@ -1080,10 +1129,19 @@ async function persistAdmins(adminsInput) {
     } else if (existing?.password) {
       normalized.password = existing.password;
     }
-    nextAdmins.push(normalized);
+    nextAdmins.push(clampAdminForActor(normalized, existing, actorSession));
+  }
+
+  if (actorSession && !actorSession.isSuperAdmin) {
+    existingAdmins.forEach((existing) => {
+      if (!submittedEmails.has(existing.email) && !canActorManageAdmin(actorSession, existing)) {
+        nextAdmins.push(existing);
+      }
+    });
   }
 
   await writeVersionedJsonFile(adminsFile, nextAdmins, { fallbackValue: [] });
+  return nextAdmins;
 }
 
 async function getState() {
@@ -1101,9 +1159,7 @@ async function getStateDocument() {
 }
 
 function sessionHasPermission(session, permissionKey) {
-  if (!session) return false;
-  if (session.isSuperAdmin) return true;
-  return session.permissions && session.permissions[permissionKey] === true;
+  return authHelpers.sessionHasPermission(session, permissionKey);
 }
 
 function canViewWarehouseInState(session) {
@@ -1176,6 +1232,8 @@ async function buildPublicStatePayload(document, session) {
     if (!canAccessBinsState) {
       delete responseState.binsData;
       delete responseState.binPermissions;
+    } else if (!sessionHasPermission(session, 'canManageBinsPermissions')) {
+      delete responseState.binPermissions;
     }
     if (!canAccessTidplanState) {
       delete responseState.tidplan;
@@ -1195,7 +1253,7 @@ async function buildPublicStatePayload(document, session) {
     delete responseState.logs;
     delete responseState.warehouseLogs;
 
-    if (sessionHasPermission(session, 'canOpenAdminPanel') || sessionHasPermission(session, 'canManageAdmins')) {
+    if (sessionHasPermission(session, 'canManageAdmins')) {
       const admins = await readAdmins();
       responseState.admins = admins.map((admin) => redactAdminRecord(admin));
     } else {
@@ -1414,22 +1472,11 @@ function requireStorageReady(req, res, next) {
 }
 
 function canAccessSite(session, site) {
-  if (!site) site = 'default';
-  // Super admins can access all sites
-  if (session.isSuperAdmin) return true;
-  // If no allowedSites specified, user has access to all sites
-  if (!Array.isArray(session.allowedSites)) return true;
-  // Check if site is in allowed list
-  return session.allowedSites.includes(site);
+  return authHelpers.canAccessSite(session, site || 'default');
 }
 
 function requirePermission(permissionKey) {
-  return (req, res, next) => {
-    if (!req.session) return res.status(401).json({ error: 'Authentication required' });
-    if (req.session.isSuperAdmin) return next();
-    if (req.session.permissions && req.session.permissions[permissionKey] === true) return next();
-    return res.status(403).json({ error: 'Insufficient permissions' });
-  };
+  return authHelpers.createPermissionMiddleware(permissionKey);
 }
 
 function getUploadUrl(filePath) {
@@ -1554,6 +1601,129 @@ function hasLockedPastChanges(previousState, nextState) {
   return hasPastPlannerDayChanges(previousState, nextState) ||
     hasPastBinsDayChanges(previousState, nextState) ||
     hasPastTidplanChanges(previousState, nextState);
+}
+
+function canWriteStateField(session, permissionKey) {
+  return Boolean(session?.isSuperAdmin || sessionHasPermission(session, permissionKey));
+}
+
+function canWriteTidplanState(session) {
+  return canWriteStateField(session, 'canManageTidplan') ||
+    canWriteStateField(session, 'canAddTidplanActivity') ||
+    canWriteStateField(session, 'canDeleteTidplanActivity') ||
+    canWriteStateField(session, 'canManageTidplanZones');
+}
+
+function canWriteBinsState(session) {
+  return canWriteStateField(session, 'canAccessBins') && canWriteStateField(session, 'canEditBinsData');
+}
+
+function mergePlannerStateForSession(previousPlanner, submittedPlanner, session) {
+  const previous = previousPlanner && typeof previousPlanner === 'object' ? previousPlanner : {};
+  const submitted = submittedPlanner && typeof submittedPlanner === 'object' ? submittedPlanner : {};
+  const next = { ...previous };
+  const listPermissions = {
+    workers: 'canManageWorkers',
+    lifts: 'canManageLifts',
+    moments: 'canManageMoments',
+    plans: 'canManagePlans',
+    karnas: 'canManageKarnas',
+  };
+
+  Object.entries(listPermissions).forEach(([field, permissionKey]) => {
+    if (canWriteStateField(session, permissionKey) && Array.isArray(submitted[field])) {
+      next[field] = submitted[field];
+    }
+  });
+
+  const canManageResources = Object.values(listPermissions)
+    .some((permissionKey) => canWriteStateField(session, permissionKey));
+  if (canManageResources && Array.isArray(submitted.resourceHistory)) {
+    const allowedTypes = new Set(
+      Object.entries(listPermissions)
+        .filter(([, permissionKey]) => canWriteStateField(session, permissionKey))
+        .map(([field]) => field),
+    );
+    const previousHistory = Array.isArray(previous.resourceHistory) ? previous.resourceHistory : [];
+    const submittedHistory = submitted.resourceHistory.filter((entry) => allowedTypes.has(entry?.type));
+    next.resourceHistory = [
+      ...previousHistory.filter((entry) => !allowedTypes.has(entry?.type)),
+      ...submittedHistory,
+    ];
+  }
+
+  if (canWriteStateField(session, 'canAccessPlanner') && submitted.dailyData && typeof submitted.dailyData === 'object') {
+    next.dailyData = submitted.dailyData;
+  }
+
+  return next;
+}
+
+function mergeStateForSession(previousState, submittedState, session) {
+  const previous = previousState && typeof previousState === 'object' ? previousState : {};
+  const submitted = submittedState && typeof submittedState === 'object' ? submittedState : {};
+  const merged = {
+    ...previous,
+    version: Number(submitted.version) || Number(previous.version) || 2,
+  };
+
+  if (canWriteStateField(session, 'canManageSiteAccess')) {
+    if (Array.isArray(submitted.sites)) merged.sites = submitted.sites;
+    if (submitted.currentSite) merged.currentSite = submitted.currentSite;
+  }
+
+  if (canWriteStateField(session, 'canManageAdmins')) {
+    if (Array.isArray(submitted.admins)) merged.admins = submitted.admins;
+    if (submitted.adminRemovalNotices && typeof submitted.adminRemovalNotices === 'object') {
+      merged.adminRemovalNotices = submitted.adminRemovalNotices;
+    }
+  }
+
+  if (canWriteStateField(session, 'canManageGuestAccess') && submitted.guestPermissions) {
+    merged.guestPermissions = submitted.guestPermissions;
+  }
+
+  if (canWriteStateField(session, 'canManageBinsPermissions') && submitted.binPermissions) {
+    merged.binPermissions = submitted.binPermissions;
+  }
+
+  const previousSiteData = previous.siteData && typeof previous.siteData === 'object' ? previous.siteData : {};
+  const submittedSiteData = submitted.siteData && typeof submitted.siteData === 'object' ? submitted.siteData : {};
+  const nextSiteData = { ...previousSiteData };
+
+  Object.entries(submittedSiteData).forEach(([rawSite, submittedEntry]) => {
+    const site = sanitizeString(rawSite, 80);
+    if (!site || !canAccessSite(session, site)) return;
+    const previousEntry = previousSiteData[site] && typeof previousSiteData[site] === 'object' ? previousSiteData[site] : {};
+    const entry = { ...previousEntry };
+    const incoming = submittedEntry && typeof submittedEntry === 'object' ? submittedEntry : {};
+
+    if (incoming.planner && typeof incoming.planner === 'object') {
+      entry.planner = mergePlannerStateForSession(previousEntry.planner, incoming.planner, session);
+    }
+    if (canWriteBinsState(session) && incoming.bins) entry.bins = incoming.bins;
+    if (canWriteTidplanState(session)) {
+      if (incoming.tidplan && canWriteStateField(session, 'canManageTidplan')) entry.tidplan = incoming.tidplan;
+      if (incoming.tidplanZones && canWriteStateField(session, 'canManageTidplanZones')) entry.tidplanZones = incoming.tidplanZones;
+    }
+    if (canWriteStateField(session, 'canManageWarehouse') && incoming.warehouse) {
+      entry.warehouse = incoming.warehouse;
+    }
+    if ((canWriteStateField(session, 'canApproveReports') || canWriteStateField(session, 'canDeleteReports')) && incoming.reports) {
+      entry.reports = incoming.reports;
+    }
+    if (canWriteStateField(session, 'canManageNotifications') && incoming.notifications) {
+      entry.notifications = incoming.notifications;
+    }
+    if ((canWriteStateField(session, 'canEditSurveys') || canWriteStateField(session, 'canPublishSurveys')) && incoming.surveys) {
+      entry.surveys = incoming.surveys;
+    }
+
+    nextSiteData[site] = entry;
+  });
+
+  merged.siteData = nextSiteData;
+  return merged;
 }
 
 async function logActivity(userEmail, action, details = {}) {
@@ -1922,25 +2092,30 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     }
 
     const currentDocument = await getStateDocument();
-    if (!canUnlockPastDays(req.session) && hasLockedPastChanges(currentDocument.data, state)) {
+    if (Number(currentDocument.version) !== lastKnownVersion) {
+      return sendVersionConflict(res, async () => buildPublicStatePayload(await getStateDocument(), req.session));
+    }
+    const mergedState = mergeStateForSession(currentDocument.data, state, req.session);
+    if (!canUnlockPastDays(req.session) && hasLockedPastChanges(currentDocument.data, mergedState)) {
       return res.status(403).json({ error: 'Past days are locked' });
     }
 
-    if (!state.siteData || typeof state.siteData !== 'object' || Object.keys(state.siteData).length === 0) {
+    if (!mergedState.siteData || typeof mergedState.siteData !== 'object' || Object.keys(mergedState.siteData).length === 0) {
       return res.status(400).json({ error: 'Empty state payload rejected' });
+    }
+
+    if (canWriteStateField(req.session, 'canManageAdmins') && Array.isArray(mergedState.admins)) {
+      mergedState.admins = await persistAdmins(mergedState.admins, req.session);
     }
     
     const savedDocument = await writeVersionedJsonFile(stateFile, {
-      ...state,
+      ...mergedState,
       savedAt: new Date().toISOString(),
       savedBy: req.session.email,
     }, {
       lastKnownVersion,
       fallbackValue: null,
     });
-    if (state && Array.isArray(state.admins)) {
-      await persistAdmins(state.admins);
-    }
     res.json({
       ok: true,
       version: savedDocument.version,
@@ -2963,7 +3138,7 @@ async function getModulePayload(module, site) {
   throw new Error('UNKNOWN_MODULE');
 }
 
-async function importModulePayload(module, site, payload, userEmail) {
+async function importModulePayload(module, site, payload, session) {
   await mutateVersionedJsonFile(stateFile, null, async (state) => {
     const nextState = state && typeof state === 'object' ? { ...state } : {};
     nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
@@ -2989,8 +3164,13 @@ async function importModulePayload(module, site, payload, userEmail) {
     } else {
       nextState.siteData[site] = { ...currentEntry, [module]: payload.data };
     }
+    if (!canUnlockPastDays(session) && hasLockedPastChanges(state, nextState)) {
+      const error = new Error('Past days are locked');
+      error.statusCode = 403;
+      throw error;
+    }
     nextState.savedAt = new Date().toISOString();
-    nextState.savedBy = userEmail;
+    nextState.savedBy = session?.email;
     return nextState;
   });
 }
@@ -3031,12 +3211,13 @@ apiRouter.post('/warehouse/import/:format(excel|pdf)', requirePermission('canImp
     const payload = req.params.format === 'pdf'
       ? parseModulePayloadFromPdfText(await extractPdfText(req.file.path), 'warehouse')
       : await parseModulePayloadFromExcel(req.file.path, 'warehouse');
-    await importModulePayload('warehouse', site, payload, req.session.email);
+    await importModulePayload('warehouse', site, payload, req.session);
     await logActivity(req.session.email, `import_warehouse_${req.params.format}`, { site, includeLogs: true });
     fs.unlinkSync(req.file.path);
     res.json({ ok: true, imported: true, logsImported: Array.isArray(payload.logs) ? payload.logs.length : 0 });
   } catch (error) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     if (error?.message === 'PDF_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'PDF structure not recognized' });
     if (error?.message === 'EXCEL_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'Excel structure not recognized' });
     next(error);
@@ -3072,12 +3253,13 @@ apiRouter.post('/tidplan/import/:format(excel|pdf)', requirePermission('canImpor
       ? parseModulePayloadFromPdfText(await extractPdfText(req.file.path), 'tidplan')
       : await parseModulePayloadFromExcel(req.file.path, 'tidplan');
     if (!Array.isArray(payload.data)) return res.status(400).json({ error: 'Tidplan import data must be an array' });
-    await importModulePayload('tidplan', site, payload, req.session.email);
+    await importModulePayload('tidplan', site, payload, req.session);
     await logActivity(req.session.email, `import_tidplan_${req.params.format}`, { site, itemsCount: payload.data.length });
     fs.unlinkSync(req.file.path);
     res.json({ ok: true, itemsImported: payload.data.length });
   } catch (error) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     if (error?.message === 'PDF_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'PDF structure not recognized' });
     if (error?.message === 'EXCEL_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'Excel structure not recognized' });
     next(error);
@@ -3113,12 +3295,13 @@ apiRouter.post('/planner/import/:format(excel|pdf)', requirePermission('canImpor
       ? parseModulePayloadFromPdfText(await extractPdfText(req.file.path), 'planner')
       : await parseModulePayloadFromExcel(req.file.path, 'planner');
     if (!payload.data || typeof payload.data !== 'object' || Array.isArray(payload.data)) return res.status(400).json({ error: 'Planner import data must be an object' });
-    await importModulePayload('planner', site, payload, req.session.email);
+    await importModulePayload('planner', site, payload, req.session);
     await logActivity(req.session.email, `import_planner_${req.params.format}`, { site });
     fs.unlinkSync(req.file.path);
     res.json({ ok: true, imported: true });
   } catch (error) {
     if (req.file) try { fs.unlinkSync(req.file.path); } catch (_) {}
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     if (error?.message === 'PDF_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'PDF structure not recognized' });
     if (error?.message === 'EXCEL_STRUCTURE_NOT_RECOGNIZED') return res.status(400).json({ error: 'Excel structure not recognized' });
     next(error);

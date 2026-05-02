@@ -6362,6 +6362,46 @@ function mergePlannerSnapshot(localPlanner, serverPlanner) {
     return sortNaturally(Array.from(new Set(Array.isArray(serverList) ? serverList : [])));
   };
 
+  const mergeResourceHistorySnapshot = () => {
+    const mergedByKey = new Map();
+    const put = (entry) => {
+      if (!entry) return;
+      const key = [
+        entry.type,
+        entry.siteId || currentSite,
+        entry.resourceId,
+        entry.activeFrom || "1970-01-01",
+      ].join("|");
+      mergedByKey.set(key, entry);
+    };
+    normalizeResourceHistory(server.resourceHistory).forEach(put);
+    const localHistory = normalizeResourceHistory(local.resourceHistory);
+    localHistory.forEach(put);
+    const merged = Array.from(mergedByKey.values());
+
+    localHistory
+      .filter((entry) => entry.activeTo)
+      .forEach((removed) => {
+        merged.forEach((entry, index) => {
+          const sameResource =
+            entry.type === removed.type &&
+            entry.siteId === removed.siteId &&
+            entry.resourceId === removed.resourceId;
+          const overlapsRemoval = entry.activeFrom <= removed.activeTo && (!entry.activeTo || entry.activeTo > removed.activeTo);
+          if (sameResource && overlapsRemoval) {
+            merged[index] = {
+              ...entry,
+              activeTo: removed.activeTo,
+              changedAt: removed.changedAt || entry.changedAt,
+              changedBy: removed.changedBy || entry.changedBy,
+            };
+          }
+        });
+      });
+
+    return normalizeResourceHistory(merged);
+  };
+
   return {
     ...server,
     ...local,
@@ -6370,10 +6410,7 @@ function mergePlannerSnapshot(localPlanner, serverPlanner) {
     moments: authoritativeList(local.moments, server.moments),
     plans: authoritativeList(local.plans, server.plans),
     karnas: authoritativeList(local.karnas, server.karnas),
-    resourceHistory: normalizeResourceHistory([
-      ...(Array.isArray(server.resourceHistory) ? server.resourceHistory : []),
-      ...(Array.isArray(local.resourceHistory) ? local.resourceHistory : []),
-    ]),
+    resourceHistory: mergeResourceHistorySnapshot(),
     dailyData:
       local.dailyData && typeof local.dailyData === "object"
         ? local.dailyData
