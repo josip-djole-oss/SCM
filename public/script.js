@@ -4075,17 +4075,12 @@ function renderSurveyTargetUsers() {
     name.className = "survey-user-name";
     name.textContent = user.name;
 
-    const email = document.createElement("span");
-    email.className = "survey-user-email";
-    email.textContent = user.email;
-
     const userSites = document.createElement("span");
-    userSites.className = "survey-user-sites";
+    userSites.className = "survey-user-site";
     userSites.textContent = user.isSuperAdmin ? "Sva gradilista" : (user.sites || []).join(", ");
 
     label.appendChild(checkbox);
     label.appendChild(name);
-    label.appendChild(email);
     label.appendChild(userSites);
     container.appendChild(label);
   });
@@ -4392,6 +4387,7 @@ function showSurveys() {
 
     setupSurveyTargetHandlers();
     renderSurveyTargetUsers();
+    initSurveyDateTimePickers();
 
     getSurveysList().then(() => {
       renderSurveysList();
@@ -4744,6 +4740,7 @@ function applyPermissionVisibility() {
 let fpInstance = null;
 
 function reinitFlatpickr() {
+  if (typeof flatpickr === "undefined") return;
   if (fpInstance) {
     fpInstance.destroy();
     fpInstance = null;
@@ -4758,6 +4755,8 @@ function reinitFlatpickr() {
     dateFormat: "Y-m-d",
     defaultDate: appState.currentDate,
     disableMobile: false,
+    allowInput: false,
+    clickOpens: true,
     onChange: function (selectedDates, dateStr) {
       if (!dateStr) return;
       appState.currentDate = dateStr;
@@ -4778,6 +4777,68 @@ function reinitFlatpickr() {
       updatePrintDate();
     },
   });
+  const datePickerSection = document.querySelector(".date-picker-section");
+  if (datePickerSection && !datePickerSection.dataset.boundOpenPicker) {
+    datePickerSection.dataset.boundOpenPicker = "true";
+    datePickerSection.addEventListener("click", () => {
+      if (fpInstance) fpInstance.open();
+    });
+  }
+}
+
+function initSurveyDateTimePickers() {
+  if (typeof flatpickr === "undefined") return;
+  if (window.surveyDateTimePickers) {
+    window.surveyDateTimePickers.forEach((picker) => picker.destroy());
+  }
+  window.surveyDateTimePickers = [];
+
+  const locales = {
+    hr: flatpickr.l10ns.hr,
+    en: flatpickr.l10ns.default,
+    sv: flatpickr.l10ns.sv,
+  };
+  const locale = locales[currentLang] || flatpickr.l10ns.default;
+
+  ["surveyStartDate", "surveyEndDate"].forEach((id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    const picker = flatpickr(input, {
+      locale,
+      dateFormat: "Y-m-d",
+      defaultDate: input.value || null,
+      disableMobile: false,
+      allowInput: false,
+      clickOpens: true,
+    });
+    window.surveyDateTimePickers.push(picker);
+  });
+
+  ["surveyStartTime", "surveyEndTime"].forEach((id) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+    const picker = flatpickr(input, {
+      enableTime: true,
+      noCalendar: true,
+      dateFormat: "H:i",
+      time_24hr: true,
+      minuteIncrement: 5,
+      defaultDate: input.value || null,
+      disableMobile: false,
+      allowInput: false,
+      clickOpens: true,
+    });
+    window.surveyDateTimePickers.push(picker);
+  });
+
+  document.querySelectorAll(".survey-inline-fields").forEach((wrapper) => {
+    if (wrapper.dataset.boundSurveyPickerOpen) return;
+    wrapper.dataset.boundSurveyPickerOpen = "true";
+    wrapper.addEventListener("click", (event) => {
+      const input = event.target.closest("input") || wrapper.querySelector("input");
+      if (input && input._flatpickr) input._flatpickr.open();
+    });
+  });
 }
 
 /* ==================== TIDPLAN DATEPICKERS ==================== */
@@ -4787,6 +4848,7 @@ function initTidplanDatePickers() {
     window.tidplanDatePickers.forEach(picker => picker.destroy());
   }
   window.tidplanDatePickers = [];
+  if (typeof flatpickr === "undefined") return;
 
   const locales = {
     hr: flatpickr.l10ns.hr,
@@ -7877,6 +7939,93 @@ async function runManualBackup() {
   } catch (error) {
     if (status) status.textContent = "Backup nije uspio.";
   }
+}
+
+async function openBackupRestorePanel() {
+  if (!canManageBackups()) {
+    showToast("Nemate dozvolu za vraćanje backupa.", "error");
+    return;
+  }
+  const panel = document.getElementById("backupRestorePanel");
+  if (!panel) return;
+  panel.style.display = panel.style.display === "none" || !panel.style.display ? "block" : "none";
+  if (panel.style.display === "block") {
+    await loadBackupRestoreOptions();
+  }
+}
+
+async function loadBackupRestoreOptions() {
+  if (!canViewBackups()) {
+    showToast("Nemate dozvolu za pregled backupa.", "error");
+    return;
+  }
+  const select = document.getElementById("backupRestoreSelect");
+  const status = document.getElementById("backupRestoreStatus");
+  if (status) status.textContent = "Učitavam backup listu...";
+  try {
+    const response = await fetch("/api/backups", { cache: "no-store" });
+    if (!response.ok) throw new Error("Failed to list backups");
+    const data = await response.json();
+    const backups = Array.isArray(data.backups) ? data.backups : [];
+    if (select) {
+      select.innerHTML = "";
+      backups.forEach((backup) => {
+        const option = document.createElement("option");
+        option.value = backup.id || backup.filename;
+        const sizeText = backup.size ? `, ${(backup.size / 1024).toFixed(1)} KB` : "";
+        option.textContent = `${backup.filename || backup.id} (${new Date(backup.createdAt).toLocaleString()}${sizeText})`;
+        select.appendChild(option);
+      });
+    }
+    if (status) status.textContent = backups.length ? "Odaberi backup za vraćanje." : "Nema dostupnih backupova.";
+  } catch (error) {
+    console.error("Error loading restore backups:", error);
+    if (status) status.textContent = "Greška pri učitavanju backupova.";
+    showToast("Failed to list backups.", "error");
+  }
+}
+
+async function restoreSelectedBackup() {
+  if (!canManageBackups()) {
+    showToast("Nemate dozvolu za vraćanje backupa.", "error");
+    return;
+  }
+  const select = document.getElementById("backupRestoreSelect");
+  const backupId = select?.value;
+  if (!backupId) {
+    showToast("Odaberite backup za vraćanje.", "error");
+    return;
+  }
+  showConfirm(
+    "Vratiti odabrani backup? Trenutno stanje će prvo biti spremljeno kao pre-restore backup.",
+    null,
+    "⚠️",
+    async () => {
+      const status = document.getElementById("backupRestoreStatus");
+      if (status) status.textContent = "Vraćam backup...";
+      showLoading("loadingDefault");
+      try {
+        const response = await fetch("/api/backup/restore", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: backupId }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "BACKUP_RESTORE_FAILED");
+        if (status) status.textContent = "Backup je vraćen. Osvježavam podatke...";
+        showToast("Backup je uspješno vraćen.", "success");
+        await loadAllData();
+        restoreLastView();
+        setTimeout(() => window.location.reload(), 800);
+      } catch (error) {
+        console.error("Error restoring backup:", error);
+        if (status) status.textContent = "Vraćanje backupa nije uspjelo.";
+        showToast(error.message || "Backup restore failed.", "error");
+      } finally {
+        hideLoading();
+      }
+    },
+  );
 }
 
 async function handleListBackups() {
@@ -12617,6 +12766,7 @@ function initTidplanFullscreenControls() {
 window.onload = function () {
   try {
     initApp();
+    initSurveyDateTimePickers();
   } catch (err) {
     console.error("initApp failed", err);
     document.body.innerHTML = `<div style="padding:20px;color:#b00;background:#fee;font-family:sans-serif;">

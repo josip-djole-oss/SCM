@@ -750,7 +750,41 @@
             >
               <span id="btnManualBackupText">Manual Backup</span>
             </button>
+            <button
+              class="btn btn-secondary"
+              id="btnOpenBackupRestore"
+              onclick="openBackupRestorePanel()"
+            >
+              Restore Backup
+            </button>
             <p class="admin-section-note" id="manualBackupStatus"></p>
+            <div
+              class="backup-restore-panel"
+              id="backupRestorePanel"
+              style="display: none"
+            >
+              <div class="form-group">
+                <label for="backupRestoreSelect">Odaberi backup</label>
+                <select id="backupRestoreSelect"></select>
+              </div>
+              <div class="backup-restore-actions">
+                <button
+                  class="btn"
+                  id="btnRefreshBackupRestore"
+                  onclick="loadBackupRestoreOptions()"
+                >
+                  Osvježi
+                </button>
+                <button
+                  class="btn btn-danger"
+                  id="btnRestoreSelectedBackup"
+                  onclick="restoreSelectedBackup()"
+                >
+                  Povuci odabrani backup
+                </button>
+              </div>
+              <p class="admin-section-note" id="backupRestoreStatus"></p>
+            </div>
           </div>
         </div>
       </div>
@@ -983,7 +1017,7 @@
 
           <div class="date-picker-section">
             <label for="datePicker" id="labelDate">Odaberi datum:</label>
-            <input type="date" id="datePicker" class="date-picker" />
+            <input type="text" id="datePicker" class="date-picker" />
           </div>
         </div>
       </div>
@@ -1490,15 +1524,15 @@
             <div class="form-group">
               <label id="surveyStartLabel">Pocetak</label>
               <div class="survey-inline-fields">
-                <input type="date" id="surveyStartDate" />
-                <input type="time" id="surveyStartTime" />
+                <input type="text" id="surveyStartDate" class="survey-date-input" />
+                <input type="text" id="surveyStartTime" class="survey-time-input" />
               </div>
             </div>
             <div class="form-group">
               <label id="surveyEndLabel">Zavrsetak</label>
               <div class="survey-inline-fields">
-                <input type="date" id="surveyEndDate" />
-                <input type="time" id="surveyEndTime" />
+                <input type="text" id="surveyEndDate" class="survey-date-input" />
+                <input type="text" id="surveyEndTime" class="survey-time-input" />
               </div>
             </div>
           </div>

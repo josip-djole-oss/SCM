@@ -2910,6 +2910,33 @@ span.flatpickr-weekday {
   background-size: 16px !important;
 }
 
+.date-picker.flatpickr-input {
+  width: 180px !important;
+  padding: 10px 34px 10px 14px !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 10px !important;
+  font-size: 15px !important;
+}
+
+.survey-date-input.flatpickr-input,
+.survey-time-input.flatpickr-input {
+  height: 40px !important;
+  border: 2px solid var(--border-color) !important;
+  border-radius: 10px !important;
+  font-size: 14px !important;
+  padding: 9px 30px 9px 10px !important;
+}
+
+.survey-date-input.flatpickr-input {
+  width: 145px !important;
+}
+
+.survey-time-input.flatpickr-input {
+  width: 92px !important;
+  background-image: none !important;
+  padding-right: 10px !important;
+}
+
 /* Prevent browser date input styling */
 .flatpickr-input::-webkit-calendar-picker-indicator {
   display: none !important;
@@ -3104,6 +3131,18 @@ span.flatpickr-weekday {
   }
   .date-picker {
     width: 100%;
+  }
+  .date-picker.flatpickr-input {
+    width: 100% !important;
+  }
+  .survey-time-grid {
+    grid-template-columns: 1fr;
+  }
+  .survey-time-grid .form-group {
+    max-width: 100%;
+  }
+  .survey-inline-fields {
+    flex-wrap: wrap;
   }
   .action-buttons .btn {
     font-size: 13px;
@@ -3460,8 +3499,45 @@ span.flatpickr-weekday {
 }
 .survey-time-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(2, minmax(230px, 300px));
   gap: 12px;
+  justify-content: start;
+  align-items: end;
+}
+.survey-time-grid .form-group {
+  max-width: 300px;
+}
+.survey-inline-fields {
+  flex-wrap: nowrap;
+}
+.survey-date-input,
+.survey-time-input {
+  height: 40px;
+  border: 2px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text-dark);
+  font-size: 14px;
+  padding: 9px 10px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.survey-date-input {
+  width: 145px;
+}
+.survey-time-input {
+  width: 92px;
+}
+.survey-date-input:hover,
+.survey-time-input:hover {
+  border-color: var(--primary-color-start);
+  background-image: var(--hover-sheen);
+}
+.survey-date-input:focus,
+.survey-time-input:focus {
+  outline: none;
+  border-color: var(--primary-color-start);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
 }
 .survey-site-hint {
   font-size: 12px;
@@ -3469,39 +3545,42 @@ span.flatpickr-weekday {
   margin-bottom: 6px;
 }
 .survey-users-group {
-  max-width: 620px;
+  max-width: 360px;
 }
 #surveyTargetUsersCheckboxes {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 260px;
+  gap: 4px;
+  max-height: 230px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 10px;
-  background: var(--input-bg);
+  padding: 6px;
+  background: var(--card-bg);
 }
 .survey-user-row {
-  display: grid;
-  grid-template-columns: 18px minmax(140px, 1fr) minmax(180px, 1.4fr);
+  display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
-  min-height: 34px;
-  padding: 6px 8px;
+  min-height: 28px;
+  padding: 4px 6px;
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  background: var(--card-bg);
+  border-radius: 6px;
+  background: var(--input-bg);
   cursor: pointer;
+  box-sizing: border-box;
 }
 .survey-user-row:hover {
   background: var(--hover-bg);
 }
 .survey-user-row input {
   margin: 0;
+  flex: 0 0 auto;
 }
 .survey-user-name {
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-dark);
@@ -3509,17 +3588,12 @@ span.flatpickr-weekday {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.survey-user-email {
+.survey-user-site {
+  flex: 0 1 130px;
+  min-width: 0;
   font-size: 12px;
   color: var(--text-light);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.survey-user-sites {
-  font-size: 11px;
-  color: var(--text-light);
-  grid-column: 2 / 4;
+  text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3709,4 +3783,22 @@ span.flatpickr-weekday {
 }
 .lists-container.hidden {
   display: none !important;
+}
+.backup-restore-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--card-bg);
+}
+
+.backup-restore-panel select {
+  width: 100%;
+}
+
+.backup-restore-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
 }

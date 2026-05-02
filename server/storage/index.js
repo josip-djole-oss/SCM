@@ -112,6 +112,7 @@ function createUnavailableStorage(options = {}, error) {
     async delete() { return fail(); },
     async exportAll() { return fail(); },
     async saveBackupSnapshot() { return fail(); },
+    async readBackupSnapshot() { return fail(); },
     async getLastBackupTime() { return fail(); },
     async listBackups() { return fail(); },
     getReportsFilePath(site) {
@@ -315,6 +316,18 @@ function createJsonStorage(options = {}) {
         createdAt,
         storage: 'filesystem',
       };
+    },
+    async readBackupSnapshot(identifier) {
+      const safeIdentifier = path.basename(String(identifier || ''));
+      if (!safeIdentifier || safeIdentifier !== String(identifier || '') || !safeIdentifier.endsWith('.json')) {
+        throw new Error('INVALID_BACKUP_ID');
+      }
+      const backupRoot = path.resolve(backupsDir);
+      const filePath = path.resolve(backupsDir, safeIdentifier);
+      if (!filePath.startsWith(backupRoot) || !fs.existsSync(filePath)) {
+        throw new Error('BACKUP_NOT_FOUND');
+      }
+      return JSON.parse(fs.readFileSync(filePath, 'utf8'));
     },
     async getLastBackupTime() {
       const latest = listBackupFiles()[0];
@@ -787,6 +800,15 @@ function createPostgresStorage(options = {}) {
         createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
         storage: 'postgres',
       };
+    },
+    async readBackupSnapshot(identifier) {
+      const rawIdentifier = String(identifier || '').trim();
+      if (!rawIdentifier) throw new Error('INVALID_BACKUP_ID');
+      const result = /^\d+$/.test(rawIdentifier)
+        ? await query('SELECT data_json FROM backups WHERE id = $1', [Number(rawIdentifier)])
+        : await query('SELECT data_json FROM backups WHERE filename = $1', [rawIdentifier]);
+      if (result.rowCount === 0) throw new Error('BACKUP_NOT_FOUND');
+      return result.rows[0].data_json;
     },
     async getLastBackupTime() {
       const result = await query('SELECT created_at FROM backups ORDER BY created_at DESC LIMIT 1');

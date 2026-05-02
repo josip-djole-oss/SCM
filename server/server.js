@@ -953,6 +953,10 @@ async function createBackupSnapshotWithLabel(label = 'manual', includeNotificati
 
 async function listBackups(limit = 20) {
   try {
+    if (typeof storageAdapter.listBackups === 'function') {
+      const backups = await storageAdapter.listBackups(limit);
+      return Array.isArray(backups) ? backups : [];
+    }
     if (!fs.existsSync(backupsDir)) return [];
     
     const files = fs.readdirSync(backupsDir)
@@ -974,6 +978,72 @@ async function listBackups(limit = 20) {
     logServerError(error, 'listBackups');
     return [];
   }
+}
+
+async function readBackupSnapshotById(identifier) {
+  const rawIdentifier = sanitizeString(identifier, 255);
+  if (!rawIdentifier) {
+    const error = new Error('INVALID_BACKUP_ID');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (typeof storageAdapter.readBackupSnapshot === 'function') {
+    return storageAdapter.readBackupSnapshot(rawIdentifier);
+  }
+  const safeFilename = path.basename(rawIdentifier);
+  if (safeFilename !== rawIdentifier || !safeFilename.endsWith('.json')) {
+    const error = new Error('INVALID_BACKUP_ID');
+    error.statusCode = 400;
+    throw error;
+  }
+  const backupRoot = path.resolve(backupsDir);
+  const filePath = path.resolve(backupsDir, safeFilename);
+  if (!filePath.startsWith(backupRoot) || !fs.existsSync(filePath)) {
+    const error = new Error('BACKUP_NOT_FOUND');
+    error.statusCode = 404;
+    throw error;
+  }
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+async function restoreBackupSnapshot(identifier, userEmail) {
+  const snapshot = await readBackupSnapshotById(identifier);
+  if (!snapshot || typeof snapshot !== 'object') {
+    const error = new Error('BACKUP_STRUCTURE_INVALID');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  await createBackupSnapshotWithLabel(`pre-restore-${userEmail || 'admin'}`, false);
+
+  if ('admins' in snapshot) await writeAdmins(Array.isArray(snapshot.admins) ? snapshot.admins : []);
+  if ('state' in snapshot) await writeVersionedJsonFile(stateFile, snapshot.state || {}, { fallbackValue: {} });
+  if ('logs' in snapshot) await writeVersionedJsonFile(logsFile, Array.isArray(snapshot.logs) ? snapshot.logs : [], { fallbackValue: [] });
+  if ('warehouse' in snapshot) await writeVersionedJsonFile(warehouseFile, snapshot.warehouse || null, { fallbackValue: null });
+  if ('warehouseLogs' in snapshot) {
+    await writeVersionedJsonFile(
+      warehouseLogsFile,
+      Array.isArray(snapshot.warehouseLogs) ? snapshot.warehouseLogs : [],
+      { fallbackValue: [] },
+    );
+  }
+
+  const reports = snapshot.reports && typeof snapshot.reports === 'object' ? snapshot.reports : {};
+  for (const [site, list] of Object.entries(reports)) {
+    await writeVersionedJsonFile(getReportsFilePath(site), Array.isArray(list) ? list : [], { fallbackValue: [] });
+  }
+
+  const notifications = snapshot.notifications && typeof snapshot.notifications === 'object' ? snapshot.notifications : {};
+  for (const [site, list] of Object.entries(notifications)) {
+    await writeVersionedJsonFile(getNotificationsFilePath(site), Array.isArray(list) ? list : [], { fallbackValue: [] });
+  }
+
+  await logActivity(userEmail, 'backup_restored', {
+    backup: sanitizeString(identifier, 255),
+    storageType: STORAGE_TYPE,
+  });
+
+  return snapshot;
 }
 
 function redactAdminRecord(admin) {
@@ -3397,6 +3467,30 @@ apiRouter.post('/backup', requirePermission('canManageBackups'), backupLimiter, 
       createdAt: backup.createdAt || new Date().toISOString(),
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/backup/restore', requirePermission('canManageBackups'), backupLimiter, async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) {
+      return res.status(403).json({ error: 'Read-only users cannot restore backups' });
+    }
+    const backupId = sanitizeString(req.body?.id || req.body?.filename || '', 255);
+    if (!backupId) return res.status(400).json({ error: 'Missing backup id' });
+    const snapshot = await restoreBackupSnapshot(backupId, req.session.email);
+    res.json({
+      ok: true,
+      restored: true,
+      backup: backupId,
+      restoredAt: new Date().toISOString(),
+      storageType: snapshot.storageType || STORAGE_TYPE,
+    });
+  } catch (error) {
+    if (error?.message === 'BACKUP_NOT_FOUND') return res.status(404).json({ error: 'Backup not found' });
+    if (error?.message === 'INVALID_BACKUP_ID' || error?.message === 'BACKUP_STRUCTURE_INVALID') {
+      return res.status(error.statusCode || 400).json({ error: error.message });
+    }
     next(error);
   }
 });
