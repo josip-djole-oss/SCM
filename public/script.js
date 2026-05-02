@@ -3613,6 +3613,151 @@ function renderNotificationsList() {
   });
 }
 
+function getPrintableNotifications() {
+  const siteFilter = document.getElementById("notificationFilterSite")?.value || "";
+  const sourceSites = siteFilter ? [siteFilter] : getAccessibleSites();
+  const byKey = new Map();
+  sourceSites.forEach((site) => {
+    getNotificationsForSite(site).forEach((note) => {
+      if (!note) return;
+      const key = `${site}:${note.id}`;
+      byKey.set(key, { ...note, site });
+    });
+  });
+  return Array.from(byKey.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+function openNotificationPrintChooser() {
+  if (!canAccessNotificationsModule() || !hasPermission("canPrint")) {
+    showToast(t("accessPrintDenied"), "error");
+    return;
+  }
+  const notifications = getPrintableNotifications();
+  if (!notifications.length) {
+    showToast(t("notificationsEmpty"), "error");
+    return;
+  }
+
+  const existing = document.getElementById("notificationPrintModal");
+  if (existing) existing.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "notificationPrintModal";
+  modal.className = "modal-overlay";
+  modal.innerHTML = `
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-header">
+        <h2>Print obavijest</h2>
+        <button class="close-btn" onclick="closeNotificationPrintChooser()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="notificationPrintSelect">Odaberi obavijest:</label>
+          <select id="notificationPrintSelect"></select>
+        </div>
+        <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px;">
+          <button class="btn btn-secondary" onclick="closeNotificationPrintChooser()">Odustani</button>
+          <button class="btn" onclick="printSelectedNotification()">Print</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const select = document.getElementById("notificationPrintSelect");
+  notifications.forEach((note, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    const date = note.createdAt ? new Date(note.createdAt).toLocaleString(getCurrentLocale()) : "";
+    const preview = (note.message || "").replace(/\s+/g, " ").trim().slice(0, 60);
+    option.textContent = `${formatNotificationId(note.id)} | ${note.site || currentSite} | ${date}${preview ? ` | ${preview}` : ""}`;
+    select.appendChild(option);
+  });
+  modal.dataset.notifications = JSON.stringify(notifications);
+}
+
+function closeNotificationPrintChooser() {
+  const modal = document.getElementById("notificationPrintModal");
+  if (modal) modal.remove();
+}
+
+function printSelectedNotification() {
+  const modal = document.getElementById("notificationPrintModal");
+  const select = document.getElementById("notificationPrintSelect");
+  const notifications = safeParseStoredJson(modal?.dataset.notifications || "[]", []) || [];
+  const note = notifications[Number(select?.value || 0)];
+  closeNotificationPrintChooser();
+  if (!note) {
+    showToast("Obavijest nije pronađena.", "error");
+    return;
+  }
+  printNotificationDocument(note);
+}
+
+function printNotificationDocument(note) {
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return;
+  const locale = getCurrentLocale();
+  const createdAt = note.createdAt ? new Date(note.createdAt).toLocaleString(locale) : "";
+  const images = Array.isArray(note.images) ? note.images : [];
+  const imageHtml = images.map((img) => {
+    const src = img && img.url ? img.url : "";
+    if (!src) return "";
+    return `<img src="${escapeHtml(src)}" alt="${escapeHtml(img.name || "obavijest")}" />`;
+  }).join("");
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Obavijest ${escapeHtml(formatNotificationId(note.id))}</title>
+        <style>
+          @page { size: A4 portrait; margin: 12mm; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; background: #fff; }
+          .pdf-header { background: #667eea; color: #fff; padding: 12px 16px; margin: -12mm -12mm 18px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .pdf-header h1 { font-size: 20px; margin: 0 0 6px; letter-spacing: 0; }
+          .pdf-header .meta { font-size: 11px; opacity: 0.95; display: flex; gap: 14px; flex-wrap: wrap; }
+          .card { border: 1px solid #d0d5dd; border-radius: 6px; padding: 16px; }
+          .post-title { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 14px; }
+          .post-title h2 { margin: 0; font-size: 18px; color: #101828; }
+          .author { color: #667085; font-size: 12px; }
+          .body { white-space: pre-wrap; font-size: 14px; line-height: 1.5; margin-bottom: 16px; }
+          .images { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+          .images img { width: 100%; max-height: 240px; object-fit: contain; border: 1px solid #d0d5dd; border-radius: 6px; }
+          .footer { margin-top: 16px; color: #98a2b3; font-size: 10px; text-align: right; }
+        </style>
+      </head>
+      <body>
+        <div class="pdf-header">
+          <h1>CMAX SCM</h1>
+          <div class="meta">
+            <span>OBAVIJEST - ${escapeHtml(note.site || currentSite)}</span>
+            <span>${escapeHtml(createdAt)}</span>
+            <span>${escapeHtml(formatNotificationId(note.id))}</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="post-title">
+            <h2>Post ${escapeHtml(formatNotificationId(note.id))}</h2>
+            <div class="author">${escapeHtml(note.authorName || note.createdBy || "Unknown")}</div>
+          </div>
+          <div class="body">${escapeHtml(note.message || "") || "Bez teksta."}</div>
+          ${imageHtml ? `<div class="images">${imageHtml}</div>` : ""}
+        </div>
+        <div class="footer">CMAX SCM | ${escapeHtml(new Date().toLocaleString(locale))}</div>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 350);
+}
+
 function resetNotificationComposer() {
   const textEl = document.getElementById("notificationText");
   if (textEl) textEl.value = "";
@@ -4614,6 +4759,7 @@ function applyPermissionVisibility() {
   setVisibility("btnBins", canBins);
   setVisibility("btnWarehouse", canWarehouse);
   setVisibility("btnNotifications", canAccessNotificationsModule());
+  setVisibility("btnPrintNotification", canAccessNotificationsModule() && hasPermission("canPrint"));
   setVisibility("btnSurveys", hasPermission("canViewSurveys"));
   setVisibility("adminBtn", canAdminPanel);
   setVisibility("btnLogout", !appState.isReadonly);
@@ -5592,7 +5738,7 @@ function showConfirm(message, title, icon, onYes, onNo) {
 
   const noBtn = document.createElement("button");
   noBtn.className = "btn btn-secondary";
-  noBtn.textContent = t("btnNo");
+  noBtn.textContent = safeTitle === "Print Tidplan" ? "Trenutni prikaz" : t("btnNo");
   noBtn.onclick = () => {
     overlay.style.display = "none";
     if (onNo) onNo();
@@ -5600,7 +5746,7 @@ function showConfirm(message, title, icon, onYes, onNo) {
 
   const yesBtn = document.createElement("button");
   yesBtn.className = "btn";
-  yesBtn.textContent = t("btnYes");
+  yesBtn.textContent = safeTitle === "Print Tidplan" ? "Cijeli Tidplan" : t("btnYes");
   yesBtn.onclick = () => {
     overlay.style.display = "none";
     if (onYes) onYes();
@@ -10025,7 +10171,7 @@ function handleExport() {
   if (currentView === "bins") {
     exportBinsToPDF();
   } else if (currentView === "main") {
-    window.print();
+    exportToPDF();
   } else {
     exportToPDF();
   }
@@ -10464,6 +10610,10 @@ async function exportPlannerToPDF() {
     showToast("Nemate dozvolu za export Plannera.", "error");
     return;
   }
+  exportToPDF();
+  addLog("Exported Planner to PDF", { site: currentSite, date: appState.currentDate });
+  showToast("Planner uspješno exportan u PDF.", "success");
+  return;
   showLoading("loadingDefault");
   try {
     const response = await fetch(`/api/planner/export/pdf?site=${encodeURIComponent(currentSite)}`);
@@ -10806,16 +10956,20 @@ function exportWarehouseInventoryToPDF() {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.setTextColor(255, 255, 255);
-  doc.text(`CMAX SKLADISTE - ${currentSite}`, 14, 10);
+  doc.text("CMAX SCM", 14, 10);
   doc.setFontSize(10);
   doc.setFont("helvetica", "normal");
-  doc.text(generatedAt, 14, 17);
+  doc.text(`SKLADISTE - ${currentSite} | ${generatedAt}`, 14, 17);
+  doc.setTextColor(0, 0, 0);
+  doc.setFontSize(9);
+  doc.setTextColor(80, 80, 80);
+  doc.text(`Stavke: ${rows.length}`, 14, 28);
   doc.setTextColor(0, 0, 0);
 
   doc.autoTable({
     head: [["Alat / materijal", "Jedinica", "Trenutno", "Ukupno dano", "Ukupno doslo", "Min. limit"]],
     body: rows.map((row) => [row.name, row.unit, row.current, row.issued, row.received, row.minimum]),
-    startY: 30,
+    startY: 32,
     styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.3 },
     headStyles: {
       fillColor: [102, 126, 234],
@@ -10835,6 +10989,15 @@ function exportWarehouseInventoryToPDF() {
     },
     margin: { left: 10, right: 10 },
   });
+
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`CMAX SCM | SKLADISTE - ${currentSite}`, 10, doc.internal.pageSize.height - 6);
+    doc.text(`${i} / ${pageCount}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 6);
+  }
 
   doc.save(`CMAX_Skladiste_${currentSite}_${new Date().toISOString().split("T")[0]}.pdf`);
 }
@@ -12566,7 +12729,152 @@ function buildTidplanPrintDays(activities) {
   return days;
 }
 
+function chunkTidplanPrintDays(days, size) {
+  const chunks = [];
+  for (let i = 0; i < days.length; i += size) {
+    chunks.push(days.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function printTidplanTimelineView() {
+  const activities = (getFilteredTidplanData() || []).filter((activity) => activity && !isTidplanActivityInactive(activity));
+  const locale = getCurrentLocale();
+  const days = buildTidplanPrintDays(activities);
+  const dayChunks = chunkTidplanPrintDays(days, 14);
+  const formatDay = (date) => date.toLocaleDateString(locale, { day: "2-digit", month: "2-digit" });
+  const formatWeekday = (date) => date.toLocaleDateString(locale, { weekday: "short" });
+
+  const pages = dayChunks.map((chunk, pageIndex) => {
+    const headers = chunk.map((day) => {
+      const dayKey = day.toISOString().slice(0, 10);
+      const meta = getSwedishDayMeta(dayKey);
+      const classes = ["day-head"];
+      if (day.getDay() === 0 || day.getDay() === 6 || meta.holiday) classes.push("off-day");
+      return `<th class="${classes.join(" ")}"><span>${escapeHtml(formatWeekday(day))}</span><strong>${escapeHtml(formatDay(day))}</strong></th>`;
+    }).join("");
+
+    const rows = activities.map((activity, index) => {
+      const color = getActivityColor(activity.plan, activity.moment);
+      const start = activity.start ? new Date(`${activity.start}T00:00:00`) : null;
+      const end = activity.end ? new Date(`${activity.end}T00:00:00`) : start;
+      const cells = chunk.map((day) => {
+        const dayKey = day.toISOString().slice(0, 10);
+        const meta = getSwedishDayMeta(dayKey);
+        const classes = ["timeline-cell"];
+        const active = start && end && day >= start && day <= end;
+        if (active) classes.push("active");
+        if (day.getDay() === 0 || day.getDay() === 6 || meta.holiday) classes.push("off-day");
+        return `<td class="${classes.join(" ")}" style="${active ? `background:${color};` : ""}">${active ? escapeHtml(String(activity.resursi || "")) : ""}</td>`;
+      }).join("");
+
+      return `
+        <tr>
+          <td class="row-num">${index + 1}</td>
+          <td class="left-plan"><span class="color-dot" style="background:${color};"></span>${escapeHtml(activity.plan || "-")}</td>
+          <td>${escapeHtml(activity.zona || "-")}</td>
+          <td>${escapeHtml(activity.karna || "-")}</td>
+          <td>${escapeHtml(activity.moment || "-")}</td>
+          <td class="res-cell">${Number(activity.resursi) || ""}</td>
+          ${cells}
+          <td class="comment-cell">${escapeHtml(activity.komentar || activity.comment || "")}</td>
+        </tr>
+      `;
+    }).join("");
+
+    const weekRange = chunk.length
+      ? `Tjedan ${getWeekNumber(chunk[0])}${getWeekNumber(chunk[0]) !== getWeekNumber(chunk[chunk.length - 1]) ? ` - ${getWeekNumber(chunk[chunk.length - 1])}` : ""}`
+      : "";
+
+    return `
+      <section class="print-page">
+        <div class="header">
+          <h1>CMAX TIDPLAN - ${escapeHtml(currentSite)}</h1>
+          <div class="meta">
+            <span>Trenutni prikaz</span>
+            <span>${escapeHtml(weekRange)}</span>
+            <span>${escapeHtml(new Date().toLocaleString(locale))}</span>
+            <span>Aktivnosti: ${activities.length}</span>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th class="row-num">#</th>
+              <th class="left-plan">Plan</th>
+              <th>Zona</th>
+              <th>Karna</th>
+              <th>Moment</th>
+              <th class="res-cell">Res</th>
+              ${headers}
+              <th class="comment-cell">Komentar</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || `<tr><td class="empty" colspan="${7 + chunk.length}">Nema aktivnosti za trenutni prikaz.</td></tr>`}
+          </tbody>
+        </table>
+        <div class="page-foot">${pageIndex + 1} / ${dayChunks.length || 1}</div>
+      </section>
+    `;
+  }).join("");
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return;
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Tidplan trenutni prikaz ${escapeHtml(currentSite)}</title>
+        <style>
+          @page { size: A4 landscape; margin: 7mm; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; background: #fff; }
+          .print-page { page-break-after: always; }
+          .print-page:last-child { page-break-after: auto; }
+          .header { border-bottom: 3px solid #667eea; padding-bottom: 6px; margin-bottom: 8px; }
+          h1 { font-size: 18px; margin: 0 0 4px; color: #101828; }
+          .meta { font-size: 11px; color: #667085; display: flex; gap: 14px; flex-wrap: wrap; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 8.5px; }
+          th, td { border: 1px solid #cfd6e4; padding: 4px 3px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }
+          th { background: #eef2ff; color: #26335f; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          tbody tr:nth-child(even) td { background: #f8fafc; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          tr { page-break-inside: avoid; }
+          .row-num { width: 7mm; text-align: center; }
+          .left-plan { width: 24mm; white-space: nowrap; }
+          th:nth-child(3), td:nth-child(3) { width: 17mm; }
+          th:nth-child(4), td:nth-child(4) { width: 17mm; }
+          th:nth-child(5), td:nth-child(5) { width: 23mm; }
+          .res-cell { width: 9mm; text-align: center; }
+          .day-head { width: 8.5mm; text-align: center; padding: 3px 1px; }
+          .day-head span { display: block; font-size: 7px; color: #667085; text-transform: uppercase; }
+          .day-head strong { display: block; font-size: 8px; color: #101828; }
+          .timeline-cell { width: 8.5mm; height: 8mm; text-align: center; color: #fff; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .timeline-cell.off-day:not(.active), .day-head.off-day { background: #f3f4f6; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .color-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: middle; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .comment-cell { width: 24mm; white-space: normal; }
+          .empty { text-align: center; padding: 16px; color: #667085; }
+          .page-foot { margin-top: 5px; font-size: 9px; color: #667085; text-align: right; }
+        </style>
+      </head>
+      <body>
+        ${pages || `<section class="print-page"><div class="header"><h1>CMAX TIDPLAN - ${escapeHtml(currentSite)}</h1></div><div class="empty">Nema aktivnosti za trenutni prikaz.</div></section>`}
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 300);
+}
+
 function printTidplanDocument(mode = "current") {
+  if (mode === "current") {
+    printTidplanTimelineView();
+    return;
+  }
   const sourceActivities = mode === "full" ? tidplanData : getFilteredTidplanData();
   const activities = (sourceActivities || []).filter((activity) => activity && !isTidplanActivityInactive(activity));
   const locale = getCurrentLocale();
