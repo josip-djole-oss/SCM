@@ -10196,6 +10196,7 @@ function printBinsTable() {
     ${getCmaxPrintHeaderCss()}
     body { font-family: Arial, sans-serif; margin: 20px; }
     h1 { font-size: 24px; margin-bottom: 10px; }
+    body > h1:first-of-type { display: none; }
     .date { font-size: 14px; color: #666; margin-bottom: 20px; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     th { background: #667eea; color: white; padding: 10px; text-align: center; font-weight: 600; }
@@ -10206,7 +10207,6 @@ function printBinsTable() {
     .bin-cell-red { background-color: #f8d7da !important; }
   </style></head><body>
     <h1>CMAX SCM - Kante za smeće</h1>
-    <div class="date">${dateStr}</div>
     ${getCmaxPrintHeaderHtml(currentSite, dateStr)}
     <table>
       <thead><tr>
@@ -10824,7 +10824,7 @@ function drawCmaxPdfHeader(doc, site = currentSite, dateLabel = formatCmaxPrintD
 
 function getCmaxPrintHeaderHtml(site = currentSite, dateLabel = formatCmaxPrintDate()) {
   return `
-    <div class="cmax-print-header">
+    <div class="header cmax-print-header">
       <div class="logo-section">
         <div class="logo"><img src="/cmaxlogo.png" alt="CMAX Logo" /></div>
         <div class="title-section">
@@ -10838,6 +10838,105 @@ function getCmaxPrintHeaderHtml(site = currentSite, dateLabel = formatCmaxPrintD
 
 function getCmaxPrintHeaderCss() {
   return `
+    :root {
+      --primary-color-start: #667eea;
+      --primary-color-mid: #6658be;
+      --primary-color-end: #764ba2;
+      --shadow: rgba(30, 41, 59, 0.18);
+      --text-dark: #1f2937;
+    }
+    .header.cmax-print-header {
+      display: flex !important;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      border-bottom: 2px solid #8b83c7;
+      padding: 0 0 12px;
+      margin: 0 0 24px;
+      page-break-inside: avoid;
+    }
+    .header.cmax-print-header .logo-section {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      width: 100%;
+      flex-wrap: nowrap;
+    }
+    .header.cmax-print-header .logo {
+      width: 150px;
+      height: 150px;
+      background: linear-gradient(135deg, var(--primary-color-start) 0%, var(--primary-color-mid) 45%, var(--primary-color-end) 100%);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      font-weight: bold;
+      color: #fff;
+      box-shadow: 0 4px 12px var(--shadow);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .header.cmax-print-header .logo img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      border-radius: inherit;
+    }
+    .header.cmax-print-header .title-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      text-align: center;
+      align-items: center;
+    }
+    .header.cmax-print-header .title-section h1,
+    .header.cmax-print-header .cmax-print-title {
+      font-size: 36px;
+      color: var(--text-dark);
+    }
+    .header.cmax-print-header #mainTitle,
+    .header.cmax-print-header .cmax-print-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary-color-start), var(--primary-color-end));
+      color: #fff;
+      box-shadow: 0 8px 20px var(--shadow);
+      line-height: 1.1;
+      margin: 0;
+      white-space: nowrap;
+    }
+    .header.cmax-print-header #mainTitle::before,
+    .header.cmax-print-header .cmax-print-title::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18);
+      transform: rotate(45deg);
+      flex-shrink: 0;
+    }
+    .header.cmax-print-header .date-display {
+      display: block !important;
+      font-size: 12px;
+      color: #4b5563;
+      text-transform: uppercase;
+    }
+    @media (max-width: 700px) {
+      .header.cmax-print-header .logo { width: 96px; height: 96px; border-radius: 14px; }
+      .header.cmax-print-header .title-section h1,
+      .header.cmax-print-header .cmax-print-title { font-size: 24px; }
+      .header.cmax-print-header #mainTitle,
+      .header.cmax-print-header .cmax-print-title { white-space: normal; }
+    }
     .cmax-print-header { border-bottom: 2px solid #8b83c7; padding: 0 0 8px; margin: 0 0 18px; display: flex; justify-content: center; }
     .cmax-print-header .logo-section { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; }
     .cmax-print-header .logo { width: 82px; height: 82px; background: linear-gradient(135deg, #667eea 0%, #6658be 45%, #764ba2 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(30, 41, 59, 0.18); overflow: hidden; flex-shrink: 0; }
@@ -10846,6 +10945,22 @@ function getCmaxPrintHeaderCss() {
     .cmax-print-header h1 { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px; border-radius: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-size: 28px; line-height: 1; margin: 0; }
     .cmax-print-header .cmax-print-title { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px; border-radius: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-size: 28px; line-height: 1; margin: 0; }
     .cmax-print-header .date-display { display: block; font-size: 11px; color: #4b5563; font-weight: 600; text-transform: uppercase; }
+  `;
+}
+
+function getCmaxPrintHeaderHtml(site = currentSite, dateLabel = formatCmaxPrintDate()) {
+  return `
+    <div class="header cmax-print-header">
+      <div class="logo-section">
+        <div class="logo">
+          <img src="/cmaxlogo.png" alt="CMAX Logo" />
+        </div>
+        <div class="title-section">
+          <h1 id="mainTitle">CMAX SCM - ${escapeHtml(site || currentSite)}</h1>
+          <div class="date-display">${escapeHtml(dateLabel)}</div>
+        </div>
+      </div>
+    </div>
   `;
 }
 
