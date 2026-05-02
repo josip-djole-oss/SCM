@@ -2575,6 +2575,7 @@ function getDefaultWarehouseData() {
   return {
     catalog,
     stock,
+    procurementUsers: [],
     issueDraft: createWarehouseIssueDraft(),
     stockForm: {
       itemId: catalog[0]?.id || "",
@@ -2626,6 +2627,9 @@ function normalizeWarehouseData(rawWarehouse) {
   return {
     catalog,
     stock,
+    procurementUsers: Array.isArray(raw.procurementUsers)
+      ? raw.procurementUsers.map((email) => String(email || "").trim().toLowerCase()).filter(Boolean)
+      : [],
     issueDraft: {
       worker: (raw.issueDraft?.worker || "").toString(),
       comment: (raw.issueDraft?.comment || "").toString(),
@@ -9194,7 +9198,6 @@ function persistWarehouseData() {
 }
 
 function getWarehouseAlerts() {
-  const responsibleAdminsLabel = getWarehouseResponsibleAdminsLabel();
   return getVisibleWarehouseCatalog()
     .map((item) => {
       const stock = ensureWarehouseStockRecord(item.id);
@@ -9202,21 +9205,17 @@ function getWarehouseAlerts() {
       return {
         item,
         stock,
-        message: tFormat("warehouseAlertMessage", {
-          name: item.name,
-          current: stock.current,
-          unit: item.unit || "kom",
-          minimum: item.minimum,
-        }),
-        notifyLabel: responsibleAdminsLabel,
       };
     })
     .filter(Boolean);
 }
 
 function getWarehouseResponsibleAdmins(site = currentSite) {
+  const selected = new Set((warehouseData?.procurementUsers || []).map((email) => String(email || "").trim().toLowerCase()));
+  if (!selected.size) return [];
   return getAdmins().filter((admin) => {
     if (!admin || !admin.email) return false;
+    if (!selected.has(String(admin.email).trim().toLowerCase())) return false;
     if (admin.isSuperAdmin) return true;
     if (!Array.isArray(admin.allowedSites)) return true;
     return admin.allowedSites.includes(site);
@@ -9229,6 +9228,59 @@ function getWarehouseResponsibleAdminsLabel(site = currentSite) {
   return admins
     .map((admin) => admin.fullName || admin.email)
     .join(", ");
+}
+
+function renderWarehouseProcurementOptions() {
+  const details = document.getElementById("warehouseProcurementDetails");
+  const options = document.getElementById("warehouseProcurementOptions");
+  const summary = document.getElementById("warehouseProcurementSummary");
+  if (!details || !options || !summary || !warehouseData) return;
+
+  const selected = new Set((warehouseData.procurementUsers || []).map((email) => String(email || "").trim().toLowerCase()));
+  const admins = getAdmins()
+    .filter((admin) => admin?.email)
+    .map((admin) => ({
+      email: String(admin.email || "").trim().toLowerCase(),
+      name: (admin.fullName || `${admin.firstName || ""} ${admin.lastName || ""}`.trim() || admin.email),
+      allowedSites: Array.isArray(admin.allowedSites) ? admin.allowedSites : [],
+      isSuperAdmin: admin.isSuperAdmin === true,
+    }))
+    .filter((admin) => admin.isSuperAdmin || !admin.allowedSites.length || admin.allowedSites.includes(currentSite))
+    .sort((a, b) => compareNaturally(a.name, b.name));
+
+  options.innerHTML = "";
+  if (!admins.length) {
+    options.innerHTML = `<div class="warehouse-multi-select-option">${escapeHtml(t("warehouseNoAssignedAdmin"))}</div>`;
+  } else {
+    admins.forEach((admin) => {
+      const label = document.createElement("label");
+      label.className = "warehouse-multi-select-option";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.value = admin.email;
+      checkbox.checked = selected.has(admin.email);
+      checkbox.disabled = !canEditWarehouse();
+      checkbox.addEventListener("change", () => {
+        const nextSelected = new Set((warehouseData.procurementUsers || []).map((email) => String(email || "").trim().toLowerCase()));
+        if (checkbox.checked) nextSelected.add(admin.email);
+        else nextSelected.delete(admin.email);
+        warehouseData.procurementUsers = Array.from(nextSelected);
+        persistWarehouseData();
+        renderWarehouseProcurementOptions();
+        renderWarehouseAlerts();
+        renderWarehouseInventorySummary();
+      });
+      const text = document.createElement("span");
+      text.textContent = admin.name;
+      label.appendChild(checkbox);
+      label.appendChild(text);
+      options.appendChild(label);
+    });
+  }
+
+  const selectedNames = admins.filter((admin) => selected.has(admin.email)).map((admin) => admin.name);
+  summary.textContent = selectedNames.length ? selectedNames.join(", ") : "Odaberi osobe";
+  details.classList.toggle("is-disabled", !canEditWarehouse());
 }
 
 function createWarehouseSelect(selectedValue, onchange) {
@@ -9343,10 +9395,9 @@ function renderWarehouseInventorySummary() {
   const tbody = document.getElementById("warehouseInventoryBody");
   if (!tbody || !warehouseData) return;
   tbody.innerHTML = "";
-  const responsibleAdminsLabel = getWarehouseResponsibleAdminsLabel();
   const visibleCatalog = getVisibleWarehouseCatalog();
   if (!visibleCatalog.length) {
-    tbody.innerHTML = `<tr><td colspan="7">${escapeHtml(t("warehouseNoVisibleItems"))}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6">${escapeHtml(t("warehouseNoVisibleItems"))}</td></tr>`;
     return;
   }
   visibleCatalog.forEach((item) => {
@@ -9362,7 +9413,6 @@ function renderWarehouseInventorySummary() {
       <td>${stock.totalIssued}</td>
       <td>${stock.totalReceived}</td>
       <td>${item.minimum || 0}</td>
-      <td>${escapeHtml(responsibleAdminsLabel)}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -9381,7 +9431,7 @@ function renderWarehouseCatalogManager() {
     const stock = ensureWarehouseStockRecord(item.id);
     const row = document.createElement("div");
     row.className = "warehouse-catalog-item";
-    row.innerHTML = `<strong>${escapeHtml(item.name)} (${escapeHtml(item.unit || "kom")})</strong><span class="warehouse-catalog-meta">${escapeHtml(tFormat("warehouseCatalogMeta", { current: stock.current, minimum: item.minimum || 0, admins: getWarehouseResponsibleAdminsLabel() }))}</span>`;
+    row.innerHTML = `<strong>${escapeHtml(item.name)} (${escapeHtml(item.unit || "kom")})</strong><span class="warehouse-catalog-meta">Stanje ${stock.current} | min ${item.minimum || 0}</span>`;
 
     const actions = document.createElement("div");
     actions.className = "warehouse-catalog-actions";
@@ -9423,7 +9473,7 @@ function renderWarehouseAlerts() {
   alerts.forEach((alert) => {
     const card = document.createElement("div");
     card.className = "warehouse-alert-card";
-    card.innerHTML = `<strong>${escapeHtml(alert.item.name)}</strong><span>${escapeHtml(alert.message)}</span><small>${escapeHtml(tFormat("warehouseAlertNotify", { admins: alert.notifyLabel || t("warehouseNoAssignedAdmin") }))}</small>`;
+    card.innerHTML = `<strong>${escapeHtml(alert.item.name)}</strong><span>Stanje: ${Number(alert.stock.current) || 0}</span><span>Minimum: ${Number(alert.item.minimum) || 0}</span>`;
     container.appendChild(card);
   });
 }
@@ -9434,12 +9484,7 @@ function renderWarehousePage() {
   renderWarehouseInventorySummary();
   renderWarehouseCatalogManager();
   renderWarehouseAlerts();
-
-  // Enable/disable warehouse action buttons
-  const warehouseExportExcelBtn = document.getElementById("btnWarehouseExportExcel");
-  if (warehouseExportExcelBtn) warehouseExportExcelBtn.disabled = !canExportWarehouse();
-  const warehouseImportExcelBtn = document.getElementById("btnWarehouseImportExcel");
-  if (warehouseImportExcelBtn) warehouseImportExcelBtn.disabled = !canImportWarehouse();
+  renderWarehouseProcurementOptions();
 
   const itemSelect = document.getElementById("warehouseStockItem");
   if (itemSelect) {
@@ -9481,11 +9526,6 @@ function showWarehouse() {
   pushRouteForView("warehouse");
   renderWarehousePage();
   sendPresence(true).catch(() => {});
-  // Attach event listeners for warehouse export/import
-  const warehouseExportExcelBtn = document.getElementById("btnWarehouseExportExcel");
-  if (warehouseExportExcelBtn) warehouseExportExcelBtn.onclick = handleWarehouseExportExcel;
-  const warehouseImportExcelBtn = document.getElementById("btnWarehouseImportExcel");
-  if (warehouseImportExcelBtn) warehouseImportExcelBtn.onclick = () => openModuleImportModal("warehouse", "excel");
   refreshPresence().catch(() => {});
 }
 
@@ -9984,12 +10024,10 @@ function handleExport() {
   }
   if (currentView === "bins") {
     exportBinsToPDF();
+  } else if (currentView === "main") {
+    window.print();
   } else {
     exportToPDF();
-  }
-  // For planner, the dropdown handles specific exports
-  if (currentView === "main") {
-    // This is handled by specific planner export functions
   }
   addLog(
     "Exported to PDF",
@@ -10736,6 +10774,125 @@ function exportToPDF() {
 
   const fileName = `CMAX_Planner_${appState.currentDate}.pdf`;
   doc.save(fileName);
+}
+
+function getWarehouseInventoryExportRows() {
+  if (!warehouseData) loadWarehouseData();
+  return getVisibleWarehouseCatalog().map((item) => {
+    const stock = ensureWarehouseStockRecord(item.id);
+    return {
+      name: item.name || "",
+      unit: item.unit || "kom",
+      current: Number(stock.current) || 0,
+      issued: Number(stock.totalIssued) || 0,
+      received: Number(stock.totalReceived) || 0,
+      minimum: Number(item.minimum) || 0,
+    };
+  });
+}
+
+function exportWarehouseInventoryToPDF() {
+  if (!canAccessWarehouseModule()) {
+    showToast(t("warehouseAccessDenied"), "error");
+    return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const rows = getWarehouseInventoryExportRows();
+  const generatedAt = new Date().toLocaleString(getCurrentLocale());
+
+  doc.setFillColor(102, 126, 234);
+  doc.rect(0, 0, 297, 22, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`CMAX SKLADISTE - ${currentSite}`, 14, 10);
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(generatedAt, 14, 17);
+  doc.setTextColor(0, 0, 0);
+
+  doc.autoTable({
+    head: [["Alat / materijal", "Jedinica", "Trenutno", "Ukupno dano", "Ukupno doslo", "Min. limit"]],
+    body: rows.map((row) => [row.name, row.unit, row.current, row.issued, row.received, row.minimum]),
+    startY: 30,
+    styles: { fontSize: 9, cellPadding: 3, lineColor: [200, 200, 200], lineWidth: 0.3 },
+    headStyles: {
+      fillColor: [102, 126, 234],
+      textColor: [255, 255, 255],
+      fontStyle: "bold",
+      halign: "center",
+    },
+    alternateRowStyles: { fillColor: [248, 249, 252] },
+    bodyStyles: { textColor: [44, 62, 80] },
+    didParseCell: (data) => {
+      if (data.section !== "body") return;
+      const source = rows[data.row.index];
+      if (source && source.minimum > 0 && source.current <= source.minimum) {
+        data.cell.styles.fillColor = [255, 244, 214];
+        data.cell.styles.textColor = [122, 93, 0];
+      }
+    },
+    margin: { left: 10, right: 10 },
+  });
+
+  doc.save(`CMAX_Skladiste_${currentSite}_${new Date().toISOString().split("T")[0]}.pdf`);
+}
+
+function printWarehouseInventory() {
+  if (!canAccessWarehouseModule()) {
+    showToast(t("warehouseAccessDenied"), "error");
+    return;
+  }
+  const rows = getWarehouseInventoryExportRows();
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return;
+  const htmlRows = rows.map((row) => `
+    <tr class="${row.minimum > 0 && row.current <= row.minimum ? "low" : ""}">
+      <td>${escapeHtml(row.name)}</td>
+      <td>${escapeHtml(row.unit)}</td>
+      <td>${row.current}</td>
+      <td>${row.issued}</td>
+      <td>${row.received}</td>
+      <td>${row.minimum}</td>
+    </tr>
+  `).join("");
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>CMAX Skladiste</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 24px; color: #1f2937; }
+          h1 { margin: 0 0 4px; font-size: 22px; }
+          .meta { color: #667085; margin-bottom: 18px; }
+          table { width: 100%; border-collapse: collapse; font-size: 12px; }
+          th { background: #667eea; color: #fff; text-align: left; padding: 8px; }
+          td { border: 1px solid #d0d5dd; padding: 7px; }
+          tr.low td { background: #fff4d6; color: #7a5d00; }
+        </style>
+      </head>
+      <body>
+        <h1>CMAX SKLADISTE - ${escapeHtml(currentSite)}</h1>
+        <div class="meta">${escapeHtml(new Date().toLocaleString(getCurrentLocale()))}</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Alat / materijal</th><th>Jedinica</th><th>Trenutno</th>
+              <th>Ukupno dano</th><th>Ukupno doslo</th><th>Min. limit</th>
+            </tr>
+          </thead>
+          <tbody>${htmlRows || `<tr><td colspan="6">Nema stavki.</td></tr>`}</tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 250);
 }
 
 
