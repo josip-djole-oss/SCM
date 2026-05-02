@@ -3835,6 +3835,11 @@ function getSurveyReadKey() {
   return `cmax_surveys_read_${currentSite}_${getCurrentUserEmail() || "guest"}`;
 }
 
+function getCurrentUserEmail() {
+  const savedAuth = safeParseStoredJson(localStorage.getItem(AUTH_KEY), {}) || {};
+  return (appState.currentUser || savedAuth.email || "").toString().trim().toLowerCase();
+}
+
 function getReadSurveyIds() {
   return safeParseStoredJson(localStorage.getItem(getSurveyReadKey()), []) || [];
 }
@@ -3962,7 +3967,14 @@ function submitSurvey() {
       method: "POST",
       body: formData,
     })
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((res) =>
+        res.ok
+          ? res.json()
+          : res
+              .json()
+              .catch(() => ({}))
+              .then((data) => Promise.reject(new Error(data.error || "SURVEY_SAVE_FAILED"))),
+      )
       .then(() => {
         showToast("Anketa je objavljena!", "success");
         resetSurveyForm();
@@ -7288,7 +7300,7 @@ function openAdminPanel() {
     const canViewReports = hasAdminPermission("canViewReports");
     const canViewLogs = hasAdminPermission("canViewLogs");
     const canViewSettings = hasAdminPermission("canViewSettings") || appState.isSuperAdmin;
-    const canViewBackups = canViewBackups();
+    const canViewBackupsAccess = canViewBackups();
 
 
     setVisibility("tabBtnAdmins", canManageAdmins);
@@ -7301,8 +7313,9 @@ function openAdminPanel() {
     document.getElementById("tabLogs").style.display = canViewLogs ? "" : "none";
     setVisibility("tabBtnSettings", canViewSettings);
     document.getElementById("tabSettings").style.display = canViewSettings ? "" : "none";
-    setVisibility("tabBtnBackup", canViewBackups);
-    document.getElementById("tabBackup").style.display = canViewBackups ? "" : "none";
+    setVisibility("tabBtnBackup", canViewBackupsAccess);
+    const backupTab = document.getElementById("tabBackup");
+    if (backupTab) backupTab.style.display = canViewBackupsAccess ? "" : "none";
 
     renderNewAdminLevelSelector();
     renderNewAdminPermissionsPanel();
@@ -7332,9 +7345,8 @@ function openAdminPanel() {
       (canManageGuest && "tabGuest") ||
       (canViewReports && "tabReports") ||
       (canViewLogs && "tabLogs") ||
-      (canViewSettings && "tabSettings");
       (canViewSettings && "tabSettings") ||
-      (canViewBackups && "tabBackup");
+      (canViewBackupsAccess && "tabBackup");
 
     if (!firstTab) {
       document.getElementById("adminModal").style.display = "none";
@@ -10372,7 +10384,26 @@ function deleteReport(reportId) {
 }
 
 function toggleDropdown(id) {
-  document.getElementById(id).classList.toggle("show");
+  const dropdown = document.getElementById(id);
+  if (!dropdown) return;
+  if (dropdown.style.display === "none" || !dropdown.style.display) {
+    dropdown.style.display = "block";
+  } else {
+    dropdown.style.display = "none";
+  }
+  dropdown.classList.toggle("show", dropdown.style.display === "block");
+}
+
+function togglePlannerExportImportDropdown() {
+  toggleDropdown("plannerExportImportDropdown");
+}
+
+function toggleTidplanExportImportDropdown() {
+  toggleDropdown("tidplanExportImportDropdown");
+}
+
+function toggleWarehouseExportImportDropdown() {
+  toggleDropdown("warehouseExportImportDropdown");
 }
 
 /* ==================== PDF EXPORT ==================== */
@@ -11114,14 +11145,16 @@ function showPlanner() {
   const warehouseSection = document.getElementById("warehouse-section");
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
+  const tidplanSection = document.getElementById("tidplan-section");
+  const plannerSection = document.getElementById("planner-section");
   if (notificationsSection) notificationsSection.style.display = "none";
   if (surveysSection) surveysSection.style.display = "none";
   if (warehouseSection) warehouseSection.style.display = "none";
   if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
   if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
   currentView = "main";
-  document.getElementById("tidplan-section").style.display = "none";
-  document.getElementById("planner-section").style.display = "block";
+  if (tidplanSection) tidplanSection.style.display = "none";
+  if (plannerSection) plannerSection.style.display = "block";
   applyPermissionVisibility();
   saveCurrentView("main");
   pushRouteForView("main");
