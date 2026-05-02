@@ -3586,9 +3586,9 @@ span.flatpickr-weekday {
 }
 .survey-user-row {
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) minmax(82px, 115px);
+  grid-template-columns: 22px minmax(0, 1fr) minmax(82px, 115px);
   align-items: center;
-  column-gap: 15px;
+  column-gap: 22px;
   width: 100%;
   min-height: 30px;
   padding: 6px 8px;
@@ -3611,7 +3611,7 @@ span.flatpickr-weekday {
 .survey-user-name {
   min-width: 0;
   margin-left: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-dark);
   white-space: nowrap;

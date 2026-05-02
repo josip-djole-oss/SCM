@@ -10764,38 +10764,56 @@ function getCmaxLogoImage() {
 function drawCmaxPdfHeader(doc, site = currentSite, dateLabel = formatCmaxPrintDate(), options = {}) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const logo = getCmaxLogoImage();
-  const logoSize = options.logoSize || 28;
+  const logoSize = options.logoSize || 34;
   const title = `CMAX SCM - ${site || currentSite}`;
-  const titleWidth = Math.min(Math.max(doc.getTextWidth(title) + 18, 86), pageWidth - 92);
-  const groupWidth = logoSize + 8 + titleWidth;
+  const titleWidth = Math.min(Math.max(doc.getTextWidth(title) + 20, 94), pageWidth - 96);
+  const groupWidth = logoSize + 7 + titleWidth;
   const startX = (pageWidth - groupWidth) / 2;
-  const topY = options.topY || 8;
-  const titleX = startX + logoSize + 8;
-  const titleY = topY + 8;
+  const topY = options.topY || 7;
+  const titleX = startX + logoSize + 7;
+  const titleY = topY + 9;
+
+  doc.setFillColor(102, 88, 190);
+  doc.roundedRect(startX, topY, logoSize, logoSize, 4, 4, "F");
 
   if (logo) {
     try {
-      doc.addImage(logo, "PNG", startX, topY, logoSize, logoSize);
+      const ratio = logo.naturalWidth && logo.naturalHeight ? logo.naturalWidth / logo.naturalHeight : 1;
+      const maxLogoImage = logoSize - 4;
+      const imageWidth = ratio >= 1 ? maxLogoImage : maxLogoImage * ratio;
+      const imageHeight = ratio >= 1 ? maxLogoImage / ratio : maxLogoImage;
+      doc.addImage(
+        logo,
+        "PNG",
+        startX + (logoSize - imageWidth) / 2,
+        topY + (logoSize - imageHeight) / 2,
+        imageWidth,
+        imageHeight,
+      );
     } catch (error) {
-      doc.setFillColor(102, 126, 234);
-      doc.roundedRect(startX, topY, logoSize, logoSize, 4, 4, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("CM", startX + logoSize / 2, topY + logoSize / 2 + 4, { align: "center" });
     }
   } else {
-    doc.setFillColor(102, 126, 234);
-    doc.roundedRect(startX, topY, logoSize, logoSize, 4, 4, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("CM", startX + logoSize / 2, topY + logoSize / 2 + 4, { align: "center" });
   }
 
   doc.setFillColor(102, 88, 190);
-  doc.roundedRect(titleX, titleY, titleWidth, 12, 2, 2, "F");
+  doc.roundedRect(titleX, titleY, titleWidth, 13, 2, 2, "F");
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
+  doc.setFontSize(15.5);
   doc.setTextColor(255, 255, 255);
-  doc.text(title, titleX + titleWidth / 2, titleY + 8.2, { align: "center" });
+  doc.text(`• ${title}`, titleX + titleWidth / 2, titleY + 9, { align: "center" });
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(70, 70, 70);
-  doc.text(dateLabel, titleX + titleWidth / 2, titleY + 20, { align: "center" });
+  doc.text(dateLabel, titleX + titleWidth / 2, titleY + 21, { align: "center" });
 
   doc.setDrawColor(102, 88, 190);
   doc.setLineWidth(0.35);
@@ -10807,11 +10825,11 @@ function drawCmaxPdfHeader(doc, site = currentSite, dateLabel = formatCmaxPrintD
 function getCmaxPrintHeaderHtml(site = currentSite, dateLabel = formatCmaxPrintDate()) {
   return `
     <div class="cmax-print-header">
-      <div class="cmax-print-brand">
-        <img src="/cmaxlogo.png" alt="CMAX Logo" />
-        <div class="cmax-print-title-wrap">
+      <div class="logo-section">
+        <div class="logo"><img src="/cmaxlogo.png" alt="CMAX Logo" /></div>
+        <div class="title-section">
           <div class="cmax-print-title">• CMAX SCM - ${escapeHtml(site || currentSite)}</div>
-          <div class="cmax-print-date">${escapeHtml(dateLabel)}</div>
+          <div class="date-display">${escapeHtml(dateLabel)}</div>
         </div>
       </div>
     </div>
@@ -10820,12 +10838,14 @@ function getCmaxPrintHeaderHtml(site = currentSite, dateLabel = formatCmaxPrintD
 
 function getCmaxPrintHeaderCss() {
   return `
-    .cmax-print-header { border-bottom: 2px solid #8b83c7; padding: 0 0 8px; margin: 0 0 18px; }
-    .cmax-print-brand { display: flex; align-items: center; justify-content: center; gap: 12px; }
-    .cmax-print-brand img { width: 72px; height: 72px; object-fit: contain; border-radius: 10px; }
-    .cmax-print-title-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-    .cmax-print-title { background: #6658be; color: #fff; border-radius: 6px; padding: 5px 14px; font-size: 22px; font-weight: 800; letter-spacing: 1px; line-height: 1; }
-    .cmax-print-date { color: #4b5563; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+    .cmax-print-header { border-bottom: 2px solid #8b83c7; padding: 0 0 8px; margin: 0 0 18px; display: flex; justify-content: center; }
+    .cmax-print-header .logo-section { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; }
+    .cmax-print-header .logo { width: 82px; height: 82px; background: linear-gradient(135deg, #667eea 0%, #6658be 45%, #764ba2 100%); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(30, 41, 59, 0.18); overflow: hidden; flex-shrink: 0; }
+    .cmax-print-header .logo img { max-width: 94%; max-height: 94%; width: auto; height: auto; object-fit: contain; border-radius: inherit; }
+    .cmax-print-header .title-section { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+    .cmax-print-header h1 { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px; border-radius: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-size: 28px; line-height: 1; margin: 0; }
+    .cmax-print-header .cmax-print-title { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; padding: 6px 12px; border-radius: 10px; background: linear-gradient(135deg, #667eea, #764ba2); color: #fff; font-size: 28px; line-height: 1; margin: 0; }
+    .cmax-print-header .date-display { display: block; font-size: 11px; color: #4b5563; font-weight: 600; text-transform: uppercase; }
   `;
 }
 
@@ -12828,10 +12848,9 @@ function printTidplanTimelineView() {
 
   const pages = dayChunks.map((chunk, pageIndex) => {
     const headers = chunk.map((day) => {
-      const dayKey = day.toISOString().slice(0, 10);
-      const meta = getSwedishDayMeta(dayKey);
+      const meta = getSwedishDayMeta(day);
       const classes = ["day-head"];
-      if (day.getDay() === 0 || day.getDay() === 6 || meta.holiday) classes.push("off-day");
+      if (day.getDay() === 0 || day.getDay() === 6 || meta.isHoliday) classes.push("off-day");
       return `<th class="${classes.join(" ")}"><span>${escapeHtml(formatWeekday(day))}</span><strong>${escapeHtml(formatDay(day))}</strong></th>`;
     }).join("");
 
@@ -12840,12 +12859,11 @@ function printTidplanTimelineView() {
       const start = activity.start ? new Date(`${activity.start}T00:00:00`) : null;
       const end = activity.end ? new Date(`${activity.end}T00:00:00`) : start;
       const cells = chunk.map((day) => {
-        const dayKey = day.toISOString().slice(0, 10);
-        const meta = getSwedishDayMeta(dayKey);
+        const meta = getSwedishDayMeta(day);
         const classes = ["timeline-cell"];
         const active = start && end && day >= start && day <= end;
         if (active) classes.push("active");
-        if (day.getDay() === 0 || day.getDay() === 6 || meta.holiday) classes.push("off-day");
+        if (day.getDay() === 0 || day.getDay() === 6 || meta.isHoliday) classes.push("off-day");
         return `<td class="${classes.join(" ")}" style="${active ? `background:${color};` : ""}">${active ? escapeHtml(String(activity.resursi || "")) : ""}</td>`;
       }).join("");
 
