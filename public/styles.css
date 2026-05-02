@@ -3568,6 +3568,7 @@ span.flatpickr-weekday {
 }
 .survey-users-group {
   max-width: 360px;
+  margin-top: 15px;
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: 14px;
@@ -3575,10 +3576,9 @@ span.flatpickr-weekday {
   box-shadow: 0 3px 12px var(--shadow);
 }
 #surveyTargetUsersCheckboxes {
-  display: table;
+  display: block;
   width: 100%;
-  border-collapse: collapse;
-  max-height: 230px;
+  max-height: 252px;
   overflow-y: auto;
   border: 1px solid var(--border-color);
   border-radius: 8px;
@@ -3586,9 +3586,9 @@ span.flatpickr-weekday {
 }
 .survey-user-row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) minmax(82px, 115px);
+  grid-template-columns: 18px minmax(0, 1fr) minmax(82px, 115px);
   align-items: center;
-  gap: 6px;
+  column-gap: 15px;
   width: 100%;
   min-height: 30px;
   padding: 6px 8px;
@@ -3610,6 +3610,7 @@ span.flatpickr-weekday {
 }
 .survey-user-name {
   min-width: 0;
+  margin-left: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-dark);

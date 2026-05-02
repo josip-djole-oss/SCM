@@ -12531,21 +12531,144 @@ function printTidplan() {
     showToast(t("accessTidplanPrintDenied"), "error");
     return;
   }
-  const controls = document.querySelector(".tidplan-controls");
-  controls.style.display = "none";
-  window.print();
-  controls.style.display = "flex";
-  document.getElementById("tidplanSite").textContent = currentSite;
-  const today = new Date();
-  document.getElementById("tidplanDate").textContent =
-    today.toLocaleDateString(getCurrentLocale(), {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  populateFilters();
-  renderTidplanTable();
-  renderTidplanTimeline();
+  showConfirm(
+    "Da = print cijelog Tidplana. Ne = print trenutnog prikaza s aktivnim filterima.",
+    "Print Tidplan",
+    "🖨️",
+    () => printTidplanDocument("full"),
+    () => printTidplanDocument("current"),
+  );
+}
+
+function getTidplanPrintDateRange(activities) {
+  const validDates = [];
+  (activities || []).forEach((activity) => {
+    if (activity.start) validDates.push(new Date(`${activity.start}T00:00:00`));
+    if (activity.end) validDates.push(new Date(`${activity.end}T00:00:00`));
+  });
+  if (!validDates.length) {
+    const today = new Date();
+    return { start: new Date(today.getFullYear(), today.getMonth(), today.getDate()), end: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 14) };
+  }
+  const min = new Date(Math.min(...validDates.map((date) => date.getTime())));
+  const max = new Date(Math.max(...validDates.map((date) => date.getTime())));
+  min.setDate(min.getDate() - 2);
+  max.setDate(max.getDate() + 2);
+  return { start: min, end: max };
+}
+
+function buildTidplanPrintDays(activities) {
+  const { start, end } = getTidplanPrintDateRange(activities);
+  const days = [];
+  for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+    days.push(new Date(day));
+  }
+  return days;
+}
+
+function printTidplanDocument(mode = "current") {
+  const sourceActivities = mode === "full" ? tidplanData : getFilteredTidplanData();
+  const activities = (sourceActivities || []).filter((activity) => activity && !isTidplanActivityInactive(activity));
+  const days = buildTidplanPrintDays(activities);
+  const locale = getCurrentLocale();
+  const dateColumns = days.map((day) => {
+    const iso = day.toISOString().slice(0, 10);
+    const meta = getSwedishDayMeta(day);
+    return {
+      iso,
+      week: getWeekNumber(day),
+      label: day.toLocaleDateString(locale, { day: "2-digit", month: "2-digit" }),
+      className: meta.isHoliday ? "holiday" : meta.isWeekend ? "weekend" : "",
+    };
+  });
+  const weekHeader = [];
+  dateColumns.forEach((day) => {
+    const last = weekHeader[weekHeader.length - 1];
+    if (last && last.week === day.week) last.count += 1;
+    else weekHeader.push({ week: day.week, count: 1 });
+  });
+
+  const activityRows = activities.map((activity) => {
+    const start = activity.start || "";
+    const end = activity.end || start;
+    const color = getActivityColor(activity.plan, activity.moment);
+    const cells = dateColumns.map((day) => {
+      const active = start && end && start <= day.iso && day.iso <= end;
+      return `<td class="${day.className} ${active ? "active" : ""}" style="${active ? `background:${color};` : ""}"></td>`;
+    }).join("");
+    return `
+      <tr>
+        <td class="info">${escapeHtml(activity.plan || "-")}</td>
+        <td class="info">${escapeHtml(activity.zona || "-")}</td>
+        <td class="info">${escapeHtml(activity.karna || "-")}</td>
+        <td class="info">${escapeHtml(activity.moment || "-")}</td>
+        <td class="num">${Number(activity.resursi) || 0}</td>
+        ${cells}
+        <td class="comment">${escapeHtml(activity.komentar || activity.comment || "")}</td>
+      </tr>
+    `;
+  }).join("");
+
+  const printWindow = window.open("", "_blank");
+  if (!printWindow) return;
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Tidplan ${escapeHtml(currentSite)}</title>
+        <style>
+          @page { size: A4 landscape; margin: 7mm; }
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; }
+          h1 { font-size: 17px; margin: 0 0 3px; }
+          .meta { font-size: 10px; color: #667085; margin-bottom: 8px; }
+          table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 7px; page-break-inside: auto; }
+          th, td { border: 1px solid #cfd4dc; padding: 2px; height: 14px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+          th { background: #667eea; color: #fff; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .week th { background: #344054; text-align: center; }
+          .info { width: 20mm; font-weight: 600; }
+          .num { width: 8mm; text-align: center; }
+          .comment { width: 28mm; }
+          .day { width: 5.2mm; text-align: center; font-size: 6px; }
+          .weekend { background: #eef2f7; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .holiday { background: #fde2e1; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          td.active { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          tr { page-break-inside: avoid; }
+        </style>
+      </head>
+      <body>
+        <h1>CMAX TIDPLAN - ${escapeHtml(currentSite)} - ${mode === "full" ? "Cijeli Tidplan" : "Trenutni prikaz"}</h1>
+        <div class="meta">${escapeHtml(new Date().toLocaleString(locale))}</div>
+        <table>
+          <thead>
+            <tr class="week">
+              <th colspan="5"></th>
+              ${weekHeader.map((week) => `<th colspan="${week.count}">V${week.week}</th>`).join("")}
+              <th></th>
+            </tr>
+            <tr>
+              <th class="info">Plan</th>
+              <th class="info">Zona</th>
+              <th class="info">Karna</th>
+              <th class="info">Moment</th>
+              <th class="num">Res</th>
+              ${dateColumns.map((day) => `<th class="day ${day.className}">${day.label}</th>`).join("")}
+              <th class="comment">Komentar</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${activityRows || `<tr><td colspan="${dateColumns.length + 6}">Nema aktivnosti za print.</td></tr>`}
+          </tbody>
+        </table>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+  printWindow.focus();
+  setTimeout(() => {
+    printWindow.print();
+    printWindow.close();
+  }, 300);
 }
 
 function managePlans() {
