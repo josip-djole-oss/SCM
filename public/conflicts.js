@@ -49,47 +49,86 @@ function showServerConflictNotice(message = "Podaci su promijenjeni na drugom ur
   showToast(message, "error");
 }
 
-function showRemoteUpdatePrompt({ snapshot, version, remoteKey }) {
-  const overlay = document.getElementById("customDialogOverlay");
-  const icon = document.getElementById("dialogIcon");
-  const messageEl = document.getElementById("dialogMessage");
-  const input = document.getElementById("dialogInput");
-  const btns = document.getElementById("dialogButtons");
-  if (!overlay || !icon || !messageEl || !btns) return Promise.resolve(false);
+function removeSyncBanner() {
+  document.getElementById("syncUpdateBanner")?.remove();
+}
 
-  const editor = getRemoteEditorName(snapshot);
-  const time = formatRemoteEditTime(snapshot?.savedAt);
-  const area = getPresenceAreaLabel(getPresenceView());
-  icon.textContent = "i";
-  input.style.display = "none";
-  messageEl.innerHTML = `
-    <strong>Promjena na serveru</strong><br><br>
-    <div>${escapeHtml(editor)} je snimio podatke${time ? ` u ${escapeHtml(time)}` : ""}.</div>
-    <div style="margin-top:8px;color:var(--text-light);">Trenutno si u modulu: ${escapeHtml(area)}.</div>
-    <div style="margin-top:8px;">Mozes povuci najnovije podatke sada ili nastaviti bez povlacenja za ovu promjenu.</div>
+function showInlineConflictWarning(message = "Isti podaci su promijenjeni na drugom uredjaju. Spremi ili osvjezi prije nastavka.") {
+  const active = document.activeElement;
+  const localTarget = active?.closest?.("td, tr, .admin-item, .notification-card, .survey-card, .warehouse-card, .form-group");
+  if (localTarget) {
+    let warning = localTarget.querySelector?.(".inline-sync-conflict");
+    if (!warning) {
+      warning = document.createElement("div");
+      warning.className = "inline-sync-conflict";
+      warning.style.cssText = "margin:6px 0;padding:8px 10px;border:1px solid #f59e0b;background:#fff7ed;color:#7c2d12;border-radius:6px;font-size:12px;";
+      localTarget.appendChild(warning);
+    }
+    warning.textContent = message;
+    return;
+  }
+  const view = getPresenceView();
+  const targetMap = {
+    planner: "planner-section",
+    main: "planner-section",
+    tidplan: "tidplan-section",
+    bins: "binsSection",
+    warehouse: "warehouse-section",
+    notifications: "notifications-section",
+    surveys: "surveys-section",
+  };
+  const target = document.getElementById(targetMap[view] || "planner-section") || document.getElementById("mainContainer");
+  if (!target) {
+    showToast(message, "error");
+    return;
+  }
+  let warning = target.querySelector(".inline-sync-conflict");
+  if (!warning) {
+    warning = document.createElement("div");
+    warning.className = "inline-sync-conflict";
+    warning.style.cssText = "margin:8px 0;padding:10px 12px;border:1px solid #f59e0b;background:#fff7ed;color:#7c2d12;border-radius:6px;font-size:14px;";
+    target.insertBefore(warning, target.firstChild);
+  }
+  warning.textContent = message;
+}
+
+function showSyncUpdateBanner({ snapshot, version, remoteKey }) {
+  removeSyncBanner();
+  const banner = document.createElement("div");
+  banner.id = "syncUpdateBanner";
+  banner.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:5000;display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;background:#111827;color:white;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px;";
+  banner.innerHTML = `
+    <span>Nove izmjene su dostupne</span>
+    <button type="button" class="btn btn-small" style="padding:6px 10px;">Osvjezi</button>
+    <button type="button" aria-label="Zatvori" style="border:0;background:transparent;color:white;font-size:18px;cursor:pointer;line-height:1;">x</button>
   `;
-  btns.innerHTML = "";
-
-  return new Promise((resolve) => {
-    const noBtn = document.createElement("button");
-    noBtn.className = "btn btn-secondary";
-    noBtn.textContent = "Ne sada";
-    noBtn.onclick = () => {
-      overlay.style.display = "none";
-      rememberIgnoredRemoteState(remoteKey);
-      resolve(false);
-    };
-
-    const yesBtn = document.createElement("button");
-    yesBtn.className = "btn";
-    yesBtn.textContent = "Povuci najnovije";
-    yesBtn.onclick = () => {
-      overlay.style.display = "none";
-      applySharedDataRefresh(snapshot, version).then(resolve);
-    };
-
-    btns.appendChild(noBtn);
-    btns.appendChild(yesBtn);
-    overlay.style.display = "flex";
+  const refreshBtn = banner.querySelector("button");
+  const closeBtn = banner.querySelectorAll("button")[1];
+  refreshBtn.addEventListener("click", () => {
+    if (!canRefreshSharedData()) {
+      showInlineConflictWarning("Nove izmjene cekaju, ali imas lokalne nespremljene izmjene. Spremi svoje izmjene prije osvjezavanja.");
+      return;
+    }
+    applySharedDataRefresh(snapshot, version).then((applied) => {
+      if (applied) showToast("Podaci ažurirani", "success");
+      removeSyncBanner();
+    });
   });
+  closeBtn.addEventListener("click", () => {
+    rememberIgnoredRemoteState(remoteKey);
+    removeSyncBanner();
+  });
+  document.body.appendChild(banner);
+}
+
+function showRemoteUpdatePrompt({ snapshot, version, remoteKey }) {
+  if (canRefreshSharedData()) {
+    return applySharedDataRefresh(snapshot, version).then((applied) => {
+      if (applied) showToast("Podaci ažurirani", "success");
+      return applied;
+    });
+  }
+  showSyncUpdateBanner({ snapshot, version, remoteKey });
+  showInlineConflictWarning("Nove izmjene su dostupne. Lokalne nespremljene izmjene nece biti prepisane.");
+  return Promise.resolve(false);
 }

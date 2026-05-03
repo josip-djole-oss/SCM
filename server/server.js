@@ -112,6 +112,7 @@ const DEFAULT_PERMISSIONS = {
   canClearLogs: true,
   canViewBackups: true,
   canManageBackups: true,
+  canRestoreBackups: true,
   canAccessWarehouse: false,
   canViewWarehouse: false,
   canManageWarehouse: false,
@@ -130,8 +131,8 @@ const DEFAULT_PERMISSIONS = {
   canPublishSurveys: false,
   canViewSurveyResults: false,
   canViewAnonymousSurveyVoters: false,
-  canViewBackups: false,
-  canManageBackups: false,
+  canDeleteSurveys: false,
+  canManageSurveyPermissions: false,
   canAssignWarehouseToAdmin: false,
   canModifyReadOnly: false,
   canToggleReadOnly: false,
@@ -1081,6 +1082,50 @@ function canActorManageAdmin(actorSession, targetAdmin) {
   return (Number(targetAdmin.level) || 1) < getSessionLevel(actorSession);
 }
 
+function assertActorCanSubmitAdminList(actorSession, existingAdmins, submittedAdmins) {
+  if (!actorSession) return;
+  const existingByEmail = new Map((Array.isArray(existingAdmins) ? existingAdmins : []).map((admin) => [admin.email, normalizeAdminRecord(admin)]));
+  const submittedByEmail = new Map((Array.isArray(submittedAdmins) ? submittedAdmins : []).map((admin) => {
+    const normalized = normalizeAdminRecord(admin);
+    return [normalized.email, normalized];
+  }));
+  const actorEmail = sanitizeString(actorSession.email || '', 160).toLowerCase();
+
+  for (const [email, existing] of existingByEmail.entries()) {
+    const submitted = submittedByEmail.get(email);
+    const removed = !submitted;
+    const changed = submitted && stableJson(redactAdminRecord(existing)) !== stableJson(redactAdminRecord(submitted));
+    if (!removed && !changed) continue;
+    if (email === actorEmail) {
+      const error = new Error('Admins cannot modify their own admin record');
+      error.statusCode = 403;
+      throw error;
+    }
+    if (!canActorManageAdmin(actorSession, existing)) {
+      const error = new Error('Cannot modify same-level, higher-level, or root admin');
+      error.statusCode = 403;
+      throw error;
+    }
+  }
+
+  for (const [email, submitted] of submittedByEmail.entries()) {
+    const existing = existingByEmail.get(email);
+    if (existing) continue;
+    if (email === actorEmail) {
+      const error = new Error('Admins cannot create or modify themselves');
+      error.statusCode = 403;
+      throw error;
+    }
+    const requestedLevel = Number(submitted.level) || 1;
+    const maxLevel = actorSession.isSuperAdmin ? 6 : Math.max(1, getSessionLevel(actorSession) - 1);
+    if (requestedLevel > maxLevel || (!actorSession.isSuperAdmin && submitted.isSuperAdmin)) {
+      const error = new Error('Cannot create admin at same or higher level');
+      error.statusCode = 403;
+      throw error;
+    }
+  }
+}
+
 function clampAdminForActor(candidate, existingAdmin, actorSession) {
   if (!actorSession || actorSession.isSuperAdmin) return candidate;
   const actorLevel = getSessionLevel(actorSession);
@@ -1112,6 +1157,7 @@ function clampAdminForActor(candidate, existingAdmin, actorSession) {
 
 async function persistAdmins(adminsInput, actorSession = null) {
   const existingAdmins = await readAdmins();
+  assertActorCanSubmitAdminList(actorSession, existingAdmins, adminsInput);
   const existingByEmail = new Map(existingAdmins.map((admin) => [admin.email, admin]));
   const nextAdmins = [];
   const submittedEmails = new Set();
@@ -1216,6 +1262,18 @@ function buildAdminAuditEvents(beforeAdmins, afterAdmins) {
         details: {
           targetEmail: email,
           targetName: after.fullName || '',
+          oldValues: {
+            level: before.level,
+            permissions: beforePermissions,
+            sites: getAdminAuditSites(before),
+            readonly: before.isReadonly === true,
+          },
+          newValues: {
+            level: after.level,
+            permissions: afterPermissions,
+            sites: getAdminAuditSites(after),
+            readonly: after.isReadonly === true,
+          },
           fromLevel: before.level,
           toLevel: after.level,
           permissionsAdded: permissionDiff.added,
@@ -1649,12 +1707,16 @@ function validateStatePayload(state) {
   return Boolean(state && typeof state === 'object' && !Array.isArray(state));
 }
 
-function isPastDateString(dateValue) {
+function isPastDate(dateValue) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateValue || ''))) return false;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const date = new Date(`${dateValue}T00:00:00`);
   return date < today;
+}
+
+function isPastDateString(dateValue) {
+  return isPastDate(dateValue);
 }
 
 function canUnlockPastDays(session) {
@@ -1713,6 +1775,12 @@ function hasLockedPastChanges(previousState, nextState) {
   return hasPastPlannerDayChanges(previousState, nextState) ||
     hasPastBinsDayChanges(previousState, nextState) ||
     hasPastTidplanChanges(previousState, nextState);
+}
+
+function createPastDayLockedError() {
+  const error = new Error('PAST_DAY_LOCKED');
+  error.statusCode = 403;
+  return error;
 }
 
 function canWriteStateField(session, permissionKey) {
@@ -2206,7 +2274,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     const currentDocument = await getStateDocument();
     const mergedState = mergeStateForSession(currentDocument.data, state, req.session);
     if (!canUnlockPastDays(req.session) && hasLockedPastChanges(currentDocument.data, mergedState)) {
-      return res.status(403).json({ error: 'Past days are locked' });
+      return res.status(403).json({ error: 'PAST_DAY_LOCKED' });
     }
 
     if (!mergedState.siteData || typeof mergedState.siteData !== 'object' || Object.keys(mergedState.siteData).length === 0) {
@@ -2233,6 +2301,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       updatedAt: savedDocument.updatedAt,
     });
   } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     if (isVersionConflictError(error)) {
       return sendVersionConflict(res, async () => buildPublicStatePayload(await getStateDocument(), req.session));
     }
@@ -2249,6 +2318,9 @@ apiRouter.post('/admin/toggle-readonly', requirePermission('canToggleReadOnly'),
     if (!targetEmail || !isValidEmail(targetEmail)) {
       return res.status(400).json({ error: 'Invalid admin email' });
     }
+    if (targetEmail === req.session.email) {
+      return res.status(403).json({ error: 'Admins cannot modify their own admin record' });
+    }
     
     // Only super admins can manage read-only mode
     if (!req.session.isSuperAdmin) {
@@ -2261,6 +2333,9 @@ apiRouter.post('/admin/toggle-readonly', requirePermission('canToggleReadOnly'),
       const adminIndex = nextAdmins.findIndex((admin) => admin.email === targetEmail);
       if (adminIndex < 0) {
         throw new Error('ADMIN_NOT_FOUND');
+      }
+      if (!canActorManageAdmin(req.session, nextAdmins[adminIndex])) {
+        throw new Error('ADMIN_FORBIDDEN');
       }
       nextAdmins[adminIndex].isReadonly = !nextAdmins[adminIndex].isReadonly;
       updatedAdmin = nextAdmins[adminIndex];
@@ -2283,6 +2358,9 @@ apiRouter.post('/admin/toggle-readonly', requirePermission('canToggleReadOnly'),
     if (error?.message === 'ADMIN_NOT_FOUND') {
       return res.status(404).json({ error: 'Admin not found' });
     }
+    if (error?.message === 'ADMIN_FORBIDDEN') {
+      return res.status(403).json({ error: 'Cannot modify same-level, higher-level, or root admin' });
+    }
     next(error);
   }
 });
@@ -2294,6 +2372,9 @@ apiRouter.post('/admin/set-readonly-sites', requirePermission('canModifyReadOnly
     
     if (!targetEmail || !isValidEmail(targetEmail)) {
       return res.status(400).json({ error: 'Invalid admin email' });
+    }
+    if (targetEmail === req.session.email) {
+      return res.status(403).json({ error: 'Admins cannot modify their own admin record' });
     }
     
     // Only super admins can manage read-only access
@@ -2309,6 +2390,9 @@ apiRouter.post('/admin/set-readonly-sites', requirePermission('canModifyReadOnly
         throw new Error('ADMIN_NOT_FOUND');
       }
       const admin = nextAdmins[adminIndex];
+      if (!canActorManageAdmin(req.session, admin)) {
+        throw new Error('ADMIN_FORBIDDEN');
+      }
       if (!admin.isReadonly) {
         throw new Error('ADMIN_NOT_READONLY');
       }
@@ -2339,6 +2423,9 @@ apiRouter.post('/admin/set-readonly-sites', requirePermission('canModifyReadOnly
   } catch (error) {
     if (error?.message === 'ADMIN_NOT_FOUND') {
       return res.status(404).json({ error: 'Admin not found' });
+    }
+    if (error?.message === 'ADMIN_FORBIDDEN') {
+      return res.status(403).json({ error: 'Cannot modify same-level, higher-level, or root admin' });
     }
     if (error?.message === 'ADMIN_NOT_READONLY') {
       return res.status(400).json({ error: 'Admin is not in read-only mode' });
@@ -2733,8 +2820,8 @@ function redactSurveyForSession(survey, session, site) {
     allowVoteChange: survey.allowVoteChange === true,
     myVote: ownVote ? ownVote.answerId : null,
     canViewResults: canSeeResults,
-    canDelete: session?.isSuperAdmin || Number(session?.level) >= 6,
-    canPin: session?.isSuperAdmin || Number(session?.level) >= 6,
+    canDelete: sessionHasPermission(session, 'canDeleteSurveys'),
+    canPin: sessionHasPermission(session, 'canEditSurveys'),
   };
   if (canSeeResults) {
     response.results = buildSurveyResults(survey, session);
@@ -2953,13 +3040,10 @@ apiRouter.post('/surveys/:surveyId/vote', requirePermission('canViewSurveys'), a
   }
 });
 
-// DELETE /surveys/:surveyId - Delete a survey (admin level 6+)
-apiRouter.delete('/surveys/:surveyId', async (req, res, next) => {
+// DELETE /surveys/:surveyId
+apiRouter.delete('/surveys/:surveyId', requirePermission('canDeleteSurveys'), async (req, res, next) => {
   try {
     if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot delete surveys' });
-    if (!req.session.isSuperAdmin && Number(req.session.level) < 6) {
-      return res.status(403).json({ error: 'Only admin level 6+ can delete surveys' });
-    }
     const site = sanitizeString(req.body?.site || req.query.site || req.session.currentSite || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const surveyId = sanitizeString(req.params.surveyId, 120);
@@ -2988,13 +3072,10 @@ apiRouter.delete('/surveys/:surveyId', async (req, res, next) => {
   }
 });
 
-// PATCH /surveys/:surveyId/pin - Pin/unpin a survey (admin level 6+)
-apiRouter.patch('/surveys/:surveyId/pin', async (req, res, next) => {
+// PATCH /surveys/:surveyId/pin - Pin/unpin a survey
+apiRouter.patch('/surveys/:surveyId/pin', requirePermission('canEditSurveys'), async (req, res, next) => {
   try {
     if (req.session.isReadonly) return res.status(403).json({ error: 'Read-only users cannot pin surveys' });
-    if (!req.session.isSuperAdmin && Number(req.session.level) < 6) {
-      return res.status(403).json({ error: 'Only admin level 6+ can pin surveys' });
-    }
     const site = sanitizeString(req.query.site || req.session.currentSite || 'default', 80);
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const surveyId = sanitizeString(req.params.surveyId, 120);
@@ -3340,9 +3421,7 @@ async function importModulePayload(module, site, payload, session) {
       nextState.siteData[site] = { ...currentEntry, [module]: payload.data };
     }
     if (!canUnlockPastDays(session) && hasLockedPastChanges(state, nextState)) {
-      const error = new Error('Past days are locked');
-      error.statusCode = 403;
-      throw error;
+      throw createPastDayLockedError();
     }
     nextState.savedAt = new Date().toISOString();
     nextState.savedBy = session?.email;
@@ -3858,7 +3937,7 @@ apiRouter.post('/backup', requirePermission('canManageBackups'), backupLimiter, 
   }
 });
 
-apiRouter.post('/backup/restore', requirePermission('canManageBackups'), backupLimiter, async (req, res, next) => {
+apiRouter.post('/backup/restore', requirePermission('canRestoreBackups'), backupLimiter, async (req, res, next) => {
   try {
     if (req.session.isReadonly) {
       return res.status(403).json({ error: 'Read-only users cannot restore backups' });

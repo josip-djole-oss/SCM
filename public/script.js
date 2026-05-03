@@ -112,6 +112,24 @@ const TRANSLATIONS = {
     perm_canImportPlanner: "Import Plannera",
     perm_canManageBackups: "Upravljanje backupima",
     perm_canViewBackups: "Pregled backupa",
+    perm_canRestoreBackups: "Restore backupa",
+    perm_canUnlockPastDays: "Otkljucavanje proslih dana",
+    perm_canViewSurveys: "Pregled anketa",
+    perm_canCreateSurveys: "Kreiranje anketa",
+    perm_canEditSurveys: "Uredjivanje anketa",
+    perm_canPublishSurveys: "Objava anketa",
+    perm_canDeleteSurveys: "Brisanje anketa",
+    perm_canViewSurveyResults: "Pregled rezultata anketa",
+    perm_canViewAnonymousSurveyVoters: "Pregled anonimnih glasaca",
+    perm_canManageSurveyPermissions: "Upravljanje dozvolama anketa",
+    perm_canViewWarehouse: "Pregled skladista",
+    perm_canExportWarehouse: "Export skladista",
+    perm_canImportWarehouse: "Import skladista",
+    perm_canExportTidplan: "Export Tidplana",
+    perm_canImportTidplan: "Import Tidplana",
+    perm_canAssignWarehouseToAdmin: "Dodjela skladista adminima",
+    perm_canModifyReadOnly: "Upravljanje read-only pristupom",
+    perm_canToggleReadOnly: "Ukljuci/iskljuci read-only",
     perm_canViewLogs: "Pregledavanje logova",
     perm_canClearLogs: "Brisanje logova",
     btnAddAdmin: "Dodaj Admina",
@@ -1813,7 +1831,46 @@ function isPastDate(dateValue) {
 function canEditDate(dateValue = appState.currentDate) {
   if (appState.isReadonly) return false;
   if (!isPastDate(dateValue)) return true;
+  return canUnlockPastDaysAccess() && unlockedPastDates[normalizeDateOnly(dateValue)] === true;
+}
+
+function canUnlockPastDaysAccess() {
   return appState.isSuperAdmin || getCurrentAdminLevel() >= 6 || hasPermission("canUnlockPastDays");
+}
+
+function renderPastDayLockNotice(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const existing = container.querySelector(".past-day-lock-notice");
+  if (!isPastDate(appState.currentDate)) {
+    if (existing) existing.remove();
+    return;
+  }
+  const checked = unlockedPastDates[normalizeDateOnly(appState.currentDate)] === true;
+  const notice = existing || document.createElement("div");
+  notice.className = "past-day-lock-notice";
+  notice.style.cssText = "margin:8px 0;padding:10px 12px;border:1px solid #f59e0b;background:#fff7ed;color:#7c2d12;border-radius:6px;font-size:14px;";
+  notice.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <span>Ovaj dan je zaključan jer je prošao.</span>
+      ${
+        canUnlockPastDaysAccess()
+          ? `<label style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" data-unlock-past-day ${checked ? "checked" : ""}> Otključaj prošli dan</label>`
+          : ""
+      }
+    </div>
+  `;
+  if (!existing) container.insertBefore(notice, container.firstChild);
+  const checkbox = notice.querySelector("[data-unlock-past-day]");
+  if (checkbox) {
+    checkbox.onchange = () => {
+      unlockedPastDates[normalizeDateOnly(appState.currentDate)] = checkbox.checked;
+      renderAll();
+      if (currentView === "bins") renderBinsTable();
+      if (document.getElementById("tidplan-section")?.style.display === "block") updateTidplan();
+      applyPermissionVisibility();
+    };
+  }
 }
 
 function canEditTidplan() {
@@ -1870,17 +1927,22 @@ let notificationsStateVersionBySite = {};
 let lastEditArea = "";
 let lastAppliedRemoteStateKey = sessionStorage.getItem("cmax_last_remote_state_key") || "";
 let ignoredRemoteStateKey = sessionStorage.getItem("cmax_ignored_remote_state_key") || "";
+let freshServerDataLoaded = false;
+let appDataLoadError = "";
+let unlockedPastDates = {};
 const WAREHOUSE_SLOTS_PER_ROW = 8;
 const BACKEND_ENABLED =
   typeof window !== "undefined" &&
   window.location &&
   window.location.protocol !== "file:";
+freshServerDataLoaded = !BACKEND_ENABLED;
 
 const DEFAULT_PERMISSIONS = {
   canAccessPlanner: true,
   canAccessTidplan: true,
   canAccessBins: true,
   canAccessWarehouse: true,
+  canViewWarehouse: true,
   canManageWarehouse: true,
   canViewWarehouseLogs: true,
   canViewWarehouseAnalytics: true,
@@ -1895,8 +1957,22 @@ const DEFAULT_PERMISSIONS = {
   canManageGuestAccess: false,
   canPrint: true,
   canExport: true,
+  canExportPlanner: true,
+  canImportPlanner: true,
+  canExportWarehouse: false,
+  canImportWarehouse: false,
+  canExportTidplan: true,
+  canImportTidplan: true,
   canClear: true,
   canUnlockPastDays: false,
+  canViewSurveys: true,
+  canCreateSurveys: false,
+  canEditSurveys: false,
+  canPublishSurveys: false,
+  canDeleteSurveys: false,
+  canViewSurveyResults: false,
+  canViewAnonymousSurveyVoters: false,
+  canManageSurveyPermissions: false,
   canManageTidplan: true,
   canAddTidplanActivity: true,
   canDeleteTidplanActivity: true,
@@ -1916,6 +1992,12 @@ const DEFAULT_PERMISSIONS = {
   canDeleteReports: false,
   canViewLogs: true,
   canClearLogs: true,
+  canViewBackups: false,
+  canManageBackups: false,
+  canRestoreBackups: false,
+  canAssignWarehouseToAdmin: false,
+  canModifyReadOnly: false,
+  canToggleReadOnly: false,
 };
 
 const ADMIN_LEVELS = [1, 2, 3, 4, 5, 6];
@@ -1927,6 +2009,7 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canViewNotifications",
+    "canViewSurveys",
     "canCreateReports",
   ],
   2: [
@@ -1935,9 +2018,11 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessBins",
     "canAccessWarehouse",
     "canViewNotifications",
+    "canViewSurveys",
     "canCreateReports",
     "canPrint",
     "canExport",
+    "canExportPlanner",
     "canViewReports",
   ],
   3: [
@@ -1947,6 +2032,8 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessWarehouse",
     "canManageWarehouse",
     "canViewNotifications",
+    "canViewSurveys",
+    "canCreateSurveys",
     "canCreateReports",
     "canPrint",
     "canExport",
@@ -1979,6 +2066,11 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
       "canExportTidplan",
       "canImportTidplan",
     "canViewNotifications",
+    "canViewSurveys",
+    "canCreateSurveys",
+    "canEditSurveys",
+    "canPublishSurveys",
+    "canViewSurveyResults",
     "canCreateReports",
     "canPrint",
     "canExport",
@@ -2016,6 +2108,14 @@ const ADMIN_LEVEL_PERMISSION_KEYS = {
       "canExportTidplan",
       "canImportTidplan",
     "canViewNotifications",
+    "canViewSurveys",
+    "canCreateSurveys",
+    "canEditSurveys",
+    "canPublishSurveys",
+    "canDeleteSurveys",
+    "canViewSurveyResults",
+    "canViewAnonymousSurveyVoters",
+    "canManageSurveyPermissions",
     "canCreateReports",
     "canPrint",
     "canExport",
@@ -2111,11 +2211,13 @@ function canManageAdminsByLevel() {
 
 function getMaxGrantableLevel() {
   const currentLevel = getCurrentAdminLevel();
-  return currentLevel >= 6 ? 6 : Math.max(1, currentLevel - 1);
+  if (appState.isSuperAdmin) return 6;
+  return Math.max(1, currentLevel - 1);
 }
 
 function canManageAdminRecord(targetAdmin) {
   if (!canManageAdminsByLevel()) return false;
+  if (targetAdmin?.email === appState.currentUser) return false;
   if (targetAdmin?.isSuperAdmin) return false;
   const currentLevel = getCurrentAdminLevel();
   if (currentLevel >= 6) return true;
@@ -2192,6 +2294,8 @@ const ADMIN_PERMISSION_SECTIONS = [
       "canAccessPlanner",
       "canPrint",
       "canExport",
+      "canExportPlanner",
+      "canImportPlanner",
       "canClear",
       "canManageWorkers",
       "canManageLifts",
@@ -2208,6 +2312,10 @@ const ADMIN_PERMISSION_SECTIONS = [
       "canImportWarehouse",
       "canExportTidplan",
       "canImportTidplan",
+    "canExportPlanner",
+    "canImportPlanner",
+      "canExportPlanner",
+      "canImportPlanner",
       "canUnlockPastDays",
     ],
   },
@@ -2239,9 +2347,27 @@ const ADMIN_PERMISSION_SECTIONS = [
     noteKey: "permSectionWarehouseNote",
     keys: [
       "canAccessWarehouse",
+      "canViewWarehouse",
       "canManageWarehouse",
       "canViewWarehouseLogs",
       "canViewWarehouseAnalytics",
+      "canAssignWarehouseToAdmin",
+      "canExportWarehouse",
+      "canImportWarehouse",
+    ],
+  },
+  {
+    titleKey: "permSectionSurveysTitle",
+    noteKey: "permSectionSurveysNote",
+    keys: [
+      "canViewSurveys",
+      "canCreateSurveys",
+      "canEditSurveys",
+      "canPublishSurveys",
+      "canDeleteSurveys",
+      "canViewSurveyResults",
+      "canViewAnonymousSurveyVoters",
+      "canManageSurveyPermissions",
     ],
   },
   {
@@ -2269,6 +2395,8 @@ const ADMIN_PERMISSION_SECTIONS = [
       "canClearLogs",
       "canViewSettings",
       "canManageGuestAccess",
+      "canModifyReadOnly",
+      "canToggleReadOnly",
     ],
   },
   {
@@ -2277,6 +2405,7 @@ const ADMIN_PERMISSION_SECTIONS = [
     keys: [
       "canManageBackups",
       "canViewBackups",
+      "canRestoreBackups",
     ],
   },
 ];
@@ -2296,6 +2425,8 @@ const GUEST_PERMISSION_SECTIONS = [
       "canImportWarehouse",
       "canExportTidplan",
       "canImportTidplan",
+    "canExportPlanner",
+    "canImportPlanner",
       "canViewNotifications",
       "canCreateReports",
       "canPrint",
@@ -2878,7 +3009,11 @@ function initTooltips() {
 }
 
 /* ==================== INITIALIZATION ==================== */
-function initApp() {
+async function initApp() {
+  showLoading("loadingDefault");
+  const loadingText = document.getElementById("loadingText");
+  if (loadingText) loadingText.textContent = "Loading latest data...";
+  document.getElementById("mainContainer").style.display = "none";
   // Apply saved theme/dark mode
   const savedTheme = localStorage.getItem(THEME_KEY) || "blue";
   const savedDark = localStorage.getItem(DARK_KEY) === "true";
@@ -2899,39 +3034,47 @@ function initApp() {
   updateMainTitle();
   initAdmins();
   appState.guestPermissions = getGuestPermissions();
-  checkAuth();
   setupEventListeners();
-  loadAllData()
-    .catch((error) => {
-      console.error("Initial data load failed:", error);
-    })
-    .finally(() => {
-      populateSiteSelect();
-      updateMainTitle();
-      renderAll();
-      updateNotifBadge();
-      if (document.getElementById("tidplan-section").style.display === "block") {
-        updateTidplan();
-      }
-      if (document.getElementById("mainContainer").style.display !== "none") {
-        restoreLastView();
-      }
-    });
-  startAutoSave();
+  const authenticated = await checkAuth({ deferShow: true });
+  if (!authenticated) {
+    hideLoading();
+    return;
+  }
+  try {
+    await loadFreshBackendData();
+    freshServerDataLoaded = true;
+    appDataLoadError = "";
+    populateSiteSelect();
+    updateMainTitle();
+    renderAll();
+    updateNotifBadge();
+    showMainApp();
+    restoreLastView();
+    startAutoSave();
+  } catch (error) {
+    freshServerDataLoaded = false;
+    appDataLoadError = error?.message || "DATA_LOAD_FAILED";
+    console.error("Initial data load failed:", error);
+    showDataLoadError(appDataLoadError);
+  } finally {
+    hideLoading();
+  }
   window.addEventListener("focus", () => {
+    if (!freshServerDataLoaded) return;
     refreshSiteMetadata()
       .then(() => refreshSharedDataIfSafe())
       .catch(() => {});
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
+      if (!freshServerDataLoaded) return;
       refreshSiteMetadata()
         .then(() => refreshSharedDataIfSafe())
         .catch(() => {});
     }
   });
   window.addEventListener("beforeunload", () => {
-    if (!appState.isReadonly) {
+    if (!appState.isReadonly && freshServerDataLoaded) {
       persistCurrentStateToLocalStorage();
       syncServerState({ keepalive: true }).catch(() => {});
     }
@@ -3009,7 +3152,8 @@ function saveReports(reports) {
   scheduleServerSync();
 }
 
-function loadReportsData() {
+function loadReportsData(options = {}) {
+  const { strict = false } = options;
   if (!BACKEND_ENABLED) {
     return Promise.resolve(getReports());
   }
@@ -3028,7 +3172,10 @@ function loadReportsData() {
       }
       return parsed.list;
     })
-    .catch(() => getReports());
+    .catch((error) => {
+      if (strict) throw error;
+      return getReports();
+    });
 }
 
 /* ==================== NOTIFICATIONS ==================== */
@@ -3072,7 +3219,8 @@ function saveNotificationsForSite(site, notifications) {
     });
 }
 
-function loadNotificationsData(site = currentSite) {
+function loadNotificationsData(site = currentSite, options = {}) {
+  const { strict = false } = options;
   if (!BACKEND_ENABLED) {
     return Promise.resolve(getNotificationsForSite(site));
   }
@@ -3095,8 +3243,9 @@ function loadNotificationsData(site = currentSite) {
       }
       return list;
     })
-    .catch(() =>
-      fetch("/api/state", { cache: "no-store" })
+    .catch((error) => {
+      if (strict) throw error;
+      return fetch("/api/state", { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : Promise.reject()))
         .then((data) => {
           serverStateVersion = Number(data?.version) || serverStateVersion || 1;
@@ -3118,8 +3267,8 @@ function loadNotificationsData(site = currentSite) {
       }
       return list;
     })
-        .catch(() => getNotificationsForSite(site)),
-    );
+        .catch(() => getNotificationsForSite(site));
+    });
 }
 
 function getNextNotificationId() {
@@ -3736,33 +3885,34 @@ function nextNotificationImage() {
   updateNotificationViewer();
 }
 
-function checkAuth() {
+function checkAuth(options = {}) {
+  const { deferShow = false } = options;
   const authData = localStorage.getItem(AUTH_KEY);
   if (!authData) {
     showLogin();
-    return;
+    return Promise.resolve(false);
   }
   const auth = safeParseStoredJson(authData, null);
   if (!auth) {
     showLogin();
-    return;
+    return Promise.resolve(false);
   }
   const now = new Date().getTime();
   if (now - auth.timestamp > 24 * 60 * 60 * 1000) {
     showLogin();
-    return;
+    return Promise.resolve(false);
   }
   appState.isAdmin = auth.isAdmin;
   appState.isSuperAdmin = auth.isSuperAdmin;
   appState.isReadonly = auth.isReadonly;
   appState.currentUser = auth.email;
-  if (appState.isAdmin && !appState.isReadonly && !appState.isSuperAdmin) {
+  if (!BACKEND_ENABLED && appState.isAdmin && !appState.isReadonly && !appState.isSuperAdmin) {
     const stillExists = getAdmins().some(
       (admin) => admin.email === auth.email,
     );
     if (!stillExists) {
       handleAdminRemoval(getAdminRemovalNotice(auth.email));
-      return;
+      return Promise.resolve(false);
     }
   }
   const matchedAdmin = normalizeAdminRecord(
@@ -3780,7 +3930,7 @@ function checkAuth() {
     : clampPermissionsToLevel(auth.permissions || {}, resolvedLevel);
   appState.guestPermissions = getGuestPermissions();
   if (BACKEND_ENABLED) {
-    fetch("/api/session", { cache: "no-store" })
+    return fetch("/api/session", { cache: "no-store" })
       .then((res) => {
         if (!res.ok) throw new Error("SESSION_INVALID");
         return res.json();
@@ -3797,15 +3947,17 @@ function checkAuth() {
           };
           applyAuthData(nextAuth);
         }
-        showMainApp();
+        if (!deferShow) showMainApp();
+        return true;
       })
       .catch(() => {
         clearAuthSessionLocal();
         showLogin();
+        return false;
       });
-    return;
   }
-  showMainApp();
+  if (!deferShow) showMainApp();
+  return Promise.resolve(true);
 }
 
 function showLogin() {
@@ -4122,6 +4274,44 @@ function reinitFlatpickr() {
   }
 }
 
+function showDataLoadError(message) {
+  const main = document.getElementById("mainContainer");
+  const login = document.getElementById("loginOverlay");
+  if (login) login.style.display = "none";
+  if (main) {
+    main.style.display = "block";
+    main.innerHTML = `
+      <div style="padding:24px;max-width:760px;margin:40px auto;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;">
+        <h2>Ne mogu ucitati najnovije podatke</h2>
+        <p>Backend nije vratio svjeze podatke, pa aplikacija nece prikazati stare lokalne podatke.</p>
+        <p style="color:var(--text-light);">${escapeHtml(message || "DATA_LOAD_FAILED")}</p>
+        <button class="btn" onclick="window.location.reload()">Pokusaj ponovo</button>
+      </div>
+    `;
+  }
+}
+
+async function fetchBackendHealth() {
+  const response = await fetch("/api/health", { cache: "no-store" });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "HEALTH_CHECK_FAILED");
+  const ready = data.storageReady === true || data.storage?.ready === true;
+  if (!ready) throw new Error(data.storage?.lastError || "STORAGE_NOT_READY");
+  return data;
+}
+
+async function loadFreshBackendData() {
+  if (!BACKEND_ENABLED) {
+    await loadAllData({ strict: false });
+    freshServerDataLoaded = true;
+    return true;
+  }
+
+  await fetchBackendHealth();
+  await loadAllData({ strict: true });
+  return true;
+}
+
 function initSurveyDateTimePickers() {
   if (typeof flatpickr === "undefined") return;
   if (window.surveyDateTimePickers) {
@@ -4258,7 +4448,13 @@ function handleLogin() {
       applyAuthData(authData);
       addLog("Logged in");
       pushRouteForView("main", { path: "/home", replace: true });
-      showMainApp();
+      return loadFreshBackendData().then(() => {
+        freshServerDataLoaded = true;
+        showMainApp();
+        startAutoSave();
+      });
+    })
+    .then(() => {
       renderAll();
       hideLoading();
     })
@@ -4294,7 +4490,13 @@ function enterReadonlyMode() {
       applyAuthData(authData);
       addLog("Entered read-only mode");
       pushRouteForView("main", { path: "/home", replace: true });
-      showMainApp();
+      return loadFreshBackendData().then(() => {
+        freshServerDataLoaded = true;
+        showMainApp();
+        startAutoSave();
+      });
+    })
+    .then(() => {
       renderAll();
       hideLoading();
     })
@@ -5371,7 +5573,8 @@ function updateNotificationsBadge() {
 }
 
 /* ==================== DATA MANAGEMENT ==================== */
-function loadData() {
+function loadData(options = {}) {
+  const { strict = false } = options;
   if (!BACKEND_ENABLED) {
     const savedData = localStorage.getItem(STORAGE_KEY);
     if (savedData) {
@@ -5387,95 +5590,42 @@ function loadData() {
         console.error("Error loading data:", e);
       }
     }
-    renderAll();
     collectPlans();
     return Promise.resolve();
   }
 
-  // First try server state (shared between korisnici)
   return fetch("/api/state", { cache: "no-store" })
-    .then((res) => (res.ok ? res.json() : Promise.reject()))
+    .then((res) => {
+      if (res.ok) return res.json();
+      throw new Error(`STATE_LOAD_${res.status}`);
+    })
     .then((data) => {
       serverStateVersion = Number(data?.version) || serverStateVersion || 1;
-      if (data && data.state) {
-        if (applyServerStateSnapshot(data.state)) {
-          const savedData = localStorage.getItem(STORAGE_KEY);
-          if (savedData) {
-            const parsed = JSON.parse(savedData);
-            appState.workers = parsed.workers || appState.workers;
-            appState.lifts = parsed.lifts || appState.lifts;
-            appState.moments = parsed.moments || appState.moments;
-            appState.plans = parsed.plans || appState.plans;
-            appState.karnas = parsed.karnas || appState.karnas;
-            appState.dailyData = parsed.dailyData || {};
-            if (Array.isArray(parsed.resourceHistory)) appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
-          }
-          renderAll();
-          collectPlans();
-          return;
-        }
-        const parsed = data.state;
-        appState.workers = parsed.workers || appState.workers;
-        appState.lifts = parsed.lifts || appState.lifts;
-        appState.moments = parsed.moments || appState.moments;
-        appState.plans = parsed.plans || appState.plans;
-        appState.karnas = parsed.karnas || appState.karnas;
-        appState.dailyData = parsed.dailyData || {};
-        if (Array.isArray(parsed.resourceHistory)) appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
-        renderAll();
+      if (data?.state && applyServerStateSnapshot(data.state)) {
         collectPlans();
         return;
       }
-      // Ako nema ništa na serveru, padamo na lokalni storage
-      const savedData = localStorage.getItem(STORAGE_KEY);
-      if (savedData) {
-        try {
-          const parsed = JSON.parse(savedData);
-          appState.workers = parsed.workers || appState.workers;
-          appState.lifts = parsed.lifts || appState.lifts;
-          appState.moments = parsed.moments || appState.moments;
-          appState.plans = parsed.plans || appState.plans;
-          appState.karnas = parsed.karnas || appState.karnas;
-          appState.dailyData = parsed.dailyData || {};
-          if (Array.isArray(parsed.resourceHistory)) appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
-        } catch (e) {
-          console.error("Error loading data:", e);
-        }
-      }
-      renderAll();
-      collectPlans();
+      throw new Error("STATE_EMPTY");
     })
-    .catch(() => {
-      // Backend nije dostupan – koristi samo lokalne podatke
-      const savedData = localStorage.getItem(STORAGE_KEY);
-      if (savedData) {
-        try {
-          const parsed = JSON.parse(savedData);
-          appState.workers = parsed.workers || appState.workers;
-          appState.lifts = parsed.lifts || appState.lifts;
-          appState.moments = parsed.moments || appState.moments;
-          appState.plans = parsed.plans || appState.plans;
-          appState.karnas = parsed.karnas || appState.karnas;
-          appState.dailyData = parsed.dailyData || {};
-          if (Array.isArray(parsed.resourceHistory)) appState.resourceHistory = normalizeResourceHistory(parsed.resourceHistory);
-        } catch (e) {
-          console.error("Error loading data:", e);
-        }
-      }
-      renderAll();
-      collectPlans();
+    .catch((error) => {
+      if (strict) throw error;
+      console.error("Server data load failed:", error);
     });
 }
 
-function loadAllData() {
-  return Promise.resolve(loadData()).then(() => {
+function loadAllData(options = {}) {
+  const { strict = false } = options;
+  return Promise.resolve(loadData({ strict })).then(() => {
     loadBinsData();
     loadTidplanData();
     loadWarehouseData();
-    return loadReportsData().then(() => loadNotificationsData());
+    const tasks = [];
+    if (hasPermission("canViewReports")) tasks.push(loadReportsData({ strict }));
+    if (canAccessNotificationsModule()) tasks.push(loadNotificationsData(currentSite, { strict }));
+    if (hasPermission("canViewSurveys")) tasks.push(getSurveysList({ strict }));
+    return Promise.all(tasks);
   });
 }
-
 function loadWarehouseData() {
   warehouseData = normalizeWarehouseData(
     safeParseStoredJson(localStorage.getItem(getStorageKey("cmax_warehouse_data")), null),
@@ -5989,6 +6139,9 @@ function syncServerState(options = {}) {
     if (showSuccess) showToast(t("dataSaved"), "success");
     return Promise.resolve(true);
   }
+  if (!freshServerDataLoaded) {
+    return Promise.resolve(false);
+  }
 
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => {
@@ -6074,6 +6227,7 @@ function getCurrentDayData() {
 function renderAll() {
   seedResourceHistoryForCurrentLists();
   updateDateDisplay();
+  renderPastDayLockNotice("planner-section");
   renderWorkersList();
   renderLiftsList();
   renderMomensList();
@@ -7876,6 +8030,7 @@ function toggleBinsView() {
 }
 
 function renderBinsTable() {
+  renderPastDayLockNotice("binsSection");
   const binsData = getBinsDataForDate(appState.currentDate);
   const tbody = document.getElementById("binsTableBody");
   tbody.innerHTML = "";
@@ -9055,7 +9210,7 @@ function startAutoSave() {
   stopAutoSave();
   // Auto-save every 5 minutes
   autoSaveInterval = setInterval(() => {
-    if (!appState.isReadonly && appState.currentUser) {
+    if (!appState.isReadonly && appState.currentUser && freshServerDataLoaded) {
       saveData();
       saveBinsData();
       syncServerState({ markAsClean: true, skipLog: true }).catch(() => {});
@@ -10269,7 +10424,7 @@ function renderSiteSwitcher() {
           BINS_KEY = getStorageKey("cmax_planner_bins");
           REPORTS_KEY = getStorageKey("cmax_planner_reports");
           NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
-          return loadAllData().then(() => {
+          return loadAllData({ strict: true }).then(() => {
             if (
               document.getElementById("tidplan-section").style.display ===
               "block"
@@ -10351,7 +10506,7 @@ function changeSite() {
     BINS_KEY = getStorageKey("cmax_planner_bins");
     REPORTS_KEY = getStorageKey("cmax_planner_reports");
     NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
-    return loadAllData().then(() => {
+    return loadAllData({ strict: true }).then(() => {
       updateTidplan();
       if (document.getElementById("notifications-section").style.display === "block") {
         renderNotificationSiteOptions();
@@ -10774,6 +10929,7 @@ function showPlanner() {
 }
 
 function updateTidplan() {
+  renderPastDayLockNotice("tidplan-section");
   collectPlans();
   const editableTidplan = canEditTidplan();
   const locale = getCurrentLocale();
@@ -12478,9 +12634,9 @@ function initTidplanFullscreenControls() {
   });
 }
 
-window.onload = function () {
+window.onload = async function () {
   try {
-    initApp();
+    await initApp();
     initSurveyDateTimePickers();
   } catch (err) {
     console.error("initApp failed", err);
@@ -12493,7 +12649,14 @@ window.onload = function () {
 
 window.addEventListener("popstate", () => {
   if (document.getElementById("mainContainer")?.style.display !== "none") {
-    applyRouteFromPath(window.location.pathname);
+    withLoadingPromise("loadingDefault", () =>
+      loadAllData({ strict: true }).then(() => {
+        renderAll();
+        return applyRouteFromPath(window.location.pathname);
+      }),
+    ).catch((error) => {
+      showToast(error?.message || "Ne mogu ucitati najnovije podatke.", "error");
+    });
   } else if (window.location.pathname !== "/login") {
     pushRouteForView("login", { path: "/login", replace: true });
   }

@@ -37,7 +37,8 @@ function updateSurveysBadge() {
   badge.style.display = count > 0 ? "inline-flex" : "none";
 }
 
-function getSurveysList() {
+function getSurveysList(options = {}) {
+  const { strict = false } = options;
   if (!BACKEND_ENABLED) return Promise.resolve(surveysCache);
 
   return fetch(`/api/surveys?site=${encodeURIComponent(currentSite)}`, {
@@ -50,7 +51,8 @@ function getSurveysList() {
       updateSurveysBadge();
       return surveys;
     })
-    .catch(() => {
+    .catch((error) => {
+      if (strict) throw error;
       updateSurveysBadge();
       return surveysCache;
     });

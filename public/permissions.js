@@ -72,6 +72,7 @@ function canManageSiteAccess() {
 }
 
 function canManageBackups() { return !appState.isReadonly && hasAdminPermission("canManageBackups"); }
+function canRestoreBackups() { return !appState.isReadonly && hasAdminPermission("canRestoreBackups"); }
 function canViewBackups() { return hasAdminPermission("canViewBackups"); }
 
 function getCurrentAdminAllowedSites() {

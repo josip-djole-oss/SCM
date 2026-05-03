@@ -79,7 +79,7 @@ async function runManualBackup() {
 }
 
 async function openBackupRestorePanel() {
-  if (!canManageBackups()) {
+  if (typeof canRestoreBackups === "function" ? !canRestoreBackups() : !canManageBackups()) {
     showToast("Nemate dozvolu za vracanje backupa.", "error");
     return;
   }
@@ -126,7 +126,7 @@ async function loadBackupRestoreOptions() {
 }
 
 async function restoreSelectedBackup() {
-  if (!canManageBackups()) {
+  if (typeof canRestoreBackups === "function" ? !canRestoreBackups() : !canManageBackups()) {
     showToast("Nemate dozvolu za vracanje backupa.", "error");
     return;
   }
