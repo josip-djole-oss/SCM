@@ -355,6 +355,75 @@ const TRANSLATIONS = {
     backupManualBtn: "Kreiraj Backup odmah",
     backupListBtn: "Osvježi listu",
     backupInfoBtn: "Osvježi info",
+    pastDayLocked: "Ovaj dan je zakljucan jer je prosao.",
+    pastDayUnlock: "Otkljucaj dan",
+    pastDayRelock: "Ponovo zakljucaj dan",
+    freshDataLoadFailed: "Nije moguce ucitati svjeze podatke.",
+    syncUpdateAvailable: "Nove izmjene su dostupne",
+    syncUpdateBy: "od",
+    syncRefresh: "Osvjezi",
+    syncUnsavedWait: "Nove izmjene cekaju, ali imas lokalne nespremljene izmjene. Spremi svoje izmjene prije osvjezavanja.",
+    syncUpdated: "Podaci azurirani",
+    syncConflictSameField: "Isti red ili polje je promijenjeno na drugom uredjaju. Spremi svoje izmjene ili osvjezi taj dio prije nastavka.",
+    syncUnsavedProtected: "Nove izmjene su dostupne. Lokalne nespremljene izmjene nece biti prepisane.",
+    backupListTitle: "Backup lista",
+    backupStatusTitle: "Backup status",
+    backupUnknownTime: "nepoznato vrijeme",
+    backupNoCreatePermission: "Nemate dozvolu za kreiranje backupa.",
+    backupCreated: "Backup kreiran",
+    backupFailed: "Backup nije uspio.",
+    backupComplete: "Backup zahtjev je zavrsen. Provjeri listu ispod.",
+    backupNoRestorePermission: "Nemate dozvolu za vracanje backupa.",
+    backupNoViewPermission: "Nemate dozvolu za pregled backupa.",
+    backupLoadingList: "Ucitavam backup listu...",
+    backupRestoreChoose: "Odaberi backup za vracanje.",
+    backupNoAvailable: "Nema dostupnih backupova.",
+    backupLoadError: "Greska pri ucitavanju backupova.",
+    backupListUnavailable: "Backup lista nije dostupna.",
+    backupSelectRequired: "Odaberite backup za vracanje.",
+    backupRestoreConfirm: "Vratiti odabrani backup? Trenutno stanje ce prije toga biti spremljeno kao pre-restore backup.",
+    backupRestoreTitle: "Restore backup",
+    backupRestoring: "Vracam backup...",
+    backupRestoredRefreshing: "Backup je vracen. Osvjezavam podatke...",
+    backupRestoreSuccess: "Backup je uspjesno vracen.",
+    backupRestoreFailed: "Vracanje backupa nije uspjelo.",
+    backupNoItems: "Nema backupova.",
+    backupSelect: "Odaberi",
+    backupRestoreButton: "Restore",
+    backupNoInfoPermission: "Nemate dozvolu za pregled informacija o backupu.",
+    backupInfoUnavailable: "Backup info nije dostupan.",
+    backupInterval: "Interval",
+    backupStorage: "Storage",
+    backupLocation: "Lokacija",
+    backupLast: "Zadnji backup",
+    surveyNoPublishPermission: "Nemate dozvolu za objavu anketa.",
+    surveyQuestionRequired: "Molim unesite pitanje.",
+    surveyDateRequired: "Molim postavite datum i vrijeme pocetka i kraja.",
+    surveyAnswersRequired: "Molim dodajte najmanje 2 odgovora.",
+    surveyTargetRequired: "Molim odaberite barem jednu osobu ili cijelo gradiliste.",
+    surveyPublished: "Anketa je objavljena!",
+    surveyPublishFailed: "Greska pri objavi ankete.",
+    surveyAnswerPlaceholder: "Odgovor...",
+    surveyRemoveAnswer: "Ukloni",
+    surveyNoPublished: "Nema objavljenih anketa.",
+    surveyCardTitle: "Anketa",
+    surveyAuthor: "Objavio",
+    surveyMyAnswer: "Moj odgovor",
+    surveyResults: "Rezultati",
+    surveyStarts: "Pocinje",
+    surveyFinished: "Zavrsena",
+    surveyActiveUntil: "Aktivna do",
+    surveyChooseAnswer: "Odaberi odgovor",
+    surveyUnpin: "Ukloni pin",
+    surveyPin: "Piniraj",
+    surveyDeleteConfirm: "Jeste li sigurni da zelite obrisati ovu anketu?",
+    surveyDeleteSuccess: "Anketa je obrisana!",
+    surveyDeleteFailed: "Greska pri brisanju ankete.",
+    surveyNoAccess: "Nemate pristup anketama.",
+    permissionsChangedRefresh: "Vase ovlasti su promijenjene. Osvjezavam pristup.",
+    moduleImportTitle: "Import {module} ({format})",
+    importFileLabel: "Odaberi file",
+    accessImportDenied: "Nemate dozvolu za import.",
     notificationSearchLabel: "Pretraga:",
     notificationPinnedOnlyLabel: "Samo pinned",
     // Warehouse translations
@@ -730,6 +799,75 @@ const TRANSLATIONS = {
     backupManualBtn: "Create Backup Now",
     backupListBtn: "Refresh List",
     backupInfoBtn: "Refresh Info",
+    pastDayLocked: "This day is locked because it has passed.",
+    pastDayUnlock: "Unlock day",
+    pastDayRelock: "Lock day again",
+    freshDataLoadFailed: "Unable to load fresh data.",
+    syncUpdateAvailable: "New changes are available",
+    syncUpdateBy: "by",
+    syncRefresh: "Refresh",
+    syncUnsavedWait: "New changes are waiting, but you have local unsaved changes. Save your changes before refreshing.",
+    syncUpdated: "Data updated",
+    syncConflictSameField: "The same row or field was changed on another device. Save your changes or refresh that item before continuing.",
+    syncUnsavedProtected: "New changes are available. Local unsaved changes will not be overwritten.",
+    backupListTitle: "Backup list",
+    backupStatusTitle: "Backup status",
+    backupUnknownTime: "unknown time",
+    backupNoCreatePermission: "You do not have permission to create backups.",
+    backupCreated: "Backup created",
+    backupFailed: "Backup failed.",
+    backupComplete: "Backup request finished. Check the list below.",
+    backupNoRestorePermission: "You do not have permission to restore backups.",
+    backupNoViewPermission: "You do not have permission to view backups.",
+    backupLoadingList: "Loading backup list...",
+    backupRestoreChoose: "Choose a backup to restore.",
+    backupNoAvailable: "No backups available.",
+    backupLoadError: "Error loading backups.",
+    backupListUnavailable: "Backup list is unavailable.",
+    backupSelectRequired: "Choose a backup to restore.",
+    backupRestoreConfirm: "Restore selected backup? Current state will first be saved as a pre-restore backup.",
+    backupRestoreTitle: "Restore backup",
+    backupRestoring: "Restoring backup...",
+    backupRestoredRefreshing: "Backup restored. Refreshing data...",
+    backupRestoreSuccess: "Backup restored successfully.",
+    backupRestoreFailed: "Backup restore failed.",
+    backupNoItems: "No backups.",
+    backupSelect: "Select",
+    backupRestoreButton: "Restore",
+    backupNoInfoPermission: "You do not have permission to view backup info.",
+    backupInfoUnavailable: "Backup info is unavailable.",
+    backupInterval: "Interval",
+    backupStorage: "Storage",
+    backupLocation: "Location",
+    backupLast: "Last backup",
+    surveyNoPublishPermission: "You do not have permission to publish surveys.",
+    surveyQuestionRequired: "Please enter a question.",
+    surveyDateRequired: "Please set start and end date/time.",
+    surveyAnswersRequired: "Please add at least 2 answers.",
+    surveyTargetRequired: "Please choose at least one person or the whole site.",
+    surveyPublished: "Survey published!",
+    surveyPublishFailed: "Error publishing survey.",
+    surveyAnswerPlaceholder: "Answer...",
+    surveyRemoveAnswer: "Remove",
+    surveyNoPublished: "No published surveys.",
+    surveyCardTitle: "Survey",
+    surveyAuthor: "Published by",
+    surveyMyAnswer: "My answer",
+    surveyResults: "Results",
+    surveyStarts: "Starts",
+    surveyFinished: "Finished",
+    surveyActiveUntil: "Active until",
+    surveyChooseAnswer: "Choose answer",
+    surveyUnpin: "Unpin",
+    surveyPin: "Pin",
+    surveyDeleteConfirm: "Are you sure you want to delete this survey?",
+    surveyDeleteSuccess: "Survey deleted!",
+    surveyDeleteFailed: "Error deleting survey.",
+    surveyNoAccess: "You do not have access to surveys.",
+    permissionsChangedRefresh: "Your permissions changed. Refreshing access.",
+    moduleImportTitle: "Import {module} ({format})",
+    importFileLabel: "Choose file",
+    accessImportDenied: "You do not have permission to import.",
     notificationSearchLabel: "Search:",
     notificationPinnedOnlyLabel: "Pinned only",
     btnWarehouse: "Warehouse",
@@ -1109,6 +1247,75 @@ const TRANSLATIONS = {
     backupManualBtn: "Skapa säkerhetskopia nu",
     backupListBtn: "Uppdatera lista",
     backupInfoBtn: "Uppdatera info",
+    pastDayLocked: "Denna dag ar last eftersom den har passerat.",
+    pastDayUnlock: "Las upp dag",
+    pastDayRelock: "Las dag igen",
+    freshDataLoadFailed: "Det gar inte att lasa farska data.",
+    syncUpdateAvailable: "Nya andringar finns",
+    syncUpdateBy: "av",
+    syncRefresh: "Uppdatera",
+    syncUnsavedWait: "Nya andringar vantar, men du har lokala osparade andringar. Spara innan du uppdaterar.",
+    syncUpdated: "Data uppdaterad",
+    syncConflictSameField: "Samma rad eller falt andrades pa en annan enhet. Spara dina andringar eller uppdatera delen innan du fortsatter.",
+    syncUnsavedProtected: "Nya andringar finns. Lokala osparade andringar skrivs inte over.",
+    backupListTitle: "Backuplista",
+    backupStatusTitle: "Backupstatus",
+    backupUnknownTime: "okand tid",
+    backupNoCreatePermission: "Du har inte behorighet att skapa backup.",
+    backupCreated: "Backup skapad",
+    backupFailed: "Backup misslyckades.",
+    backupComplete: "Backupbegaran ar klar. Kontrollera listan nedan.",
+    backupNoRestorePermission: "Du har inte behorighet att aterstalla backup.",
+    backupNoViewPermission: "Du har inte behorighet att visa backup.",
+    backupLoadingList: "Laser backuplista...",
+    backupRestoreChoose: "Valj backup att aterstalla.",
+    backupNoAvailable: "Inga backup tillgangliga.",
+    backupLoadError: "Fel vid lasning av backup.",
+    backupListUnavailable: "Backuplistan ar inte tillganglig.",
+    backupSelectRequired: "Valj backup att aterstalla.",
+    backupRestoreConfirm: "Aterstall vald backup? Nuvarande lage sparas forst som pre-restore backup.",
+    backupRestoreTitle: "Aterstall backup",
+    backupRestoring: "Aterstaller backup...",
+    backupRestoredRefreshing: "Backup aterstalld. Uppdaterar data...",
+    backupRestoreSuccess: "Backup aterstalld.",
+    backupRestoreFailed: "Backupaterstallning misslyckades.",
+    backupNoItems: "Inga backup.",
+    backupSelect: "Valj",
+    backupRestoreButton: "Aterstall",
+    backupNoInfoPermission: "Du har inte behorighet att visa backupinfo.",
+    backupInfoUnavailable: "Backupinfo ar inte tillganglig.",
+    backupInterval: "Intervall",
+    backupStorage: "Storage",
+    backupLocation: "Plats",
+    backupLast: "Senaste backup",
+    surveyNoPublishPermission: "Du har inte behorighet att publicera enkat.",
+    surveyQuestionRequired: "Ange en fraga.",
+    surveyDateRequired: "Ange start- och sluttid.",
+    surveyAnswersRequired: "Lagg till minst 2 svar.",
+    surveyTargetRequired: "Valj minst en person eller hela arbetsplatsen.",
+    surveyPublished: "Enkat publicerad!",
+    surveyPublishFailed: "Fel vid publicering av enkat.",
+    surveyAnswerPlaceholder: "Svar...",
+    surveyRemoveAnswer: "Ta bort",
+    surveyNoPublished: "Inga publicerade enkäter.",
+    surveyCardTitle: "Enkat",
+    surveyAuthor: "Publicerad av",
+    surveyMyAnswer: "Mitt svar",
+    surveyResults: "Resultat",
+    surveyStarts: "Startar",
+    surveyFinished: "Avslutad",
+    surveyActiveUntil: "Aktiv till",
+    surveyChooseAnswer: "Valj svar",
+    surveyUnpin: "Ta bort pin",
+    surveyPin: "Fäst",
+    surveyDeleteConfirm: "Ar du saker pa att du vill ta bort denna enkat?",
+    surveyDeleteSuccess: "Enkat borttagen!",
+    surveyDeleteFailed: "Fel vid borttagning av enkat.",
+    surveyNoAccess: "Du har inte atkomst till enkater.",
+    permissionsChangedRefresh: "Dina behorigheter har andrats. Uppdaterar atkomst.",
+    moduleImportTitle: "Importera {module} ({format})",
+    importFileLabel: "Valj fil",
+    accessImportDenied: "Du har inte behorighet att importera.",
     notificationSearchLabel: "Sök:",
     notificationPinnedOnlyLabel: "Endast pinned",
   },
@@ -1853,16 +2060,16 @@ function renderPastDayLockNotice(containerId) {
     return;
   }
   const checked = unlockedPastDates[normalizeDateOnly(appState.currentDate)] === true;
-  const toggleText = checked ? "Ponovo zaklju\u010daj dan" : "Otklju\u010daj dan";
+  const toggleText = checked ? t("pastDayRelock") : t("pastDayUnlock");
   const notice = existing || document.createElement("div");
   notice.className = "past-day-lock-notice";
   notice.style.cssText = "margin:8px 0;padding:10px 12px;border:1px solid #f59e0b;background:#fff7ed;color:#7c2d12;border-radius:6px;font-size:14px;";
   notice.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-      <span>Ovaj dan je zaključan jer je prošao.</span>
+      <span>${escapeHtml(t("pastDayLocked"))}</span>
       ${
         canUnlockPastDaysAccess()
-          ? `<label style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" data-unlock-past-day ${checked ? "checked" : ""}> Otključaj prošli dan</label>`
+          ? `<label style="display:inline-flex;align-items:center;gap:6px;"><input type="checkbox" data-unlock-past-day ${checked ? "checked" : ""}> ${escapeHtml(toggleText)}</label>`
           : ""
       }
     </div>
@@ -1871,7 +2078,7 @@ function renderPastDayLockNotice(containerId) {
   const message = notice.querySelector("span");
   if (message) {
     const strongMessage = document.createElement("strong");
-    strongMessage.textContent = "Ovaj dan je zaklju\u010dan jer je pro\u0161ao.";
+    strongMessage.textContent = t("pastDayLocked");
     message.replaceWith(strongMessage);
   }
   const checkbox = notice.querySelector("[data-unlock-past-day]");
@@ -1940,6 +2147,10 @@ let localEditKeys = new Set();
 let notificationViewerImages = [];
 let notificationViewerIndex = 0;
 let notificationsRefreshInterval = null;
+let permissionRefreshInterval = null;
+let lastPermissionRefreshAt = 0;
+let sharedDataRefreshTimer = null;
+let sharedDataRefreshRunning = false;
 let pendingAdminLevelSelections = {};
 let reportsStateVersionBySite = {};
 let notificationsStateVersionBySite = {};
@@ -3992,6 +4203,8 @@ function showLogin() {
   stopReportsPolling();
   stopNotificationsPolling();
   stopSiteMetaRefresh();
+  stopPermissionRefresh();
+  stopSharedDataRefresh();
   updateLangButtons();
 }
 
@@ -4006,6 +4219,8 @@ function showMainApp() {
   startReportsPolling();
   startNotificationsPolling();
   startSiteMetaRefresh();
+  startPermissionRefresh();
+  startSharedDataRefresh();
   if (hasPermission("canViewSurveys")) {
     getSurveysList().catch(() => {});
   } else {
@@ -4097,7 +4312,7 @@ function loadFreshDataForView(messageKey, callback) {
   return withLoadingPromise(messageKey || "loadingDefault", run).catch((error) => {
     appDataLoadError = error?.message || "DATA_LOAD_FAILED";
     showDataLoadError(appDataLoadError);
-    showToast("Nije moguce ucitati svjeze podatke.", "error");
+    showToast(t("freshDataLoadFailed"), "error");
     return false;
   });
 }
@@ -5327,6 +5542,121 @@ function stopSiteMetaRefresh() {
   siteMetaRefreshInterval = null;
 }
 
+function refreshCurrentSessionPermissions({ notify = true } = {}) {
+  if (!BACKEND_ENABLED || !appState.currentUser || appState.currentUser === "readonly") {
+    return Promise.resolve(false);
+  }
+  const before = stableJson({
+    permissions: appState.permissions || {},
+    level: appState.adminLevel || 1,
+    isSuperAdmin: appState.isSuperAdmin,
+    isReadonly: appState.isReadonly,
+  });
+  return fetch("/api/session", { cache: "no-store" })
+    .then((res) => (res.ok ? res.json() : Promise.reject()))
+    .then((data) => {
+      if (data?.csrfToken) setCsrfToken(data.csrfToken);
+      if (!data?.auth) return false;
+      const auth = data.auth;
+      const level = Number(auth.level) || deriveLevelFromPermissions(auth.permissions || {});
+      const nextPermissions = auth.isSuperAdmin
+        ? { ...DEFAULT_PERMISSIONS }
+        : clampPermissionsToLevel(auth.permissions || {}, level);
+      const after = stableJson({
+        permissions: nextPermissions,
+        level,
+        isSuperAdmin: auth.isSuperAdmin,
+        isReadonly: auth.isReadonly,
+      });
+      if (after === before) return false;
+
+      appState.permissions = nextPermissions;
+      appState.adminLevel = level;
+      appState.isSuperAdmin = !!auth.isSuperAdmin;
+      appState.isReadonly = !!auth.isReadonly;
+      appState.currentUserName = auth.fullName || appState.currentUserName;
+      const authData = safeParseStoredJson(localStorage.getItem(AUTH_KEY), {}) || {};
+      localStorage.setItem(
+        AUTH_KEY,
+        JSON.stringify({
+          ...authData,
+          ...auth,
+          permissions: nextPermissions,
+          level,
+          timestamp: Date.now(),
+        }),
+      );
+      if (notify) showToast(t("permissionsChangedRefresh"), "info");
+      return loadAllData({ strict: true }).then(() => {
+        applyPermissionVisibility();
+        renderAll();
+        if (currentView === "surveys" && hasPermission("canViewSurveys")) {
+          return getSurveysList({ strict: true }).then(() => {
+            renderSurveysList();
+            return true;
+          });
+        }
+        return true;
+      });
+    })
+    .catch(() => false);
+}
+
+function startPermissionRefresh() {
+  stopPermissionRefresh();
+  const tick = (notify = true) => {
+    if (document.hidden && Date.now() - lastPermissionRefreshAt < 30000) return;
+    lastPermissionRefreshAt = Date.now();
+    refreshCurrentSessionPermissions({ notify }).catch(() => {});
+  };
+  tick(false);
+  permissionRefreshInterval = setInterval(() => {
+    tick(true);
+  }, 5000);
+}
+
+function stopPermissionRefresh() {
+  if (permissionRefreshInterval) clearInterval(permissionRefreshInterval);
+  permissionRefreshInterval = null;
+}
+
+function getSharedDataRefreshDelay() {
+  if (document.hidden) return 30000;
+  const recentlyEditing = Date.now() - (lastEditAt || 0) < 2 * 60 * 1000;
+  const hasSameSiteActivity = Number(appState.activePresenceCount || 0) > 0;
+  if (recentlyEditing || hasSameSiteActivity) return 4000;
+  return 10000;
+}
+
+function startSharedDataRefresh() {
+  stopSharedDataRefresh();
+  if (!BACKEND_ENABLED || !appState.currentUser || appState.currentUser === "readonly") return;
+  const tick = () => {
+    if (!freshServerDataLoaded) {
+      sharedDataRefreshTimer = setTimeout(tick, getSharedDataRefreshDelay());
+      return;
+    }
+    if (sharedDataRefreshRunning) {
+      sharedDataRefreshTimer = setTimeout(tick, getSharedDataRefreshDelay());
+      return;
+    }
+    sharedDataRefreshRunning = true;
+    refreshSharedDataIfSafe()
+      .catch(() => false)
+      .finally(() => {
+        sharedDataRefreshRunning = false;
+        sharedDataRefreshTimer = setTimeout(tick, getSharedDataRefreshDelay());
+      });
+  };
+  sharedDataRefreshTimer = setTimeout(tick, 2500);
+}
+
+function stopSharedDataRefresh() {
+  if (sharedDataRefreshTimer) clearTimeout(sharedDataRefreshTimer);
+  sharedDataRefreshTimer = null;
+  sharedDataRefreshRunning = false;
+}
+
 function sendPresence(active = true, keepalive = false) {
   if (!BACKEND_ENABLED || !appState.currentUser || appState.currentUser === "readonly") {
     return Promise.resolve();
@@ -5675,7 +6005,7 @@ function manageDoAdd() {
   }
 
   const list = appState[currentManageCategory];
-  if (list.includes(name)) {
+  if (getActiveResourceList(currentManageCategory, appState.currentDate).includes(name)) {
     resultEl.textContent = t("manageErrExists");
     resultEl.className = "manage-result error";
     resultEl.style.display = "block";
@@ -5698,9 +6028,7 @@ function manageDoAdd() {
 
 function renderManageRemoveList() {
   const container = document.getElementById("manageRemoveList");
-  const list = [...appState[currentManageCategory]].sort((a, b) =>
-    a.localeCompare(b, "hr"),
-  );
+  const list = getActiveResourceList(currentManageCategory, appState.currentDate);
   container.innerHTML = "";
 
   if (list.length === 0) {
@@ -5726,7 +6054,6 @@ function renderManageRemoveList() {
 function manageRemoveItem(name) {
   const list = appState[currentManageCategory];
   const idx = list.indexOf(name);
-  if (idx === -1) return;
 
   // Log lift deletions to backend so they remain in audit logs
   if (currentManageCategory === "lifts" && BACKEND_ENABLED) {
@@ -5744,7 +6071,7 @@ function manageRemoveItem(name) {
   }
 
   recordResourceRemoved(currentManageCategory, name, appState.currentDate);
-  list.splice(idx, 1);
+  if (idx !== -1) list.splice(idx, 1);
   saveData();
   syncServerState({ skipLog: true }).catch(() => {});
   markDirty();
@@ -6235,7 +6562,7 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
         ? localAdmins
         : Array.isArray(serverState.admins)
           ? serverState.admins
-          : localAdmins,
+          : undefined,
     guestPermissions:
       options.includeGuestPermissions === true
         ? localGuestPermissions
@@ -6243,7 +6570,7 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
     adminRemovalNotices:
       options.includeAdminRemovalNotices === true
         ? localAdminRemovalNotices
-        : serverState.adminRemovalNotices || localAdminRemovalNotices,
+        : serverState.adminRemovalNotices || undefined,
     binPermissions:
       options.includeBinPermissions === true
         ? localBinPermissions
@@ -9711,7 +10038,7 @@ function getModulePermission(module, action) {
 
 async function handleModuleExport(module, format) {
   if (!getModulePermission(module, "export")) {
-    showToast("Nemate dozvolu za export.", "error");
+    showToast(t("accessExportDenied"), "error");
     return;
   }
   showLoading("loadingDefault");
@@ -9740,15 +10067,19 @@ async function handleModuleExport(module, format) {
 
 function openModuleImportModal(module, format) {
   if (!getModulePermission(module, "import")) {
-    showToast("Nemate dozvolu za import.", "error");
+    showToast(t("accessImportDenied"), "error");
     return;
   }
   pendingModuleImport = { module, format };
   const title = document.getElementById("moduleImportTitle");
   const label = document.getElementById("moduleImportFileLabel");
   const fileInput = document.getElementById("moduleImportFile");
-  if (title) title.textContent = `Import ${MODULE_EXPORT_IMPORT_LABELS[module] || module} (${format.toUpperCase()})`;
-  if (label) label.textContent = format === "pdf" ? "PDF datoteka" : "Excel datoteka";
+  if (title) {
+    title.textContent = t("moduleImportTitle")
+      .replace("{module}", MODULE_EXPORT_IMPORT_LABELS[module] || module)
+      .replace("{format}", format.toUpperCase());
+  }
+  if (label) label.textContent = `${format.toUpperCase()} ${t("importFileLabel")}`;
   if (fileInput) {
     fileInput.value = "";
     fileInput.accept = format === "pdf" ? ".pdf,application/pdf" : ".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -9769,7 +10100,7 @@ async function uploadModuleImport() {
   if (!pendingModuleImport) return;
   const { module, format } = pendingModuleImport;
   if (!getModulePermission(module, "import")) {
-    showToast("Nemate dozvolu za import.", "error");
+    showToast(t("accessImportDenied"), "error");
     return;
   }
   const fileInput = document.getElementById("moduleImportFile");

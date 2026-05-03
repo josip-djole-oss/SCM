@@ -566,6 +566,22 @@
               Očisti logove
             </button>
           </div>
+          <div
+            id="logsFilterBar"
+            class="filter-bar"
+            style="gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px"
+          >
+            <input id="logFilterText" type="search" placeholder="Trazi log..." />
+            <input id="logFilterUser" type="search" placeholder="Korisnik" />
+            <select id="logFilterAction">
+              <option value="">Sve akcije</option>
+            </select>
+            <input id="logFilterFrom" type="date" />
+            <input id="logFilterTo" type="date" />
+            <button class="btn btn-small" id="btnResetLogFilters" type="button">
+              Reset
+            </button>
+          </div>
           <div class="logs-container" id="logsContainer"></div>
         </div>
 

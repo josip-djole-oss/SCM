@@ -2,6 +2,69 @@ function getLogs() {
   return logsCache.slice();
 }
 
+function getLogFilterValues() {
+  return {
+    text: (document.getElementById("logFilterText")?.value || "").trim().toLowerCase(),
+    user: (document.getElementById("logFilterUser")?.value || "").trim().toLowerCase(),
+    action: (document.getElementById("logFilterAction")?.value || "").trim().toLowerCase(),
+    from: document.getElementById("logFilterFrom")?.value || "",
+    to: document.getElementById("logFilterTo")?.value || "",
+  };
+}
+
+function setupLogFilters() {
+  ["logFilterText", "logFilterUser", "logFilterAction", "logFilterFrom", "logFilterTo"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && !el.dataset.logFilterReady) {
+      el.dataset.logFilterReady = "true";
+      el.addEventListener("input", renderLogs);
+      el.addEventListener("change", renderLogs);
+    }
+  });
+  const reset = document.getElementById("btnResetLogFilters");
+  if (reset && !reset.dataset.logFilterReady) {
+    reset.dataset.logFilterReady = "true";
+    reset.addEventListener("click", () => {
+      ["logFilterText", "logFilterUser", "logFilterAction", "logFilterFrom", "logFilterTo"].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = "";
+      });
+      renderLogs();
+    });
+  }
+}
+
+function populateLogActionFilter(logs) {
+  const select = document.getElementById("logFilterAction");
+  if (!select) return;
+  const selected = select.value || "";
+  const actions = Array.from(new Set((logs || []).map((log) => String(log.action || "").trim()).filter(Boolean))).sort();
+  select.innerHTML = `<option value="">Sve akcije</option>`;
+  actions.forEach((action) => {
+    const option = document.createElement("option");
+    option.value = action.toLowerCase();
+    option.textContent = getAuditActionLabel(action);
+    if (option.value === selected) option.selected = true;
+    select.appendChild(option);
+  });
+}
+
+function filterLogsForDisplay(logs) {
+  const filters = getLogFilterValues();
+  return (logs || []).filter((log) => {
+    const dateText = String(log.timestamp || "").slice(0, 10);
+    if (filters.from && dateText < filters.from) return false;
+    if (filters.to && dateText > filters.to) return false;
+    const userText = `${getUserDisplayName(log.user, log.userName)} ${log.user || ""}`.toLowerCase();
+    if (filters.user && !userText.includes(filters.user)) return false;
+    const actionText = String(log.action || "").toLowerCase();
+    if (filters.action && actionText !== filters.action) return false;
+    const detailsText = normalizeText(formatLogDetails(log.details)).toLowerCase();
+    const allText = `${userText} ${actionText} ${detailsText}`.toLowerCase();
+    return !filters.text || allText.includes(filters.text);
+  });
+}
+
 function loadLogsData() {
   if (!BACKEND_ENABLED) {
     logsLoadedOnce = true;
@@ -172,7 +235,10 @@ function renderLogs() {
       .catch(() => renderLogs());
     return;
   }
-  const logs = getLogs().reverse();
+  setupLogFilters();
+  const allLogs = getLogs();
+  populateLogActionFilter(allLogs);
+  const logs = filterLogsForDisplay(allLogs).reverse();
 
   if (logs.length === 0) {
     container.innerHTML =
@@ -192,7 +258,7 @@ function renderLogs() {
     const detailsText = formatted.details || "";
     div.innerHTML = `
       <span class="log-time">${escapeHtml(timeStr)}</span>
-      <span class="log-user">${escapeHtml(getUserDisplayName(log.user))}</span>
+      <span class="log-user">${escapeHtml(getUserDisplayName(log.user, log.userName))}</span>
       <span class="log-action">${escapeHtml(formatted.action || "")}</span>
       ${detailsText ? `<span style="color:var(--text-light);">(${escapeHtml(detailsText)})</span>` : ""}
     `;

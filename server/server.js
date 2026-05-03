@@ -1190,7 +1190,25 @@ async function persistAdmins(adminsInput, actorSession = null) {
   }
 
   await writeVersionedJsonFile(adminsFile, nextAdmins, { fallbackValue: [] });
+  syncActiveSessionsWithAdmins(nextAdmins);
   return nextAdmins;
+}
+
+function syncActiveSessionsWithAdmins(admins) {
+  const adminsByEmail = new Map(
+    (Array.isArray(admins) ? admins : []).map((admin) => [String(admin.email || '').toLowerCase(), normalizeAdminRecord(admin)]),
+  );
+  for (const session of sessions.values()) {
+    if (!session || session.role !== 'admin') continue;
+    const admin = adminsByEmail.get(String(session.email || '').toLowerCase());
+    if (!admin) continue;
+    session.fullName = admin.fullName || session.fullName || '';
+    session.isSuperAdmin = admin.isSuperAdmin === true;
+    session.isReadonly = admin.isReadonly === true;
+    session.permissions = admin.isSuperAdmin ? { ...DEFAULT_PERMISSIONS } : normalizePermissions(admin.permissions || {});
+    session.level = getAdminLevel(admin);
+    session.allowedSites = Array.isArray(admin.allowedSites) ? admin.allowedSites.slice() : null;
+  }
 }
 
 function getEnabledPermissionKeys(permissions) {
@@ -1932,11 +1950,19 @@ function mergeStateForSession(previousState, submittedState, session) {
 
 async function logActivity(userEmail, action, details = {}) {
   try {
+    const cleanEmail = sanitizeString(userEmail || 'unknown', 160).toLowerCase();
+    let userName = '';
+    if (cleanEmail && cleanEmail !== 'unknown') {
+      const admins = await readAdmins().catch(() => []);
+      const admin = admins.find((entry) => entry.email === cleanEmail);
+      userName = admin?.fullName || '';
+    }
     await mutateVersionedJsonFile(logsFile, [], async (logs) => {
       const nextLogs = Array.isArray(logs) ? [...logs] : [];
       nextLogs.push({
         timestamp: new Date().toISOString(),
-        user: sanitizeString(userEmail || 'unknown', 160),
+        user: cleanEmail,
+        userName: sanitizeString(userName || cleanEmail, 180),
         action: sanitizeString(action || 'unknown', 160),
         details: sanitizeObject(details),
       });
@@ -2298,6 +2324,10 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     const currentDocument = await getStateDocument();
     const mergedState = mergeStateForSession(currentDocument.data, state, req.session);
     if (!canUnlockPastDays(req.session) && hasLockedPastChanges(currentDocument.data, mergedState)) {
+      await logActivity(req.session.email, 'locked_past_day_edit_attempt', {
+        module: sanitizeString(req.body?.module || req.body?.section || 'state', 80),
+        site: req.session.currentSite || null,
+      });
       return res.status(403).json({ error: 'PAST_DAY_LOCKED' });
     }
 
@@ -2335,6 +2365,10 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     if (isVersionConflictError(error)) {
+      await logActivity(req.session.email, 'version_conflict', {
+        route: '/api/state',
+        module: sanitizeString(req.body?.module || req.body?.section || 'state', 80),
+      });
       return sendVersionConflict(res, async () => buildPublicStatePayload(await getStateDocument(), req.session));
     }
     next(error);
@@ -2360,6 +2394,7 @@ apiRouter.post('/admin/toggle-readonly', requirePermission('canToggleReadOnly'),
     }
     
     let updatedAdmin = null;
+    let updatedAdmins = null;
     await mutateVersionedJsonFile(adminsFile, [], async (admins) => {
       const nextAdmins = Array.isArray(admins) ? admins.map((admin) => normalizeAdminRecord(admin)) : [];
       const adminIndex = nextAdmins.findIndex((admin) => admin.email === targetEmail);
@@ -2371,8 +2406,10 @@ apiRouter.post('/admin/toggle-readonly', requirePermission('canToggleReadOnly'),
       }
       nextAdmins[adminIndex].isReadonly = !nextAdmins[adminIndex].isReadonly;
       updatedAdmin = nextAdmins[adminIndex];
+      updatedAdmins = nextAdmins;
       return nextAdmins;
     });
+    if (updatedAdmins) syncActiveSessionsWithAdmins(updatedAdmins);
     if (!updatedAdmin) {
       return res.status(404).json({ error: 'Admin not found' });
     }
@@ -2415,6 +2452,7 @@ apiRouter.post('/admin/set-readonly-sites', requirePermission('canModifyReadOnly
     }
     
     let updatedAdmin = null;
+    let updatedAdmins = null;
     await mutateVersionedJsonFile(adminsFile, [], async (admins) => {
       const nextAdmins = Array.isArray(admins) ? admins.map((admin) => normalizeAdminRecord(admin)) : [];
       const adminIndex = nextAdmins.findIndex((admin) => admin.email === targetEmail);
@@ -2439,8 +2477,10 @@ apiRouter.post('/admin/set-readonly-sites', requirePermission('canModifyReadOnly
         throw new Error('INVALID_SITES');
       }
       updatedAdmin = admin;
+      updatedAdmins = nextAdmins;
       return nextAdmins;
     });
+    if (updatedAdmins) syncActiveSessionsWithAdmins(updatedAdmins);
     await logActivity(req.session.email, 'set_readonly_sites', {
       targetEmail,
       sites: updatedAdmin?.allowedSites || null,
@@ -2668,6 +2708,7 @@ apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, re
   } catch (error) {
     if (isVersionConflictError(error)) {
       const site = sanitizeString(req.body?.site || 'default', 80);
+      await logActivity(req.session.email, 'version_conflict', { route: '/api/reports', site });
       return sendVersionConflict(res, async () => {
         const latest = await readVersionedJsonFile(getReportsFilePath(site), []);
         return {
@@ -2766,6 +2807,7 @@ apiRouter.post('/notifications', requireAnyPermission(['canManageNotifications',
   } catch (error) {
     if (isVersionConflictError(error)) {
       const site = sanitizeString(req.body?.site || 'default', 80);
+      await logActivity(req.session.email, 'version_conflict', { route: '/api/notifications', site });
       return sendVersionConflict(res, async () => {
         const latest = await readVersionedJsonFile(getNotificationsFilePath(site), []);
         return {
@@ -3475,6 +3517,11 @@ async function importModulePayload(module, site, payload, session) {
       nextState.siteData[site] = { ...currentEntry, [module]: payload.data };
     }
     if (!canUnlockPastDays(session) && hasLockedPastChanges(state, nextState)) {
+      await logActivity(session?.email, 'locked_past_day_edit_attempt', {
+        module,
+        site,
+        source: 'import',
+      });
       throw createPastDayLockedError();
     }
     const updatedAt = new Date().toISOString();

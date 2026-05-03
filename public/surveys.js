@@ -60,7 +60,7 @@ function getSurveysList(options = {}) {
 
 function submitSurvey() {
   if (!hasAdminPermission("canCreateSurveys") || !hasAdminPermission("canPublishSurveys")) {
-    showToast("Nemate dozvolu za objavu anketa.", "error");
+    showToast(t("surveyNoPublishPermission"), "error");
     return;
   }
 
@@ -72,12 +72,12 @@ function submitSurvey() {
   const endTime = document.getElementById("surveyEndTime")?.value;
   
   if (!question) {
-    showToast("Molim unesite pitanje.", "error");
+    showToast(t("surveyQuestionRequired"), "error");
     return;
   }
 
   if (!startDate || !startTime || !endDate || !endTime) {
-    showToast("Molim postavite datum i vrijeme početka i kraja.", "error");
+    showToast(t("surveyDateRequired"), "error");
     return;
   }
 
@@ -92,7 +92,7 @@ function submitSurvey() {
   }
 
   if (answers.length < 2) {
-    showToast("Molim dodajte najmanje 2 odgovora.", "error");
+    showToast(t("surveyAnswersRequired"), "error");
     return;
   }
 
@@ -112,7 +112,7 @@ function submitSurvey() {
   }
 
   if (!targetAll && !targetSite && targetUsers.length === 0) {
-    showToast("Molim odaberite barem jednu osobu ili cijelo gradilište.", "error");
+    showToast(t("surveyTargetRequired"), "error");
     return;
   }
 
@@ -148,7 +148,7 @@ function submitSurvey() {
               .then((data) => Promise.reject(new Error(data.error || "SURVEY_SAVE_FAILED"))),
       )
       .then(() => {
-        showToast("Anketa je objavljena!", "success");
+        showToast(t("surveyPublished"), "success");
         resetSurveyForm();
         return getSurveysList();
       })
@@ -156,8 +156,8 @@ function submitSurvey() {
         renderSurveysList();
       })
       .catch((err) => {
-        console.error("Greška pri objavi ankete:", err);
-        showToast("Greška pri objavi ankete.", "error");
+        console.error("Survey publish failed:", err);
+        showToast(t("surveyPublishFailed"), "error");
       })
   );
 }
@@ -196,11 +196,11 @@ function addSurveyAnswerField() {
   input.style.fontSize = "14px";
   input.style.backgroundColor = "var(--input-bg)";
   input.style.color = "var(--text-dark)";
-  input.placeholder = "Odgovor...";
+  input.placeholder = t("surveyAnswerPlaceholder");
 
   const removeBtn = document.createElement("button");
   removeBtn.className = "btn btn-danger btn-small";
-  removeBtn.textContent = "Ukloni";
+  removeBtn.textContent = t("surveyRemoveAnswer");
   removeBtn.onclick = () => wrapper.remove();
 
   wrapper.appendChild(input);
@@ -305,7 +305,7 @@ function renderSurveysList() {
 
   getSurveysList().then((surveys) => {
     if (!surveys || surveys.length === 0) {
-      container.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-light);">Nema objavljenih anketa.</div>`;
+      container.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-light);">${escapeHtml(t("surveyNoPublished"))}</div>`;
       return;
     }
 
@@ -324,7 +324,7 @@ function renderSurveysList() {
       header.style.marginBottom = "12px";
 
       const title = document.createElement("h4");
-      title.textContent = `${survey.pinned ? "📌 " : ""}Anketa: ${survey.question?.substring(0, 50)}...`;
+      title.textContent = `${survey.pinned ? "[PIN] " : ""}${t("surveyCardTitle")}: ${survey.question?.substring(0, 50)}...`;
       header.appendChild(title);
 
       card.appendChild(header);
@@ -341,11 +341,11 @@ function renderSurveysList() {
 
       let statusText = "";
       if (now < startDate) {
-        statusText = `Počinje: ${startDate.toLocaleString(getCurrentLocale())}`;
+        statusText = `${t("surveyStarts")}: ${startDate.toLocaleString(getCurrentLocale())}`;
       } else if (now > endDate) {
-        statusText = `Završena`;
+        statusText = t("surveyFinished");
       } else {
-        statusText = `Aktivna do: ${endDate.toLocaleString(getCurrentLocale())}`;
+        statusText = `${t("surveyActiveUntil")}: ${endDate.toLocaleString(getCurrentLocale())}`;
       }
 
       times.textContent = statusText;
@@ -353,7 +353,7 @@ function renderSurveysList() {
 
       const author = document.createElement("div");
       author.className = "survey-author";
-      author.textContent = `Objavio: ${survey.createdByName || survey.createdBy || "-"}`;
+      author.textContent = `${t("surveyAuthor")}: ${survey.createdByName || survey.createdBy || "-"}`;
       card.appendChild(author);
 
       // Answers
@@ -365,7 +365,7 @@ function renderSurveysList() {
           const subtitle = document.createElement("div");
           subtitle.style.fontSize = "14px";
           subtitle.style.marginBottom = "8px";
-          subtitle.textContent = "Odaberi odgovor:";
+          subtitle.textContent = `${t("surveyChooseAnswer")}:`;
           answersDiv.appendChild(subtitle);
 
           survey.answers.forEach((answer) => {
@@ -398,7 +398,7 @@ function renderSurveysList() {
           resultsTitle.style.fontSize = "14px";
           resultsTitle.style.fontWeight = "600";
           resultsTitle.style.marginBottom = "8px";
-          resultsTitle.textContent = survey.myVote ? "Moj odgovor: " + (survey.results.find(r => r.id === survey.myVote)?.text || "?") : "Rezultati:";
+          resultsTitle.textContent = survey.myVote ? `${t("surveyMyAnswer")}: ` + (survey.results.find(r => r.id === survey.myVote)?.text || "?") : `${t("surveyResults")}:`;
           answersDiv.appendChild(resultsTitle);
 
           survey.results.forEach((result) => {
@@ -446,7 +446,7 @@ function renderSurveysList() {
         if (survey.canPin) {
           const pinBtn = document.createElement("button");
           pinBtn.className = "btn btn-small";
-          pinBtn.textContent = survey.pinned ? "Ukloni pin" : "Piniraj";
+          pinBtn.textContent = survey.pinned ? t("surveyUnpin") : t("surveyPin");
           pinBtn.onclick = () => toggleSurveyPin(survey.id, !survey.pinned);
           actions.appendChild(pinBtn);
         }
@@ -454,7 +454,7 @@ function renderSurveysList() {
         if (survey.canDelete) {
           const deleteBtn = document.createElement("button");
           deleteBtn.className = "btn btn-small btn-danger";
-          deleteBtn.textContent = "Obriši";
+          deleteBtn.textContent = t("btnDeleteNotification");
           deleteBtn.onclick = () => deleteSurvey(survey.id);
           actions.appendChild(deleteBtn);
         }
@@ -509,7 +509,7 @@ function toggleSurveyPin(surveyId, pinned) {
 }
 
 function deleteSurvey(surveyId) {
-  showConfirm("Jeste li sigurni da želite obrisati ovu anketu?", null, "⚠️", () => {
+  showConfirm(t("surveyDeleteConfirm"), null, "!", () => {
     if (!BACKEND_ENABLED) return;
 
     fetch(`/api/surveys/${encodeURIComponent(surveyId)}`, {
@@ -521,18 +521,18 @@ function deleteSurvey(surveyId) {
     })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then(() => {
-        showToast("Anketa je obrisana!", "success");
+        showToast(t("surveyDeleteSuccess"), "success");
         getSurveysList().then(() => renderSurveysList());
       })
       .catch(() => {
-        showToast("Greška pri brisanju ankete.", "error");
+        showToast(t("surveyDeleteFailed"), "error");
       });
   });
 }
 
 function showSurveys() {
   if (!hasPermission("canViewSurveys")) {
-    showToast("Nemate pristup anketama.", "error");
+    showToast(t("surveyNoAccess"), "error");
     return;
   }
 

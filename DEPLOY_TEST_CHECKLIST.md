@@ -20,6 +20,9 @@ Run this before every deploy and paste failures into the release note.
 
 - [ ] Remove worker/resource, reload browser, verify it stays removed.
 - [ ] Remove lift, reload browser, verify it stays removed.
+- [ ] Add new worker/resource, verify it appears in the remove list, remove it, reload browser, verify it stays removed.
+- [ ] Add new lift, verify it appears in the remove list, remove it, reload browser, verify it stays removed.
+- [ ] Add new moment, karna/dio, and plan; remove each from the remove list, reload, verify none return.
 - [ ] Save planner changes for today.
 - [ ] Attempt to change planner data for a past day without `canUnlockPastDays`; backend returns `403` with `PAST_DAY_LOCKED`.
 - [ ] Grant `canUnlockPastDays`, unlock past Planner day in UI, edit, then relock and verify inputs are disabled again.
@@ -50,6 +53,8 @@ Run this before every deploy and paste failures into the release note.
 ## Surveys
 
 - [ ] Surveys permissions appear in admin panel.
+- [ ] While a user is online, grant `canViewSurveys`; within a few seconds the user sees “permissions changed” notice and the Ankete/Pitanja button appears without logout/login.
+- [ ] Repeat live refresh for `canCreateSurveys`, `canEditSurveys`, `canPublishSurveys`, `canDeleteSurveys`, `canViewSurveyResults`, and `canViewAnonymousSurveyVoters`.
 - [ ] Create/publish survey with creator permissions.
 - [ ] Vote as allowed recipient.
 - [ ] Verify survey results/voter visibility permissions work.
@@ -59,9 +64,21 @@ Run this before every deploy and paste failures into the release note.
 
 - [ ] Hard refresh loads `/api/health`, `/api/state`, reports, notifications, and module data before showing editable Planner/Tidplan/Warehouse/Notifications/Surveys/Bins data.
 - [ ] Route switch to Planner/Tidplan/Warehouse/Notifications/Surveys/Bins fetches fresh data before display.
-- [ ] Two-browser conflict test: edit the same Planner row/field from two devices and verify inline conflict warning appears, no modal interrupts typing.
-- [ ] Two-browser silent merge test: edit different Planner rows from two devices and verify non-conflicting remote change merges without overwriting local unsaved changes.
+- [ ] Two-browser conflict test: edit the same Planner row/field from two devices and verify inline conflict warning appears within a few seconds, no modal interrupts typing.
+- [ ] Two-browser silent merge test: edit different Planner rows from two devices and verify non-conflicting remote change merges within a few seconds without overwriting local unsaved changes.
 - [ ] Repeat same-row and different-row conflict tests for Tidplan activity fields.
+- [ ] While tab is hidden, verify polling slows down and Railway/API logs are not spammed.
+- [ ] While actively typing/editing, verify sync banners/inline warnings do not interrupt input.
+- [ ] Click sync update banner “Osvjezi/Refresh” and verify it pulls fresh data.
+
+## Admin sync and logs
+
+- [ ] Admin edits Planner/Tidplan and autosave does not produce `403 Admins cannot modify their own admin record`.
+- [ ] Admin direct/API attempt to actually change own admin record still returns `403`.
+- [ ] Admin changes another admin within scope and it saves.
+- [ ] Admin logs show user full name when available, not email.
+- [ ] Admin logs can be filtered by text, user, action, and date from/to.
+- [ ] Logs exist for permission changes, import/export, backup/restore, survey create/delete/vote, locked past-day attempts, and version conflicts.
 
 ## Backups and logs
 
