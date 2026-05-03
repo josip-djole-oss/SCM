@@ -6196,9 +6196,9 @@ function loadAllData(options = {}) {
     return Promise.all(tasks);
   });
 }
-function loadWarehouseData() {
+function loadWarehouseData(site = currentSite) {
   warehouseData = normalizeWarehouseData(
-    safeParseStoredJson(localStorage.getItem(getStorageKey("cmax_warehouse_data")), null),
+    safeParseStoredJson(localStorage.getItem(getSiteStorageKey("cmax_warehouse_data", site)), null),
   );
 }
 
@@ -6369,7 +6369,7 @@ function persistCurrentStateToLocalStorage() {
     JSON.stringify(tidplanZones || []),
   );
   localStorage.setItem(
-    getStorageKey("cmax_warehouse_data"),
+    getSiteStorageKey("cmax_warehouse_data", currentSite),
     JSON.stringify(normalizeWarehouseData(warehouseData)),
   );
   localStorage.setItem(
@@ -9037,9 +9037,9 @@ function ensureWarehouseStockRecord(itemId) {
   return warehouseData.stock[itemId];
 }
 
-function persistWarehouseData() {
+function persistWarehouseData(site = currentSite) {
   warehouseData = normalizeWarehouseData(warehouseData);
-  localStorage.setItem(getStorageKey("cmax_warehouse_data"), JSON.stringify(warehouseData));
+  localStorage.setItem(getSiteStorageKey("cmax_warehouse_data", site), JSON.stringify(warehouseData));
   trackEditActivity();
   scheduleServerSync();
 }
@@ -11250,14 +11250,16 @@ function removeSite() {
         const removedWarehouseData = localStorage.getItem(getSiteStorageKey("cmax_warehouse_data", siteToRemove));
         const removedReportsData = localStorage.getItem(getSiteStorageKey("cmax_planner_reports", siteToRemove));
         const removedNotificationsData = localStorage.getItem(getSiteStorageKey("cmax_planner_notifications", siteToRemove));
+        const removedTidplanZonesData = localStorage.getItem(getSiteStorageKey("tidplan_zones", siteToRemove));
         sites = sites.filter((s) => s !== siteToRemove);
         localStorage.setItem(SITES_KEY, JSON.stringify(sites));
-        localStorage.removeItem(getStorageKey("cmax_planner_data"));
-        localStorage.removeItem(getStorageKey("tidplan"));
-        localStorage.removeItem(getStorageKey("cmax_planner_bins"));
-        localStorage.removeItem(getStorageKey("cmax_warehouse_data"));
-        localStorage.removeItem(getStorageKey("cmax_planner_reports"));
-        localStorage.removeItem(getStorageKey("cmax_planner_notifications"));
+        localStorage.removeItem(getSiteStorageKey("cmax_planner_data", siteToRemove));
+        localStorage.removeItem(getSiteStorageKey("tidplan", siteToRemove));
+        localStorage.removeItem(getSiteStorageKey("cmax_planner_bins", siteToRemove));
+        localStorage.removeItem(getSiteStorageKey("cmax_warehouse_data", siteToRemove));
+        localStorage.removeItem(getSiteStorageKey("cmax_planner_reports", siteToRemove));
+        localStorage.removeItem(getSiteStorageKey("cmax_planner_notifications", siteToRemove));
+        localStorage.removeItem(getSiteStorageKey("tidplan_zones", siteToRemove));
         currentSite = sites[0];
         localStorage.setItem(CURRENT_SITE_KEY, currentSite);
         populateSiteSelect();
@@ -11288,6 +11290,9 @@ function removeSite() {
             }
             if (removedNotificationsData !== null) {
               localStorage.setItem(getSiteStorageKey("cmax_planner_notifications", siteToRemove), removedNotificationsData);
+            }
+            if (removedTidplanZonesData !== null) {
+              localStorage.setItem(getSiteStorageKey("tidplan_zones", siteToRemove), removedTidplanZonesData);
             }
             populateSiteSelect();
             STORAGE_KEY = getStorageKey("cmax_planner_data");

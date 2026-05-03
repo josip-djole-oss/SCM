@@ -1895,9 +1895,20 @@ function mergeStateForSession(previousState, submittedState, session) {
   };
 
   if (canWriteStateField(session, 'canManageSiteAccess')) {
-    if (Array.isArray(submitted.sites)) merged.sites = submitted.sites;
+    if (Array.isArray(submitted.sites)) {
+      // Ensure sites array is never completely empty if there were sites before
+      const previousSites = Array.isArray(previous.sites) ? previous.sites : [];
+      const nextSites = submitted.sites.filter(s => typeof s === 'string' && s.length > 0);
+      if (previousSites.length > 0 && nextSites.length === 0) {
+        // Keep previous sites if trying to set empty array (protection against accidental wipe)
+        merged.sites = previousSites;
+      } else {
+        merged.sites = nextSites.length > 0 ? nextSites : (previousSites.length > 0 ? previousSites : ['default']);
+      }
+    }
     if (submitted.currentSite) merged.currentSite = submitted.currentSite;
   }
+
 
   if (canWriteStateField(session, 'canManageAdmins')) {
     if (Array.isArray(submitted.admins)) merged.admins = submitted.admins;
@@ -2328,6 +2339,79 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
 
     const currentDocument = await getStateDocument();
     const mergedState = mergeStateForSession(currentDocument.data, state, req.session);
+    
+    // ============ SITE DELETION SAFETY CHECK ============
+    // Prevent partial state updates that wipe other sites' data
+    const previousState = currentDocument.data || {};
+    const previousSites = Array.isArray(previousState.sites) ? previousState.sites : [];
+    const previousSiteData = previousState.siteData && typeof previousState.siteData === 'object' ? previousState.siteData : {};
+    const nextSites = Array.isArray(mergedState.sites) ? mergedState.sites : [];
+    const nextSiteData = mergedState.siteData && typeof mergedState.siteData === 'object' ? mergedState.siteData : {};
+    
+    // Validate sites array is not being emptied completely
+    if (nextSites.length === 0 && previousSites.length > 0) {
+      await logActivity(req.session.email, 'site_deletion_safety_blocked', {
+        reason: 'All sites would be deleted',
+        route: '/api/state',
+      });
+      return res.status(400).json({ error: 'SITE_DELETE_SCOPE_ERROR', details: 'Cannot delete all sites' });
+    }
+    
+    // Detect sites being removed and validate scope
+    const previousSiteIds = new Set(previousSites);
+    const nextSiteIds = new Set(nextSites);
+    const removedSites = previousSites.filter(site => !nextSiteIds.has(site));
+    const addedSites = nextSites.filter(site => !previousSiteIds.has(site));
+    
+    // If sites were removed, verify only that site's data was removed (not other sites)
+    if (removedSites.length > 0) {
+      for (const removedSite of removedSites) {
+        // Site should not exist in nextSiteData (was deleted)
+        if (nextSiteData[removedSite]) {
+          await logActivity(req.session.email, 'site_deletion_safety_blocked', {
+            reason: 'Deleted site still has data',
+            site: removedSite,
+            route: '/api/state',
+          });
+          return res.status(400).json({ error: 'SITE_DELETE_SCOPE_ERROR', details: `Deleted site "${removedSite}" still contains data` });
+        }
+      }
+      
+      // Verify that remaining sites' data is preserved, ESPECIALLY warehouse data
+      for (const previousSite of previousSites) {
+        if (!removedSites.includes(previousSite)) {
+          // This site should still exist in nextSiteData
+          const previousEntry = previousSiteData[previousSite];
+          const nextEntry = nextSiteData[previousSite];
+          
+          // If previous site had data, ensure next site still has at least the same structure
+          if (previousEntry && typeof previousEntry === 'object' && Object.keys(previousEntry).length > 0) {
+            if (!nextEntry || typeof nextEntry !== 'object') {
+              await logActivity(req.session.email, 'site_deletion_safety_blocked', {
+                reason: 'Remaining site data lost',
+                site: previousSite,
+                route: '/api/state',
+              });
+              return res.status(400).json({ error: 'SITE_DELETE_SCOPE_ERROR', details: `Remaining site "${previousSite}" data was lost` });
+            }
+            
+            // CRITICAL: Verify warehouse data specifically (per gradilište)
+            const prevWarehouse = previousEntry.warehouse && typeof previousEntry.warehouse === 'object' ? previousEntry.warehouse : null;
+            const nextWarehouse = nextEntry.warehouse && typeof nextEntry.warehouse === 'object' ? nextEntry.warehouse : null;
+            
+            if (prevWarehouse && Object.keys(prevWarehouse).length > 0 && (!nextWarehouse || Object.keys(nextWarehouse).length === 0)) {
+              await logActivity(req.session.email, 'site_deletion_safety_blocked', {
+                reason: 'Warehouse data lost for remaining site',
+                site: previousSite,
+                route: '/api/state',
+              });
+              return res.status(400).json({ error: 'SITE_DELETE_SCOPE_ERROR', details: `Warehouse data lost for remaining site "${previousSite}" after deletion` });
+            }
+          }
+        }
+      }
+    }
+    
     if (!canUnlockPastDays(req.session) && hasLockedPastChanges(currentDocument.data, mergedState)) {
       await logActivity(req.session.email, 'locked_past_day_edit_attempt', {
         module: sanitizeString(req.body?.module || req.body?.section || 'state', 80),
