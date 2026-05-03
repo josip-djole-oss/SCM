@@ -1564,6 +1564,7 @@ function applyTranslations() {
     tabBtnReports: "tabReports",
     tabBtnLogs: "tabLogs",
     tabBtnSettings: "tabSettings",
+    tabBtnBackup: "backupTabTitle",
     logsTitle: "logsTitle",
     btnClearLogs: "btnClearLogs",
     labelNewEmail: "labelNewEmail",
@@ -3735,580 +3736,6 @@ function nextNotificationImage() {
   updateNotificationViewer();
 }
 
-/* ==================== SURVEYS ==================== */
-let surveysCache = [];
-
-function getSurveyReadKey() {
-  return `cmax_surveys_read_${currentSite}_${getCurrentUserEmail() || "guest"}`;
-}
-
-function getCurrentUserEmail() {
-  const savedAuth = safeParseStoredJson(localStorage.getItem(AUTH_KEY), {}) || {};
-  return (appState.currentUser || savedAuth.email || "").toString().trim().toLowerCase();
-}
-
-function getReadSurveyIds() {
-  return safeParseStoredJson(localStorage.getItem(getSurveyReadKey()), []) || [];
-}
-
-function markSurveysRead(surveys = surveysCache) {
-  const next = new Set(getReadSurveyIds());
-  (surveys || []).forEach((survey) => {
-    if (survey?.id) next.add(survey.id);
-  });
-  localStorage.setItem(getSurveyReadKey(), JSON.stringify(Array.from(next)));
-  updateSurveysBadge();
-}
-
-function getUnreadSurveysCount() {
-  if (!hasPermission("canViewSurveys")) return 0;
-  const readIds = new Set(getReadSurveyIds());
-  return (surveysCache || []).filter((survey) => survey?.id && !readIds.has(survey.id)).length;
-}
-
-function updateSurveysBadge() {
-  const badge = document.getElementById("surveysNotifBadge");
-  if (!badge) return;
-  const count = getUnreadSurveysCount();
-  badge.textContent = count;
-  badge.style.display = count > 0 ? "inline-flex" : "none";
-}
-
-function getSurveysList() {
-  if (!BACKEND_ENABLED) return Promise.resolve(surveysCache);
-
-  return fetch(`/api/surveys?site=${encodeURIComponent(currentSite)}`, {
-    cache: "no-store",
-  })
-    .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((data) => {
-      const surveys = Array.isArray(data.surveys) ? data.surveys : [];
-      surveysCache = surveys;
-      updateSurveysBadge();
-      return surveys;
-    })
-    .catch(() => {
-      updateSurveysBadge();
-      return surveysCache;
-    });
-}
-
-function submitSurvey() {
-  if (!hasAdminPermission("canCreateSurveys") || !hasAdminPermission("canPublishSurveys")) {
-    showToast("Nemate dozvolu za objavu anketa.", "error");
-    return;
-  }
-
-  const question = (document.getElementById("surveyQuestion")?.value || "").trim();
-  const imageFile = document.getElementById("surveyImage")?.files[0];
-  const startDate = document.getElementById("surveyStartDate")?.value;
-  const startTime = document.getElementById("surveyStartTime")?.value;
-  const endDate = document.getElementById("surveyEndDate")?.value;
-  const endTime = document.getElementById("surveyEndTime")?.value;
-  
-  if (!question) {
-    showToast("Molim unesite pitanje.", "error");
-    return;
-  }
-
-  if (!startDate || !startTime || !endDate || !endTime) {
-    showToast("Molim postavite datum i vrijeme početka i kraja.", "error");
-    return;
-  }
-
-  // Collect answers
-  const answersContainer = document.getElementById("surveyAnswers");
-  const answers = [];
-  if (answersContainer) {
-    answersContainer.querySelectorAll("input[type='text']").forEach((input) => {
-      const answer = input.value.trim();
-      if (answer) answers.push(answer);
-    });
-  }
-
-  if (answers.length < 2) {
-    showToast("Molim dodajte najmanje 2 odgovora.", "error");
-    return;
-  }
-
-  // Collect target users with construction site grouping
-  const targetAll = document.getElementById("surveyTargetAll")?.checked === true;
-  const targetSite = document.getElementById("surveyTargetSite")?.checked === true;
-  const targetUsers = [];
-
-  const usersContainer = document.getElementById("surveyTargetUsersCheckboxes");
-  if (usersContainer) {
-    usersContainer.querySelectorAll("input[data-survey-user]:checked").forEach((cb) => {
-      const email = cb.value.trim().toLowerCase();
-      if (email && !targetUsers.includes(email)) {
-        targetUsers.push(email);
-      }
-    });
-  }
-
-  if (!targetAll && !targetSite && targetUsers.length === 0) {
-    showToast("Molim odaberite barem jednu osobu ili cijelo gradilište.", "error");
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append("question", question);
-  formData.append("answers", JSON.stringify(answers));
-  formData.append("startDate", startDate);
-  formData.append("startTime", startTime);
-  formData.append("endDate", endDate);
-  formData.append("endTime", endTime);
-  formData.append("timezoneOffset", String(new Date().getTimezoneOffset()));
-  formData.append("targetAll", targetAll);
-  formData.append("targetSite", targetSite);
-  formData.append("targetUsers", JSON.stringify(targetUsers));
-  formData.append("privacy", document.getElementById("surveyPrivacy")?.value || "semiAnonymous");
-  formData.append("site", currentSite);
-  
-  if (imageFile) {
-    formData.append("image", imageFile);
-  }
-
-  withLoadingPromise("loadingNotificationUpload", () =>
-    fetch("/api/surveys", {
-      method: "POST",
-      body: formData,
-    })
-      .then((res) =>
-        res.ok
-          ? res.json()
-          : res
-              .json()
-              .catch(() => ({}))
-              .then((data) => Promise.reject(new Error(data.error || "SURVEY_SAVE_FAILED"))),
-      )
-      .then(() => {
-        showToast("Anketa je objavljena!", "success");
-        resetSurveyForm();
-        return getSurveysList();
-      })
-      .then(() => {
-        renderSurveysList();
-      })
-      .catch((err) => {
-        console.error("Greška pri objavi ankete:", err);
-        showToast("Greška pri objavi ankete.", "error");
-      })
-  );
-}
-
-function resetSurveyForm() {
-  document.getElementById("surveyQuestion").value = "";
-  document.getElementById("surveyImage").value = "";
-  document.getElementById("surveyStartDate").value = "";
-  document.getElementById("surveyStartTime").value = "";
-  document.getElementById("surveyEndDate").value = "";
-  document.getElementById("surveyEndTime").value = "";
-  const answersContainer = document.getElementById("surveyAnswers");
-  if (answersContainer) answersContainer.innerHTML = "";
-  document.getElementById("surveyTargetAll").checked = false;
-  document.getElementById("surveyTargetSite").checked = false;
-  renderSurveyTargetUsers();
-}
-
-function addSurveyAnswerField() {
-  const container = document.getElementById("surveyAnswers");
-  if (!container) return;
-
-  const wrapper = document.createElement("div");
-  wrapper.style.display = "flex";
-  wrapper.style.marginBottom = "8px";
-  wrapper.style.gap = "8px";
-  wrapper.style.alignItems = "center";
-
-  const input = document.createElement("input");
-  input.type = "text";
-  input.className = "form-group";
-  input.style.flex = "1";
-  input.style.padding = "10px 12px";
-  input.style.border = "2px solid var(--border-color)";
-  input.style.borderRadius = "8px";
-  input.style.fontSize = "14px";
-  input.style.backgroundColor = "var(--input-bg)";
-  input.style.color = "var(--text-dark)";
-  input.placeholder = "Odgovor...";
-
-  const removeBtn = document.createElement("button");
-  removeBtn.className = "btn btn-danger btn-small";
-  removeBtn.textContent = "Ukloni";
-  removeBtn.onclick = () => wrapper.remove();
-
-  wrapper.appendChild(input);
-  wrapper.appendChild(removeBtn);
-  container.appendChild(wrapper);
-}
-
-function renderSurveyTargetUsers() {
-  const container = document.getElementById("surveyTargetUsersCheckboxes");
-  if (!container) return;
-  container.innerHTML = "";
-
-  const admins = getAdmins()
-    .filter((admin) => admin?.email)
-    .map((admin) => ({
-      email: String(admin.email || "").trim().toLowerCase(),
-      name: admin.fullName || `${admin.firstName || ""} ${admin.lastName || ""}`.trim() || admin.email,
-      sites: Array.isArray(admin.allowedSites) && admin.allowedSites.length ? admin.allowedSites : (sites || []),
-      isSuperAdmin: admin.isSuperAdmin === true,
-    }))
-    .filter((admin, index, list) => admin.email && list.findIndex((entry) => entry.email === admin.email) === index)
-    .sort((a, b) => compareNaturally(a.name, b.name));
-
-  const hint = document.getElementById("surveyCurrentSiteHint");
-  if (hint) hint.textContent = `${t("tidplanSiteSelector")}: ${currentSite}`;
-
-  if (!admins.length) {
-    container.innerHTML = `<div class="notification-empty">Nema korisnika za odabir.</div>`;
-    return;
-  }
-
-  admins.forEach((user) => {
-    const label = document.createElement("label");
-    label.className = "survey-user-row";
-    label.dataset.sites = (user.sites || []).join("|");
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.value = user.email;
-    checkbox.dataset.surveyUser = "true";
-    checkbox.dataset.siteMember = user.isSuperAdmin || (user.sites || []).includes(currentSite) ? "true" : "false";
-
-    const name = document.createElement("span");
-    name.className = "survey-user-name";
-    name.textContent = user.name;
-
-    const userSites = document.createElement("span");
-    userSites.className = "survey-user-site";
-    userSites.textContent = user.isSuperAdmin ? "Sva gradilista" : (user.sites || []).join(", ");
-
-    label.appendChild(checkbox);
-    label.appendChild(name);
-    label.appendChild(userSites);
-    container.appendChild(label);
-  });
-
-  syncSurveyTargetSelection();
-}
-
-function setSurveyUserCheckboxes(predicate) {
-  document
-    .querySelectorAll("#surveyTargetUsersCheckboxes input[data-survey-user]")
-    .forEach((checkbox) => {
-      checkbox.checked = Boolean(predicate(checkbox));
-    });
-}
-
-function syncSurveyTargetSelection() {
-  const targetAll = document.getElementById("surveyTargetAll")?.checked === true;
-  const targetSite = document.getElementById("surveyTargetSite")?.checked === true;
-  if (targetAll) {
-    setSurveyUserCheckboxes(() => true);
-  } else if (targetSite) {
-    setSurveyUserCheckboxes((checkbox) => checkbox.dataset.siteMember === "true");
-  }
-}
-
-function setupSurveyTargetHandlers() {
-  const targetAll = document.getElementById("surveyTargetAll");
-  const targetSite = document.getElementById("surveyTargetSite");
-  if (targetAll && !targetAll.dataset.boundSurveyTargets) {
-    targetAll.dataset.boundSurveyTargets = "true";
-    targetAll.addEventListener("change", () => {
-      if (targetAll.checked && targetSite) targetSite.checked = false;
-      if (targetAll.checked) setSurveyUserCheckboxes(() => true);
-      else setSurveyUserCheckboxes(() => false);
-    });
-  }
-  if (targetSite && !targetSite.dataset.boundSurveyTargets) {
-    targetSite.dataset.boundSurveyTargets = "true";
-    targetSite.addEventListener("change", () => {
-      if (targetSite.checked && targetAll) targetAll.checked = false;
-      if (targetSite.checked) setSurveyUserCheckboxes((checkbox) => checkbox.dataset.siteMember === "true");
-      else setSurveyUserCheckboxes(() => false);
-    });
-  }
-}
-
-function renderSurveysList() {
-  const container = document.getElementById("surveysList");
-  if (!container) return;
-
-  getSurveysList().then((surveys) => {
-    if (!surveys || surveys.length === 0) {
-      container.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-light);">Nema objavljenih anketa.</div>`;
-      return;
-    }
-
-    container.innerHTML = "";
-
-    surveys.forEach((survey) => {
-      const card = document.createElement("div");
-      card.className = "notification-card";
-      card.style.marginBottom = "16px";
-
-      // Header with pin status
-      const header = document.createElement("div");
-      header.style.display = "flex";
-      header.style.justifyContent = "space-between";
-      header.style.alignItems = "center";
-      header.style.marginBottom = "12px";
-
-      const title = document.createElement("h4");
-      title.textContent = `${survey.pinned ? "📌 " : ""}Anketa: ${survey.question?.substring(0, 50)}...`;
-      header.appendChild(title);
-
-      card.appendChild(header);
-
-      // Time window
-      const times = document.createElement("div");
-      times.style.fontSize = "12px";
-      times.style.color = "var(--text-light)";
-      times.style.marginBottom = "8px";
-
-      const startDate = new Date(survey.startAt);
-      const endDate = new Date(survey.endAt);
-      const now = new Date();
-
-      let statusText = "";
-      if (now < startDate) {
-        statusText = `Počinje: ${startDate.toLocaleString(getCurrentLocale())}`;
-      } else if (now > endDate) {
-        statusText = `Završena`;
-      } else {
-        statusText = `Aktivna do: ${endDate.toLocaleString(getCurrentLocale())}`;
-      }
-
-      times.textContent = statusText;
-      card.appendChild(times);
-
-      const author = document.createElement("div");
-      author.className = "survey-author";
-      author.textContent = `Objavio: ${survey.createdByName || survey.createdBy || "-"}`;
-      card.appendChild(author);
-
-      // Answers
-      if (survey.answers && survey.answers.length > 0) {
-        const answersDiv = document.createElement("div");
-        answersDiv.style.marginBottom = "12px";
-
-        if (survey.active && !survey.myVote) {
-          const subtitle = document.createElement("div");
-          subtitle.style.fontSize = "14px";
-          subtitle.style.marginBottom = "8px";
-          subtitle.textContent = "Odaberi odgovor:";
-          answersDiv.appendChild(subtitle);
-
-          survey.answers.forEach((answer) => {
-            const label = document.createElement("label");
-            label.style.display = "flex";
-            label.style.alignItems = "center";
-            label.style.marginBottom = "6px";
-            label.style.cursor = "pointer";
-            label.style.padding = "8px";
-            label.style.borderRadius = "6px";
-            label.style.backgroundColor = "var(--hover-bg)";
-
-            const radio = document.createElement("input");
-            radio.type = "radio";
-            radio.name = `survey_${survey.id}`;
-            radio.value = answer.id;
-            radio.style.marginRight = "8px";
-            radio.addEventListener("change", () => {
-              voteSurvey(survey.id, answer.id);
-            });
-
-            label.appendChild(radio);
-            const span = document.createElement("span");
-            span.textContent = answer.text;
-            label.appendChild(span);
-            answersDiv.appendChild(label);
-          });
-        } else if (survey.results && survey.results.length > 0) {
-          const resultsTitle = document.createElement("div");
-          resultsTitle.style.fontSize = "14px";
-          resultsTitle.style.fontWeight = "600";
-          resultsTitle.style.marginBottom = "8px";
-          resultsTitle.textContent = survey.myVote ? "Moj odgovor: " + (survey.results.find(r => r.id === survey.myVote)?.text || "?") : "Rezultati:";
-          answersDiv.appendChild(resultsTitle);
-
-          survey.results.forEach((result) => {
-            const totalVotes = survey.results.reduce((sum, r) => sum + r.count, 0);
-            const percentage = totalVotes > 0 ? Math.round((result.count / totalVotes) * 100) : 0;
-
-            const resultDiv = document.createElement("div");
-            resultDiv.style.marginBottom = "8px";
-
-            const labelDiv = document.createElement("div");
-            labelDiv.style.fontSize = "13px";
-            labelDiv.style.marginBottom = "4px";
-            labelDiv.textContent = `${result.text}: ${result.count} (${percentage}%)`;
-            resultDiv.appendChild(labelDiv);
-
-            const barDiv = document.createElement("div");
-            barDiv.style.height = "6px";
-            barDiv.style.backgroundColor = "var(--border-color)";
-            barDiv.style.borderRadius = "3px";
-            barDiv.style.overflow = "hidden";
-
-            const fillDiv = document.createElement("div");
-            fillDiv.style.height = "100%";
-            fillDiv.style.width = `${percentage}%`;
-            fillDiv.style.backgroundColor = "#4CAF50";
-            barDiv.appendChild(fillDiv);
-            resultDiv.appendChild(barDiv);
-
-            answersDiv.appendChild(resultDiv);
-          });
-        }
-
-        card.appendChild(answersDiv);
-      }
-
-      // Actions (pin/delete for admin level 6+)
-      if (survey.canDelete || survey.canPin) {
-        const actions = document.createElement("div");
-        actions.style.display = "flex";
-        actions.style.gap = "8px";
-        actions.style.marginTop = "12px";
-        actions.style.borderTop = "1px solid var(--border-color)";
-        actions.style.paddingTop = "12px";
-
-        if (survey.canPin) {
-          const pinBtn = document.createElement("button");
-          pinBtn.className = "btn btn-small";
-          pinBtn.textContent = survey.pinned ? "Ukloni pin" : "Piniraj";
-          pinBtn.onclick = () => toggleSurveyPin(survey.id, !survey.pinned);
-          actions.appendChild(pinBtn);
-        }
-
-        if (survey.canDelete) {
-          const deleteBtn = document.createElement("button");
-          deleteBtn.className = "btn btn-small btn-danger";
-          deleteBtn.textContent = "Obriši";
-          deleteBtn.onclick = () => deleteSurvey(survey.id);
-          actions.appendChild(deleteBtn);
-        }
-
-        card.appendChild(actions);
-      }
-
-      container.appendChild(card);
-    });
-  });
-}
-
-function voteSurvey(surveyId, answerId) {
-  if (!BACKEND_ENABLED) return;
-
-  fetch(`/api/surveys/${encodeURIComponent(surveyId)}/vote`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      answerId,
-      site: currentSite,
-    }),
-  })
-    .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then(() => {
-      showToast("Hvala na glasanju!", "success");
-      getSurveysList().then(() => renderSurveysList());
-    })
-    .catch(() => {
-      showToast("Greška pri glasanju.", "error");
-    });
-}
-
-function toggleSurveyPin(surveyId, pinned) {
-  if (!BACKEND_ENABLED) return;
-
-  fetch(`/api/surveys/${encodeURIComponent(surveyId)}/pin`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      pinned,
-      site: currentSite,
-    }),
-  })
-    .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then(() => {
-      getSurveysList().then(() => renderSurveysList());
-    })
-    .catch(() => {
-      showToast("Greška pri promjeni statusa.", "error");
-    });
-}
-
-function deleteSurvey(surveyId) {
-  showConfirm("Jeste li sigurni da želite obrisati ovu anketu?", null, "⚠️", () => {
-    if (!BACKEND_ENABLED) return;
-
-    fetch(`/api/surveys/${encodeURIComponent(surveyId)}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        site: currentSite,
-      }),
-    })
-      .then((res) => (res.ok ? res.json() : Promise.reject()))
-      .then(() => {
-        showToast("Anketa je obrisana!", "success");
-        getSurveysList().then(() => renderSurveysList());
-      })
-      .catch(() => {
-        showToast("Greška pri brisanju ankete.", "error");
-      });
-  });
-}
-
-function showSurveys() {
-  if (!hasPermission("canViewSurveys")) {
-    showToast("Nemate pristup anketama.", "error");
-    return;
-  }
-
-  withLoading("loadingNotifications", () => {
-    const plannerSection = document.getElementById("planner-section");
-    const listsContainer = document.querySelector(".lists-container");
-    const binsSection = document.getElementById("binsSection");
-    const tidplanSection = document.getElementById("tidplan-section");
-    const notificationsSection = document.getElementById("notifications-section");
-    const surveysSection = document.getElementById("surveys-section");
-    const warehouseSection = document.getElementById("warehouse-section");
-
-    if (tidplanSection) tidplanSection.style.display = "none";
-    if (plannerSection) plannerSection.style.display = "none";
-    if (listsContainer) listsContainer.classList.add("hidden");
-    if (binsSection) binsSection.classList.remove("active");
-    if (notificationsSection) notificationsSection.style.display = "none";
-    if (warehouseSection) warehouseSection.style.display = "none";
-    if (surveysSection) surveysSection.style.display = "block";
-
-    currentView = "surveys";
-    saveCurrentView("surveys");
-    pushRouteForView("surveys");
-
-    setupSurveyTargetHandlers();
-    renderSurveyTargetUsers();
-    initSurveyDateTimePickers();
-
-    getSurveysList().then(() => {
-      renderSurveysList();
-      markSurveysRead(surveysCache);
-      const composer = document.getElementById("surveysComposer");
-      if (composer) {
-        composer.style.display = hasAdminPermission("canPublishSurveys") ? "block" : "none";
-      }
-    });
-
-    sendPresence(true).catch(() => {});
-  });
-}
-
 function checkAuth() {
   const authData = localStorage.getItem(AUTH_KEY);
   if (!authData) {
@@ -4386,6 +3813,7 @@ function showLogin() {
   document.getElementById("loginOverlay").style.display = "flex";
   document.getElementById("mainContainer").style.display = "none";
   renderPresence([]);
+  stopAutoSave();
   stopPresenceTracking();
   stopReportsPolling();
   stopNotificationsPolling();
@@ -5248,6 +4676,9 @@ function refreshSharedDataIfSafe() {
       const editor = getRemoteEditorName(snapshot);
       const time = formatRemoteEditTime(snapshot.savedAt);
       const message = `${editor} je uređivao podatke${time ? ` u ${time}` : ""}. Želite li povući najnovije podatke?`;
+      if (typeof showRemoteUpdatePrompt === "function") {
+        return showRemoteUpdatePrompt({ snapshot, version: serverStateVersion, remoteKey });
+      }
       return new Promise((resolve) => {
         showConfirm(
           message,
@@ -6560,38 +5991,21 @@ function syncServerState(options = {}) {
   }
 
   return fetch("/api/state", { cache: "no-store" })
-    .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`STATE_LOAD_${res.status}`))))
+    .then((res) => {
+      if (res.ok) return res.json();
+      throw createServerSyncError(`STATE_LOAD_${res.status}`, res.status);
+    })
     .then((data) => {
       serverStateVersion = Number(data?.version) || serverStateVersion || 1;
-      return data?.state || null;
+      return postServerStateSnapshot(data?.state || null, serverStateVersion, options);
     })
-    .then((serverState) =>
-      fetch("/api/state", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          state: buildServerStateSnapshot(serverState, {
-            includeAdmins,
-            includeGuestPermissions,
-            includeBinPermissions,
-            includeSites,
-          }),
-          lastKnownVersion: serverStateVersion || 1,
-          userEmail: appState.currentUser || null,
-          skipLog,
-        }),
-        keepalive,
-      }),
-    )
-    .then((res) => {
-      if (!res.ok) {
-        return res.json()
-          .catch(() => ({}))
-          .then((payload) => {
-            throw new Error(payload?.error || "STATE_SAVE_FAILED");
-          });
+    .catch((error) => {
+      if (error?.code === "VERSION_CONFLICT" && error.latest) {
+        const latestVersion = Number(error.latest.version) || serverStateVersion || 1;
+        serverStateVersion = latestVersion;
+        return postServerStateSnapshot(error.latest.state || null, latestVersion, options);
       }
-      return res.json().catch(() => ({}));
+      throw error;
     })
     .then((payload) => {
       serverStateVersion = Number(payload?.version) || serverStateVersion || 1;
@@ -6605,6 +6019,12 @@ function syncServerState(options = {}) {
       return true;
     })
     .catch((error) => {
+      if (error?.status === 401 || error?.code === "STATE_LOAD_401") {
+        return false;
+      }
+      if (error?.code === "VERSION_CONFLICT" && typeof showServerConflictNotice === "function") {
+        showServerConflictNotice();
+      }
       console.error("Server sync failed:", error);
       if (showSuccess) showToast("Server save failed.", "error");
       return false;
@@ -7495,9 +6915,13 @@ function switchTab(tabId) {
     (tabId === "tabReports" && !hasAdminPermission("canViewReports")) ||
     (tabId === "tabLogs" && !hasAdminPermission("canViewLogs")) ||
     (tabId === "tabSettings" &&
-      !(hasAdminPermission("canViewSettings") || appState.isSuperAdmin))
+      !(hasAdminPermission("canViewSettings") || appState.isSuperAdmin)) ||
+    (tabId === "tabBackup" && !canViewBackups())
   ) {
     return;
+  }
+  if (tabId === "tabBackup" && typeof ensureBackupTabContent === "function") {
+    ensureBackupTabContent();
   }
   document
     .querySelectorAll(".tab-content")
@@ -7512,7 +6936,7 @@ function switchTab(tabId) {
     tabReports: "tabBtnReports",
     tabLogs: "tabBtnLogs",
     tabSettings: "tabBtnSettings",
-    tabBtnBackup: "tabBtnBackup",
+    tabBackup: "tabBtnBackup",
   };
   if (btnMap[tabId])
     document.getElementById(btnMap[tabId]).classList.add("active");
@@ -7815,10 +7239,6 @@ function saveAdminPerms(email, idx) {
   renderAdminList();
   populateSiteSelect();
   updateNotificationsBadge();
-  addLog(
-    "Updated admin permissions",
-    `${email} (level ${nextLevel})`,
-  );
   showToast(t("successPermsSaved"), "success");
 }
 
@@ -7948,8 +7368,6 @@ function removeAdminAction(email) {
           site: currentSite,
           at: new Date().toISOString(),
         });
-        addLog("Removed admin", `${email} - ${trimmed}`);
-
         syncServerState({
           includeAdmins: true,
           includeAdminRemovalNotices: true,
@@ -7961,199 +7379,6 @@ function removeAdminAction(email) {
     );
   });
 }
-
-/* ==================== BACKUP MANAGEMENT ==================== */
-async function handleManualBackup() {
-  if (!canManageBackups()) {
-    showToast("Nemate dozvolu za kreiranje backupa.", "error");
-    return;
-  }
-  showLoading("loadingDefault");
-  try {
-    const response = await fetch("/api/backup", {
-      method: "POST",
-    });
-    if (response.status === 429) {
-      showToast(BACKUP_RATE_LIMIT_MESSAGE, "error");
-      return;
-    }
-    if (!response.ok) throw new Error("Failed to create backup");
-    const data = await response.json();
-    showToast(`Backup created: ${data.file}`, "success");
-    addLog("Manual backup created", data.file);
-    handleListBackups(); // Refresh list after creating
-  } catch (error) {
-    console.error("Error creating backup:", error);
-    showToast("Failed to create backup.", "error");
-  } finally {
-    hideLoading();
-  }
-}
-
-async function runManualBackup() {
-  const status = document.getElementById("manualBackupStatus");
-  if (status) status.textContent = "";
-  try {
-    await handleManualBackup();
-    if (status) status.textContent = "Backup je pokrenut. Provjerite poruku o statusu.";
-  } catch (error) {
-    if (status) status.textContent = "Backup nije uspio.";
-  }
-}
-
-async function openBackupRestorePanel() {
-  if (!canManageBackups()) {
-    showToast("Nemate dozvolu za vraćanje backupa.", "error");
-    return;
-  }
-  const panel = document.getElementById("backupRestorePanel");
-  if (!panel) return;
-  panel.style.display = panel.style.display === "none" || !panel.style.display ? "block" : "none";
-  if (panel.style.display === "block") {
-    await loadBackupRestoreOptions();
-  }
-}
-
-async function loadBackupRestoreOptions() {
-  if (!canViewBackups()) {
-    showToast("Nemate dozvolu za pregled backupa.", "error");
-    return;
-  }
-  const select = document.getElementById("backupRestoreSelect");
-  const status = document.getElementById("backupRestoreStatus");
-  if (status) status.textContent = "Učitavam backup listu...";
-  try {
-    const response = await fetch("/api/backups", { cache: "no-store" });
-    if (!response.ok) throw new Error("Failed to list backups");
-    const data = await response.json();
-    const backups = Array.isArray(data.backups) ? data.backups : [];
-    if (select) {
-      select.innerHTML = "";
-      backups.forEach((backup) => {
-        const option = document.createElement("option");
-        option.value = backup.id || backup.filename;
-        const sizeText = backup.size ? `, ${(backup.size / 1024).toFixed(1)} KB` : "";
-        option.textContent = `${backup.filename || backup.id} (${new Date(backup.createdAt).toLocaleString()}${sizeText})`;
-        select.appendChild(option);
-      });
-    }
-    if (status) status.textContent = backups.length ? "Odaberi backup za vraćanje." : "Nema dostupnih backupova.";
-  } catch (error) {
-    console.error("Error loading restore backups:", error);
-    if (status) status.textContent = "Greška pri učitavanju backupova.";
-    showToast("Failed to list backups.", "error");
-  }
-}
-
-async function restoreSelectedBackup() {
-  if (!canManageBackups()) {
-    showToast("Nemate dozvolu za vraćanje backupa.", "error");
-    return;
-  }
-  const select = document.getElementById("backupRestoreSelect");
-  const backupId = select?.value;
-  if (!backupId) {
-    showToast("Odaberite backup za vraćanje.", "error");
-    return;
-  }
-  showConfirm(
-    "Vratiti odabrani backup? Trenutno stanje će prvo biti spremljeno kao pre-restore backup.",
-    null,
-    "⚠️",
-    async () => {
-      const status = document.getElementById("backupRestoreStatus");
-      if (status) status.textContent = "Vraćam backup...";
-      showLoading("loadingDefault");
-      try {
-        const response = await fetch("/api/backup/restore", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: backupId }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "BACKUP_RESTORE_FAILED");
-        if (status) status.textContent = "Backup je vraćen. Osvježavam podatke...";
-        showToast("Backup je uspješno vraćen.", "success");
-        await loadAllData();
-        restoreLastView();
-        setTimeout(() => window.location.reload(), 800);
-      } catch (error) {
-        console.error("Error restoring backup:", error);
-        if (status) status.textContent = "Vraćanje backupa nije uspjelo.";
-        showToast(error.message || "Backup restore failed.", "error");
-      } finally {
-        hideLoading();
-      }
-    },
-  );
-}
-
-async function handleListBackups() {
-  if (!canViewBackups()) {
-    showToast("Nemate dozvolu za pregled backupa.", "error");
-    return;
-  }
-  showLoading("loadingDefault");
-  try {
-    const response = await fetch("/api/backups");
-    if (!response.ok) throw new Error("Failed to list backups");
-    const data = await response.json();
-    renderBackupList(data.backups);
-  } catch (error) {
-    console.error("Error listing backups:", error);
-    showToast("Failed to list backups.", "error");
-  } finally {
-    hideLoading();
-  }
-}
-
-function renderBackupList(backups) {
-  const container = document.getElementById("backupListContainer");
-  if (!container) return;
-  container.innerHTML = "";
-  if (!backups || backups.length === 0) {
-    container.innerHTML = "<p>No backups found.</p>";
-    return;
-  }
-  const ul = document.createElement("ul");
-  backups.forEach((backup) => {
-    const li = document.createElement("li");
-    li.textContent = `${backup.filename} (${(backup.size / 1024).toFixed(2)} KB) - ${new Date(backup.createdAt).toLocaleString()}`;
-    ul.appendChild(li);
-  });
-  container.appendChild(ul);
-}
-
-async function handleBackupInfo() {
-  if (!canViewBackups()) {
-    showToast("Nemate dozvolu za pregled informacija o backupu.", "error");
-    return;
-  }
-  showLoading("loadingDefault");
-  try {
-    const response = await fetch("/api/backup/info");
-    if (!response.ok) throw new Error("Failed to get backup info");
-    const data = await response.json();
-    renderBackupInfo(data);
-  } catch (error) {
-    console.error("Error getting backup info:", error);
-    showToast("Failed to get backup info.", "error");
-  } finally {
-    hideLoading();
-  }
-}
-
-function renderBackupInfo(info) {
-  const container = document.getElementById("backupInfoContainer");
-  if (!container) return;
-  container.innerHTML = `
-    <p><strong>Interval:</strong> ${info.backupInterval} hours (${info.backupIntervalMs} ms)</p>
-    <p><strong>Storage Type:</strong> ${info.storageType}</p>
-    <p><strong>Backup Location:</strong> ${info.backupsDir}</p>
-    <p><strong>Last Backup:</strong> ${info.lastBackupTime ? new Date(info.lastBackupTime).toLocaleString() : 'N/A'}</p>
-  `;
-}
-
 
 /* ==================== REPORTS ==================== */
 let currentReportFilter = "all";
@@ -8505,227 +7730,6 @@ function updateThemeBtns(theme) {
     const el = document.getElementById(map[theme]);
     if (el) el.classList.add("active");
   }
-}
-
-/* ==================== LOG SYSTEM ==================== */
-function getLogs() {
-  return logsCache.slice();
-}
-
-function loadLogsData() {
-  if (!BACKEND_ENABLED) {
-    logsLoadedOnce = true;
-    return Promise.resolve(getLogs());
-  }
-
-  return fetch("/api/logs", { cache: "no-store" })
-    .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((logs) => {
-      logsCache = Array.isArray(logs) ? logs : [];
-      logsLoadedOnce = true;
-      return logsCache;
-    })
-    .catch(() => getLogs());
-}
-
-function addLog(action, details = "") {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    user: appState.currentUser || "Guest",
-    action,
-    details,
-  };
-
-  logsCache.push(entry);
-  if (logsCache.length > 500) logsCache.splice(0, logsCache.length - 500);
-
-  if (BACKEND_ENABLED) {
-    fetch("/api/logs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userEmail: entry.user,
-        action: entry.action,
-        details: entry.details,
-      }),
-    }).catch(() => {});
-  }
-}
-
-function formatLogDetails(details) {
-  if (details === null || details === undefined) return "";
-  if (typeof details === "string") return details;
-  try {
-    return JSON.stringify(details);
-  } catch {
-    return String(details);
-  }
-}
-
-function localizeLogPhrase(key) {
-  const map = {
-    hr: {
-      loginSuccess: "Uspješna prijava",
-      loginFail: "Neuspješna prijava",
-      logout: "Odjava",
-    },
-    en: {
-      loginSuccess: "Successfully logged in",
-      loginFail: "Login failed",
-      logout: "Logged out",
-    },
-    sv: {
-      loginSuccess: "Inloggning lyckades",
-      loginFail: "Inloggning misslyckades",
-      logout: "Utloggad",
-    },
-  };
-  const langKey =
-    currentLang === "sv" ? "sv" : currentLang === "en" ? "en" : "hr";
-  return (map[langKey] && map[langKey][key]) || key;
-}
-
-function formatLogEntry(log) {
-  const actionRaw = normalizeText(log.action || "");
-  let details = log.details;
-  if (typeof details === "string") {
-    const trimmed = details.trim();
-    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-      try {
-        details = JSON.parse(trimmed);
-      } catch {
-        details = details;
-      }
-    }
-  }
-  if (actionRaw.toLowerCase() === "login") {
-    if (details && typeof details === "object" && "success" in details) {
-      return {
-        action: actionRaw,
-        details: localizeLogPhrase(
-          details.success ? "loginSuccess" : "loginFail",
-        ),
-      };
-    }
-  }
-  if (actionRaw.toLowerCase() === "logged in") {
-    return { action: actionRaw, details: localizeLogPhrase("loginSuccess") };
-  }
-  if (actionRaw.toLowerCase() === "logged out") {
-    return { action: actionRaw, details: localizeLogPhrase("logout") };
-  }
-  return { action: actionRaw, details: normalizeText(formatLogDetails(details)) };
-}
-
-function renderLogs() {
-  const container = document.getElementById("logsContainer");
-  if (!container) return;
-  if (!hasAdminPermission("canViewLogs")) {
-    container.innerHTML =
-      `<p style="color:var(--text-light); text-align:center; padding:20px;">${t("accessLogsViewDenied")}</p>`;
-    return;
-  }
-  if (BACKEND_ENABLED && !logsLoadedOnce) {
-    loadLogsData()
-      .then(() => renderLogs())
-      .catch(() => renderLogs());
-    return;
-  }
-  const logs = getLogs().reverse(); // Show newest first
-
-  if (logs.length === 0) {
-    container.innerHTML =
-      '<p style="color:var(--text-light); text-align:center; padding:20px;">Nema logova.</p>';
-    return;
-  }
-
-  container.innerHTML = "";
-  logs.forEach((log) => {
-    const div = document.createElement("div");
-    div.className = "log-entry";
-    const date = new Date(log.timestamp);
-    const timeStr = date.toLocaleString(
-      currentLang === "hr"
-        ? "hr-HR"
-        : currentLang === "sv"
-          ? "sv-SE"
-          : "en-US",
-    );
-    const formatted = formatLogEntry(log);
-    const safeUser = normalizeText(log.user);
-    const safeAction = formatted.action || "";
-    const detailsText = formatted.details || "";
-    div.innerHTML = `<span class="log-time">${escapeHtml(timeStr)}</span> <span class="log-user">${escapeHtml(safeUser)}</span> <span class="log-action">${escapeHtml(safeAction)}</span> ${detailsText ? `<span style="color:var(--text-light);">(${escapeHtml(detailsText)})</span>` : ""}`;
-    container.appendChild(div);
-  });
-}
-
-function clearLogs() {
-  if (!hasAdminPermission("canClearLogs")) {
-    showToast(`❌ ${t("accessLogsClearDenied")}`, "error");
-    return;
-  }
-  showConfirm(
-    "Jeste li sigurni da želite obrisati sve logove?",
-    null,
-    "⚠️",
-    () => {
-      const finishClear = () => {
-        logsCache = [];
-        addLog("Cleared all logs");
-        loadLogsData()
-          .then(() => renderLogs())
-          .catch(() => renderLogs());
-        showToast("✅ Logovi su obrisani!", "success");
-      };
-
-      if (!BACKEND_ENABLED) {
-        finishClear();
-        return;
-      }
-
-      fetch("/api/logs", { method: "DELETE" })
-        .then((res) => (res.ok ? res.json() : Promise.reject()))
-        .then(() => finishClear())
-        .catch(() => {
-          showToast(`❌ ${t("accessLogsClearDenied")}`, "error");
-        });
-    },
-  );
-}
-
-function clearLogs() {
-  if (!hasAdminPermission("canClearLogs")) {
-    showToast(`❌ ${t("accessLogsClearDenied")}`, "error");
-    return;
-  }
-  showConfirm(
-    "Jeste li sigurni da želite obrisati sve logove?",
-    null,
-    "⚠️",
-    () => {
-      const finishClear = () => {
-        logsCache = [];
-        addLog("Cleared all logs");
-        loadLogsData()
-          .then(() => renderLogs())
-          .catch(() => renderLogs());
-        showToast("✅ Logovi su obrisani!", "success");
-      };
-
-      if (!BACKEND_ENABLED) {
-        finishClear();
-        return;
-      }
-
-      fetch("/api/logs", { method: "DELETE" })
-        .then((res) => (res.ok ? res.json() : Promise.reject()))
-        .then(() => finishClear())
-        .catch(() => {
-          showToast(`❌ ${t("accessLogsClearDenied")}`, "error");
-        });
-    },
-  );
 }
 
 function initBinPermissionsUI() {
@@ -10042,11 +9046,16 @@ function saveAllData() {
   syncServerState({ showSuccess: true, markAsClean: true }).catch(() => {});
 }
 
-function startAutoSave() {
+function stopAutoSave() {
   if (autoSaveInterval) clearInterval(autoSaveInterval);
+  autoSaveInterval = null;
+}
+
+function startAutoSave() {
+  stopAutoSave();
   // Auto-save every 5 minutes
   autoSaveInterval = setInterval(() => {
-    if (!appState.isReadonly) {
+    if (!appState.isReadonly && appState.currentUser) {
       saveData();
       saveBinsData();
       syncServerState({ markAsClean: true, skipLog: true }).catch(() => {});
@@ -13488,175 +12497,4 @@ window.addEventListener("popstate", () => {
   } else if (window.location.pathname !== "/login") {
     pushRouteForView("login", { path: "/login", replace: true });
   }
-});
-
-/* ==================== DYNAMIC UI INJECTION ==================== */
-document.addEventListener("DOMContentLoaded", () => {
-  return;
-  // Inject Warehouse Export/Import buttons and modal
-  const warehouseActionsBar = document.createElement("div");
-  warehouseActionsBar.className = "warehouse-actions-bar";
-  warehouseActionsBar.innerHTML = `
-    <button id="btnWarehouseExportExcel" class="btn btn-primary">${t("warehouseExportExcel")}</button>
-    <button id="btnWarehouseImportExcel" class="btn btn-secondary">${t("warehouseImportExcel")}</button>
-  `;
-  const warehouseTitleEl = document.getElementById("warehouseTitle");
-  if (warehouseTitleEl) {
-    warehouseTitleEl.parentNode.insertBefore(warehouseActionsBar, warehouseTitleEl.nextSibling);
-  }
-
-  const warehouseImportModal = document.createElement("div");
-  warehouseImportModal.id = "warehouseImportModal";
-  warehouseImportModal.className = "modal-overlay";
-  warehouseImportModal.style.display = "none";
-  warehouseImportModal.innerHTML = `
-    <div class="modal-box">
-        <div class="modal-header">
-            <h2>${t("warehouseImportExcel")}</h2>
-            <button class="close-btn" onclick="closeModal('warehouseImportModal')">×</button>
-        </div>
-        <div class="modal-body">
-            <input type="file" id="warehouseImportFile" accept=".xlsx" />
-            <button id="warehouseImportUploadBtn" class="btn">${t("btnPublishNotification")}</button>
-        </div>
-    </div>
-  `;
-  document.body.appendChild(warehouseImportModal);
-
-  // Inject TidPlan Export/Import buttons and modal
-  const tidplanControls = document.getElementById("tidplan-controls");
-  if (tidplanControls) {
-    const btnPrintTidplan = document.getElementById("btnPrintTidplan");
-    if (btnPrintTidplan) {
-      const exportBtn = document.createElement("button");
-      exportBtn.id = "btnTidplanExportPdf";
-      exportBtn.className = "btn";
-      exportBtn.textContent = t("tidplanExportPdf");
-      exportBtn.onclick = handleTidplanExportPdf;
-      btnPrintTidplan.parentNode.insertBefore(exportBtn, btnPrintTidplan.nextSibling);
-
-      const importBtn = document.createElement("button");
-      importBtn.id = "btnTidplanImportPdf";
-      importBtn.className = "btn";
-      importBtn.textContent = t("tidplanImportPdf");
-      importBtn.onclick = () => openModal('tidplanImportModal');
-      exportBtn.parentNode.insertBefore(importBtn, exportBtn.nextSibling);
-    }
-  }
-
-  const tidplanImportModal = document.createElement("div");
-  tidplanImportModal.id = "tidplanImportModal";
-  tidplanImportModal.className = "modal-overlay";
-  tidplanImportModal.style.display = "none";
-  tidplanImportModal.innerHTML = `
-    <div class="modal-box">
-        <div class="modal-header">
-            <h2>${t("tidplanImportPdf")}</h2>
-            <button class="close-btn" onclick="closeModal('tidplanImportModal')">×</button>
-        </div>
-        <div class="modal-body">
-            <input type="file" id="tidplanImportFile" accept=".pdf" />
-            <button id="tidplanImportUploadBtn" class="btn">${t("btnPublishNotification")}</button>
-        </div>
-    </div>
-  `;
-  document.body.appendChild(tidplanImportModal);
-
-  // Inject Planner Export/Import buttons and modal
-  const mainControls = document.getElementById("main-controls");
-  if (mainControls) {
-    const btnExport = document.getElementById("btnExport"); // Existing Export PDF button
-    if (btnExport) {
-      const plannerExportDropdown = document.createElement("div");
-      plannerExportDropdown.id = "plannerExportDropdown";
-      plannerExportDropdown.className = "dropdown";
-      plannerExportDropdown.innerHTML = `
-        <button id="plannerExportDropdownBtn" class="btn dropdown-toggle" onclick="toggleDropdown('plannerExportDropdownMenu')">${t("export")} <span class="arrow-down"></span></button>
-        <div id="plannerExportDropdownMenu" class="dropdown-menu">
-            <a href="#" id="btnPlannerExportExcel" onclick="exportPlannerToExcel(); return false;">${t("exportExcel")}</a>
-            <a href="#" id="btnPlannerExportPdf" onclick="exportPlannerToPDF(); return false;">${t("exportPdf")}</a>
-            <a href="#" id="btnPlannerExportWord" onclick="exportPlannerToWord(); return false;">${t("exportWord")}</a>
-        </div>
-      `;
-      mainControls.insertBefore(plannerExportDropdown, btnExport);
-      btnExport.style.display = "none"; // Hide old Export PDF button
-
-      const plannerImportExcelBtn = document.createElement("button");
-      plannerImportExcelBtn.id = "btnPlannerImportExcel";
-      plannerImportExcelBtn.className = "btn";
-      plannerImportExcelBtn.textContent = t("plannerImportExcel");
-      plannerImportExcelBtn.onclick = () => openModal('plannerImportModal');
-      mainControls.insertBefore(plannerImportExcelBtn, plannerExportDropdown.nextSibling);
-    }
-  }
-
-  const plannerImportModal = document.createElement("div");
-  plannerImportModal.id = "plannerImportModal";
-  plannerImportModal.className = "modal-overlay";
-  plannerImportModal.style.display = "none";
-  plannerImportModal.innerHTML = `
-    <div class="modal-box">
-        <div class="modal-header">
-            <h2>${t("plannerImportExcel")}</h2>
-            <button class="close-btn" onclick="closeModal('plannerImportModal')">×</button>
-        </div>
-        <div class="modal-body">
-            <input type="file" id="plannerImportFile" accept=".xlsx" />
-            <button id="plannerImportUploadBtn" class="btn">${t("btnPublishNotification")}</button>
-        </div>
-    </div>
-  `;
-  document.body.appendChild(plannerImportModal);
-
-  // Inject Admin Panel Backup Tab
-  const adminTabs = document.getElementById("admin-tabs");
-  if (adminTabs) {
-    const tabBtnBackup = document.createElement("button");
-    tabBtnBackup.id = "tabBtnBackup";
-    tabBtnBackup.className = "tab-btn";
-    tabBtnBackup.textContent = t("backupTabTitle");
-    tabBtnBackup.onclick = () => switchTab('tabBackup');
-    adminTabs.appendChild(tabBtnBackup);
-  }
-
-  const adminTabContent = document.getElementById("admin-tab-content");
-  if (adminTabContent) {
-    const tabBackup = document.createElement("div");
-    tabBackup.id = "tabBackup";
-    tabBackup.className = "tab-content";
-    tabBackup.innerHTML = `
-      <h3>${t("backupTabTitle")}</h3>
-      <div class="admin-section">
-          <h4>Manual Backup</h4>
-          <button id="btnManualBackup" class="btn">${t("backupManualBtn")}</button>
-      </div>
-      <div class="admin-section">
-          <h4>Backup List</h4>
-          <button id="btnListBackups" class="btn">${t("backupListBtn")}</button>
-          <div id="backupListContainer" class="admin-list-container"></div>
-      </div>
-      <div class="admin-section">
-          <h4>Backup Info</h4>
-          <button id="btnBackupInfo" class="btn">${t("backupInfoBtn")}</button>
-          <div id="backupInfoContainer" class="admin-info-container"></div>
-      </div>
-    `;
-    adminTabContent.appendChild(tabBackup);
-  }
-
-  // Attach event listeners for new backup buttons
-  const btnManualBackup = document.getElementById("btnManualBackup");
-  if (btnManualBackup) btnManualBackup.onclick = handleManualBackup;
-  const btnListBackups = document.getElementById("btnListBackups");
-  if (btnListBackups) btnListBackups.onclick = handleListBackups;
-  const btnBackupInfo = document.getElementById("btnBackupInfo");
-  if (btnBackupInfo) btnBackupInfo.onclick = handleBackupInfo;
-
-  // Attach event listener for Planner Import Upload
-  const plannerImportUploadBtn = document.getElementById("plannerImportUploadBtn");
-  if (plannerImportUploadBtn) plannerImportUploadBtn.onclick = handlePlannerImportExcel;
-
-  // Attach event listener for Tidplan Import Upload
-  const tidplanImportUploadBtn = document.getElementById("tidplanImportUploadBtn");
-  if (tidplanImportUploadBtn) tidplanImportUploadBtn.onclick = handleTidplanImportPdf;
 });

@@ -21,8 +21,45 @@ function clearAuthSessionLocal() {
   clearCsrfToken();
 }
 
+let sessionExpiredHandled = false;
+
+function callIfDefined(functionName) {
+  if (typeof window[functionName] === "function") {
+    window[functionName]();
+  }
+}
+
+function resetAuthStateLocal() {
+  appState.isAdmin = false;
+  appState.isSuperAdmin = false;
+  appState.isReadonly = false;
+  appState.currentUser = null;
+  appState.currentUserName = "";
+  appState.adminLevel = 1;
+  appState.permissions = normalizePermissions({});
+  appState.guestPermissions = getGuestPermissions();
+}
+
+function handleApiUnauthorized() {
+  clearAuthSessionLocal();
+  resetAuthStateLocal();
+  callIfDefined("stopAutoSave");
+  callIfDefined("stopPresenceTracking");
+  callIfDefined("stopReportsPolling");
+  callIfDefined("stopNotificationsPolling");
+  callIfDefined("stopSiteMetaRefresh");
+
+  if (sessionExpiredHandled) return;
+  sessionExpiredHandled = true;
+  if (document.getElementById("mainContainer")?.style.display !== "none") {
+    showToast("Sesija je istekla. Prijavi se ponovno.", "error");
+    showLogin();
+  }
+}
+
 function applyAuthData(authData) {
   if (!authData) return;
+  sessionExpiredHandled = false;
   localStorage.setItem(AUTH_KEY, JSON.stringify(authData));
   appState.isAdmin = authData.isAdmin;
   appState.isSuperAdmin = authData.isSuperAdmin;
@@ -52,18 +89,7 @@ window.fetch = function patchedFetch(resource, options = {}) {
   }
   return originalFetch(resource, nextOptions).then((response) => {
     if (isApiRequest && response.status === 401 && !requestUrl.includes("/api/login")) {
-      clearAuthSessionLocal();
-      appState.isAdmin = false;
-      appState.isSuperAdmin = false;
-      appState.isReadonly = false;
-      appState.currentUser = null;
-      appState.currentUserName = "";
-      appState.adminLevel = 1;
-      appState.permissions = normalizePermissions({});
-      if (document.getElementById("mainContainer")?.style.display !== "none") {
-        showToast("Sesija je istekla. Prijavi se ponovno.", "error");
-        showLogin();
-      }
+      handleApiUnauthorized();
     }
     return response;
   });

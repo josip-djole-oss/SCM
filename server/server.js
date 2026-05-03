@@ -1147,6 +1147,115 @@ async function persistAdmins(adminsInput, actorSession = null) {
   return nextAdmins;
 }
 
+function getEnabledPermissionKeys(permissions) {
+  const normalized = normalizePermissions(permissions || {});
+  return Object.keys(DEFAULT_PERMISSIONS)
+    .filter((key) => normalized[key] === true)
+    .sort();
+}
+
+function getAdminAuditSites(admin) {
+  return Array.isArray(admin?.allowedSites)
+    ? admin.allowedSites.map((site) => sanitizeString(site, 80)).filter(Boolean).sort()
+    : ['ALL'];
+}
+
+function diffLists(beforeList, afterList) {
+  const before = new Set(Array.isArray(beforeList) ? beforeList : []);
+  const after = new Set(Array.isArray(afterList) ? afterList : []);
+  return {
+    added: [...after].filter((value) => !before.has(value)).sort(),
+    removed: [...before].filter((value) => !after.has(value)).sort(),
+  };
+}
+
+function buildAdminAuditEvents(beforeAdmins, afterAdmins) {
+  const beforeByEmail = new Map((Array.isArray(beforeAdmins) ? beforeAdmins : []).map((admin) => [admin.email, normalizeAdminRecord(admin)]));
+  const afterByEmail = new Map((Array.isArray(afterAdmins) ? afterAdmins : []).map((admin) => [admin.email, normalizeAdminRecord(admin)]));
+  const events = [];
+
+  afterByEmail.forEach((after, email) => {
+    const before = beforeByEmail.get(email);
+    if (!before) {
+      events.push({
+        action: 'admin_created',
+        details: {
+          targetEmail: email,
+          targetName: after.fullName || '',
+          level: after.level,
+          permissionsAdded: getEnabledPermissionKeys(after.permissions),
+          sitesAdded: getAdminAuditSites(after),
+          readonlyChanged: after.isReadonly === true,
+          toReadonly: after.isReadonly === true,
+        },
+      });
+      return;
+    }
+
+    const beforePermissions = getEnabledPermissionKeys(before.permissions);
+    const afterPermissions = getEnabledPermissionKeys(after.permissions);
+    const permissionDiff = diffLists(beforePermissions, afterPermissions);
+    const siteDiff = diffLists(getAdminAuditSites(before), getAdminAuditSites(after));
+    const levelChanged = Number(before.level) !== Number(after.level);
+    const readonlyChanged = Boolean(before.isReadonly) !== Boolean(after.isReadonly);
+    const nameChanged = String(before.fullName || '') !== String(after.fullName || '');
+    const passwordChanged = Boolean(before.password && after.password && before.password !== after.password);
+
+    if (
+      levelChanged ||
+      readonlyChanged ||
+      nameChanged ||
+      passwordChanged ||
+      permissionDiff.added.length ||
+      permissionDiff.removed.length ||
+      siteDiff.added.length ||
+      siteDiff.removed.length
+    ) {
+      events.push({
+        action: 'admin_updated',
+        details: {
+          targetEmail: email,
+          targetName: after.fullName || '',
+          fromLevel: before.level,
+          toLevel: after.level,
+          permissionsAdded: permissionDiff.added,
+          permissionsRemoved: permissionDiff.removed,
+          sitesAdded: siteDiff.added,
+          sitesRemoved: siteDiff.removed,
+          readonlyChanged,
+          fromReadonly: before.isReadonly === true,
+          toReadonly: after.isReadonly === true,
+          nameChanged,
+          passwordChanged,
+        },
+      });
+    }
+  });
+
+  beforeByEmail.forEach((before, email) => {
+    if (afterByEmail.has(email)) return;
+    events.push({
+      action: 'admin_removed',
+      details: {
+        targetEmail: email,
+        targetName: before.fullName || '',
+        level: before.level,
+        permissionsRemoved: getEnabledPermissionKeys(before.permissions),
+        sitesRemoved: getAdminAuditSites(before),
+      },
+    });
+  });
+
+  return events;
+}
+
+async function logAdminAuditChanges(actorEmail, beforeAdmins, afterAdmins) {
+  const events = buildAdminAuditEvents(beforeAdmins, afterAdmins);
+  for (const event of events) {
+    await logActivity(actorEmail, event.action, event.details);
+  }
+}
+
 async function getState() {
   const state = await readJsonFile(stateFile, null);
   return state && typeof state === 'object' ? state : null;
@@ -2095,9 +2204,6 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     }
 
     const currentDocument = await getStateDocument();
-    if (Number(currentDocument.version) !== lastKnownVersion) {
-      return sendVersionConflict(res, async () => buildPublicStatePayload(await getStateDocument(), req.session));
-    }
     const mergedState = mergeStateForSession(currentDocument.data, state, req.session);
     if (!canUnlockPastDays(req.session) && hasLockedPastChanges(currentDocument.data, mergedState)) {
       return res.status(403).json({ error: 'Past days are locked' });
@@ -2108,7 +2214,9 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     }
 
     if (canWriteStateField(req.session, 'canManageAdmins') && Array.isArray(mergedState.admins)) {
+      const previousAdmins = await readAdmins();
       mergedState.admins = await persistAdmins(mergedState.admins, req.session);
+      await logAdminAuditChanges(req.session.email, previousAdmins, mergedState.admins);
     }
     
     const savedDocument = await writeVersionedJsonFile(stateFile, {
@@ -2116,7 +2224,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       savedAt: new Date().toISOString(),
       savedBy: req.session.email,
     }, {
-      lastKnownVersion,
+      lastKnownVersion: Number(currentDocument.version) || lastKnownVersion,
       fallbackValue: null,
     });
     res.json({
@@ -2388,6 +2496,27 @@ function mergeCreatedReports(existingReports, submittedReports) {
   return [...existing, ...created];
 }
 
+function mergeReportsById(existingReports, submittedReports) {
+  const existing = Array.isArray(existingReports) ? existingReports : [];
+  const submitted = Array.isArray(submittedReports) ? submittedReports : [];
+  const submittedById = new Map();
+  submitted.forEach((report) => {
+    const id = String(report?.id || '');
+    if (id) submittedById.set(id, report);
+  });
+
+  const merged = existing.map((report) => {
+    const id = String(report?.id || '');
+    return id && submittedById.has(id) ? submittedById.get(id) : report;
+  });
+  const existingIds = new Set(existing.map((report) => String(report?.id || '')));
+  submitted.forEach((report) => {
+    const id = String(report?.id || '');
+    if (id && !existingIds.has(id)) merged.push(report);
+  });
+  return merged;
+}
+
 apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, res, next) => {
   try {
   if (req.session.isReadonly) {
@@ -2405,17 +2534,16 @@ apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, re
   const canProcessReports =
     sessionHasPermission(req.session, 'canApproveReports') ||
     sessionHasPermission(req.session, 'canDeleteReports');
-  if (canProcessReports && (!Number.isFinite(lastKnownVersion) || lastKnownVersion < 1)) {
-    return res.status(400).json({ error: 'Missing lastKnownVersion' });
-  }
-  const savedDocument = canProcessReports
-    ? await writeVersionedJsonFile(getReportsFilePath(site), reports, {
-        lastKnownVersion,
-        fallbackValue: [],
-      })
-    : await mutateVersionedJsonFile(getReportsFilePath(site), [], (existingReports) =>
-        mergeCreatedReports(existingReports, reports),
-      );
+  const savedDocument = await mutateVersionedJsonFile(getReportsFilePath(site), [], (existingReports, documentInfo) => {
+    const hasFreshProcessVersion =
+      canProcessReports &&
+      Number.isFinite(lastKnownVersion) &&
+      lastKnownVersion >= 1 &&
+      Number(documentInfo?.version) === lastKnownVersion;
+    if (hasFreshProcessVersion) return reports;
+    if (canProcessReports) return mergeReportsById(existingReports, reports);
+    return mergeCreatedReports(existingReports, reports);
+  });
   await logActivity(req.session.email, 'save_reports', { count: reports.length, site });
   res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt });
   } catch (error) {

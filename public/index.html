@@ -371,6 +371,13 @@
           >
             Postavke
           </button>
+          <button
+            class="tab-btn"
+            onclick="switchTab('tabBackup')"
+            id="tabBtnBackup"
+          >
+            Backup
+          </button>
         </div>
 
         <!-- Tab: Admins -->
@@ -787,6 +794,8 @@
             </div>
           </div>
         </div>
+
+        <div id="tabBackup" class="tab-content"></div>
       </div>
     </div>
 
@@ -2396,6 +2405,9 @@
     <script src="apiClient.js"></script>
     <script src="permissions.js"></script>
     <script src="routing.js"></script>
+    <script src="conflicts.js"></script>
+    <script src="audit.js"></script>
+    <script src="backups.js"></script>
     <script src="planner.js"></script>
     <script src="tidplan.js"></script>
     <script src="warehouse.js"></script>
