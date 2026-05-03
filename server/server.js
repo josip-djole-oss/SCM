@@ -1570,7 +1570,7 @@ function createSession(res, payload) {
   sessions.set(sessionId, session);
   res.cookie(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
-    sameSite: 'none',
+    sameSite: IS_PRODUCTION ? 'none' : 'lax',
     secure: IS_PRODUCTION,
     maxAge: SESSION_TTL_MS,
     path: '/',
@@ -1583,7 +1583,7 @@ function clearSession(req, res) {
   if (sessionId) sessions.delete(sessionId);
   res.clearCookie(SESSION_COOKIE_NAME, {
     httpOnly: true,
-    sameSite: 'none',
+    sameSite: IS_PRODUCTION ? 'none' : 'lax',
     secure: IS_PRODUCTION,
     path: '/',
   });
@@ -1621,7 +1621,7 @@ function requireAuth(req, res, next) {
   req.session = session;
   res.cookie(SESSION_COOKIE_NAME, sessionId, {
     httpOnly: true,
-    sameSite: 'none',
+    sameSite: IS_PRODUCTION ? 'none' : 'lax',
     secure: IS_PRODUCTION,
     maxAge: SESSION_TTL_MS,
     path: '/',
@@ -1775,6 +1775,47 @@ function stableJson(value) {
   return JSON.stringify(value === undefined ? null : value);
 }
 
+function canonicalize(value) {
+  if (Array.isArray(value)) return value.map((entry) => canonicalize(entry));
+  if (value && typeof value === 'object') {
+    return Object.keys(value)
+      .sort()
+      .reduce((result, key) => {
+        result[key] = canonicalize(value[key]);
+        return result;
+      }, {});
+  }
+  return value === undefined ? null : value;
+}
+
+function stableChecksum(value) {
+  return crypto
+    .createHash('sha256')
+    .update(JSON.stringify(canonicalize(value)))
+    .digest('hex');
+}
+
+function findFirstDiffPath(before, after, prefix = '') {
+  if (stableJson(canonicalize(before)) === stableJson(canonicalize(after))) return '';
+  if (!before || !after || typeof before !== 'object' || typeof after !== 'object') {
+    return prefix || '<root>';
+  }
+  if (Array.isArray(before) || Array.isArray(after)) {
+    const maxLength = Math.max(Array.isArray(before) ? before.length : 0, Array.isArray(after) ? after.length : 0);
+    for (let index = 0; index < maxLength; index += 1) {
+      const childPath = findFirstDiffPath(before?.[index], after?.[index], `${prefix}[${index}]`);
+      if (childPath) return childPath;
+    }
+    return prefix || '<root>';
+  }
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).sort();
+  for (const key of keys) {
+    const childPath = findFirstDiffPath(before[key], after[key], prefix ? `${prefix}.${key}` : key);
+    if (childPath) return childPath;
+  }
+  return prefix || '<root>';
+}
+
 function hasPastPlannerDayChanges(previousState, nextState) {
   const previousSiteData = previousState?.siteData && typeof previousState.siteData === 'object' ? previousState.siteData : {};
   const nextSiteData = nextState?.siteData && typeof nextState.siteData === 'object' ? nextState.siteData : {};
@@ -1886,6 +1927,20 @@ function mergePlannerStateForSession(previousPlanner, submittedPlanner, session)
   return next;
 }
 
+function mirrorPlannerListsToSiteEntry(entry) {
+  const planner = entry?.planner && typeof entry.planner === 'object' ? entry.planner : {};
+  ['workers', 'lifts', 'moments', 'plans', 'karnas'].forEach((field) => {
+    entry[field] = Array.isArray(planner[field]) ? planner[field] : [];
+  });
+  return entry;
+}
+
+function normalizeSiteEntryForScopeChecksum(entry) {
+  if (!entry || typeof entry !== 'object') return entry;
+  const copy = { ...entry };
+  return mirrorPlannerListsToSiteEntry(copy);
+}
+
 function mergeStateForSession(previousState, submittedState, session) {
   const previous = previousState && typeof previousState === 'object' ? previousState : {};
   const submitted = submittedState && typeof submittedState === 'object' ? submittedState : {};
@@ -1953,6 +2008,7 @@ function mergeStateForSession(previousState, submittedState, session) {
     if (incoming.planner && typeof incoming.planner === 'object') {
       entry.planner = mergePlannerStateForSession(previousEntry.planner, incoming.planner, session);
     }
+    mirrorPlannerListsToSiteEntry(entry);
     if (canWriteBinsState(session) && incoming.bins) entry.bins = incoming.bins;
     if (canWriteTidplanState(session)) {
       if (incoming.tidplan && canWriteStateField(session, 'canManageTidplan')) entry.tidplan = incoming.tidplan;
@@ -2413,8 +2469,8 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       for (const previousSite of previousSites) {
         if (!removedSites.includes(previousSite)) {
           // This site should still exist in nextSiteData
-          const previousEntry = previousSiteData[previousSite];
-          const nextEntry = nextSiteData[previousSite];
+          const previousEntry = normalizeSiteEntryForScopeChecksum(previousSiteData[previousSite]);
+          const nextEntry = normalizeSiteEntryForScopeChecksum(nextSiteData[previousSite]);
           
           // If previous site had data, ensure next site still has at least the same structure
           if (previousEntry && typeof previousEntry === 'object' && Object.keys(previousEntry).length > 0) {
@@ -2425,6 +2481,25 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
                 route: '/api/state',
               });
               return res.status(400).json({ error: 'SITE_DELETE_SCOPE_ERROR', details: `Remaining site "${previousSite}" data was lost` });
+            }
+            const previousChecksum = stableChecksum(previousEntry);
+            const nextChecksum = stableChecksum(nextEntry);
+            if (previousChecksum !== nextChecksum) {
+              const changedPath = findFirstDiffPath(previousEntry, nextEntry);
+              await logActivity(req.session.email, 'site_deletion_safety_blocked', {
+                reason: 'Remaining site data changed during deletion',
+                site: previousSite,
+                changedPath,
+                previousChecksum,
+                nextChecksum,
+                route: '/api/state',
+              });
+              return res.status(400).json({
+                error: 'SITE_DELETE_SCOPE_ERROR',
+                details: `Remaining site "${previousSite}" changed during deletion at ${changedPath}`,
+                site: previousSite,
+                changedPath,
+              });
             }
             
             // CRITICAL: Verify warehouse data specifically (per gradilište)

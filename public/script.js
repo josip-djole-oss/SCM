@@ -2115,6 +2115,7 @@ let presenceHeartbeatInterval = null;
 let presenceRefreshInterval = null;
 let reportsRefreshInterval = null;
 let siteMetaRefreshInterval = null;
+let lastLocalSiteMutationAt = 0;
 let lastEditAt = 0;
 const PRESENCE_EDITING_WINDOW_MS = 2 * 60 * 1000;
 let lastPresenceEditPingAt = 0;
@@ -2799,6 +2800,12 @@ let appState = {
 
 for (let i = 1; i <= 20; i++) appState.plans.push(`Plan ${i}`);
 
+appState.workers = [];
+appState.lifts = [];
+appState.moments = [];
+appState.plans = [];
+appState.karnas = [];
+
 const DEFAULT_SITE_TEMPLATE = {
   workers: [],
   lifts: [],
@@ -2818,6 +2825,10 @@ const DEFAULT_SITE_TEMPLATE = {
   reports: [],
   notifications: [],
 };
+
+function markLocalSiteMutation() {
+  lastLocalSiteMutationAt = Date.now();
+}
 
 function createEmptyPlannerData() {
   return {
@@ -3289,10 +3300,7 @@ async function initApp() {
 
   setLanguage(currentLang);
   initTooltips();
-  STORAGE_KEY = getStorageKey("cmax_planner_data");
-  BINS_KEY = getStorageKey("cmax_planner_bins");
-  REPORTS_KEY = getStorageKey("cmax_planner_reports");
-  NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+  updateScopedStorageKeysForCurrentSite();
   populateSiteSelect();
   updateMainTitle();
   initAdmins();
@@ -5422,6 +5430,19 @@ function syncSiteMetadata(snapshot) {
   const currentChanged = nextCurrentSite !== currentSite;
 
   if (
+    (sitesChanged || currentChanged) &&
+    (serverSyncInFlight || pendingServerSyncOptions.includeSites || Date.now() - lastLocalSiteMutationAt < 30000)
+  ) {
+    logSiteScopeDebug("metadata-skip-pending-site-save", {
+      localSites: sites,
+      remoteSites: nextSites,
+      currentSite,
+      nextCurrentSite,
+    });
+    return Promise.resolve(false);
+  }
+
+  if (
     Array.isArray(snapshot.admins) &&
     appState.currentUser &&
     !appState.isReadonly &&
@@ -5513,34 +5534,15 @@ function syncSiteMetadata(snapshot) {
   currentSite = nextCurrentSite;
   localStorage.setItem(SITES_KEY, JSON.stringify(sites));
   localStorage.setItem(CURRENT_SITE_KEY, currentSite);
-  STORAGE_KEY = getStorageKey("cmax_planner_data");
-  BINS_KEY = getStorageKey("cmax_planner_bins");
-  REPORTS_KEY = getStorageKey("cmax_planner_reports");
-  NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+  updateScopedStorageKeysForCurrentSite();
 
   populateSiteSelect();
   updateMainTitle();
 
   if (currentChanged) {
-    return loadAllData()
-      .then(() => {
-        renderAll();
-        updateNotifBadge();
-        if (document.getElementById("tidplan-section")?.style.display === "block") {
-          updateTidplan();
-        }
-        if (currentView === "warehouse") {
-          renderWarehousePage();
-        }
-        if (currentView === "warehouseLogs") {
-          renderWarehouseLogsPage();
-        }
-        if (currentView === "warehouseGraph") {
-          renderWarehouseGraphPage();
-        }
-      })
-      .then(() => true)
-      .catch(() => false);
+    loadCurrentSiteRuntimeFromLocalStorage();
+    renderCurrentSiteAfterHydrate();
+    syncServerState({ includeSites: true, skipLog: true }).catch(() => {});
   }
 
   return Promise.resolve(true);
@@ -6259,6 +6261,78 @@ function loadCurrentSiteRuntimeFromLocalStorage() {
   collectPlans();
 }
 
+function updateScopedStorageKeysForCurrentSite() {
+  STORAGE_KEY = getStorageKey("cmax_planner_data");
+  BINS_KEY = getStorageKey("cmax_planner_bins");
+  REPORTS_KEY = getStorageKey("cmax_planner_reports");
+  NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+}
+
+function getSiteDebugSummary(site) {
+  const planner = safeParseStoredJson(localStorage.getItem(getSiteStorageKey("cmax_planner_data", site)), createEmptyPlannerData()) || {};
+  const tidplan = safeParseStoredJson(localStorage.getItem(getSiteStorageKey("tidplan", site)), []) || [];
+  const warehouse = safeParseStoredJson(localStorage.getItem(getSiteStorageKey("cmax_warehouse_data", site)), null) || {};
+  return {
+    workers: Array.isArray(planner.workers) ? planner.workers.length : 0,
+    lifts: Array.isArray(planner.lifts) ? planner.lifts.length : 0,
+    moments: Array.isArray(planner.moments) ? planner.moments.length : 0,
+    plans: Array.isArray(planner.plans) ? planner.plans.length : 0,
+    karnas: Array.isArray(planner.karnas) ? planner.karnas.length : 0,
+    tidplan: Array.isArray(tidplan) ? tidplan.length : 0,
+    warehouseItems: Array.isArray(warehouse.catalog) ? warehouse.catalog.length : 0,
+  };
+}
+
+function logSiteScopeDebug(action, details = {}) {
+  if (sessionStorage.getItem("cmax_site_scope_debug") !== "true") return;
+  console.info("[site-scope]", action, details);
+}
+
+function renderCurrentSiteAfterHydrate() {
+  renderAll();
+  updateTidplan();
+  if (currentView === "bins") {
+    renderBinsTable();
+  }
+  if (document.getElementById("notifications-section")?.style.display === "block") {
+    renderNotificationSiteOptions();
+    renderNotificationsList();
+  }
+  if (currentView === "warehouse") {
+    renderWarehousePage();
+  }
+  if (currentView === "warehouseLogs") {
+    renderWarehouseLogsPage();
+  }
+  if (currentView === "warehouseGraph") {
+    renderWarehouseGraphPage();
+  }
+  updateNotifBadge();
+  updateMainTitle();
+}
+
+function switchSiteFromLocal(toSite, options = {}) {
+  const fromSite = currentSite;
+  persistCurrentStateToLocalStorage();
+  currentSite = toSite;
+  localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+  updateScopedStorageKeysForCurrentSite();
+  loadCurrentSiteRuntimeFromLocalStorage();
+  populateSiteSelect();
+  renderCurrentSiteAfterHydrate();
+  logSiteScopeDebug("switch", {
+    fromSite,
+    toSite,
+    from: getSiteDebugSummary(fromSite),
+    to: getSiteDebugSummary(toSite),
+  });
+  if (options.syncSites !== false) {
+    syncServerState({ includeSites: true, skipLog: true }).catch(() => {});
+  }
+  sendPresence(true).catch(() => {});
+  refreshPresence().catch(() => {});
+}
+
 
 function getSiteStorageKey(module, site) {
   return `${module}_${site}`;
@@ -6399,15 +6473,45 @@ function recordResourceRemoved(type, resourceId, dateValue = appState.currentDat
   }
 }
 
+function normalizeDailyDataForSave(dailyData = {}) {
+  const source = dailyData && typeof dailyData === "object" ? dailyData : {};
+  return Object.entries(source).reduce((result, [date, day]) => {
+    const entry = day && typeof day === "object" ? day : {};
+    const planningRows = Array.isArray(entry.planningRows)
+      ? entry.planningRows.filter((row) => row && Object.values(row).some((value) => String(value ?? "").trim() !== ""))
+      : [];
+    const workerAttendance = entry.workerAttendance && typeof entry.workerAttendance === "object" ? entry.workerAttendance : {};
+    const liftAvailability = entry.liftAvailability && typeof entry.liftAvailability === "object" ? entry.liftAvailability : {};
+    const liftPlans = entry.liftPlans && typeof entry.liftPlans === "object" ? entry.liftPlans : {};
+    if (
+      planningRows.length === 0 &&
+      Object.keys(workerAttendance).length === 0 &&
+      Object.keys(liftAvailability).length === 0 &&
+      Object.keys(liftPlans).length === 0
+    ) {
+      return result;
+    }
+    result[date] = {
+      ...entry,
+      planningRows,
+      workerAttendance,
+      liftAvailability,
+      liftPlans,
+    };
+    return result;
+  }, {});
+}
+
 function persistCurrentStateToLocalStorage() {
   seedResourceHistoryForCurrentLists();
+  appState.dailyData = normalizeDailyDataForSave(appState.dailyData);
   const plannerPayload = {
     workers: appState.workers,
     lifts: appState.lifts,
     moments: appState.moments,
     plans: appState.plans,
     karnas: appState.karnas,
-    dailyData: appState.dailyData,
+    dailyData: normalizeDailyDataForSave(appState.dailyData),
     resourceHistory: normalizeResourceHistory(appState.resourceHistory),
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(plannerPayload));
@@ -6435,7 +6539,7 @@ function persistCurrentStateToLocalStorage() {
   );
 }
 
-function mergePlannerSnapshot(localPlanner, serverPlanner) {
+function mergePlannerSnapshot(localPlanner, serverPlanner, site = currentSite) {
   const local = localPlanner && typeof localPlanner === "object" ? localPlanner : {};
   const server = serverPlanner && typeof serverPlanner === "object" ? serverPlanner : {};
   const authoritativeList = (localList, serverList) => {
@@ -6457,8 +6561,8 @@ function mergePlannerSnapshot(localPlanner, serverPlanner) {
       ].join("|");
       mergedByKey.set(key, entry);
     };
-    normalizeResourceHistory(server.resourceHistory).forEach(put);
-    const localHistory = normalizeResourceHistory(local.resourceHistory);
+    normalizeResourceHistory(server.resourceHistory, site).forEach(put);
+    const localHistory = normalizeResourceHistory(local.resourceHistory, site);
     localHistory.forEach(put);
     const merged = Array.from(mergedByKey.values());
 
@@ -6482,7 +6586,7 @@ function mergePlannerSnapshot(localPlanner, serverPlanner) {
         });
       });
 
-    return normalizeResourceHistory(merged);
+    return normalizeResourceHistory(merged, site);
   };
 
   return {
@@ -6602,8 +6706,14 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
       localStorage.getItem(getSiteStorageKey("cmax_planner_notifications", site)),
       null,
     );
+    const plannerSnapshot = mergePlannerSnapshot(localPlanner, serverPlanner, site);
     siteData[site] = {
-      planner: mergePlannerSnapshot(localPlanner, serverPlanner),
+      planner: plannerSnapshot,
+      workers: Array.isArray(plannerSnapshot.workers) ? plannerSnapshot.workers : [],
+      lifts: Array.isArray(plannerSnapshot.lifts) ? plannerSnapshot.lifts : [],
+      moments: Array.isArray(plannerSnapshot.moments) ? plannerSnapshot.moments : [],
+      plans: Array.isArray(plannerSnapshot.plans) ? plannerSnapshot.plans : [],
+      karnas: Array.isArray(plannerSnapshot.karnas) ? plannerSnapshot.karnas : [],
       bins: safeParseStoredJson(
         localStorage.getItem(getSiteStorageKey("cmax_planner_bins", site)),
         null,
@@ -6713,7 +6823,15 @@ function applyServerStateSnapshot(snapshot) {
     const siteEntry = snapshotSiteData[site] || {};
     const planner = siteEntry.planner && typeof siteEntry.planner === "object"
       ? siteEntry.planner
-      : createEmptyPlannerData();
+      : {
+          workers: siteEntry.workers,
+          lifts: siteEntry.lifts,
+          moments: siteEntry.moments,
+          plans: siteEntry.plans,
+          karnas: siteEntry.karnas,
+          dailyData: siteEntry.dailyData,
+          resourceHistory: siteEntry.resourceHistory,
+        };
     localStorage.setItem(
       getSiteStorageKey("cmax_planner_data", site),
       JSON.stringify(normalizePlannerData(planner, site)),
@@ -6744,10 +6862,7 @@ function applyServerStateSnapshot(snapshot) {
     );
   });
 
-  STORAGE_KEY = getStorageKey("cmax_planner_data");
-  BINS_KEY = getStorageKey("cmax_planner_bins");
-  REPORTS_KEY = getStorageKey("cmax_planner_reports");
-  NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+  updateScopedStorageKeysForCurrentSite();
   const currentPlanner = safeParseStoredJson(localStorage.getItem(STORAGE_KEY), null);
   applyPlannerDataToAppState(currentPlanner || createEmptyPlannerData());
   appState.guestPermissions = getGuestPermissions();
@@ -6758,10 +6873,12 @@ function applyServerStateSnapshot(snapshot) {
 
 let serverSyncTimeout = null;
 let serverStateVersion = 1;
+let serverSyncInFlight = null;
 
 function stopServerSync() {
   if (serverSyncTimeout) clearTimeout(serverSyncTimeout);
   serverSyncTimeout = null;
+  serverSyncInFlight = null;
   pendingServerSyncOptions = {};
 }
 
@@ -6793,6 +6910,9 @@ function syncServerState(options = {}) {
   if (!freshServerDataLoaded) {
     return Promise.resolve(false);
   }
+  if (serverSyncInFlight) {
+    return serverSyncInFlight.catch(() => false).then(() => syncServerState(options));
+  }
   const syncOptions = {
     ...options,
     module:
@@ -6806,7 +6926,7 @@ function syncServerState(options = {}) {
             : "planner"),
   };
 
-  return fetch("/api/state", { cache: "no-store" })
+  serverSyncInFlight = fetch("/api/state", { cache: "no-store" })
     .then((res) => {
       if (res.ok) return res.json();
       throw createServerSyncError(`STATE_LOAD_${res.status}`, res.status);
@@ -6854,7 +6974,11 @@ function syncServerState(options = {}) {
       console.error("Server sync failed:", error);
       if (showSuccess) showToast("Server save failed.", "error");
       return false;
+    })
+    .finally(() => {
+      serverSyncInFlight = null;
     });
+  return serverSyncInFlight;
 }
 
 function scheduleServerSync(delay = 3000, options = {}) {
@@ -11053,12 +11177,11 @@ function populateSiteSelect() {
   const select = document.getElementById("siteSelect");
   const accessibleSites = getAccessibleSites();
   if (accessibleSites.length && !accessibleSites.includes(currentSite)) {
+    persistCurrentStateToLocalStorage();
     currentSite = accessibleSites[0];
     localStorage.setItem(CURRENT_SITE_KEY, currentSite);
-    STORAGE_KEY = getStorageKey("cmax_planner_data");
-    BINS_KEY = getStorageKey("cmax_planner_bins");
-    REPORTS_KEY = getStorageKey("cmax_planner_reports");
-    NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+    updateScopedStorageKeysForCurrentSite();
+    loadCurrentSiteRuntimeFromLocalStorage();
   }
   if (select) {
     select.innerHTML = "";
@@ -11107,39 +11230,9 @@ function renderSiteSwitcher() {
       item.textContent = site;
       item.addEventListener("click", () => {
         withLoadingPromise("loadingSiteChange", () => {
-          persistCurrentStateToLocalStorage();
-          currentSite = site;
-          localStorage.setItem(CURRENT_SITE_KEY, currentSite);
-          STORAGE_KEY = getStorageKey("cmax_planner_data");
-          BINS_KEY = getStorageKey("cmax_planner_bins");
-          REPORTS_KEY = getStorageKey("cmax_planner_reports");
-          NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
-          return loadAllData({ strict: true }).then(() => {
-            if (
-              document.getElementById("tidplan-section").style.display ===
-              "block"
-            ) {
-              updateTidplan();
-            }
-            if (document.getElementById("notifications-section").style.display === "block") {
-              renderNotificationSiteOptions();
-              renderNotificationsList();
-            }
-            if (currentView === "warehouse") {
-              renderWarehousePage();
-            }
-            if (currentView === "warehouseLogs") {
-              renderWarehouseLogsPage();
-            }
-            if (currentView === "warehouseGraph") {
-              renderWarehouseGraphPage();
-            }
-
-            updateMainTitle();
-            sendPresence(true).catch(() => {});
-            refreshPresence().catch(() => {});
-            closeSiteDropdown();
-          });
+          switchSiteFromLocal(site);
+          closeSiteDropdown();
+          return Promise.resolve();
         });
       });
       container.appendChild(item);
@@ -11190,32 +11283,8 @@ function changeSite() {
   const select = document.getElementById("siteSelect");
   if (!select) return;
   withLoadingPromise("loadingSiteChange", () => {
-    persistCurrentStateToLocalStorage();
-    currentSite = select.value;
-    localStorage.setItem(CURRENT_SITE_KEY, currentSite);
-    STORAGE_KEY = getStorageKey("cmax_planner_data");
-    BINS_KEY = getStorageKey("cmax_planner_bins");
-    REPORTS_KEY = getStorageKey("cmax_planner_reports");
-    NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
-    return loadAllData({ strict: true }).then(() => {
-      updateTidplan();
-      if (document.getElementById("notifications-section").style.display === "block") {
-        renderNotificationSiteOptions();
-        renderNotificationsList();
-      }
-      if (currentView === "warehouse") {
-        renderWarehousePage();
-      }
-      if (currentView === "warehouseLogs") {
-        renderWarehouseLogsPage();
-      }
-      if (currentView === "warehouseGraph") {
-        renderWarehouseGraphPage();
-      }
-      updateMainTitle();
-      sendPresence(true).catch(() => {});
-      refreshPresence().catch(() => {});
-    });
+    switchSiteFromLocal(select.value);
+    return Promise.resolve();
   });
 }
 
@@ -11240,17 +11309,17 @@ function addSite() {
       const newSiteReportsKey = getSiteStorageKey("cmax_planner_reports", newSite);
       const newSiteNotificationsKey = getSiteStorageKey("cmax_planner_notifications", newSite);
       sites.push(newSite);
+      markLocalSiteMutation();
       localStorage.setItem(SITES_KEY, JSON.stringify(sites));
       initializeSiteStorage(newSite);
       populateSiteSelect();
       currentSite = newSite;
       localStorage.setItem(CURRENT_SITE_KEY, currentSite);
       document.getElementById("siteSelect").value = newSite;
-      STORAGE_KEY = getStorageKey("cmax_planner_data");
-      BINS_KEY = getStorageKey("cmax_planner_bins");
-      REPORTS_KEY = getStorageKey("cmax_planner_reports");
-      NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+      updateScopedStorageKeysForCurrentSite();
       loadCurrentSiteRuntimeFromLocalStorage();
+      renderCurrentSiteAfterHydrate();
+      logSiteScopeDebug("add-site", { fromSite: previousCurrentSite, toSite: newSite, to: getSiteDebugSummary(newSite) });
       return syncServerState({ includeSites: true }).then((saved) => {
         if (!saved) {
           sites = previousSites;
@@ -11265,21 +11334,16 @@ function addSite() {
           localStorage.removeItem(newSiteReportsKey);
           localStorage.removeItem(newSiteNotificationsKey);
           populateSiteSelect();
-          STORAGE_KEY = getStorageKey("cmax_planner_data");
-          BINS_KEY = getStorageKey("cmax_planner_bins");
-          REPORTS_KEY = getStorageKey("cmax_planner_reports");
-          NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+          updateScopedStorageKeysForCurrentSite();
           loadCurrentSiteRuntimeFromLocalStorage();
+          renderCurrentSiteAfterHydrate();
           updateMainTitle();
           showToast("Spremanje gradilišta na server nije uspjelo.", "error");
           return;
         }
-        return loadAllData().then(() => {
-          updateTidplan();
-          updateMainTitle();
-          sendPresence(true).catch(() => {});
-          refreshPresence().catch(() => {});
-        });
+        sendPresence(true).catch(() => {});
+        refreshPresence().catch(() => {});
+        return Promise.resolve();
       });
     });
   });
@@ -11308,6 +11372,7 @@ function removeSite() {
         const removedNotificationsData = localStorage.getItem(getSiteStorageKey("cmax_planner_notifications", siteToRemove));
         const removedTidplanZonesData = localStorage.getItem(getSiteStorageKey("tidplan_zones", siteToRemove));
         sites = sites.filter((s) => s !== siteToRemove);
+        markLocalSiteMutation();
         localStorage.setItem(SITES_KEY, JSON.stringify(sites));
         localStorage.removeItem(getSiteStorageKey("cmax_planner_data", siteToRemove));
         localStorage.removeItem(getSiteStorageKey("tidplan", siteToRemove));
@@ -11319,11 +11384,16 @@ function removeSite() {
         currentSite = sites[0];
         localStorage.setItem(CURRENT_SITE_KEY, currentSite);
         populateSiteSelect();
-        STORAGE_KEY = getStorageKey("cmax_planner_data");
-        BINS_KEY = getStorageKey("cmax_planner_bins");
-        REPORTS_KEY = getStorageKey("cmax_planner_reports");
-        NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+        updateScopedStorageKeysForCurrentSite();
         loadCurrentSiteRuntimeFromLocalStorage();
+        logSiteScopeDebug("delete-site", {
+          deletedSite: siteToRemove,
+          toSite: currentSite,
+          remaining: sites.reduce((summary, site) => {
+            summary[site] = getSiteDebugSummary(site);
+            return summary;
+          }, {}),
+        });
         return syncServerState({ includeSites: true }).then((saved) => {
           if (!saved) {
             sites = previousSites;
@@ -11352,21 +11422,17 @@ function removeSite() {
               localStorage.setItem(getSiteStorageKey("tidplan_zones", siteToRemove), removedTidplanZonesData);
             }
             populateSiteSelect();
-            STORAGE_KEY = getStorageKey("cmax_planner_data");
-            BINS_KEY = getStorageKey("cmax_planner_bins");
-            REPORTS_KEY = getStorageKey("cmax_planner_reports");
-            NOTIFICATIONS_KEY = getStorageKey("cmax_planner_notifications");
+            updateScopedStorageKeysForCurrentSite();
             loadCurrentSiteRuntimeFromLocalStorage();
+            renderCurrentSiteAfterHydrate();
             updateMainTitle();
             showToast("Brisanje gradilišta na serveru nije uspjelo.", "error");
             return;
           }
-          return loadAllData().then(() => {
-            updateTidplan();
-            updateMainTitle();
-            sendPresence(true).catch(() => {});
-            refreshPresence().catch(() => {});
-          });
+          renderCurrentSiteAfterHydrate();
+          sendPresence(true).catch(() => {});
+          refreshPresence().catch(() => {});
+          return Promise.resolve();
         });
       });
     }
