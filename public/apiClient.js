@@ -48,6 +48,9 @@ function handleApiUnauthorized() {
   callIfDefined("stopReportsPolling");
   callIfDefined("stopNotificationsPolling");
   callIfDefined("stopSiteMetaRefresh");
+  callIfDefined("stopPermissionRefresh");
+  callIfDefined("stopSharedDataRefresh");
+  callIfDefined("stopServerSync");
 
   if (sessionExpiredHandled) return;
   sessionExpiredHandled = true;

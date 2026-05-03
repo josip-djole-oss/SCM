@@ -1899,11 +1899,15 @@ function mergeStateForSession(previousState, submittedState, session) {
       // Ensure sites array is never completely empty if there were sites before
       const previousSites = Array.isArray(previous.sites) ? previous.sites : [];
       const nextSites = submitted.sites.filter(s => typeof s === 'string' && s.length > 0);
-      if (previousSites.length > 0 && nextSites.length === 0) {
+      const preservedSites = previousSites.filter((site) => !canAccessSite(session, site));
+      const mergedSiteSet = new Set(preservedSites);
+      nextSites.forEach((site) => mergedSiteSet.add(site));
+      const scopedNextSites = Array.from(mergedSiteSet);
+      if (previousSites.length > 0 && scopedNextSites.length === 0) {
         // Keep previous sites if trying to set empty array (protection against accidental wipe)
         merged.sites = previousSites;
       } else {
-        merged.sites = nextSites.length > 0 ? nextSites : (previousSites.length > 0 ? previousSites : ['default']);
+        merged.sites = scopedNextSites.length > 0 ? scopedNextSites : (previousSites.length > 0 ? previousSites : ['default']);
       }
     }
     if (submitted.currentSite) merged.currentSite = submitted.currentSite;
@@ -1929,9 +1933,19 @@ function mergeStateForSession(previousState, submittedState, session) {
   const submittedSiteData = submitted.siteData && typeof submitted.siteData === 'object' ? submitted.siteData : {};
   const nextSiteData = { ...previousSiteData };
 
+  if (canWriteStateField(session, 'canManageSiteAccess') && Array.isArray(submitted.sites)) {
+    const activeSiteIds = new Set(Array.isArray(merged.sites) ? merged.sites : []);
+    Object.keys(nextSiteData).forEach((site) => {
+      if (!activeSiteIds.has(site) && canAccessSite(session, site)) {
+        delete nextSiteData[site];
+      }
+    });
+  }
+
   Object.entries(submittedSiteData).forEach(([rawSite, submittedEntry]) => {
     const site = sanitizeString(rawSite, 80);
     if (!site || !canAccessSite(session, site)) return;
+    if (Array.isArray(merged.sites) && !merged.sites.includes(site)) return;
     const previousEntry = previousSiteData[site] && typeof previousSiteData[site] === 'object' ? previousSiteData[site] : {};
     const entry = { ...previousEntry };
     const incoming = submittedEntry && typeof submittedEntry === 'object' ? submittedEntry : {};
@@ -2195,10 +2209,28 @@ app.use((req, res, next) => {
 
 app.post('/api/login', loginLimiter, async (req, res, next) => {
   try {
+    if (!req.body || typeof req.body !== 'object') {
+      console.warn('[login] malformed request body');
+      return res.status(400).json({
+        error: 'LOGIN_BODY_INVALID',
+        message: 'Login request must include email and password.',
+      });
+    }
     const email = sanitizeString(req.body?.email || '', 160).toLowerCase();
     const password = String(req.body?.password || '');
-    if (!isValidEmail(email) || !password || password.length > 200) {
-      return res.status(400).json({ error: 'Invalid credentials' });
+    if (!email || !password) {
+      console.warn('[login] missing email or password');
+      return res.status(400).json({
+        error: 'LOGIN_MISSING_FIELDS',
+        message: 'Email and password are required.',
+      });
+    }
+    if (!isValidEmail(email) || password.length > 200) {
+      console.warn(`[login] invalid login payload for ${email || 'unknown'}`);
+      return res.status(400).json({
+        error: 'LOGIN_BODY_INVALID',
+        message: 'Email or password format is invalid.',
+      });
     }
 
     const admins = await readAdmins();
