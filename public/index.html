@@ -741,10 +741,10 @@
             <h4 id="settingsPasswordTitle">Sigurnost</h4>
             <button
               class="btn"
-              id="btnChangePassword"
+              id="btnChangePasswordSettings"
               onclick="openChangePasswordModal()"
             >
-              <span id="btnChangePasswordText">Promijeni lozinku</span>
+              <span id="btnChangePasswordSettingsText">Promijeni lozinku</span>
             </button>
           </div>
 
@@ -997,7 +997,7 @@
               </div>
             </div>
           </div>
-          <span id="readonlyBadge" class="readonly-badge" id="readonlyBadgeText"
+          <span id="readonlyBadgeText" class="readonly-badge"
             >READ-ONLY</span
           >
         </div>
@@ -1319,7 +1319,14 @@
               margin-bottom: 8px;
             "
           >
-            <h2 id="planningTitle" style="margin: 0">Raspored rada</h2>
+            <div>
+              <h2 id="planningTitle" style="margin: 0">Raspored rada</h2>
+              <div
+                id="plannerLastEditedInfo"
+                class="last-edited-info"
+                style="font-size: 12px; color: var(--text-light); margin-top: 2px"
+              ></div>
+            </div>
             <div style="display: flex; gap: 6px">
               <button
                 class="btn btn-small"
@@ -2090,6 +2097,7 @@
               📊 Dostupni radnici: <span id="totalPresentWorkers">0</span> /
               <span id="totalWorkers">0</span>
             </span>
+            <div id="tidplanLastEditedInfo" class="last-edited-info"></div>
           </div>
         </div>
         <!-- TIDPLAN CONTROLS -->

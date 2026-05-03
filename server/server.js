@@ -1649,6 +1649,15 @@ function requirePermission(permissionKey) {
   return authHelpers.createPermissionMiddleware(permissionKey);
 }
 
+function requireAnyPermission(permissionKeys = []) {
+  return (req, res, next) => {
+    if (req.session?.isSuperAdmin || permissionKeys.some((key) => sessionHasPermission(req.session, key))) {
+      return next();
+    }
+    return res.status(403).json({ error: 'Forbidden' });
+  };
+}
+
 function getUploadUrl(filePath) {
   const relative = path.relative(uploadsDir, filePath).split(path.sep).join('/');
   return `/uploads/${relative}`;
@@ -1723,6 +1732,22 @@ function canUnlockPastDays(session) {
   return Boolean(session?.isSuperAdmin || Number(session?.level) >= 6 || session?.permissions?.canUnlockPastDays === true);
 }
 
+function getSessionDisplayName(session) {
+  return sanitizeString(session?.fullName || session?.name || session?.email || '', 180);
+}
+
+function applyStateEditMetadata(state, session, module = 'state') {
+  const updatedAt = new Date().toISOString();
+  state.savedAt = updatedAt;
+  state.savedBy = session?.email;
+  state.savedByName = getSessionDisplayName(session);
+  state.updatedAt = updatedAt;
+  state.updatedBy = session?.email;
+  state.updatedByName = getSessionDisplayName(session);
+  state.module = module;
+  return state;
+}
+
 function stableJson(value) {
   return JSON.stringify(value === undefined ? null : value);
 }
@@ -1773,7 +1798,6 @@ function hasPastTidplanChanges(previousState, nextState) {
 
 function hasLockedPastChanges(previousState, nextState) {
   return hasPastPlannerDayChanges(previousState, nextState) ||
-    hasPastBinsDayChanges(previousState, nextState) ||
     hasPastTidplanChanges(previousState, nextState);
 }
 
@@ -2287,10 +2311,16 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       await logAdminAuditChanges(req.session.email, previousAdmins, mergedState.admins);
     }
     
+    const updatedAt = new Date().toISOString();
     const savedDocument = await writeVersionedJsonFile(stateFile, {
       ...mergedState,
-      savedAt: new Date().toISOString(),
+      savedAt: updatedAt,
       savedBy: req.session.email,
+      savedByName: getSessionDisplayName(req.session),
+      updatedAt,
+      updatedBy: req.session.email,
+      updatedByName: getSessionDisplayName(req.session),
+      module: sanitizeString(req.body?.module || req.body?.section || 'state', 80),
     }, {
       lastKnownVersion: Number(currentDocument.version) || lastKnownVersion,
       fallbackValue: null,
@@ -2299,6 +2329,8 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       ok: true,
       version: savedDocument.version,
       updatedAt: savedDocument.updatedAt,
+      updatedBy: req.session.email,
+      updatedByName: getSessionDisplayName(req.session),
     });
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
@@ -2681,7 +2713,19 @@ function mergeNotificationsById(existingNotifications, submittedNotifications) {
   );
 }
 
-apiRouter.post('/notifications', requirePermission('canManageNotifications'), async (req, res, next) => {
+function isDeleteOnlyNotificationsChange(existingNotifications, submittedNotifications) {
+  const existingById = new Map();
+  (Array.isArray(existingNotifications) ? existingNotifications : []).forEach((notification) => {
+    const id = String(notification?.id || '');
+    if (id) existingById.set(id, notification);
+  });
+  return (Array.isArray(submittedNotifications) ? submittedNotifications : []).every((notification) => {
+    const id = String(notification?.id || '');
+    return id && existingById.has(id) && stableJson(existingById.get(id)) === stableJson(notification);
+  });
+}
+
+apiRouter.post('/notifications', requireAnyPermission(['canManageNotifications', 'canDeleteNotifications']), async (req, res, next) => {
   try {
   if (req.session.isReadonly) {
     return res.status(403).json({ error: 'Read-only users cannot modify notifications' });
@@ -2699,6 +2743,14 @@ apiRouter.post('/notifications', requirePermission('canManageNotifications'), as
     getNotificationsFilePath(site),
     [],
     (existingNotifications, documentInfo) => {
+      if (
+        !sessionHasPermission(req.session, 'canManageNotifications') &&
+        !isDeleteOnlyNotificationsChange(existingNotifications, notifications)
+      ) {
+        const error = new Error('Missing canManageNotifications permission');
+        error.statusCode = 403;
+        throw error;
+      }
       if (
         Number.isFinite(lastKnownVersion) &&
         lastKnownVersion >= 1 &&
@@ -2965,6 +3017,11 @@ apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single(
       nextState.siteData[site] = { ...currentEntry, surveys };
       nextState.savedAt = now;
       nextState.savedBy = req.session.email;
+      nextState.savedByName = getSessionDisplayName(req.session);
+      nextState.updatedAt = now;
+      nextState.updatedBy = req.session.email;
+      nextState.updatedByName = getSessionDisplayName(req.session);
+      nextState.module = 'surveys';
       return nextState;
     });
     await logActivity(req.session.email, 'survey_created', { site, surveyId: survey.id });
@@ -3028,8 +3085,7 @@ apiRouter.post('/surveys/:surveyId/vote', requirePermission('canViewSurveys'), a
       surveys[index] = survey;
       updatedSurvey = survey;
       nextState.siteData[site] = { ...currentEntry, surveys };
-      nextState.savedAt = new Date().toISOString();
-      nextState.savedBy = req.session.email;
+      applyStateEditMetadata(nextState, req.session, 'surveys');
       return nextState;
     });
     await logActivity(req.session.email, 'survey_voted', { site, surveyId, answerId });
@@ -3060,8 +3116,7 @@ apiRouter.delete('/surveys/:surveyId', requirePermission('canDeleteSurveys'), as
       }
       surveys.splice(index, 1);
       nextState.siteData[site] = { ...currentEntry, surveys };
-      nextState.savedAt = new Date().toISOString();
-      nextState.savedBy = req.session.email;
+      applyStateEditMetadata(nextState, req.session, 'surveys');
       return nextState;
     });
     await logActivity(req.session.email, 'survey_deleted', { site, surveyId });
@@ -3096,8 +3151,7 @@ apiRouter.patch('/surveys/:surveyId/pin', requirePermission('canEditSurveys'), a
       surveys[index] = survey;
       updatedSurvey = survey;
       nextState.siteData[site] = { ...currentEntry, surveys };
-      nextState.savedAt = new Date().toISOString();
-      nextState.savedBy = req.session.email;
+      applyStateEditMetadata(nextState, req.session, 'surveys');
       return nextState;
     });
     await logActivity(req.session.email, `survey_${pinned ? 'pinned' : 'unpinned'}`, { site, surveyId });
@@ -3423,8 +3477,14 @@ async function importModulePayload(module, site, payload, session) {
     if (!canUnlockPastDays(session) && hasLockedPastChanges(state, nextState)) {
       throw createPastDayLockedError();
     }
-    nextState.savedAt = new Date().toISOString();
+    const updatedAt = new Date().toISOString();
+    nextState.savedAt = updatedAt;
     nextState.savedBy = session?.email;
+    nextState.savedByName = getSessionDisplayName(session);
+    nextState.updatedAt = updatedAt;
+    nextState.updatedBy = session?.email;
+    nextState.updatedByName = getSessionDisplayName(session);
+    nextState.module = module;
     return nextState;
   });
 }

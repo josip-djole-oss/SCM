@@ -536,7 +536,7 @@ function showSurveys() {
     return;
   }
 
-  withLoading("loadingNotifications", () => {
+  const showSurveyView = () => {
     const plannerSection = document.getElementById("planner-section");
     const listsContainer = document.querySelector(".lists-container");
     const binsSection = document.getElementById("binsSection");
@@ -571,5 +571,10 @@ function showSurveys() {
     });
 
     sendPresence(true).catch(() => {});
-  });
+  };
+
+  if (typeof loadFreshDataForView === "function") {
+    return loadFreshDataForView("loadingNotifications", showSurveyView);
+  }
+  return withLoading("loadingNotifications", showSurveyView);
 }

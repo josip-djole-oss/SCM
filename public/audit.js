@@ -55,7 +55,7 @@ function formatLogDetails(details) {
   if (typeof details !== "object") return String(details);
 
   const parts = [];
-  if (details.targetEmail) parts.push(`admin: ${details.targetEmail}`);
+  if (details.targetEmail) parts.push(`admin: ${getUserDisplayName(details.targetEmail, details.targetName)}`);
   if (details.targetName) parts.push(`ime: ${details.targetName}`);
   if (details.level) parts.push(`level: ${details.level}`);
   if (details.fromLevel || details.toLevel) parts.push(`level: ${details.fromLevel || "-"} -> ${details.toLevel || "-"}`);
@@ -192,7 +192,7 @@ function renderLogs() {
     const detailsText = formatted.details || "";
     div.innerHTML = `
       <span class="log-time">${escapeHtml(timeStr)}</span>
-      <span class="log-user">${escapeHtml(normalizeText(log.user))}</span>
+      <span class="log-user">${escapeHtml(getUserDisplayName(log.user))}</span>
       <span class="log-action">${escapeHtml(formatted.action || "")}</span>
       ${detailsText ? `<span style="color:var(--text-light);">(${escapeHtml(detailsText)})</span>` : ""}
     `;

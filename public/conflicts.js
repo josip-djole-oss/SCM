@@ -25,6 +25,8 @@ function postServerStateSnapshot(serverState, lastKnownVersion, options = {}) {
     includeBinPermissions = false,
     includeSites = false,
     skipLog = false,
+    module = null,
+    section = null,
   } = options;
 
   return fetch("/api/state", {
@@ -40,6 +42,8 @@ function postServerStateSnapshot(serverState, lastKnownVersion, options = {}) {
       lastKnownVersion: lastKnownVersion || 1,
       userEmail: appState.currentUser || null,
       skipLog,
+      module,
+      section,
     }),
     keepalive,
   }).then((res) => parseServerSyncResponse(res, "STATE_SAVE_FAILED"));
@@ -94,11 +98,12 @@ function showInlineConflictWarning(message = "Isti podaci su promijenjeni na dru
 
 function showSyncUpdateBanner({ snapshot, version, remoteKey }) {
   removeSyncBanner();
+  const editor = getRemoteEditorName(snapshot);
   const banner = document.createElement("div");
   banner.id = "syncUpdateBanner";
   banner.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:5000;display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:8px;background:#111827;color:white;box-shadow:0 10px 30px rgba(0,0,0,.25);font-size:14px;";
   banner.innerHTML = `
-    <span>Nove izmjene su dostupne</span>
+    <span>Nove izmjene su dostupne${editor ? ` od ${escapeHtml(editor)}` : ""}</span>
     <button type="button" class="btn btn-small" style="padding:6px 10px;">Osvjezi</button>
     <button type="button" aria-label="Zatvori" style="border:0;background:transparent;color:white;font-size:18px;cursor:pointer;line-height:1;">x</button>
   `;
@@ -122,11 +127,27 @@ function showSyncUpdateBanner({ snapshot, version, remoteKey }) {
 }
 
 function showRemoteUpdatePrompt({ snapshot, version, remoteKey }) {
+  const conflictInfo =
+    typeof getRemoteConflictInfo === "function"
+      ? getRemoteConflictInfo(snapshot)
+      : { hasConflict: false, keys: [] };
+  if (conflictInfo.hasConflict) {
+    showSyncUpdateBanner({ snapshot, version, remoteKey });
+    showInlineConflictWarning("Isti red ili polje je promijenjeno na drugom uredjaju. Spremi svoje izmjene ili osvjezi taj dio prije nastavka.");
+    return Promise.resolve(false);
+  }
   if (canRefreshSharedData()) {
     return applySharedDataRefresh(snapshot, version).then((applied) => {
       if (applied) showToast("Podaci ažurirani", "success");
       return applied;
     });
+  }
+  if (typeof applyNonConflictingRemoteChanges === "function") {
+    const merged = applyNonConflictingRemoteChanges(snapshot, version);
+    if (merged) {
+      showToast("Podaci azurirani", "success");
+      return Promise.resolve(true);
+    }
   }
   showSyncUpdateBanner({ snapshot, version, remoteKey });
   showInlineConflictWarning("Nove izmjene su dostupne. Lokalne nespremljene izmjene nece biti prepisane.");

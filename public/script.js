@@ -256,6 +256,8 @@ const TRANSLATIONS = {
     permSectionGeneralNote: "Osnovni pristup modulima i glavnim komandama.",
     permSectionExportImportTitle: "Export/Import",
     permSectionExportImportNote: "Dozvole za export i import podataka.",
+    permSectionPastDaysTitle: "Prosli dani",
+    permSectionPastDaysNote: "Dozvoljava otkljucavanje i uredjivanje proslih dana u Planneru i Tidplanu.",
     permSectionBackupTitle: "Backup",
     permSectionBackupNote: "Upravljanje backupima.",
     permSectionTidplanTitle: "Tidplan",
@@ -629,6 +631,8 @@ const TRANSLATIONS = {
     permSectionGeneralNote: "Basic access to modules and main commands.",
     permSectionExportImportTitle: "Export/Import",
     permSectionExportImportNote: "Permissions for data export and import.",
+    permSectionPastDaysTitle: "Past days",
+    permSectionPastDaysNote: "Allows unlocking and editing past days in Planner and Tidplan.",
     permSectionBackupTitle: "Backup",
     permSectionBackupNote: "Backup management.",
     permSectionTidplanTitle: "Tidplan",
@@ -1527,6 +1531,7 @@ function applyTranslations() {
     btnNotificationsText: "btnNotifications",
     btnSaveText: "btnSave",
     btnAdminText: "btnAdmin",
+    btnChangePasswordText: "btnChangePassword",
     btnLogoutText: "btnLogout",
     listTitleWorkers: "listWorkers",
     listTitleLifts: "listLifts",
@@ -1633,6 +1638,7 @@ function applyTranslations() {
     settingsThemeNote: "settingsThemeNote",
     settingsBinsTitle: "settingsBinsTitle",
     settingsPasswordTitle: "settingsPasswordTitle",
+    btnChangePasswordSettingsText: "btnChangePassword",
     changePasswordTitle: "changePasswordTitle",
     accessNotice: "accessNotice",
     guestAccessTitle: "guestAccessTitle",
@@ -1847,6 +1853,7 @@ function renderPastDayLockNotice(containerId) {
     return;
   }
   const checked = unlockedPastDates[normalizeDateOnly(appState.currentDate)] === true;
+  const toggleText = checked ? "Ponovo zaklju\u010daj dan" : "Otklju\u010daj dan";
   const notice = existing || document.createElement("div");
   notice.className = "past-day-lock-notice";
   notice.style.cssText = "margin:8px 0;padding:10px 12px;border:1px solid #f59e0b;background:#fff7ed;color:#7c2d12;border-radius:6px;font-size:14px;";
@@ -1861,8 +1868,19 @@ function renderPastDayLockNotice(containerId) {
     </div>
   `;
   if (!existing) container.insertBefore(notice, container.firstChild);
+  const message = notice.querySelector("span");
+  if (message) {
+    const strongMessage = document.createElement("strong");
+    strongMessage.textContent = "Ovaj dan je zaklju\u010dan jer je pro\u0161ao.";
+    message.replaceWith(strongMessage);
+  }
   const checkbox = notice.querySelector("[data-unlock-past-day]");
   if (checkbox) {
+    const label = checkbox.closest("label");
+    if (label) {
+      label.style.fontWeight = "600";
+      label.replaceChildren(checkbox, document.createTextNode(` ${toggleText}`));
+    }
     checkbox.onchange = () => {
       unlockedPastDates[normalizeDateOnly(appState.currentDate)] = checkbox.checked;
       renderAll();
@@ -1918,6 +1936,7 @@ let warehouseData = null;
 let logsCache = [];
 let logsLoadedOnce = false;
 let tidplanDataChanged = false;
+let localEditKeys = new Set();
 let notificationViewerImages = [];
 let notificationViewerIndex = 0;
 let notificationsRefreshInterval = null;
@@ -1928,6 +1947,7 @@ let lastEditArea = "";
 let lastAppliedRemoteStateKey = sessionStorage.getItem("cmax_last_remote_state_key") || "";
 let ignoredRemoteStateKey = sessionStorage.getItem("cmax_ignored_remote_state_key") || "";
 let freshServerDataLoaded = false;
+let lastServerStateSnapshot = null;
 let appDataLoadError = "";
 let unlockedPastDates = {};
 const WAREHOUSE_SLOTS_PER_ROW = 8;
@@ -2312,12 +2332,14 @@ const ADMIN_PERMISSION_SECTIONS = [
       "canImportWarehouse",
       "canExportTidplan",
       "canImportTidplan",
-    "canExportPlanner",
-    "canImportPlanner",
       "canExportPlanner",
       "canImportPlanner",
-      "canUnlockPastDays",
     ],
+  },
+  {
+    titleKey: "permSectionPastDaysTitle",
+    noteKey: "permSectionPastDaysNote",
+    keys: ["canUnlockPastDays"],
   },
   {
     titleKey: "permSectionTidplanTitle",
@@ -3174,7 +3196,7 @@ function loadReportsData(options = {}) {
     })
     .catch((error) => {
       if (strict) throw error;
-      return getReports();
+      return [];
     });
 }
 
@@ -3256,7 +3278,7 @@ function loadNotificationsData(site = currentSite, options = {}) {
             state.siteData[site] &&
             Array.isArray(state.siteData[site].notifications)
               ? state.siteData[site].notifications
-              : getNotificationsForSite(site);
+              : [];
           localStorage.setItem(
             getNotificationStorageKey(site),
             JSON.stringify(list),
@@ -3267,7 +3289,7 @@ function loadNotificationsData(site = currentSite, options = {}) {
       }
       return list;
     })
-        .catch(() => getNotificationsForSite(site));
+        .catch(() => []);
     });
 }
 
@@ -3795,7 +3817,7 @@ function showNotifications() {
     showToast(t("accessNotificationsDenied"), "error");
     return;
   }
-  withLoading("loadingNotifications", () => {
+  return loadFreshDataForView("loadingNotifications", () => {
     const plannerSection = document.getElementById("planner-section");
     const listsContainer = document.querySelector(".lists-container");
     const binsSection = document.getElementById("binsSection");
@@ -3990,7 +4012,7 @@ function showMainApp() {
     updateSurveysBadge();
   }
 
-  document.getElementById("readonlyBadge").style.display = appState.isReadonly
+  document.getElementById("readonlyBadgeText").style.display = appState.isReadonly
     ? "inline-block"
     : "none";
   document.getElementById("guestLoginBtn").style.display = appState.isReadonly
@@ -4065,6 +4087,19 @@ function withLoadingPromise(messageKey, callback) {
     .finally(() => {
       hideLoading();
     });
+}
+
+function loadFreshDataForView(messageKey, callback) {
+  const run = () => {
+    if (!BACKEND_ENABLED) return Promise.resolve(callback());
+    return loadAllData({ strict: true }).then(callback);
+  };
+  return withLoadingPromise(messageKey || "loadingDefault", run).catch((error) => {
+    appDataLoadError = error?.message || "DATA_LOAD_FAILED";
+    showDataLoadError(appDataLoadError);
+    showToast("Nije moguce ucitati svjeze podatke.", "error");
+    return false;
+  });
 }
 
 function applyPermissionVisibility() {
@@ -4717,12 +4752,14 @@ function getPresenceAreaLabel(view = "") {
 }
 
 function getPresenceInitials(email) {
-  const base = (email || "?").split("@")[0].replace(/[^A-Za-z0-9]/g, "");
+  const base = getUserDisplayName(email, "").replace(/[^A-Za-z0-9ČĆŽŠĐčćžšđ ]/g, "").trim() || (email || "?").split("@")[0];
+  const parts = base.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
   return (base.slice(0, 2) || "?").toUpperCase();
 }
 
 function getPresenceDisplayName(email) {
-  return email || "Unknown";
+  return getUserDisplayName(email) || "Unknown";
 }
 
 function renderPresence(users = []) {
@@ -4739,6 +4776,7 @@ function renderPresence(users = []) {
   users.forEach((user) => {
     const avatar = document.createElement("span");
     avatar.className = `presence-avatar ${user.mode === "viewing" ? "is-viewing" : "is-editing"}`;
+    const displayName = getUserDisplayName(user.email, user.displayName);
     avatar.textContent = user.initials || getPresenceInitials(user.email);
     const areaLabel = getPresenceAreaLabel(
       user.mode === "viewing" ? user.currentView : user.editingArea || user.currentView,
@@ -4748,7 +4786,7 @@ function renderPresence(users = []) {
         ? `${t("presenceViewing")} ${areaLabel}`
         : `${t("presenceEditing")} ${areaLabel}`;
     const timeLabel = user.lastEditAt ? ` - ${new Date(user.lastEditAt).toLocaleTimeString(getCurrentLocale())}` : "";
-    avatar.title = `${user.displayName || user.email} - ${statusLabel}${timeLabel}`;
+    avatar.title = `${displayName || "Unknown"} - ${statusLabel}${timeLabel}`;
     list.appendChild(avatar);
   });
 
@@ -4776,6 +4814,181 @@ function refreshPresence() {
 
 function canRefreshSharedData() {
   return !appState.hasUnsavedChanges && !tidplanDataChanged;
+}
+
+function cloneStateSnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== "object") return null;
+  try {
+    return JSON.parse(JSON.stringify(snapshot));
+  } catch (error) {
+    return null;
+  }
+}
+
+function rememberServerStateBaseline(snapshot) {
+  lastServerStateSnapshot = cloneStateSnapshot(snapshot);
+  localEditKeys.clear();
+}
+
+function makePlannerEditKey(date, kind, item, field = "") {
+  return ["planner", currentSite, normalizeDateOnly(date || appState.currentDate), kind, item, field]
+    .map((part) => String(part ?? ""))
+    .join(":");
+}
+
+function makeTidplanEditKey(activityIndex, field = "") {
+  return ["tidplan", currentSite, activityIndex, field].map((part) => String(part ?? "")).join(":");
+}
+
+function trackLocalEditKey(key) {
+  if (key) localEditKeys.add(key);
+}
+
+function stableJson(value) {
+  return JSON.stringify(value === undefined ? null : value);
+}
+
+function getSnapshotSiteEntry(snapshot, site = currentSite) {
+  return snapshot?.siteData?.[site] || {};
+}
+
+function getSnapshotValueForEditKey(snapshot, key) {
+  const [module, site, a, b, c, d] = String(key || "").split(":");
+  const siteEntry = getSnapshotSiteEntry(snapshot, site);
+  if (module === "planner") {
+    const day = siteEntry.planner?.dailyData?.[a] || {};
+    if (b === "row") return day.planningRows?.[Number(c)]?.[d] ?? "";
+    if (b === "rows") return day.planningRows?.length ?? 0;
+    if (b === "workerAttendance") return day.workerAttendance?.[c] ?? true;
+    if (b === "liftAvailability") return day.liftAvailability?.[c] ?? true;
+    if (b === "liftPlan") return day.liftPlans?.[c] ?? "";
+    if (b === "day") return day;
+  }
+  if (module === "tidplan") {
+    const activity = Array.isArray(siteEntry.tidplan) ? siteEntry.tidplan[Number(a)] : null;
+    if (b === "activity") return activity || null;
+    return activity?.[b] ?? "";
+  }
+  return undefined;
+}
+
+function getRemoteConflictInfo(snapshot) {
+  if (!snapshot || !lastServerStateSnapshot || localEditKeys.size === 0) {
+    return { hasConflict: false, keys: [] };
+  }
+  const keys = Array.from(localEditKeys).filter((key) => {
+    const previous = stableJson(getSnapshotValueForEditKey(lastServerStateSnapshot, key));
+    const remote = stableJson(getSnapshotValueForEditKey(snapshot, key));
+    return previous !== remote;
+  });
+  return { hasConflict: keys.length > 0, keys };
+}
+
+function remoteValueChanged(baseValue, remoteValue) {
+  return stableJson(baseValue) !== stableJson(remoteValue);
+}
+
+function applyRemotePlannerDayChanges(baseDay = {}, remoteDay = {}, localDay = {}, date) {
+  let changed = false;
+  const localRows = Array.isArray(localDay.planningRows) ? localDay.planningRows : [];
+  const baseRows = Array.isArray(baseDay.planningRows) ? baseDay.planningRows : [];
+  const remoteRows = Array.isArray(remoteDay.planningRows) ? remoteDay.planningRows : [];
+  const rowFields = new Set();
+  remoteRows.forEach((row) => Object.keys(row || {}).forEach((field) => rowFields.add(field)));
+  baseRows.forEach((row) => Object.keys(row || {}).forEach((field) => rowFields.add(field)));
+
+  remoteRows.forEach((remoteRow, rowIndex) => {
+    rowFields.forEach((field) => {
+      const key = makePlannerEditKey(date, "row", rowIndex, field);
+      if (localEditKeys.has(key)) return;
+      const baseValue = baseRows[rowIndex]?.[field] ?? "";
+      const remoteValue = remoteRow?.[field] ?? "";
+      if (!remoteValueChanged(baseValue, remoteValue)) return;
+      if (!localRows[rowIndex]) localRows[rowIndex] = {};
+      localRows[rowIndex][field] = remoteValue;
+      changed = true;
+    });
+  });
+
+  ["workerAttendance", "liftAvailability", "liftPlans"].forEach((collection) => {
+    const baseMap = baseDay[collection] || {};
+    const remoteMap = remoteDay[collection] || {};
+    const localMap = localDay[collection] || {};
+    const kind = collection === "liftPlans" ? "liftPlan" : collection;
+    Object.keys(remoteMap).forEach((name) => {
+      const key = makePlannerEditKey(date, kind, name);
+      if (localEditKeys.has(key)) return;
+      if (!remoteValueChanged(baseMap[name], remoteMap[name])) return;
+      localMap[name] = remoteMap[name];
+      changed = true;
+    });
+    Object.keys(baseMap).forEach((name) => {
+      const key = makePlannerEditKey(date, kind, name);
+      if (localEditKeys.has(key) || Object.prototype.hasOwnProperty.call(remoteMap, name)) return;
+      delete localMap[name];
+      changed = true;
+    });
+    localDay[collection] = localMap;
+  });
+
+  localDay.planningRows = localRows;
+  return changed;
+}
+
+function applyRemoteTidplanChanges(baseList = [], remoteList = []) {
+  let changed = false;
+  const localList = Array.isArray(tidplanData) ? tidplanData : [];
+  const fieldNames = ["plan", "zona", "karna", "moment", "resursi", "start", "end", "komentar", "active"];
+  remoteList.forEach((remoteActivity, activityIndex) => {
+    fieldNames.forEach((field) => {
+      const key = makeTidplanEditKey(activityIndex, field);
+      if (localEditKeys.has(key)) return;
+      const baseValue = baseList[activityIndex]?.[field] ?? "";
+      const remoteValue = remoteActivity?.[field] ?? "";
+      if (!remoteValueChanged(baseValue, remoteValue)) return;
+      if (!localList[activityIndex]) localList[activityIndex] = {};
+      localList[activityIndex][field] = remoteValue;
+      changed = true;
+    });
+  });
+  return changed;
+}
+
+function applyNonConflictingRemoteChanges(snapshot, version) {
+  const conflictInfo = getRemoteConflictInfo(snapshot);
+  if (conflictInfo.hasConflict || !lastServerStateSnapshot) return false;
+
+  const baseEntry = getSnapshotSiteEntry(lastServerStateSnapshot, currentSite);
+  const remoteEntry = getSnapshotSiteEntry(snapshot, currentSite);
+  let changed = false;
+
+  const baseDaily = baseEntry.planner?.dailyData || {};
+  const remoteDaily = remoteEntry.planner?.dailyData || {};
+  Object.keys(remoteDaily).forEach((date) => {
+    const localDay = appState.dailyData[date] || {
+      planningRows: [],
+      workerAttendance: {},
+      liftAvailability: {},
+      liftPlans: {},
+    };
+    if (applyRemotePlannerDayChanges(baseDaily[date] || {}, remoteDaily[date] || {}, localDay, date)) {
+      appState.dailyData[date] = localDay;
+      changed = true;
+    }
+  });
+
+  if (applyRemoteTidplanChanges(baseEntry.tidplan || [], remoteEntry.tidplan || [])) {
+    changed = true;
+    localStorage.setItem(getStorageKey("tidplan"), JSON.stringify(tidplanData));
+  }
+
+  if (changed) {
+    persistCurrentStateToLocalStorage();
+    renderAfterSharedDataRefresh();
+  }
+  rememberAppliedRemoteState(snapshot, version);
+  lastServerStateSnapshot = cloneStateSnapshot(snapshot);
+  return changed;
 }
 
 function getRemoteStateKey(snapshot, version = serverStateVersion) {
@@ -4813,11 +5026,44 @@ function formatRemoteEditTime(value) {
   return date.toLocaleString(getCurrentLocale());
 }
 
+function getUserDisplayName(email, fallbackName = "") {
+  const cleanEmail = String(email || "").trim();
+  const cleanFallback = String(fallbackName || "").trim();
+  if (cleanFallback && cleanFallback !== cleanEmail) return cleanFallback;
+  if (!cleanEmail) return "";
+  const admin = getAdmins().find((entry) => entry.email === cleanEmail);
+  return admin?.fullName || cleanEmail;
+}
+
 function getRemoteEditorName(snapshot) {
   const email = snapshot?.savedBy || "";
   if (!email) return "Netko";
-  const admin = getAdmins().find((entry) => entry.email === email);
-  return admin?.fullName || email;
+  return getUserDisplayName(email, snapshot?.savedByName);
+}
+
+function setLastEditedMeta(meta = {}) {
+  appState.lastEdited = {
+    by: meta.by || meta.savedBy || meta.updatedBy || "",
+    byName: meta.byName || meta.savedByName || meta.updatedByName || "",
+    at: meta.at || meta.savedAt || meta.updatedAt || "",
+    module: meta.module || meta.section || "",
+  };
+}
+
+function formatLastEditedText(moduleName = "") {
+  const meta = appState.lastEdited || {};
+  const at = meta.at ? formatRemoteEditTime(meta.at) : "";
+  const name = getUserDisplayName(meta.by, meta.byName);
+  if (!name || !at) return "";
+  const suffix = moduleName ? ` (${moduleName})` : "";
+  return `Zadnji put uredio: ${name}, ${at}${suffix}`;
+}
+
+function renderLastEditedInfo() {
+  const plannerInfo = document.getElementById("plannerLastEditedInfo");
+  if (plannerInfo) plannerInfo.textContent = formatLastEditedText("Planner");
+  const tidplanInfo = document.getElementById("tidplanLastEditedInfo");
+  if (tidplanInfo) tidplanInfo.textContent = formatLastEditedText("Tidplan");
 }
 
 function renderAfterSharedDataRefresh() {
@@ -4871,10 +5117,6 @@ function refreshSharedDataIfSafe() {
         rememberAppliedRemoteState(snapshot, serverStateVersion);
         return false;
       }
-      if (!canRefreshSharedData()) {
-        return false;
-      }
-
       const editor = getRemoteEditorName(snapshot);
       const time = formatRemoteEditTime(snapshot.savedAt);
       const message = `${editor} je uređivao podatke${time ? ` u ${time}` : ""}. Želite li povući najnovije podatke?`;
@@ -6015,6 +6257,8 @@ function applyServerStateSnapshot(snapshot) {
     return false;
   }
   rememberAppliedRemoteState(snapshot, serverStateVersion);
+  rememberServerStateBaseline(snapshot);
+  setLastEditedMeta(snapshot);
 
   const snapshotSites =
     Array.isArray(snapshot.sites) && snapshot.sites.length
@@ -6142,6 +6386,18 @@ function syncServerState(options = {}) {
   if (!freshServerDataLoaded) {
     return Promise.resolve(false);
   }
+  const syncOptions = {
+    ...options,
+    module:
+      options.module ||
+      (currentView === "tidplan"
+        ? "tidplan"
+        : currentView === "warehouse"
+          ? "warehouse"
+          : currentView === "notifications"
+            ? "notifications"
+            : "planner"),
+  };
 
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => {
@@ -6150,19 +6406,28 @@ function syncServerState(options = {}) {
     })
     .then((data) => {
       serverStateVersion = Number(data?.version) || serverStateVersion || 1;
-      return postServerStateSnapshot(data?.state || null, serverStateVersion, options);
+      return postServerStateSnapshot(data?.state || null, serverStateVersion, syncOptions);
     })
     .catch((error) => {
       if (error?.code === "VERSION_CONFLICT" && error.latest) {
         const latestVersion = Number(error.latest.version) || serverStateVersion || 1;
         serverStateVersion = latestVersion;
-        return postServerStateSnapshot(error.latest.state || null, latestVersion, options);
+        return postServerStateSnapshot(error.latest.state || null, latestVersion, syncOptions);
       }
       throw error;
     })
     .then((payload) => {
       serverStateVersion = Number(payload?.version) || serverStateVersion || 1;
+      setLastEditedMeta({
+        by: appState.currentUser || null,
+        byName: appState.currentUserName || "",
+        at: payload?.updatedAt || new Date().toISOString(),
+      });
+      renderLastEditedInfo();
       if (markAsClean) markClean();
+      if (!appState.hasUnsavedChanges && !tidplanDataChanged) {
+        localEditKeys.clear();
+      }
       if (includeAdmins) pendingServerSyncOptions.includeAdmins = false;
       if (includeGuestPermissions) pendingServerSyncOptions.includeGuestPermissions = false;
       if (includeBinPermissions) pendingServerSyncOptions.includeBinPermissions = false;
@@ -6228,6 +6493,7 @@ function renderAll() {
   seedResourceHistoryForCurrentLists();
   updateDateDisplay();
   renderPastDayLockNotice("planner-section");
+  renderLastEditedInfo();
   renderWorkersList();
   renderLiftsList();
   renderMomensList();
@@ -6403,6 +6669,7 @@ function renderPlanningTable() {
 function addPlanningRow() {
   if (appState.isReadonly || !appState.isAdmin || !canEditDate(appState.currentDate)) return;
   const dayData = getCurrentDayData();
+  trackLocalEditKey(makePlannerEditKey(appState.currentDate, "rows", "count"));
   dayData.planningRows.push({});
   saveData();
   markDirty();
@@ -6414,6 +6681,7 @@ function removePlanningRow() {
   const dayData = getCurrentDayData();
   // Ukloni zadnji puni red ako postoji (ne brišemo sve redove odjednom)
   if (dayData.planningRows.length > 0) {
+    trackLocalEditKey(makePlannerEditKey(appState.currentDate, "rows", "count"));
     dayData.planningRows.pop();
     saveData();
     markDirty();
@@ -6500,6 +6768,7 @@ function handlePlanningCellChange(rowIndex, fieldName, value) {
     return;
   }
   const dayData = getCurrentDayData();
+  trackLocalEditKey(makePlannerEditKey(appState.currentDate, "row", rowIndex, fieldName));
   if (!dayData.planningRows[rowIndex])
     dayData.planningRows[rowIndex] = {};
 
@@ -6605,6 +6874,7 @@ function toggleWorkerAttendance(worker) {
     return;
   }
   const dayData = getCurrentDayData();
+  trackLocalEditKey(makePlannerEditKey(appState.currentDate, "workerAttendance", worker));
   if (dayData.workerAttendance[worker] === false)
     delete dayData.workerAttendance[worker];
   else dayData.workerAttendance[worker] = false;
@@ -6621,6 +6891,7 @@ function toggleLiftAvailability(lift) {
     return;
   }
   const dayData = getCurrentDayData();
+  trackLocalEditKey(makePlannerEditKey(appState.currentDate, "liftAvailability", lift));
   if (dayData.liftAvailability[lift] === false)
     delete dayData.liftAvailability[lift];
   else dayData.liftAvailability[lift] = false;
@@ -6637,6 +6908,7 @@ function updateLiftPlan(lift, plan) {
     return;
   }
   const dayData = getCurrentDayData();
+  trackLocalEditKey(makePlannerEditKey(appState.currentDate, "liftPlan", lift));
   dayData.liftPlans[lift] = plan;
   saveData();
   markDirty();
@@ -6683,6 +6955,7 @@ function clearAllTable() {
     // Clear Planning table (main view)
     showConfirm(t("clearTableConfirm"), null, "⚠️", () => {
       const dayData = getCurrentDayData();
+      trackLocalEditKey(makePlannerEditKey(appState.currentDate, "day", "all"));
       dayData.planningRows = [];
       saveData();
       markDirty();
@@ -7141,21 +7414,16 @@ function renderAdminList() {
 
     const infoDiv = document.createElement("div");
     infoDiv.className = "admin-info";
-    if (admin.fullName) {
-      const nameDiv = document.createElement("div");
-      nameDiv.className = "admin-email";
-      nameDiv.textContent = admin.fullName;
-      infoDiv.appendChild(nameDiv);
-    }
-    const emailDiv = document.createElement("div");
-    emailDiv.className = "admin-email";
-    emailDiv.textContent = admin.email;
+    const displayName = getUserDisplayName(admin.email, admin.fullName);
+    const nameDiv = document.createElement("div");
+    nameDiv.className = "admin-email";
+    nameDiv.textContent = displayName;
+    infoDiv.appendChild(nameDiv);
     const roleDiv = document.createElement("div");
     roleDiv.className = "admin-role";
     roleDiv.textContent = admin.isSuperAdmin
       ? t("superAdmin")
       : `${t("admin")} - ${t("adminLevelShort")} ${level}`;
-    infoDiv.appendChild(emailDiv);
     infoDiv.appendChild(roleDiv);
 
     const levelBadge = document.createElement("span");
@@ -7171,7 +7439,7 @@ function renderAdminList() {
       const editBtn = document.createElement("button");
       editBtn.className = "btn btn-small";
       editBtn.textContent = "⚙️";
-      editBtn.title = t("editPermsTitle") + " " + admin.email;
+      editBtn.title = t("editPermsTitle") + " " + displayName;
       if (canEditThisAdmin) {
         editBtn.onclick = () => toggleAdminPerms(div, idx);
         btnGroup.appendChild(editBtn);
@@ -7476,7 +7744,7 @@ function removeAdminActionOld(email) {
     return;
   }
   showConfirm(
-    `${t("confirmRemoveAdmin")} "${email}"?`,
+    `${t("confirmRemoveAdmin")} "${getUserDisplayName(email, targetAdmin.fullName)}"?`,
     null,
     "⚠️",
     () => {
@@ -7505,7 +7773,7 @@ function removeAdminAction(email) {
       return;
     }
     showConfirm(
-      `${t("confirmRemoveAdmin")} "${email}"?\n${t("adminRemovedReasonLabel")} ${trimmed}`,
+      `${t("confirmRemoveAdmin")} "${getUserDisplayName(email, targetAdmin.fullName)}"?\n${t("adminRemovedReasonLabel")} ${trimmed}`,
       null,
       "⚠️",
       () => {
@@ -7977,6 +8245,7 @@ function toggleBinsView() {
     showToast(t("accessBinsDenied"), "error");
     return;
   }
+  return loadFreshDataForView("loadingDefault", () => {
   const notificationsSection = document.getElementById("notifications-section");
   const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
@@ -8027,10 +8296,10 @@ function toggleBinsView() {
     sendPresence(true).catch(() => {});
     refreshPresence().catch(() => {});
   }
+  });
 }
 
 function renderBinsTable() {
-  renderPastDayLockNotice("binsSection");
   const binsData = getBinsDataForDate(appState.currentDate);
   const tbody = document.getElementById("binsTableBody");
   tbody.innerHTML = "";
@@ -8096,7 +8365,7 @@ function renderBinsTable() {
     // Check permissions - super admin only
     const canEditAdditional =
       appState.isSuperAdmin || (!appState.isReadonly && hasPermission("canEditBinsData"));
-    selectAdditional.disabled = !canEditAdditional || !canEditDate(appState.currentDate);
+    selectAdditional.disabled = !canEditAdditional;
 
     // Create options 0-25
     for (let i = 0; i <= 25; i++) {
@@ -8147,7 +8416,7 @@ function createBinInput(idx, field, value) {
     (hasPermission("canEditBinsData") &&
       appState.binPermissions[field] &&
       !appState.isReadonly);
-  select.disabled = !canEdit || !canEditDate(appState.currentDate);
+  select.disabled = !canEdit;
 
   // Create options 0-25
   for (let i = 0; i <= 25; i++) {
@@ -8169,7 +8438,7 @@ function createBinInput(idx, field, value) {
 }
 
 function updateBinCell(idx, field, value) {
-  if (!canEditDate(appState.currentDate)) {
+  if (false) {
     showToast("Prošli datumi su zaključani.", "error");
     renderBinsTable();
     return;
@@ -8322,7 +8591,7 @@ function applyBinColors() {
 }
 
 function addBinPlan() {
-  if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans")) || !canEditDate(appState.currentDate)) return;
+  if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans"))) return;
   const binsData = getBinsDataForDate(appState.currentDate);
   const newPlanNum = binsData.planCount + 1;
   for (let k = 1; k <= 4; k++) {
@@ -8344,7 +8613,7 @@ function addBinPlan() {
 }
 
 function removeBinPlan() {
-  if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans")) || !canEditDate(appState.currentDate)) return;
+  if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans"))) return;
   const binsData = getBinsDataForDate(appState.currentDate);
   if (binsData.planCount <= 1) {
     showToast("⚠️ Ne možete ukloniti sve planove!", "error");
@@ -8729,6 +8998,7 @@ function showWarehouse() {
     showToast(t("warehouseAccessDenied"), "error");
     return;
   }
+  return loadFreshDataForView("loadingDefault", () => {
   document.getElementById("tidplan-section").style.display = "none";
   document.getElementById("notifications-section").style.display = "none";
   document.getElementById("surveys-section").style.display = "none";
@@ -8742,6 +9012,7 @@ function showWarehouse() {
   renderWarehousePage();
   sendPresence(true).catch(() => {});
   refreshPresence().catch(() => {});
+  });
 }
 
 function showWarehouseLogs() {
@@ -9188,6 +9459,7 @@ function markDirty() {
 
 function markClean() {
   appState.hasUnsavedChanges = false;
+  localEditKeys.clear();
   // Hide Save button if in main view
   const btnSave = document.getElementById("btnSave");
   if (btnSave && currentView === "main") {
@@ -10865,7 +11137,7 @@ function loadTidplanData() {
 
   loadTidplanZones();
 
-  // Use main planner data first; fall back to local storage defaults.
+  // Resource options come from the fresh server snapshot mirrored into appState.
   availablePlans = getActiveResourceList("plans", appState.currentDate);
   availableMoments = getActiveResourceList("moments", appState.currentDate);
   availableKarne = getActiveResourceList("karnas", appState.currentDate);
@@ -10878,7 +11150,7 @@ function showTidplan() {
     showToast(t("accessTidplanDenied"), "error");
     return;
   }
-  withLoading("loadingTidplan", () => {
+  return loadFreshDataForView("loadingTidplan", () => {
     const notificationsSection = document.getElementById("notifications-section");
     const surveysSection = document.getElementById("surveys-section");
     const warehouseSection = document.getElementById("warehouse-section");
@@ -10906,6 +11178,7 @@ function showTidplan() {
 }
 
 function showPlanner() {
+  return loadFreshDataForView("loadingDefault", () => {
   const notificationsSection = document.getElementById("notifications-section");
   const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
@@ -10926,10 +11199,12 @@ function showPlanner() {
   pushRouteForView("main");
   sendPresence(true).catch(() => {});
   refreshPresence().catch(() => {});
+  });
 }
 
 function updateTidplan() {
   renderPastDayLockNotice("tidplan-section");
+  renderLastEditedInfo();
   collectPlans();
   const editableTidplan = canEditTidplan();
   const locale = getCurrentLocale();
@@ -11677,6 +11952,7 @@ function renderTidplanTable() {
   filteredData.forEach((activity) => {
     const tr = document.createElement("tr");
     tr.dataset.activityIndex = String(tidplanData.indexOf(activity));
+    const activityIndex = Number(tr.dataset.activityIndex);
     tr.className = isTidplanActivityInactive(activity) ? "tidplan-row-inactive" : "";
     tr.style.backgroundColor = isTidplanActivityInactive(activity)
       ? "rgba(148, 163, 184, 0.2)"
@@ -11696,7 +11972,7 @@ function renderTidplanTable() {
     });
     selectPlan.onchange = () => {
       activity.plan = selectPlan.value;
-      markTidplanChanged();
+      markTidplanChanged(activityIndex, "plan");
       updateTidplan();
     };
     tdPlan.appendChild(selectPlan);
@@ -11718,7 +11994,7 @@ function renderTidplanTable() {
       });
     selectZona.onchange = () => {
       activity.zona = selectZona.value;
-      markTidplanChanged();
+      markTidplanChanged(activityIndex, "zona");
       updateTidplan();
     };
     tdZona.appendChild(selectZona);
@@ -11738,7 +12014,7 @@ function renderTidplanTable() {
     });
     selectKarna.onchange = () => {
       activity.karna = selectKarna.value;
-      markTidplanChanged();
+      markTidplanChanged(activityIndex, "karna");
       updateTidplan();
     };
     tdKarna.appendChild(selectKarna);
@@ -11758,7 +12034,7 @@ function renderTidplanTable() {
     });
     selectMoment.onchange = () => {
       activity.moment = selectMoment.value;
-      markTidplanChanged();
+      markTidplanChanged(activityIndex, "moment");
       updateTidplan();
     };
     tdMoment.appendChild(selectMoment);
@@ -11772,7 +12048,7 @@ function renderTidplanTable() {
     inputResursi.disabled = !editableTidplan;
     inputResursi.onchange = () => {
       activity.resursi = parseInt(inputResursi.value) || 1;
-      markTidplanChanged();
+      markTidplanChanged(activityIndex, "resursi");
       updateTidplan();
     };
     tdResursi.appendChild(inputResursi);
@@ -11785,7 +12061,7 @@ function renderTidplanTable() {
     inputStart.disabled = !editableTidplan;
     inputStart.onchange = () => {
       activity.start = inputStart.value;
-      markTidplanChanged();
+      markTidplanChanged(activityIndex, "start");
       updateTidplan();
     };
     tdStart.appendChild(inputStart);
@@ -11798,7 +12074,7 @@ function renderTidplanTable() {
     inputEnd.disabled = !editableTidplan;
     inputEnd.onchange = () => {
       activity.end = inputEnd.value;
-      markTidplanChanged();
+      markTidplanChanged(activityIndex, "end");
       updateTidplan();
     };
     tdEnd.appendChild(inputEnd);
@@ -11813,7 +12089,7 @@ function renderTidplanTable() {
     inputKomentar.disabled = !editableTidplan;
     inputKomentar.onchange = () => {
       activity.komentar = inputKomentar.value;
-      markTidplanChanged();
+      markTidplanChanged(activityIndex, "komentar");
       updateTidplan();
     };
     tdKomentar.appendChild(inputKomentar);
@@ -11836,7 +12112,7 @@ function renderTidplanTable() {
       const toDeleteIndex = Number(tr.dataset.activityIndex);
       if (toDeleteIndex >= 0) {
         tidplanData.splice(toDeleteIndex, 1);
-        markTidplanChanged();
+        markTidplanChanged(toDeleteIndex, "activity");
         updateTidplan();
       }
     };
@@ -11878,7 +12154,7 @@ function addTidplanActivity() {
     komentar: "",
     active: true,
   });
-  markTidplanChanged();
+  markTidplanChanged(tidplanData.length - 1, "activity");
   updateTidplan();
 }
 
@@ -11893,7 +12169,7 @@ function toggleTidplanActivityActive(activityIndex) {
 
   showConfirm(message, null, "⚠️", () => {
     activity.active = nextActive;
-    markTidplanChanged();
+    markTidplanChanged(activityIndex, "active");
     updateTidplan();
   });
 }
@@ -11960,8 +12236,11 @@ function saveTidplanData() {
   showToast("✅ Plan je uspješno spremljen!", "success");
 }
 
-function markTidplanChanged() {
+function markTidplanChanged(activityIndex = null, fieldName = "") {
   if (!canEditTidplan()) return;
+  if (activityIndex !== null && activityIndex !== undefined) {
+    trackLocalEditKey(makeTidplanEditKey(activityIndex, fieldName));
+  }
   tidplanDataChanged = true;
   trackEditActivity();
   const saveBtn = document.getElementById("btnSaveTidplan");
