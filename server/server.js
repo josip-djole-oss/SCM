@@ -291,6 +291,11 @@ function normalizePermissions(permissions, fallback = DEFAULT_PERMISSIONS) {
   return { ...fallback, ...(permissions || {}) };
 }
 
+function getAdminLevel(admin) {
+  const fallbackLevel = admin?.isSuperAdmin ? 6 : 1;
+  return Math.max(1, Math.min(6, Number(admin?.level) || fallbackLevel));
+}
+
 function normalizeAdminRecord(admin) {
   const firstName = sanitizeString(admin?.firstName || '', 120);
   const lastName = sanitizeString(admin?.lastName || '', 120);
@@ -307,7 +312,7 @@ function normalizeAdminRecord(admin) {
     fullName,
     isSuperAdmin: Boolean(admin?.isSuperAdmin),
     isReadonly: Boolean(admin?.isReadonly),
-    level: Number(admin?.level) || (admin?.isSuperAdmin ? 6 : 1),
+    level: getAdminLevel(admin),
     permissions: normalizePermissions(admin?.permissions),
     allowedSites: Array.isArray(admin?.allowedSites)
       ? admin.allowedSites.map((site) => sanitizeString(site, 80)).filter(Boolean)
