@@ -21,7 +21,7 @@ const { registerWarehouseRoutes } = require('./routes/warehouse');
 const app = express();
 
 const PORT = Number(process.env.PORT) || 3000;
-const API_BODY_LIMIT = process.env.API_BODY_LIMIT || '5mb';
+const API_BODY_LIMIT = process.env.API_BODY_LIMIT || '25mb';
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS) || 15000;
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS) || 8 * 60 * 60 * 1000;
 const PRESENCE_TTL_MS = 60000;
@@ -4094,6 +4094,15 @@ app.get(['/', '/login', '/home', '/planner', '/tidplan', '/bins', '/kante', '/wa
 app.use((error, req, res, next) => {
   logServerError(error, req?.path || 'middleware');
   if (res.headersSent) return next(error);
+  if (error?.type === 'entity.too.large' || Number(error?.status) === 413) {
+    return res.status(413).json({
+      error: 'PAYLOAD_TOO_LARGE',
+      limit: API_BODY_LIMIT,
+    });
+  }
+  if (error instanceof SyntaxError && error?.type === 'entity.parse.failed') {
+    return res.status(400).json({ error: 'INVALID_JSON' });
+  }
   if (error instanceof multer.MulterError) {
     return res.status(400).json({ error: 'Invalid upload request' });
   }

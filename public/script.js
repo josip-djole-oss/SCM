@@ -2127,6 +2127,7 @@ let pendingServerSyncOptions = {
   includeBinPermissions: false,
   includeSites: false,
   includeAdminRemovalNotices: false,
+  adminEditTargetEmail: "",
 };
 let presenceSessionId =
   sessionStorage.getItem("cmax_presence_session") ||
@@ -6467,6 +6468,29 @@ function mergeNotificationsSnapshot(localNotifications, serverNotifications) {
   });
 }
 
+function protectCurrentAdminRecordForSync(admins, serverState, options = {}) {
+  if (options.includeAdmins !== true || !Array.isArray(admins)) return admins;
+  const currentEmail = (appState.currentUser || "").trim().toLowerCase();
+  if (!currentEmail) return admins;
+  const targetEmail = (options.adminEditTargetEmail || "").trim().toLowerCase();
+  if (targetEmail === currentEmail) return admins;
+
+  const serverAdmins = Array.isArray(serverState?.admins) ? serverState.admins : [];
+  const serverSelf = serverAdmins.find(
+    (admin) => (admin?.email || "").trim().toLowerCase() === currentEmail,
+  );
+  if (!serverSelf) return admins;
+
+  let foundSelf = false;
+  const protectedAdmins = admins.map((admin) => {
+    if ((admin?.email || "").trim().toLowerCase() !== currentEmail) return admin;
+    foundSelf = true;
+    return serverSelf;
+  });
+  if (!foundSelf) protectedAdmins.push(serverSelf);
+  return protectedAdmins;
+}
+
 function buildServerStateSnapshot(baseState = null, options = {}) {
   persistCurrentStateToLocalStorage();
   const serverState = baseState && typeof baseState === "object" ? baseState : {};
@@ -6491,8 +6515,15 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
       : Array.isArray(serverState.sites) && serverState.sites.length
         ? [...serverState.sites]
         : siteList;
+  const adminsForSnapshot = protectCurrentAdminRecordForSync(localAdmins, serverState, options);
+  const currentSnapshotSite = siteList.includes(currentSite) ? currentSite : siteList[0];
+  const siteSnapshotList = options.includeSites === true
+    ? siteList
+    : currentSnapshotSite
+      ? [currentSnapshotSite]
+      : siteList.slice(0, 1);
 
-  siteList.forEach((site) => {
+  siteSnapshotList.forEach((site) => {
     const localPlanner = safeParseStoredJson(
       localStorage.getItem(getSiteStorageKey("cmax_planner_data", site)),
       null,
@@ -6559,7 +6590,7 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
           : currentSite,
     admins:
       options.includeAdmins === true
-        ? localAdmins
+        ? adminsForSnapshot
         : Array.isArray(serverState.admins)
           ? serverState.admins
           : undefined,
@@ -6700,6 +6731,7 @@ function syncServerState(options = {}) {
     includeBinPermissions = false,
     includeSites = false,
     includeAdminRemovalNotices = false,
+    adminEditTargetEmail = "",
     skipLog = false,
   } = options;
 
@@ -6760,6 +6792,7 @@ function syncServerState(options = {}) {
       if (includeBinPermissions) pendingServerSyncOptions.includeBinPermissions = false;
       if (includeSites) pendingServerSyncOptions.includeSites = false;
       if (includeAdminRemovalNotices) pendingServerSyncOptions.includeAdminRemovalNotices = false;
+      if (adminEditTargetEmail) pendingServerSyncOptions.adminEditTargetEmail = "";
       if (showSuccess) showToast(t("dataSaved"), "success");
       return true;
     })
@@ -6792,6 +6825,8 @@ function scheduleServerSync(delay = 3000, options = {}) {
   pendingServerSyncOptions.includeAdminRemovalNotices =
     pendingServerSyncOptions.includeAdminRemovalNotices ||
     options.includeAdminRemovalNotices === true;
+  pendingServerSyncOptions.adminEditTargetEmail =
+    options.adminEditTargetEmail || pendingServerSyncOptions.adminEditTargetEmail || "";
   serverSyncTimeout = setTimeout(() => {
     const queuedOptions = { ...pendingServerSyncOptions };
     syncServerState(queuedOptions).catch(() => {});
@@ -7984,7 +8019,7 @@ function saveAdminPerms(email, idx) {
     localStorage.setItem(AUTH_KEY, JSON.stringify(authData));
     applyPermissionVisibility();
   }
-  syncServerState({ includeAdmins: true }).catch(() => {});
+  syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
   renderAdminList();
   populateSiteSelect();
   updateNotificationsBadge();
@@ -8051,7 +8086,7 @@ function addNewAdmin() {
         : filteredSites,
   });
   localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-  syncServerState({ includeAdmins: true }).catch(() => {});
+  syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
   trackEditActivity();
   document.getElementById("newAdminFirstName").value = "";
   document.getElementById("newAdminLastName").value = "";
@@ -8078,7 +8113,7 @@ function removeAdminActionOld(email) {
       let admins = getAdmins();
       admins = admins.filter((a) => a.email !== email);
       localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-      syncServerState({ includeAdmins: true }).catch(() => {});
+      syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
       trackEditActivity();
       renderAdminList();
       showToast(t("successAdminRemoved"), "success");
@@ -8120,6 +8155,7 @@ function removeAdminAction(email) {
         syncServerState({
           includeAdmins: true,
           includeAdminRemovalNotices: true,
+          adminEditTargetEmail: email,
         }).catch(() => {});
         trackEditActivity();
         renderAdminList();
