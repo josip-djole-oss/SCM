@@ -159,11 +159,11 @@ function siteScript() {
         tick();
       });
 
-      await wait(() => typeof handleLogin === "function", "app scripts");
+      await wait(() => window.CMAX && typeof CMAX.core?.login === "function", "app scripts");
       console.log("flow: scripts ready");
       document.getElementById("loginEmail").value = "browser-test@cmax.test";
       document.getElementById("loginPassword").value = "testpass123";
-      handleLogin();
+      CMAX.core.login();
       await wait(() => typeof appState !== "undefined" && appState.currentUser === "browser-test@cmax.test" && freshServerDataLoaded === true, "login");
       console.log("flow: logged in");
 

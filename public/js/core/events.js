@@ -2,12 +2,12 @@ function setupEventListeners() {
   document
     .getElementById("loginPassword")
     .addEventListener("keypress", (e) => {
-      if (e.key === "Enter") handleLogin();
+      if (e.key === "Enter") CMAX.core.login();
     });
   document
     .getElementById("loginEmail")
     .addEventListener("keypress", (e) => {
-      if (e.key === "Enter") handleLogin();
+      if (e.key === "Enter") CMAX.core.login();
     });
 
   const notificationImagesInput = document.getElementById("notificationImages");

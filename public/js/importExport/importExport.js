@@ -370,7 +370,7 @@ async function uploadModuleImport() {
     closeModuleImportModal();
     await loadAllData();
     if (module === "planner") renderPlanningTable();
-    if (module === "tidplan") updateTidplan();
+    if (module === "tidplan") CMAX.tidplan.update();
     if (module === "warehouse") renderWarehousePage();
   } catch (error) {
     console.error("Module import failed:", error);
@@ -496,7 +496,7 @@ async function handleTidplanImportPdf() {
     addLog("Imported Tidplan from PDF", { site: currentSite, itemsImported: data.itemsImported });
     closeModal('tidplanImportModal');
     loadTidplanData();
-    updateTidplan();
+    CMAX.tidplan.update();
   } catch (error) {
     console.error("Error importing Tidplan:", error);
     showToast("Greška pri importu Tidplana.", "error");

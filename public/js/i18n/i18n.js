@@ -1990,7 +1990,7 @@ function applyTranslations() {
   if (
     document.getElementById("tidplan-section").style.display === "block"
   ) {
-    updateTidplan();
+    CMAX.tidplan.update();
   }
 }
 

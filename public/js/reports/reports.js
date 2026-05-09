@@ -39,7 +39,7 @@ function closeReportModal() {
 }
 
 function openChangePasswordModal() {
-  closeAdminPanel();
+  CMAX.admin.close();
   document.getElementById("oldPassword").value = "";
   document.getElementById("newPassword").value = "";
   document.getElementById("confirmPassword").value = "";

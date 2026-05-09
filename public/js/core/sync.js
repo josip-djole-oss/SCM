@@ -263,7 +263,7 @@ function renderAfterSharedDataRefresh() {
     renderWarehouseGraphPage();
   }
   if (document.getElementById("tidplan-section")?.style.display === "block") {
-    updateTidplan();
+    CMAX.tidplan.update();
   }
   if (currentView === "notifications") {
     renderNotificationsList();
@@ -408,7 +408,7 @@ function syncSiteMetadata(snapshot) {
 
             applyPermissionVisibility();
             if (document.getElementById("adminModal")?.style.display === "flex") {
-              openAdminPanel();
+              CMAX.admin.open();
             }
           } else if (!appState.isSuperAdmin && !appState.isReadonly) {
             handleAdminRemoval(getAdminRemovalNotice(appState.currentUser));

@@ -13,7 +13,7 @@ async function initApp() {
   );
   updateThemeBtns(savedTheme);
 
-  setLanguage(currentLang);
+  CMAX.utils.setLanguage(currentLang);
   initTooltips();
   updateScopedStorageKeysForCurrentSite();
   populateSiteSelect();

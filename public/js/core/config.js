@@ -95,7 +95,7 @@ function renderPastDayLockNotice(containerId) {
       unlockedPastDates[normalizeDateOnly(appState.currentDate)] = checkbox.checked;
       renderAll();
       if (currentView === "bins") renderBinsTable();
-      if (document.getElementById("tidplan-section")?.style.display === "block") updateTidplan();
+      if (document.getElementById("tidplan-section")?.style.display === "block") CMAX.tidplan.update();
       applyPermissionVisibility();
     };
   }

@@ -103,7 +103,7 @@ function logSiteScopeDebug(action, details = {}) {
 
 function renderCurrentSiteAfterHydrate() {
   renderAll();
-  updateTidplan();
+  CMAX.tidplan.update();
   if (currentView === "bins") {
     renderBinsTable();
   }

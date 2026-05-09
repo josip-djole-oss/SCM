@@ -417,8 +417,8 @@ function switchTab(tabId) {
     renderGuestAccessPanel();
   }
   if (tabId === "tabBackup") {
-    handleListBackups();
-    handleBackupInfo();
+    CMAX.admin.listBackups();
+    CMAX.admin.showBackupInfo();
   }
 }
 

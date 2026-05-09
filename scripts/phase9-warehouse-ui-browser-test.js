@@ -151,10 +151,10 @@ function smokeScript() {
         if (!condition) throw new Error(message);
       };
 
-      await wait(() => typeof handleLogin === "function" && window.CMAX && CMAX.events, "scripts");
+      await wait(() => window.CMAX && typeof CMAX.core?.login === "function" && CMAX.events, "scripts");
       document.getElementById("loginEmail").value = "phase9@cmax.test";
       document.getElementById("loginPassword").value = "testpass123";
-      handleLogin();
+      CMAX.core.login();
       await wait(() => appState?.currentUser === "phase9@cmax.test" && freshServerDataLoaded === true, "login");
 
       appState.isReadonly = false;

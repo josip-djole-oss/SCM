@@ -287,7 +287,7 @@ function applyPermissionVisibility() {
   }
 
   if (tidplanSection && tidplanSection.style.display === "block" && !canTidplan) {
-    showPlanner();
+    CMAX.tidplan.showPlanner();
   }
 
   if (currentView === "main") {
@@ -326,19 +326,19 @@ function applyPermissionVisibility() {
 
   if (!canPlanner && currentView === "main") {
     if (canTidplan && (!tidplanSection || tidplanSection.style.display !== "block")) {
-      showTidplan();
+      CMAX.tidplan.show();
       return;
     }
     if (canBins) {
-      toggleBinsView();
+      CMAX.bins.show();
       return;
     }
     if (canNotifications) {
-      showNotifications();
+      CMAX.notifications.show();
       return;
     }
     if (canWarehouse) {
-      showWarehouse();
+      CMAX.warehouse.show();
       return;
     }
   }
@@ -390,7 +390,7 @@ function reinitFlatpickr() {
       if (currentView === "bins") renderBinsTable();
       if (document.getElementById("tidplan-section")?.style.display === "block") {
         loadTidplanData();
-        updateTidplan();
+        CMAX.tidplan.update();
       }
       updatePrintDate();
     },

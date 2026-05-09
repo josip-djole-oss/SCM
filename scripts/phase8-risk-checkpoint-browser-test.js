@@ -242,10 +242,10 @@ function checkpointScript() {
       let siteBStockAfterAdjustment = null;
       let siteBStoredStockAfterAdjustment = null;
 
-      await wait(() => typeof handleLogin === "function" && window.CMAX && typeof switchSiteFromLocal === "function", "scripts");
+      await wait(() => window.CMAX && typeof CMAX.core?.login === "function" && typeof switchSiteFromLocal === "function", "scripts");
       document.getElementById("loginEmail").value = "phase8@cmax.test";
       document.getElementById("loginPassword").value = "testpass123";
-      handleLogin();
+      CMAX.core.login();
       await wait(() => appState?.currentUser === "phase8@cmax.test" && freshServerDataLoaded === true, "login");
       setAllAccess();
       appState.currentDate = "2026-05-09";
@@ -276,20 +276,20 @@ function checkpointScript() {
       assert(siteSwitch["Site C"].warehouseNames.join() === "Warehouse C", "Site C warehouse summary failed");
 
       go("Site A");
-      showWarehouse();
+      CMAX.warehouse.show();
       await wait(() => currentView === "warehouse", "show warehouse A");
       assert(document.getElementById("warehouseInventoryBody").textContent.includes("Warehouse A"), "Warehouse A UI missing");
       assert(!document.getElementById("warehouseInventoryBody").textContent.includes("Warehouse B"), "Warehouse B leaked into A UI");
       go("Site B");
-      showWarehouse();
+      CMAX.warehouse.show();
       await wait(() => currentView === "warehouse", "show warehouse B");
       assert(document.getElementById("warehouseInventoryBody").textContent.includes("Warehouse B"), "Warehouse B UI missing");
       assert(!document.getElementById("warehouseInventoryBody").textContent.includes("Warehouse A"), "Warehouse A leaked into B UI");
-      updateWarehouseStockForm("itemId", "item_B");
-      updateWarehouseStockForm("direction", "in");
-      updateWarehouseStockForm("quantity", 3);
-      updateWarehouseStockForm("comment", "phase8 stock");
-      saveWarehouseStockAdjustment();
+      CMAX.warehouse.updateStockForm("itemId", "item_B");
+      CMAX.warehouse.updateStockForm("direction", "in");
+      CMAX.warehouse.updateStockForm("quantity", 3);
+      CMAX.warehouse.updateStockForm("comment", "phase8 stock");
+      CMAX.warehouse.saveStockAdjustment();
       assert(warehouseData.stock.item_B.current === 12, "Warehouse B stock adjustment failed");
       siteBStockAfterAdjustment = warehouseData.stock.item_B.current;
       siteBStoredStockAfterAdjustment = JSON.parse(localStorage.getItem(getSiteStorageKey("cmax_warehouse_data", "Site B")) || "{}").stock?.item_B?.current;
@@ -320,7 +320,7 @@ function checkpointScript() {
         }
         return originalFetch(input, init);
       };
-      saveAllData();
+      CMAX.importExport.saveAll();
       await wait(() => injectedConflict && statePostCount >= 2 && serverSyncInFlight === null, "saveAllData conflict retry");
       window.fetch = originalFetch;
       assert(appState.hasUnsavedChanges === false, "saveAllData did not mark clean after conflict retry");
@@ -339,7 +339,7 @@ function checkpointScript() {
       }];
       tidplanZones = [{ name: "Zone B", color: "#5b8def" }];
       tidplanDataChanged = false;
-      updateTidplan();
+      CMAX.tidplan.update();
       const tidplanComment = document.querySelector("#tidplanTbody tr[data-activity-index='0'] td:nth-child(8) input");
       assert(tidplanComment, "Tidplan comment input missing");
       tidplanComment.value = "Tidplan B changed";

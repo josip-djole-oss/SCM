@@ -47,17 +47,17 @@ function applyRouteFromPath(pathname = window.location.pathname) {
     if (view === "login") {
       showLogin();
     } else if (view === "main") {
-      showPlanner();
+      CMAX.tidplan.showPlanner();
     } else if (view === "tidplan") {
-      showTidplan();
+      CMAX.tidplan.show();
     } else if (view === "warehouse") {
-      showWarehouse();
+      CMAX.warehouse.show();
     } else if (view === "notifications") {
-      showNotifications();
+      CMAX.notifications.show();
     } else if (view === "surveys") {
-      showSurveys();
+      CMAX.surveys.show();
     } else if (view === "bins") {
-      if (currentView !== "bins") toggleBinsView();
+      if (currentView !== "bins") CMAX.bins.show();
     }
   } finally {
     suppressRoutePush = false;
@@ -70,29 +70,29 @@ function restoreLastView() {
   const savedView = localStorage.getItem(CURRENT_VIEW_KEY) || "main";
   if (savedView === "tidplan") {
     if (document.getElementById("tidplan-section").style.display !== "block") {
-      showTidplan();
+      CMAX.tidplan.show();
     }
     return;
   }
   if (savedView === "notifications") {
-    showNotifications();
+    CMAX.notifications.show();
     return;
   }
   if (savedView === "bins") {
     if (currentView !== "bins") {
-      toggleBinsView();
+      CMAX.bins.show();
     }
     return;
   }
   if (savedView === "warehouse") {
-    showWarehouse();
+    CMAX.warehouse.show();
     return;
   }
   if (savedView === "warehouseLogs") {
-    showWarehouseLogs();
+    CMAX.warehouse.showLogs();
     return;
   }
   if (savedView === "warehouseGraph") {
-    showWarehouseGraph();
+    CMAX.warehouse.showGraph();
   }
 }

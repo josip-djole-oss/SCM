@@ -66,7 +66,7 @@ function addTidplanZone() {
         tidplanZones.push({ name: zoneName, color });
         tidplanZones.sort((a, b) => compareNaturally(a.name, b.name));
         saveTidplanZones();
-        updateTidplan();
+        CMAX.tidplan.update();
       }
     );
   });
@@ -84,7 +84,7 @@ function removeTidplanZone() {
     }
     tidplanZones.splice(index, 1);
     saveTidplanZones();
-    updateTidplan();
+    CMAX.tidplan.update();
   });
 }
 
@@ -108,7 +108,7 @@ function addTidplanZoneFromInputs() {
   tidplanZones.push({ name, color });
   tidplanZones.sort((a, b) => compareNaturally(a.name, b.name));
   saveTidplanZones();
-  updateTidplan();
+  CMAX.tidplan.update();
   renderZoneList();
   nameInput.value = "";
 }
@@ -118,7 +118,7 @@ function clearAllTidplanZones() {
   showConfirm("Jeste li sigurni da želite obrisati sve zone?", null, "⚠️", () => {
     tidplanZones = [];
     saveTidplanZones();
-    updateTidplan();
+    CMAX.tidplan.update();
     renderZoneList();
   });
 }
@@ -148,7 +148,7 @@ function renderZoneList() {
         showConfirm(`Želite li ukloniti zonu '${zone.name}'?`, null, "⚠️", () => {
           tidplanZones = tidplanZones.filter((z) => z.name !== zone.name);
           saveTidplanZones();
-          updateTidplan();
+          CMAX.tidplan.update();
           renderZoneList();
         });
       };
