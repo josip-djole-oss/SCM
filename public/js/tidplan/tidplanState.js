@@ -44,49 +44,6 @@ function saveTidplanZones() {
   syncServerState().catch(() => {});
 }
 
-function addTidplanZone() {
-  showPromptDialog("Unesite naziv zone:", "✏️", "", (zoneName) => {
-    if (!zoneName) return;
-
-    const existing = tidplanZones.find(
-      (z) => z.name.toLowerCase() === zoneName.toLowerCase(),
-    );
-    if (existing) {
-      showAlert("Zona s tim nazivom već postoji.", "⚠️");
-      return;
-    }
-
-    showPromptDialog(
-      "Unesite HEX boju zone (npr. #FF0000):",
-      "🎨",
-      "#FF0000",
-      (color) => {
-        if (!color) return;
-
-        tidplanZones.push({ name: zoneName, color });
-        tidplanZones.sort((a, b) => compareNaturally(a.name, b.name));
-        saveTidplanZones();
-        CMAX.tidplan.update();
-      }
-    );
-  });
-}
-
-function removeTidplanZone() {
-  showPromptDialog("Unesite naziv zone za ukloniti:", "✏️", "", (zoneName) => {
-    if (!zoneName) return;
-    const index = tidplanZones.findIndex(
-      (z) => z.name.toLowerCase() === zoneName.toLowerCase(),
-    );
-    if (index === -1) {
-      showAlert("Zona nije pronađena.", "⚠️");
-      return;
-    }
-    tidplanZones.splice(index, 1);
-    saveTidplanZones();
-    CMAX.tidplan.update();
-  });
-}
 
 function addTidplanZoneFromInputs() {
   if (!canEditTidplan()) return;
@@ -193,4 +150,5 @@ function loadTidplanData() {
 
   collectPlans();
 }
+
 

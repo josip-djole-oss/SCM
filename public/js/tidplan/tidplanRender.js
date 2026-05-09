@@ -1394,25 +1394,6 @@ function printTidplanDocument(mode = "current") {
   }, 300);
 }
 
-function managePlans() {
-  const modal = document.createElement("div");
-  modal.className = "modal-overlay";
-  modal.innerHTML = `
-    <div class="modal-box">
-      <div class="modal-header">
-        <h2>Upravljaj Planovima</h2>
-        <button class="close-btn" data-cmax-action="utils.removeClosest" data-cmax-args='[".modal-overlay"]' data-cmax-pass-element>×</button>
-      </div>
-      <div id="plansList"></div>
-      <div style="margin-top: 20px;">
-        <input type="text" id="newPlanName" placeholder="Novi plan">
-        <button class="btn" data-cmax-action="tidplan.addPlan">Dodaj Plan</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  updatePlansList();
-}
 
 function updatePlansList() {
   const list = document.getElementById("plansList");
@@ -1464,25 +1445,6 @@ function saveAvailablePlans() {
   syncServerState().catch(() => {});
 }
 
-function manageMoments() {
-  const modal = document.createElement("div");
-  modal.className = "modal-overlay";
-  modal.innerHTML = `
-    <div class="modal-box">
-      <div class="modal-header">
-        <h2>Upravljaj Momentima</h2>
-        <button class="close-btn" data-cmax-action="utils.removeClosest" data-cmax-args='[".modal-overlay"]' data-cmax-pass-element>×</button>
-      </div>
-      <div id="momentsList"></div>
-      <div style="margin-top: 20px;">
-        <input type="text" id="newMomentName" placeholder="Novi moment">
-        <button class="btn" data-cmax-action="tidplan.addMoment">Dodaj Moment</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  updateMomentsList();
-}
 
 function updateMomentsList() {
   const list = document.getElementById("momentsList");
@@ -1534,25 +1496,6 @@ function saveAvailableMoments() {
   syncServerState().catch(() => {});
 }
 
-function manageKarne() {
-  const modal = document.createElement("div");
-  modal.className = "modal-overlay";
-  modal.innerHTML = `
-    <div class="modal-box">
-      <div class="modal-header">
-        <h2>Upravljaj Karnama</h2>
-        <button class="close-btn" data-cmax-action="utils.removeClosest" data-cmax-args='[".modal-overlay"]' data-cmax-pass-element>×</button>
-      </div>
-      <div id="karneList"></div>
-      <div style="margin-top: 20px;">
-        <input type="text" id="newKarnaName" placeholder="Nova karna">
-        <button class="btn" data-cmax-action="tidplan.addKarna">Dodaj Karnu</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-  updateKarneList();
-}
 
 function updateKarneList() {
   const list = document.getElementById("karneList");
@@ -1619,4 +1562,5 @@ window.onerror = function (msg, url, lineNo, columnNo, error) {
   </div>`;
   return false;
 };
+
 

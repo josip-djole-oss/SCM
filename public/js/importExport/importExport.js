@@ -1,7 +1,3 @@
-function togglePlannerExportDropdown() {
-  document.getElementById("plannerExportDropdownMenu").classList.toggle("show");
-}
-
 function markDirty() {
   appState.hasUnsavedChanges = true;
   trackEditActivity();
@@ -60,9 +56,6 @@ function handlePrint() {
   addLog("Printed", currentView === "bins" ? "Bins table" : "Main table");
 }
 
-function handlePlannerExportExcel() { exportPlannerToExcel(); }
-function handlePlannerExportPdf() { exportPlannerToPDF(); }
-function handlePlannerExportWord() { exportPlannerToWord(); }
 
 function handleExport() {
   if (!hasPermission("canExport")) {
@@ -471,39 +464,6 @@ async function handleTidplanExportPdf() {
   }
 }
 
-async function handleTidplanImportPdf() {
-  if (!canImportTidplan()) {
-    showToast("Nemate dozvolu za import Tidplana.", "error");
-    return;
-  }
-  const fileInput = document.getElementById("tidplanImportFile");
-  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-    showToast("Odaberite PDF datoteku za import.", "error");
-    return;
-  }
-  showLoading("loadingDefault");
-  try {
-    const formData = new FormData();
-    formData.append("file", fileInput.files[0]);
-    formData.append("site", currentSite);
-    const response = await fetch("/api/tidplan/import/pdf", {
-      method: "POST",
-      body: formData,
-    });
-    if (!response.ok) throw new Error("Failed to import Tidplan");
-    const data = await response.json();
-    showToast(`Uspješno importano ${data.itemsImported} stavki u Tidplan.`, "success");
-    addLog("Imported Tidplan from PDF", { site: currentSite, itemsImported: data.itemsImported });
-    closeModal('tidplanImportModal');
-    loadTidplanData();
-    CMAX.tidplan.update();
-  } catch (error) {
-    console.error("Error importing Tidplan:", error);
-    showToast("Greška pri importu Tidplana.", "error");
-  } finally {
-    hideLoading();
-  }
-}
 
 /* ==================== PLANNER EXPORT/IMPORT ==================== */
 async function exportPlannerToExcel() {
@@ -589,40 +549,6 @@ async function exportPlannerToWord() {
   } catch (error) {
     console.error("Error exporting Planner:", error);
     showToast("Greška pri exportu Plannera.", "error");
-  } finally {
-    hideLoading();
-  }
-}
-
-async function handlePlannerImportExcel() {
-  if (!canImportPlanner()) {
-    showToast("Nemate dozvolu za import Plannera.", "error");
-    return;
-  }
-  const fileInput = document.getElementById("plannerImportFile");
-  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-    showToast("Odaberite Excel datoteku za import.", "error");
-    return;
-  }
-  showLoading("loadingDefault");
-  try {
-    const formData = new FormData();
-    formData.append("file", fileInput.files[0]);
-    formData.append("site", currentSite);
-    const response = await fetch("/api/planner/import/excel", {
-      method: "POST",
-      body: formData,
-    });
-    if (!response.ok) throw new Error("Failed to import Planner");
-    const data = await response.json();
-    showToast(`Uspješno importano ${data.tasksImported} zadataka u Planner.`, "success");
-    addLog("Imported Planner from Excel", { site: currentSite, tasksImported: data.tasksImported });
-    closeModal('plannerImportModal');
-    loadData(); // Reload planner data
-    renderPlanningTable();
-  } catch (error) {
-    console.error("Error importing Planner:", error);
-    showToast("Greška pri importu Plannera.", "error");
   } finally {
     hideLoading();
   }
@@ -751,20 +677,6 @@ function drawCmaxPdfHeader(doc, site = currentSite, dateLabel = formatCmaxPrintD
   doc.line(10, topY + logoSize + 5, pageWidth - 10, topY + logoSize + 5);
   doc.setTextColor(0, 0, 0);
   return topY + logoSize + 20;
-}
-
-function getCmaxPrintHeaderHtmlLegacy(site = currentSite, dateLabel = formatCmaxPrintDate()) {
-  return `
-    <div class="header cmax-print-header">
-      <div class="logo-section">
-        <div class="logo"><img src="/cmaxlogo.png" alt="CMAX Logo" /></div>
-        <div class="title-section">
-          <div class="cmax-print-title">• CMAX SCM - ${escapeHtml(site || currentSite)}</div>
-          <div class="date-display">${escapeHtml(dateLabel)}</div>
-        </div>
-      </div>
-    </div>
-  `;
 }
 
 function getCmaxPrintHeaderCss() {
@@ -1210,3 +1122,4 @@ function printWarehouseInventory() {
 
 
 /* ==================== SITE MANAGEMENT ==================== */
+

@@ -96,10 +96,6 @@ function canCreateReportsAccess() {
   return hasPermission("canCreateReports");
 }
 
-function canEditBinsDataAccess() {
-  return !appState.isReadonly && canEditDate(appState.currentDate) && hasPermission("canEditBinsData");
-}
-
 function canOpenAdminPanelAccess() {
   return !appState.isReadonly && appState.isAdmin && hasPermission("canOpenAdminPanel");
 }

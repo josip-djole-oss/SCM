@@ -784,29 +784,6 @@ function addNewAdmin() {
   showToast(t("successAdminAdded"), "success");
 }
 
-function removeAdminActionOld(email) {
-  if (!canManageAdminsByLevel()) return;
-  const targetAdmin = getAdmins().find((a) => a.email === email);
-  if (!targetAdmin || !canManageAdminRecord(targetAdmin)) {
-    showToast(t("errAdminManageDenied"), "error");
-    return;
-  }
-  showConfirm(
-    `${t("confirmRemoveAdmin")} "${getUserDisplayName(email, targetAdmin.fullName)}"?`,
-    null,
-    "⚠️",
-    () => {
-      let admins = getAdmins();
-      admins = admins.filter((a) => a.email !== email);
-      localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-      syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
-      trackEditActivity();
-      renderAdminList();
-      showToast(t("successAdminRemoved"), "success");
-    },
-  );
-}
-
 function removeAdminAction(email) {
   if (!canManageAdminsByLevel()) return;
   const targetAdmin = getAdmins().find((a) => a.email === email);

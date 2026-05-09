@@ -418,30 +418,6 @@ function mergePlannerSnapshot(localPlanner, serverPlanner, site = currentSite) {
   };
 }
 
-function mergeNotificationsSnapshot(localNotifications, serverNotifications) {
-  const localList = Array.isArray(localNotifications) ? localNotifications : [];
-  const serverList = Array.isArray(serverNotifications) ? serverNotifications : [];
-  const mergedById = new Map();
-
-  serverList.forEach((item) => {
-    if (!item) return;
-    const key = item.id || `${item.createdAt || ""}_${item.authorName || ""}`;
-    mergedById.set(key, item);
-  });
-
-  localList.forEach((item) => {
-    if (!item) return;
-    const key = item.id || `${item.createdAt || ""}_${item.authorName || ""}`;
-    mergedById.set(key, item);
-  });
-
-  return Array.from(mergedById.values()).sort((a, b) => {
-    const aTime = new Date(a?.createdAt || 0).getTime();
-    const bTime = new Date(b?.createdAt || 0).getTime();
-    return bTime - aTime;
-  });
-}
-
 function protectCurrentAdminRecordForSync(admins, serverState, options = {}) {
   if (options.includeAdmins !== true || !Array.isArray(admins)) return admins;
   const currentEmail = (appState.currentUser || "").trim().toLowerCase();

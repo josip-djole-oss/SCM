@@ -74,14 +74,6 @@ function getWarehouseResponsibleAdmins(site = currentSite) {
   });
 }
 
-function getWarehouseResponsibleAdminsLabel(site = currentSite) {
-  const admins = getWarehouseResponsibleAdmins(site);
-  if (!admins.length) return t("warehouseNoAssignedAdmin");
-  return admins
-    .map((admin) => admin.fullName || admin.email)
-    .join(", ");
-}
-
 function renderWarehouseProcurementOptions() {
   const details = document.getElementById("warehouseProcurementDetails");
   const options = document.getElementById("warehouseProcurementOptions");
