@@ -1053,12 +1053,12 @@
               >
                 <div id="siteListContainer"></div>
                 <div class="site-dropdown-actions">
-                  <button class="btn btn-small" onclick="promptAddSite()">
+                  <button class="btn btn-small" data-cmax-action="sites.promptAdd">
                     Dodaj
                   </button>
                   <button
                     class="btn btn-small btn-danger"
-                    onclick="confirmRemoveSite()"
+                    data-cmax-action="sites.confirmRemove"
                   >
                     Ukloni
                   </button>
@@ -1214,7 +1214,7 @@
           <button
             class="btn"
             id="btnSave"
-            onclick="saveAllData()"
+            data-cmax-action="importExport.saveAll"
             style="display: none"
           >
             💾 <span id="btnSaveText">Spremi</span>
@@ -2272,7 +2272,7 @@
           <button
             class="btn"
             id="btnClearTidplan"
-            onclick="clearTidplan()"
+            data-cmax-action="tidplan.clear"
             style="margin-left: auto"
           >
             🗑️ Očisti plan
@@ -2280,7 +2280,7 @@
           <button
             class="btn"
             id="btnSaveTidplan"
-            onclick="saveTidplanData()"
+            data-cmax-action="tidplan.save"
             disabled
             style="opacity: 0.6; cursor: not-allowed"
           >
