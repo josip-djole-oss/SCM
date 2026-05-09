@@ -30,9 +30,27 @@
     <div id="loginOverlay" class="login-overlay" style="display: none">
       <div class="login-top-bar" id="loginTopBar">
         <div class="lang-selector" id="loginLangSelector">
-          <button class="lang-btn" onclick="setLanguage('hr')">🇭🇷 HR</button>
-          <button class="lang-btn" onclick="setLanguage('en')">🇬🇧 EN</button>
-          <button class="lang-btn" onclick="setLanguage('sv')">🇸🇪 SV</button>
+          <button
+            class="lang-btn"
+            data-cmax-action="utils.setLanguage"
+            data-cmax-args='["hr"]'
+          >
+            🇭🇷 HR
+          </button>
+          <button
+            class="lang-btn"
+            data-cmax-action="utils.setLanguage"
+            data-cmax-args='["en"]'
+          >
+            🇬🇧 EN
+          </button>
+          <button
+            class="lang-btn"
+            data-cmax-action="utils.setLanguage"
+            data-cmax-args='["sv"]'
+          >
+            🇸🇪 SV
+          </button>
         </div>
       </div>
 
@@ -41,11 +59,8 @@
           <img
             src="cmaxlogo.png"
             id="loginLogoImg"
-            onerror="
-              this.style.display = 'none';
-              document.getElementById('loginLogoFallback').style.display =
-                'block';
-            "
+            data-cmax-image-fallback="loginLogoFallback"
+            data-cmax-image-fallback-display="block"
             alt="CMAX Logo"
           />
           <span id="loginLogoFallback" style="display: none">CM</span>
@@ -71,10 +86,18 @@
             autocomplete="current-password"
           />
         </div>
-        <button class="login-btn" onclick="handleLogin()" id="loginBtnEl">
+        <button
+          class="login-btn"
+          data-cmax-action="core.login"
+          id="loginBtnEl"
+        >
           Prijava
         </button>
-        <button class="guest-btn" onclick="enterReadonlyMode()" id="guestBtnEl">
+        <button
+          class="guest-btn"
+          data-cmax-action="core.enterReadonlyMode"
+          id="guestBtnEl"
+        >
           👁 Nastavi kao gledatelj (read-only)
         </button>
       </div>
@@ -105,7 +128,7 @@
       <div class="modal-box" style="max-width: 480px">
         <div class="modal-header">
           <h2 id="changePasswordTitle">Promjena lozinke</h2>
-          <button class="close-btn" onclick="closeChangePasswordModal()">
+          <button class="close-btn" data-cmax-action="reports.closeChangePassword">
             &times;
           </button>
         </div>
@@ -141,7 +164,7 @@
         </div>
         <button
           class="btn"
-          onclick="submitChangePassword()"
+          data-cmax-action="reports.submitChangePassword"
           style="width: 100%"
           id="btnConfirmPasswordChange"
         >
@@ -159,7 +182,7 @@
       <div class="modal-box" style="max-width: 480px">
         <div class="modal-header">
           <h2 id="managePanelTitle">Dodaj / Ukloni</h2>
-          <button class="close-btn" onclick="closeManagePanel()">
+          <button class="close-btn" data-cmax-action="planner.closeManagePanel">
             &times;
           </button>
         </div>
@@ -179,35 +202,40 @@
           <div class="manage-categories" id="manageCategoryGrid">
             <button
               class="manage-cat-btn"
-              onclick="manageSelectCategory('workers')"
+              data-cmax-action="planner.manageSelectCategory"
+              data-cmax-args='["workers"]'
             >
               <div></div>
               <div id="mcWorkers">Resursi</div>
             </button>
             <button
               class="manage-cat-btn"
-              onclick="manageSelectCategory('lifts')"
+              data-cmax-action="planner.manageSelectCategory"
+              data-cmax-args='["lifts"]'
             >
               <div></div>
               <div id="mcLifts">Liftovi</div>
             </button>
             <button
               class="manage-cat-btn"
-              onclick="manageSelectCategory('moments')"
+              data-cmax-action="planner.manageSelectCategory"
+              data-cmax-args='["moments"]'
             >
               <div></div>
               <div id="mcMoments">Momenti</div>
             </button>
             <button
               class="manage-cat-btn"
-              onclick="manageSelectCategory('plans')"
+              data-cmax-action="planner.manageSelectCategory"
+              data-cmax-args='["plans"]'
             >
               <div></div>
               <div id="mcPlans">Planovi</div>
             </button>
             <button
               class="manage-cat-btn"
-              onclick="manageSelectCategory('karnas')"
+              data-cmax-action="planner.manageSelectCategory"
+              data-cmax-args='["karnas"]'
             >
               <div></div>
               <div id="mcKarnas">Karne/Delovi</div>
@@ -220,7 +248,8 @@
           <div class="manage-back-bar">
             <button
               class="btn btn-secondary btn-small"
-              onclick="manageGoBack(1)"
+              data-cmax-action="planner.manageGoBack"
+              data-cmax-args='[1]'
             >
               ← <span id="manageBackLbl">Natrag</span>
             </button>
@@ -229,14 +258,14 @@
           <div class="manage-actions">
             <button
               class="btn btn-success"
-              onclick="manageGoAdd()"
+              data-cmax-action="planner.manageGoAdd"
               id="manageAddBtn"
             >
               + Dodaj
             </button>
             <button
               class="btn btn-danger"
-              onclick="manageGoRemove()"
+              data-cmax-action="planner.manageGoRemove"
               id="manageRemoveBtn"
             >
               − Ukloni
@@ -249,7 +278,8 @@
           <div class="manage-back-bar">
             <button
               class="btn btn-secondary btn-small"
-              onclick="manageGoBack(2)"
+              data-cmax-action="planner.manageGoBack"
+              data-cmax-args='[2]'
             >
               ← <span id="manageBackLbl2">Natrag</span>
             </button>
@@ -276,7 +306,7 @@
           </div>
           <button
             class="btn"
-            onclick="manageDoAdd()"
+            data-cmax-action="planner.manageDoAdd"
             style="width: 100%"
             id="manageConfirmAddBtn"
           >
@@ -294,7 +324,8 @@
           <div class="manage-back-bar">
             <button
               class="btn btn-secondary btn-small"
-              onclick="manageGoBack(2)"
+              data-cmax-action="planner.manageGoBack"
+              data-cmax-args='[2]'
             >
               ← <span id="manageBackLbl3">Natrag</span>
             </button>
@@ -325,28 +356,31 @@
       <div class="modal-box" style="max-width: 980px">
         <div class="modal-header">
           <h2 id="adminModalTitle">Upravljanje Adminima</h2>
-          <button class="close-btn" onclick="closeAdminPanel()">&times;</button>
+          <button class="close-btn" data-cmax-action="admin.close">&times;</button>
         </div>
 
         <!-- Tabs -->
         <div class="tab-bar">
           <button
             class="tab-btn active"
-            onclick="switchTab('tabAdmins')"
+            data-cmax-action="admin.switchTab"
+            data-cmax-args='["tabAdmins"]'
             id="tabBtnAdmins"
           >
             Admini
           </button>
           <button
             class="tab-btn"
-            onclick="switchTab('tabGuest')"
+            data-cmax-action="admin.switchTab"
+            data-cmax-args='["tabGuest"]'
             id="tabBtnGuest"
           >
             Gost mode
           </button>
           <button
             class="tab-btn"
-            onclick="switchTab('tabReports')"
+            data-cmax-action="admin.switchTab"
+            data-cmax-args='["tabReports"]'
             id="tabBtnReports"
           >
             Prijave liftova
@@ -359,21 +393,24 @@
           </button>
           <button
             class="tab-btn"
-            onclick="switchTab('tabLogs')"
+            data-cmax-action="admin.switchTab"
+            data-cmax-args='["tabLogs"]'
             id="tabBtnLogs"
           >
             Logovi
           </button>
           <button
             class="tab-btn"
-            onclick="switchTab('tabSettings')"
+            data-cmax-action="admin.switchTab"
+            data-cmax-args='["tabSettings"]'
             id="tabBtnSettings"
           >
             Postavke
           </button>
           <button
             class="tab-btn"
-            onclick="switchTab('tabBackup')"
+            data-cmax-action="admin.switchTab"
+            data-cmax-args='["tabBackup"]'
             id="tabBtnBackup"
           >
             Backup
@@ -462,7 +499,7 @@
             <div class="permissions-editor" id="newAdminSitesPanel"></div>
           </div>
 
-          <button class="btn" onclick="addNewAdmin()" id="btnAddAdminEl">
+          <button class="btn" data-cmax-action="admin.addNewAdmin" id="btnAddAdminEl">
             Dodaj Admina
           </button>
 
@@ -499,7 +536,7 @@
             ></div>
             <button
               class="btn"
-              onclick="saveGuestAccessSettings()"
+              data-cmax-action="admin.saveGuestAccessSettings"
               id="btnSaveGuestAccess"
             >
               Spremi guest pristup
@@ -513,28 +550,32 @@
             <button
               class="btn active"
               id="filterAll"
-              onclick="filterReports('all')"
+              data-cmax-action="reports.filter"
+              data-cmax-args='["all"]'
             >
               Sve
             </button>
             <button
               class="btn"
               id="filterPending"
-              onclick="filterReports('pending')"
+              data-cmax-action="reports.filter"
+              data-cmax-args='["pending"]'
             >
               Na čekanju
             </button>
             <button
               class="btn"
               id="filterApproved"
-              onclick="filterReports('approved')"
+              data-cmax-action="reports.filter"
+              data-cmax-args='["approved"]'
             >
               Odobrene
             </button>
             <button
               class="btn"
               id="filterRejected"
-              onclick="filterReports('rejected')"
+              data-cmax-action="reports.filter"
+              data-cmax-args='["rejected"]'
             >
               Odbijene
             </button>
@@ -560,7 +601,7 @@
             </h3>
             <button
               class="btn btn-small btn-danger"
-              onclick="clearLogs()"
+              data-cmax-action="admin.clearLogs"
               id="btnClearLogs"
             >
               Očisti logove
@@ -593,7 +634,7 @@
             <button
               class="btn"
               id="darkModeToggleBtn"
-              onclick="toggleDarkMode()"
+              data-cmax-action="utils.toggleDarkMode"
             >
               Uključi tamnu temu
             </button>
@@ -608,63 +649,72 @@
                 id="themeBtnBlue"
                 style="background: linear-gradient(135deg, #667eea, #764ba2)"
                 title="Plava (zadano)"
-                onclick="setColorTheme('blue')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["blue"]'
               ></button>
               <button
                 class="theme-btn"
                 id="themeBtnOrange"
                 style="background: linear-gradient(135deg, #f39c12, #e67e22)"
                 title="Narančasta"
-                onclick="setColorTheme('orange')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["orange"]'
               ></button>
               <button
                 class="theme-btn"
                 id="themeBtnRed"
                 style="background: linear-gradient(135deg, #e74c3c, #c0392b)"
                 title="Crvena"
-                onclick="setColorTheme('red')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["red"]'
               ></button>
               <button
                 class="theme-btn"
                 id="themeBtnTeal"
                 style="background: linear-gradient(135deg, #14b8a6, #0f766e)"
                 title="Teal"
-                onclick="setColorTheme('teal')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["teal"]'
               ></button>
               <button
                 class="theme-btn"
                 id="themeBtnIndigo"
                 style="background: linear-gradient(135deg, #6366f1, #4338ca)"
                 title="Indigo"
-                onclick="setColorTheme('indigo')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["indigo"]'
               ></button>
               <button
                 class="theme-btn"
                 id="themeBtnEmerald"
                 style="background: linear-gradient(135deg, #10b981, #059669)"
                 title="Emerald"
-                onclick="setColorTheme('emerald')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["emerald"]'
               ></button>
               <button
                 class="theme-btn"
                 id="themeBtnSlate"
                 style="background: linear-gradient(135deg, #64748b, #334155)"
                 title="Slate"
-                onclick="setColorTheme('slate')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["slate"]'
               ></button>
               <button
                 class="theme-btn"
                 id="themeBtnOlive"
                 style="background: linear-gradient(135deg, #8f9a3b, #5f6b23)"
                 title="Olive"
-                onclick="setColorTheme('olive')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["olive"]'
               ></button>
               <button
                 class="theme-btn"
                 id="themeBtnRose"
                 style="background: linear-gradient(135deg, #f472b6, #be185d)"
                 title="Rose"
-                onclick="setColorTheme('rose')"
+                data-cmax-action="utils.setColorTheme"
+                data-cmax-args='["rose"]'
               ></button>
             </div>
             <p
@@ -685,7 +735,9 @@
                 ><input
                   type="checkbox"
                   id="bin_perm_totalAvailable"
-                  onchange="toggleBinPermission('totalAvailable')"
+                  data-cmax-action="utils.toggleBinPermission"
+                  data-cmax-event="change"
+                  data-cmax-args='["totalAvailable"]'
                 />
                 <span id="bin_perm_total_label">Total Available</span></label
               >
@@ -693,7 +745,9 @@
                 ><input
                   type="checkbox"
                   id="bin_perm_emptyAvailable"
-                  onchange="toggleBinPermission('emptyAvailable')"
+                  data-cmax-action="utils.toggleBinPermission"
+                  data-cmax-event="change"
+                  data-cmax-args='["emptyAvailable"]'
                 />
                 <span id="bin_perm_empty_label">Empty Available</span></label
               >
@@ -701,7 +755,9 @@
                 ><input
                   type="checkbox"
                   id="bin_perm_forEmptying"
-                  onchange="toggleBinPermission('forEmptying')"
+                  data-cmax-action="utils.toggleBinPermission"
+                  data-cmax-event="change"
+                  data-cmax-args='["forEmptying"]'
                 />
                 <span id="bin_perm_forEmpty_label">For Emptying</span></label
               >
@@ -713,14 +769,14 @@
             <div style="display: flex; gap: 10px; flex-wrap: wrap">
               <button
                 class="btn"
-                onclick="resetTidplanLayoutSettings()"
+                data-cmax-action="admin.resetTidplanLayoutSettings"
                 id="btnResetTidplanLayout"
               >
                 Reset Tidplan layout
               </button>
               <button
                 class="btn"
-                onclick="resetThemeSettings()"
+                data-cmax-action="admin.resetThemeSettings"
                 id="btnResetThemeSettings"
               >
                 Reset izgled stranice
@@ -745,7 +801,7 @@
             <div class="permissions-editor" id="guestAccessPermsPanelOld"></div>
             <button
               class="btn"
-              onclick="saveGuestAccessSettings()"
+              data-cmax-action="admin.saveGuestAccessSettings"
               id="btnSaveGuestAccessOld"
             >
               Spremi guest pristup
@@ -758,7 +814,7 @@
             <button
               class="btn"
               id="btnChangePasswordSettings"
-              onclick="openChangePasswordModal()"
+              data-cmax-action="reports.openChangePassword"
             >
               <span id="btnChangePasswordSettingsText">Promijeni lozinku</span>
             </button>
@@ -769,14 +825,14 @@
             <button
               class="btn"
               id="btnManualBackup"
-              onclick="runManualBackup()"
+              data-cmax-action="admin.runManualBackup"
             >
               <span id="btnManualBackupText">Manual Backup</span>
             </button>
             <button
               class="btn btn-secondary"
               id="btnOpenBackupRestore"
-              onclick="openBackupRestorePanel()"
+              data-cmax-action="admin.openBackupRestorePanel"
             >
               Restore Backup
             </button>
@@ -794,14 +850,14 @@
                 <button
                   class="btn"
                   id="btnRefreshBackupRestore"
-                  onclick="loadBackupRestoreOptions()"
+                  data-cmax-action="admin.loadBackupRestoreOptions"
                 >
                   Osvježi
                 </button>
                 <button
                   class="btn btn-danger"
                   id="btnRestoreSelectedBackup"
-                  onclick="restoreSelectedBackup()"
+                  data-cmax-action="admin.restoreSelectedBackup"
                 >
                   Povuci odabrani backup
                 </button>
@@ -823,14 +879,14 @@
       <button
         class="image-viewer-close"
         id="notificationViewerClose"
-        onclick="closeNotificationViewer()"
+        data-cmax-action="notifications.closeViewer"
       >
         ✕
       </button>
       <button
         class="image-viewer-nav image-viewer-prev"
         id="notificationViewerPrev"
-        onclick="prevNotificationImage()"
+        data-cmax-action="notifications.previousImage"
       >
         ‹
       </button>
@@ -838,7 +894,7 @@
       <button
         class="image-viewer-nav image-viewer-next"
         id="notificationViewerNext"
-        onclick="nextNotificationImage()"
+        data-cmax-action="notifications.nextImage"
       >
         ›
       </button>
@@ -849,7 +905,7 @@
       <div class="modal-box" style="max-width: 480px">
         <div class="modal-header">
           <h2 id="reportModalTitle">Prijava lifta</h2>
-          <button class="close-btn" onclick="closeReportModal()">
+          <button class="close-btn" data-cmax-action="reports.close">
             &times;
           </button>
         </div>
@@ -882,7 +938,7 @@
         </div>
         <button
           class="btn"
-          onclick="submitReport()"
+          data-cmax-action="reports.submit"
           style="width: 100%"
           id="btnSubmitReportEl"
         >
@@ -896,7 +952,7 @@
       <div class="modal-box" style="max-width: 480px">
         <div class="modal-header">
           <h2 id="changePasswordModalTitle">Promjena lozinke</h2>
-          <button class="close-btn" onclick="closeChangePasswordModal()">
+          <button class="close-btn" data-cmax-action="reports.closeChangePassword">
             &times;
           </button>
         </div>
@@ -946,7 +1002,7 @@
         ></div>
         <button
           class="btn"
-          onclick="submitChangePassword()"
+          data-cmax-action="reports.submitChangePassword"
           style="width: 100%"
           id="btnSubmitChangePassword"
         >
@@ -964,11 +1020,8 @@
             <img
               src="cmaxlogo.png"
               id="mainLogoImg"
-              onerror="
-                this.style.display = 'none';
-                document.getElementById('mainLogoFallback').style.display =
-                  'flex';
-              "
+              data-cmax-image-fallback="mainLogoFallback"
+              data-cmax-image-fallback-display="flex"
               alt="CMAX Logo"
             />
             <span
@@ -989,7 +1042,7 @@
               <button
                 class="btn site-switcher-btn"
                 id="siteSwitcherBtn"
-                onclick="toggleSiteDropdown()"
+                data-cmax-action="sites.toggleDropdown"
               >
                 <span id="siteSwitcherLabel">Gradilište</span>
               </button>
@@ -1026,16 +1079,34 @@
             <div class="presence-list" id="presenceList"></div>
           </div>
           <div class="lang-selector" id="headerLangSelector">
-            <button class="lang-btn" onclick="setLanguage('hr')">🇭🇷 HR</button>
-            <button class="lang-btn" onclick="setLanguage('en')">🇬🇧 EN</button>
-            <button class="lang-btn" onclick="setLanguage('sv')">🇸🇪 SV</button>
+            <button
+              class="lang-btn"
+              data-cmax-action="utils.setLanguage"
+              data-cmax-args='["hr"]'
+            >
+              🇭🇷 HR
+            </button>
+            <button
+              class="lang-btn"
+              data-cmax-action="utils.setLanguage"
+              data-cmax-args='["en"]'
+            >
+              🇬🇧 EN
+            </button>
+            <button
+              class="lang-btn"
+              data-cmax-action="utils.setLanguage"
+              data-cmax-args='["sv"]'
+            >
+              🇸🇪 SV
+            </button>
           </div>
 
           <button
             class="btn"
             id="guestLoginBtn"
             style="display: none"
-            onclick="switchToLogin()"
+            data-cmax-action="core.switchToLogin"
           >
             <span id="guestLoginBtnText">Prijava</span>
           </button>
@@ -1056,13 +1127,13 @@
         ></div>
         <!-- ACTION BUTTONS -->
         <div class="action-buttons">
-          <button class="btn btn-icon" id="btnPrint" onclick="handlePrint()">
+          <button class="btn btn-icon" id="btnPrint" data-cmax-action="importExport.printPlanner">
             🖨️ <span id="btnPrintText">Print</span>
           </button>
           <button
             class="btn btn-secondary"
             id="btnPlannerExportImport"
-            onclick="togglePlannerExportImportDropdown()"
+            data-cmax-action="importExport.togglePlannerDropdown"
           >
             📥 Export/Import
           </button>
@@ -1074,66 +1145,54 @@
             <button
               id="btnPlannerExportExcel"
               class="dropdown-item"
-              onclick="
-                exportPlannerToExcel();
-                togglePlannerExportImportDropdown();
-              "
+              data-cmax-action="importExport.exportPlannerExcelAndClose"
             >
               Export Excel
             </button>
             <button
               id="btnPlannerExportPdf"
               class="dropdown-item"
-              onclick="
-                exportPlannerToPDF();
-                togglePlannerExportImportDropdown();
-              "
+              data-cmax-action="importExport.exportPlannerPDFAndClose"
             >
               Export PDF
             </button>
             <button
               id="btnPlannerImportExcel"
               class="dropdown-item"
-              onclick="
-                openModuleImportModal('planner', 'excel');
-                togglePlannerExportImportDropdown();
-              "
+              data-cmax-action="importExport.openPlannerImportExcelAndClose"
             >
               Import Excel
             </button>
             <button
               id="btnPlannerImportPdf"
               class="dropdown-item"
-              onclick="
-                openModuleImportModal('planner', 'pdf');
-                togglePlannerExportImportDropdown();
-              "
+              data-cmax-action="importExport.openPlannerImportPDFAndClose"
             >
               Import PDF
             </button>
           </div>
-          <button class="btn btn-icon" id="btnExport" onclick="handleExport()">
+          <button class="btn btn-icon" id="btnExport" data-cmax-action="importExport.exportPlanner">
             📄 <span id="btnExportText">Export PDF</span>
           </button>
-          <button class="btn" id="btnClear" onclick="clearAllTable()">
+          <button class="btn" id="btnClear" data-cmax-action="planner.clear">
             <span id="btnClearText">Očisti tablicu</span>
           </button>
-          <button class="btn" id="btnReport" onclick="openReportModal()">
+          <button class="btn" id="btnReport" data-cmax-action="reports.open">
             <span id="btnReportText">Prijavi lift</span>
           </button>
-          <button class="btn" id="btnTidplan" onclick="showTidplan()">
+          <button class="btn" id="btnTidplan" data-cmax-action="tidplan.show">
             <span id="btnTidplanText">Tidplan</span>
           </button>
-          <button class="btn btn-icon" id="btnBins" onclick="toggleBinsView()">
+          <button class="btn btn-icon" id="btnBins" data-cmax-action="bins.show">
             🗑️ <span id="btnBinsText">Kante za smeće</span>
           </button>
-          <button class="btn" id="btnWarehouse" onclick="showWarehouse()">
+          <button class="btn" id="btnWarehouse" data-cmax-action="warehouse.show">
             <span id="btnWarehouseText">Skladište</span>
           </button>
           <button
             class="btn"
             id="btnNotifications"
-            onclick="showNotifications()"
+            data-cmax-action="notifications.show"
           >
             <span id="btnNotificationsText">Obavijesti</span>
             <span
@@ -1143,7 +1202,7 @@
               >0</span
             >
           </button>
-          <button class="btn" id="btnSurveys" onclick="showSurveys()">
+          <button class="btn" id="btnSurveys" data-cmax-action="surveys.show">
             <span id="btnSurveysText">Ankete/Pitanja</span>
             <span
               id="surveysNotifBadge"
@@ -1163,7 +1222,7 @@
           <button
             class="btn"
             id="adminBtn"
-            onclick="openAdminPanel()"
+            data-cmax-action="admin.open"
             style="display: none"
           >
             <span id="btnAdminText">Admin Panel</span>
@@ -1174,12 +1233,12 @@
           <button
             class="btn"
             id="btnChangePassword"
-            onclick="openChangePasswordModal()"
+            data-cmax-action="reports.openChangePassword"
             style="display: none"
           >
             🔑 <span id="btnChangePasswordText">Promijeni lozinku</span>
           </button>
-          <button class="btn btn-danger" id="btnLogout" onclick="logout()">
+          <button class="btn btn-danger" id="btnLogout" data-cmax-action="core.logout">
             <span id="btnLogoutText">Odjava</span>
           </button>
         </div>
@@ -1195,13 +1254,21 @@
         <div class="lists-container">
           <!-- RESURSI -->
           <div class="list-card">
-            <div class="list-header" onclick="toggleList('workers')">
+            <div
+              class="list-header"
+              data-cmax-action="planner.toggleList"
+              data-cmax-args='["workers"]'
+            >
               <h3 id="listTitleWorkers">Resursi</h3>
               <span class="collapse-icon collapsed" id="workers-icon">▼</span>
             </div>
             <div class="list-content collapsed" id="workers-content">
               <div class="list-controls" id="workersControls">
-                <button class="btn" onclick="openManagePanel('workers')">
+                <button
+                  class="btn"
+                  data-cmax-action="planner.openManagePanel"
+                  data-cmax-args='["workers"]'
+                >
                   <span id="btnManageWorkersText">Dodaj / Ukloni</span>
                 </button>
               </div>
@@ -1222,13 +1289,21 @@
 
           <!-- LIFTOVI -->
           <div class="list-card">
-            <div class="list-header" onclick="toggleList('lifts')">
+            <div
+              class="list-header"
+              data-cmax-action="planner.toggleList"
+              data-cmax-args='["lifts"]'
+            >
               <h3 id="listTitleLifts">Liftovi</h3>
               <span class="collapse-icon collapsed" id="lifts-icon">▼</span>
             </div>
             <div class="list-content collapsed" id="lifts-content">
               <div class="list-controls" id="liftsControls">
-                <button class="btn" onclick="openManagePanel('lifts')">
+                <button
+                  class="btn"
+                  data-cmax-action="planner.openManagePanel"
+                  data-cmax-args='["lifts"]'
+                >
                   <span id="btnManageLiftsText">Dodaj / Ukloni</span>
                 </button>
               </div>
@@ -1250,13 +1325,21 @@
 
           <!-- MOMENTI -->
           <div class="list-card">
-            <div class="list-header" onclick="toggleList('moments')">
+            <div
+              class="list-header"
+              data-cmax-action="planner.toggleList"
+              data-cmax-args='["moments"]'
+            >
               <h3 id="listTitleMoments">Momenti</h3>
               <span class="collapse-icon collapsed" id="moments-icon">▼</span>
             </div>
             <div class="list-content collapsed" id="moments-content">
               <div class="list-controls" id="momentsControls">
-                <button class="btn" onclick="openManagePanel('moments')">
+                <button
+                  class="btn"
+                  data-cmax-action="planner.openManagePanel"
+                  data-cmax-args='["moments"]'
+                >
                   <span id="btnManageMomentsText">Dodaj / Ukloni</span>
                 </button>
               </div>
@@ -1275,13 +1358,21 @@
 
           <!-- PLANOVI -->
           <div class="list-card">
-            <div class="list-header" onclick="toggleList('plans')">
+            <div
+              class="list-header"
+              data-cmax-action="planner.toggleList"
+              data-cmax-args='["plans"]'
+            >
               <h3 id="listTitlePlans">Planovi</h3>
               <span class="collapse-icon collapsed" id="plans-icon">▼</span>
             </div>
             <div class="list-content collapsed" id="plans-content">
               <div class="list-controls" id="plansControls">
-                <button class="btn" onclick="openManagePanel('plans')">
+                <button
+                  class="btn"
+                  data-cmax-action="planner.openManagePanel"
+                  data-cmax-args='["plans"]'
+                >
                   <span id="btnManagePlansText">Dodaj / Ukloni</span>
                 </button>
               </div>
@@ -1300,13 +1391,21 @@
 
           <!-- KARNE -->
           <div class="list-card">
-            <div class="list-header" onclick="toggleList('karnas')">
+            <div
+              class="list-header"
+              data-cmax-action="planner.toggleList"
+              data-cmax-args='["karnas"]'
+            >
               <h3 id="listTitleKarnas">Karne/Delovi</h3>
               <span class="collapse-icon collapsed" id="karnas-icon">▼</span>
             </div>
             <div class="list-content collapsed" id="karnas-content">
               <div class="list-controls" id="karnasControls">
-                <button class="btn" onclick="openManagePanel('karnas')">
+                <button
+                  class="btn"
+                  data-cmax-action="planner.openManagePanel"
+                  data-cmax-args='["karnas"]'
+                >
                   <span id="btnManageKarnasText">Dodaj / Ukloni</span>
                 </button>
               </div>
@@ -1347,7 +1446,7 @@
               <button
                 class="btn btn-small"
                 id="btnAddRow"
-                onclick="addPlanningRow()"
+                data-cmax-action="planner.addRow"
                 style="white-space: nowrap"
               >
                 +
@@ -1355,7 +1454,7 @@
               <button
                 class="btn btn-small btn-danger"
                 id="btnRemoveRow"
-                onclick="removePlanningRow()"
+                data-cmax-action="planner.removeRow"
                 style="white-space: nowrap"
               >
                 −
@@ -1404,7 +1503,7 @@
               <button
                 class="btn btn-small"
                 id="btnAddBinPlan"
-                onclick="addBinPlan()"
+                data-cmax-action="bins.addPlan"
                 style="white-space: nowrap"
               >
                 +
@@ -1412,7 +1511,7 @@
               <button
                 class="btn btn-small btn-danger"
                 id="btnRemoveBinPlan"
-                onclick="removeBinPlan()"
+                data-cmax-action="bins.removePlan"
                 style="white-space: nowrap"
               >
                 −
@@ -1445,14 +1544,14 @@
             <button
               class="btn btn-icon"
               id="btnPrintNotification"
-              onclick="openNotificationPrintChooser()"
+              data-cmax-action="notifications.openPrintChooser"
             >
               Print obavijest
             </button>
             <button
               class="btn"
               id="btnBackFromNotifications"
-              onclick="showPlanner()"
+              data-cmax-action="tidplan.showPlanner"
             >
               <span id="btnBackFromNotificationsText">Planner</span>
             </button>
@@ -1511,7 +1610,7 @@
           <button
             class="btn"
             id="btnPublishNotification"
-            onclick="submitNotification()"
+            data-cmax-action="notifications.submit"
           >
             Objavi
           </button>
@@ -1524,7 +1623,7 @@
         <div class="notifications-header">
           <h1 id="surveysTitle">Ankete/Pitanja</h1>
           <div class="notifications-header-actions">
-            <button class="btn" id="btnBackFromSurveys" onclick="showPlanner()">
+            <button class="btn" id="btnBackFromSurveys" data-cmax-action="tidplan.showPlanner">
               Planner
             </button>
           </div>
@@ -1582,7 +1681,7 @@
               class="btn btn-secondary"
               type="button"
               id="btnAddSurveyAnswer"
-              onclick="addSurveyAnswerField()"
+              data-cmax-action="surveys.addAnswerField"
             >
               +1 odgovor
             </button>
@@ -1600,7 +1699,7 @@
           <button
             class="btn btn-success"
             id="btnPublishSurvey"
-            onclick="submitSurvey()"
+            data-cmax-action="surveys.submit"
           >
             Objavi
           </button>
@@ -1613,39 +1712,39 @@
         <div class="warehouse-header">
           <h1 id="warehousePageTitle">Skladište</h1>
           <div class="warehouse-header-actions">
-            <button class="btn" onclick="showPlanner()">Planner</button>
+            <button class="btn" data-cmax-action="tidplan.showPlanner">Planner</button>
             <button
               class="btn"
               id="warehouseNavLogsBtn"
-              onclick="showWarehouseLogs()"
+              data-cmax-action="warehouse.showLogs"
             >
               Logovi
             </button>
             <button
               class="btn"
               id="warehouseNavGraphBtn"
-              onclick="showWarehouseGraph()"
+              data-cmax-action="warehouse.showGraph"
             >
               Graph
             </button>
             <button
               class="btn btn-icon"
               id="btnWarehousePrint"
-              onclick="printWarehouseInventory()"
+              data-cmax-action="warehouse.printInventory"
             >
               Print
             </button>
             <button
               class="btn btn-icon"
               id="btnWarehouseInventoryExportPdf"
-              onclick="exportWarehouseInventoryToPDF()"
+              data-cmax-action="warehouse.exportInventoryToPDF"
             >
               Export PDF
             </button>
             <button
               class="btn btn-secondary"
               id="btnWarehouseExportImport"
-              onclick="toggleWarehouseExportImportDropdown()"
+              data-cmax-action="importExport.toggleWarehouseDropdown"
             >
               📥 Export/Import
             </button>
@@ -1658,40 +1757,28 @@
             <button
               id="btnWarehouseExportExcel"
               class="dropdown-item"
-              onclick="
-                handleWarehouseExportExcel();
-                toggleWarehouseExportImportDropdown();
-              "
+              data-cmax-action="importExport.exportWarehouseExcelAndClose"
             >
               Export Excel
             </button>
             <button
               id="btnWarehouseExportPdf"
               class="dropdown-item"
-              onclick="
-                handleModuleExport('warehouse', 'pdf');
-                toggleWarehouseExportImportDropdown();
-              "
+              data-cmax-action="importExport.exportWarehousePDFAndClose"
             >
               Export PDF
             </button>
             <button
               id="btnWarehouseImportExcel"
               class="dropdown-item"
-              onclick="
-                openModuleImportModal('warehouse', 'excel');
-                toggleWarehouseExportImportDropdown();
-              "
+              data-cmax-action="importExport.openWarehouseImportExcelAndClose"
             >
               Import Excel
             </button>
             <button
               id="btnWarehouseImportPdf"
               class="dropdown-item"
-              onclick="
-                openModuleImportModal('warehouse', 'pdf');
-                toggleWarehouseExportImportDropdown();
-              "
+              data-cmax-action="importExport.openWarehouseImportPDFAndClose"
             >
               Import PDF
             </button>
@@ -1759,7 +1846,10 @@
                 >
                 <select
                   id="warehouseStockItem"
-                  onchange="updateWarehouseStockForm('itemId', this.value)"
+                  data-cmax-action="warehouse.updateStockFormFromEvent"
+                  data-cmax-args='["itemId"]'
+                  data-cmax-event="change"
+                  data-cmax-pass-event
                 ></select>
               </div>
               <div class="form-group">
@@ -1770,7 +1860,10 @@
                 >
                 <select
                   id="warehouseStockDirection"
-                  onchange="updateWarehouseStockForm('direction', this.value)"
+                  data-cmax-action="warehouse.updateStockFormFromEvent"
+                  data-cmax-args='["direction"]'
+                  data-cmax-event="change"
+                  data-cmax-pass-event
                 >
                   <option value="in" id="warehouseStockDirectionIn">
                     Dodaj
@@ -1791,12 +1884,10 @@
                   id="warehouseStockQuantity"
                   min="1"
                   value="1"
-                  onchange="
-                    updateWarehouseStockForm(
-                      'quantity',
-                      Number(this.value) || 1,
-                    )
-                  "
+                  data-cmax-action="warehouse.updateStockFormFromEvent"
+                  data-cmax-args='["quantity"]'
+                  data-cmax-event="change"
+                  data-cmax-pass-event
                 />
               </div>
               <div class="form-group warehouse-form-wide">
@@ -1809,14 +1900,17 @@
                   type="text"
                   id="warehouseStockComment"
                   placeholder="Upiši komentar..."
-                  onchange="updateWarehouseStockForm('comment', this.value)"
+                  data-cmax-action="warehouse.updateStockFormFromEvent"
+                  data-cmax-args='["comment"]'
+                  data-cmax-event="change"
+                  data-cmax-pass-event
                 />
               </div>
               <div class="warehouse-form-actions">
                 <button
                   class="btn"
                   id="warehouseStockSaveBtn"
-                  onclick="saveWarehouseStockAdjustment()"
+                  data-cmax-action="warehouse.saveStockAdjustment"
                 >
                   Spremi
                 </button>
@@ -1871,7 +1965,7 @@
                 <button
                   id="warehouseCatalogAddBtn"
                   class="btn btn-small"
-                  onclick="addWarehouseCatalogItem()"
+                  data-cmax-action="warehouse.addCatalogItem"
                 >
                   Dodaj
                 </button>
@@ -1889,18 +1983,18 @@
             <button
               class="btn"
               id="warehouseLogsBackBtn"
-              onclick="showWarehouse()"
+              data-cmax-action="warehouse.show"
             >
               Skladište
             </button>
             <button
               class="btn"
               id="warehouseLogsGraphBtn"
-              onclick="showWarehouseGraph()"
+              data-cmax-action="warehouse.showGraph"
             >
               Graph
             </button>
-            <button class="btn" onclick="showPlanner()">Planner</button>
+            <button class="btn" data-cmax-action="tidplan.showPlanner">Planner</button>
           </div>
         </div>
         <div class="warehouse-log-toolbar">
@@ -1993,21 +2087,21 @@
             <button
               class="btn"
               id="warehouseApplyLogFiltersBtn"
-              onclick="applyWarehouseLogFilters()"
+              data-cmax-action="warehouse.applyLogFilters"
             >
               Sortiraj
             </button>
             <button
               class="btn btn-secondary"
               id="warehouseResetLogFiltersBtn"
-              onclick="resetWarehouseLogFilters()"
+              data-cmax-action="warehouse.resetLogFilters"
             >
               Reset filtera
             </button>
             <button
               class="btn btn-danger"
               id="warehouseClearLogsBtn"
-              onclick="clearAllWarehouseLogs()"
+              data-cmax-action="warehouse.clearLogs"
               style="display: none"
             >
               Obriši sve logove
@@ -2044,18 +2138,18 @@
             <button
               class="btn"
               id="warehouseGraphBackBtn"
-              onclick="showWarehouse()"
+              data-cmax-action="warehouse.show"
             >
               Skladište
             </button>
             <button
               class="btn"
               id="warehouseGraphLogsBtn"
-              onclick="showWarehouseLogs()"
+              data-cmax-action="warehouse.showLogs"
             >
               Logovi
             </button>
-            <button class="btn" onclick="showPlanner()">Planner</button>
+            <button class="btn" data-cmax-action="tidplan.showPlanner">Planner</button>
           </div>
         </div>
         <div class="warehouse-grid">
@@ -2121,14 +2215,14 @@
           <button
             class="btn"
             id="btnAddTidplanActivity"
-            onclick="addTidplanActivity()"
+            data-cmax-action="tidplan.addActivity"
           >
             Dodaj aktivnost
           </button>
           <button
             class="btn btn-secondary"
             id="btnTidplanExportImport"
-            onclick="toggleTidplanExportImportDropdown()"
+            data-cmax-action="importExport.toggleTidplanDropdown"
           >
             📥 Export/Import
           </button>
@@ -2140,51 +2234,39 @@
             <button
               id="btnTidplanExportPdf"
               class="dropdown-item"
-              onclick="
-                handleTidplanExportPdf();
-                toggleTidplanExportImportDropdown();
-              "
+              data-cmax-action="importExport.exportTidplanPDFAndClose"
             >
               Export PDF
             </button>
             <button
               id="btnTidplanExportExcel"
               class="dropdown-item"
-              onclick="
-                handleModuleExport('tidplan', 'excel');
-                toggleTidplanExportImportDropdown();
-              "
+              data-cmax-action="importExport.exportTidplanExcelAndClose"
             >
               Export Excel
             </button>
             <button
               id="btnTidplanImportPdf"
               class="dropdown-item"
-              onclick="
-                openModuleImportModal('tidplan', 'pdf');
-                toggleTidplanExportImportDropdown();
-              "
+              data-cmax-action="importExport.openTidplanImportPDFAndClose"
             >
               Import PDF
             </button>
             <button
               id="btnTidplanImportExcel"
               class="dropdown-item"
-              onclick="
-                openModuleImportModal('tidplan', 'excel');
-                toggleTidplanExportImportDropdown();
-              "
+              data-cmax-action="importExport.openTidplanImportExcelAndClose"
             >
               Import Excel
             </button>
           </div>
-          <button class="btn" id="btnManageZones" onclick="toggleZoneManager()">
+          <button class="btn" id="btnManageZones" data-cmax-action="tidplan.toggleZoneManager">
             Dodaj/Ukloni Zone
           </button>
-          <button class="btn" id="btnPrintTidplan" onclick="printTidplan()">
+          <button class="btn" id="btnPrintTidplan" data-cmax-action="tidplan.print">
             Print Tidplan
           </button>
-          <button class="btn" id="btnBackToPlanner" onclick="showPlanner()">
+          <button class="btn" id="btnBackToPlanner" data-cmax-action="tidplan.showPlanner">
             Planner
           </button>
           <button
@@ -2208,7 +2290,7 @@
             <div class="sort-group">
               <button
                 class="btn"
-                onclick="toggleTidplanSortMenu()"
+                data-cmax-action="tidplan.toggleSortMenu"
                 id="btnSortTidplan"
               >
                 ⬇️ Sortiraj
@@ -2217,19 +2299,31 @@
                 <div class="sort-filter-block">
                   <label>
                     Plan
-                    <select id="filterPlan" onchange="updateTidplan()">
+                    <select
+                      id="filterPlan"
+                      data-cmax-action="tidplan.update"
+                      data-cmax-event="change"
+                    >
                       <option value="">Filter Plan</option>
                     </select>
                   </label>
                   <label>
                     Zona
-                    <select id="filterZona" onchange="updateTidplan()">
+                    <select
+                      id="filterZona"
+                      data-cmax-action="tidplan.update"
+                      data-cmax-event="change"
+                    >
                       <option value="">Filter Zona</option>
                     </select>
                   </label>
                   <label>
                     Moment
-                    <select id="filterMoment" onchange="updateTidplan()">
+                    <select
+                      id="filterMoment"
+                      data-cmax-action="tidplan.update"
+                      data-cmax-event="change"
+                    >
                       <option value="">Filter Moment</option>
                     </select>
                   </label>
@@ -2264,7 +2358,7 @@
                 >
                   <button
                     class="btn btn-small"
-                    onclick="applyTidplanSort()"
+                    data-cmax-action="tidplan.applySort"
                     style="width: 100%"
                   >
                     ✓ Primijeni sortiraj
@@ -2282,7 +2376,7 @@
         >
           <div>
             <strong>⚙️ Upravljanje zonama</strong>
-            <button class="btn btn-small" onclick="toggleZoneManager()">
+            <button class="btn btn-small" data-cmax-action="tidplan.toggleZoneManager">
               Zatvori
             </button>
           </div>
@@ -2290,12 +2384,12 @@
           <div class="zone-input-group">
             <input id="newZoneName" type="text" placeholder="Naziv zone" />
             <input id="newZoneColor" type="color" value="#FF0000" />
-            <button class="btn btn-small" onclick="addTidplanZoneFromInputs()">
+            <button class="btn btn-small" data-cmax-action="tidplan.addZoneFromInputs">
               ➕ Dodaj zonu
             </button>
             <button
               class="btn btn-small btn-danger"
-              onclick="clearAllTidplanZones()"
+              data-cmax-action="tidplan.clearZones"
             >
               🗑️ Obriši sve
             </button>
@@ -2399,7 +2493,7 @@
       <div class="modal-box" style="max-width: 440px">
         <div class="modal-header">
           <h2 id="moduleImportTitle">Import</h2>
-          <button class="close-btn" onclick="closeModuleImportModal()">
+          <button class="close-btn" data-cmax-action="importExport.closeImportModal">
             &times;
           </button>
         </div>
@@ -2407,15 +2501,30 @@
           <label id="moduleImportFileLabel" for="moduleImportFile"
             >Datoteka</label
           >
-          <input type="file" id="moduleImportFile" />
+          <input
+            type="file"
+            id="moduleImportFile"
+            data-cmax-action="importExport.handleImportFileChange"
+            data-cmax-event="change"
+            data-cmax-pass-event
+          />
+          <small id="moduleImportFileState">Nije odabrana datoteka.</small>
         </div>
-        <button
-          class="btn"
-          id="moduleImportUploadBtn"
-          onclick="uploadModuleImport()"
-        >
-          Upload
-        </button>
+        <div class="warehouse-header-actions">
+          <button class="btn btn-small" data-cmax-action="importExport.resetImportFile">
+            Reset
+          </button>
+          <button class="btn btn-small" data-cmax-action="importExport.closeImportModal">
+            Odustani
+          </button>
+          <button
+            class="btn"
+            id="moduleImportUploadBtn"
+            data-cmax-action="importExport.uploadImport"
+          >
+            Upload
+          </button>
+        </div>
       </div>
     </div>
 
@@ -2425,16 +2534,41 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/hr.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/sv.js"></script>
+    <script src="js/i18n/i18n.js"></script>
+    <script src="js/core/config.js"></script>
+    <script src="js/utils/storage.js"></script>
+    <script src="js/core/state.js"></script>
+    <script src="js/core/appState.js"></script>
+    <script src="js/core/apiClient.js"></script>
+    <script src="js/core/permissions.js"></script>
+    <script src="js/core/routing.js"></script>
+    <script src="js/utils/tooltips.js"></script>
+    <script src="js/core/init.js"></script>
+    <script src="js/admin/adminStorage.js"></script>
+    <script src="js/notifications/notifications.js"></script>
+    <script src="js/core/auth.js"></script>
+    <script src="js/core/events.js"></script>
+    <script src="js/core/presence.js"></script>
+    <script src="js/core/sync.js"></script>
+    <script src="js/utils/dialogs.js"></script>
+    <script src="js/planner/resourceManagement.js"></script>
+    <script src="js/core/dataSync.js"></script>
+    <script src="js/core/conflicts.js"></script>
+    <script src="js/planner/planner.js"></script>
+    <script src="js/admin/admin.js"></script>
+    <script src="js/admin/audit.js"></script>
+    <script src="js/admin/backups.js"></script>
+    <script src="js/reports/reports.js"></script>
+    <script src="js/core/theme.js"></script>
+    <script src="js/bins/bins.js"></script>
+    <script src="js/warehouse/warehouse.js"></script>
+    <script src="js/importExport/importExport.js"></script>
+    <script src="js/sites/sites.js"></script>
+    <script src="js/tidplan/tidplanState.js"></script>
+    <script src="js/tidplan/tidplanRender.js"></script>
+    <script src="js/tidplan/tidplanEvents.js"></script>
+    <script src="js/surveys/surveys.js"></script>
+    <script src="js/core/namespace.js"></script>
     <script src="script.js"></script>
-    <script src="apiClient.js"></script>
-    <script src="permissions.js"></script>
-    <script src="routing.js"></script>
-    <script src="conflicts.js"></script>
-    <script src="audit.js"></script>
-    <script src="backups.js"></script>
-    <script src="planner.js"></script>
-    <script src="tidplan.js"></script>
-    <script src="warehouse.js"></script>
-    <script src="surveys.js"></script>
   </body>
 </html>

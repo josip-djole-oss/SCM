@@ -21,7 +21,7 @@ function clearAuthSessionLocal() {
   clearCsrfToken();
 }
 
-let sessionExpiredHandled = false;
+var sessionExpiredHandled = false;
 
 function callIfDefined(functionName) {
   if (typeof window[functionName] === "function") {
@@ -74,7 +74,7 @@ function applyAuthData(authData) {
   appState.guestPermissions = getGuestPermissions();
 }
 
-const originalFetch = window.fetch.bind(window);
+var originalFetch = window.fetch.bind(window);
 window.fetch = function patchedFetch(resource, options = {}) {
   const requestUrl = typeof resource === "string" ? resource : resource?.url || "";
   const nextOptions = { ...options };

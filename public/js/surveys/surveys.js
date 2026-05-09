@@ -1,5 +1,5 @@
 /* ==================== SURVEYS ==================== */
-let surveysCache = [];
+var surveysCache = [];
 
 function getSurveyReadKey() {
   return `cmax_surveys_read_${currentSite}_${getCurrentUserEmail() || "guest"}`;
@@ -447,7 +447,8 @@ function renderSurveysList() {
           const pinBtn = document.createElement("button");
           pinBtn.className = "btn btn-small";
           pinBtn.textContent = survey.pinned ? t("surveyUnpin") : t("surveyPin");
-          pinBtn.onclick = () => toggleSurveyPin(survey.id, !survey.pinned);
+          pinBtn.dataset.cmaxAction = "surveys.togglePin";
+          pinBtn.dataset.cmaxArgs = JSON.stringify([survey.id, !survey.pinned]);
           actions.appendChild(pinBtn);
         }
 
@@ -455,7 +456,8 @@ function renderSurveysList() {
           const deleteBtn = document.createElement("button");
           deleteBtn.className = "btn btn-small btn-danger";
           deleteBtn.textContent = t("btnDeleteNotification");
-          deleteBtn.onclick = () => deleteSurvey(survey.id);
+          deleteBtn.dataset.cmaxAction = "surveys.delete";
+          deleteBtn.dataset.cmaxArgs = JSON.stringify([survey.id]);
           actions.appendChild(deleteBtn);
         }
 

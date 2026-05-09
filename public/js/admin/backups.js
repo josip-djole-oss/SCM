@@ -30,9 +30,9 @@ function ensureBackupTabContent() {
   }
 
   const listButton = document.getElementById("btnListBackups");
-  if (listButton) listButton.onclick = handleListBackups;
+  if (listButton) listButton.dataset.cmaxAction = "admin.listBackups";
   const infoButton = document.getElementById("btnBackupInfo");
-  if (infoButton) infoButton.onclick = handleBackupInfo;
+  if (infoButton) infoButton.dataset.cmaxAction = "admin.showBackupInfo";
 }
 
 function getBackupIdentifier(backup) {
@@ -213,16 +213,20 @@ function renderBackupList(backups) {
   });
 
   container.querySelectorAll("[data-select-backup]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const select = document.getElementById("backupRestoreSelect");
-      if (select) select.value = button.dataset.selectBackup || "";
-      const panel = document.getElementById("backupRestorePanel");
-      if (panel) panel.style.display = "block";
-    });
+    button.dataset.cmaxAction = "admin.selectBackupForRestore";
+    button.dataset.cmaxArgs = JSON.stringify([button.dataset.selectBackup || ""]);
   });
   container.querySelectorAll("[data-restore-backup]").forEach((button) => {
-    button.addEventListener("click", () => confirmRestoreBackup(button.dataset.restoreBackup || ""));
+    button.dataset.cmaxAction = "admin.confirmRestoreBackup";
+    button.dataset.cmaxArgs = JSON.stringify([button.dataset.restoreBackup || ""]);
   });
+}
+
+function selectBackupForRestore(backupId) {
+  const select = document.getElementById("backupRestoreSelect");
+  if (select) select.value = backupId || "";
+  const panel = document.getElementById("backupRestorePanel");
+  if (panel) panel.style.display = "block";
 }
 
 async function handleBackupInfo() {
