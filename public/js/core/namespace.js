@@ -125,14 +125,30 @@
   });
 
   assignNamespace("surveys", {
-    init: legacyMethod("setupSurveyTargetHandlers"),
-    show: legacyMethod("showSurveys"),
-    render: legacyMethod("renderSurveysList"),
-    submit: legacyMethod("submitSurvey"),
-    addAnswerField: legacyMethod("addSurveyAnswerField"),
-    vote: legacyMethod("voteSurvey"),
-    togglePin: legacyMethod("toggleSurveyPin"),
-    delete: legacyMethod("deleteSurvey"),
+    init(...args) {
+      return callLegacy("setupSurveyTargetHandlers", args);
+    },
+    show(...args) {
+      return callLegacy("showSurveys", args);
+    },
+    render(...args) {
+      return callLegacy("renderSurveysList", args);
+    },
+    submit(...args) {
+      return callLegacy("submitSurvey", args);
+    },
+    addAnswerField(...args) {
+      return callLegacy("addSurveyAnswerField", args);
+    },
+    vote(...args) {
+      return callLegacy("voteSurvey", args);
+    },
+    togglePin(...args) {
+      return callLegacy("toggleSurveyPin", args);
+    },
+    delete(...args) {
+      return callLegacy("deleteSurvey", args);
+    },
   });
 
   assignNamespace("admin", {
@@ -197,16 +213,30 @@
     exportPlannerExcel: legacyMethod("exportPlannerToExcel"),
     exportPlannerPDF: legacyMethod("exportPlannerToPDF"),
     exportModule: legacyMethod("handleModuleExport"),
-    openImportModal: legacyMethod("openModuleImportModal"),
-    closeImportModal: legacyMethod("closeModuleImportModal"),
-    handleImportFileChange: legacyMethod("handleModuleImportFileChange"),
-    resetImportFile: legacyMethod("resetModuleImportModalFile"),
+    openImportModal(...args) {
+      return callLegacy("openModuleImportModal", args);
+    },
+    closeImportModal(...args) {
+      return callLegacy("closeModuleImportModal", args);
+    },
+    handleImportFileChange(...args) {
+      return callLegacy("handleModuleImportFileChange", args);
+    },
+    resetImportFile(...args) {
+      return callLegacy("resetModuleImportModalFile", args);
+    },
     uploadImport: legacyMethod("uploadModuleImport"),
     exportTidplanPDF: legacyMethod("handleTidplanExportPdf"),
     exportWarehouseExcel: legacyMethod("handleWarehouseExportExcel"),
-    togglePlannerDropdown: legacyMethod("togglePlannerExportImportDropdown"),
-    toggleTidplanDropdown: legacyMethod("toggleTidplanExportImportDropdown"),
-    toggleWarehouseDropdown: legacyMethod("toggleWarehouseExportImportDropdown"),
+    togglePlannerDropdown(...args) {
+      return callLegacy("togglePlannerExportImportDropdown", args);
+    },
+    toggleTidplanDropdown(...args) {
+      return callLegacy("toggleTidplanExportImportDropdown", args);
+    },
+    toggleWarehouseDropdown(...args) {
+      return callLegacy("toggleWarehouseExportImportDropdown", args);
+    },
   });
 
   Object.assign(CMAX.importExport, {
@@ -318,9 +348,15 @@
   });
 
   assignNamespace("bins", {
-    init: legacyMethod("loadBinsData"),
-    show: legacyMethod("toggleBinsView"),
-    render: legacyMethod("renderBinsTable"),
+    init(...args) {
+      return callLegacy("loadBinsData", args);
+    },
+    show(...args) {
+      return callLegacy("toggleBinsView", args);
+    },
+    render(...args) {
+      return callLegacy("renderBinsTable", args);
+    },
     addPlan: legacyMethod("addBinPlan"),
     removePlan: legacyMethod("removeBinPlan"),
   });

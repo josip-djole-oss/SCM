@@ -7,13 +7,14 @@
 
 ## Current State Summary
 
-- `legacyMethod(...)` bindings still active: **130**
+- `legacyMethod(...)` bindings still active: **112**
 - `CMAX.compat` still active and currently required by dispatcher flow.
 - Dispatcher entrypoint still routes all `data-cmax-action` calls through namespace actions that mostly call legacy globals via `callLegacy(...)`.
 - Wave 1 completed for `utils` and `reports`: namespace entries no longer use `legacyMethod(...)`.
 - Baseline recount: pre-Wave-1 there were **156** `legacyMethod(...)` bindings; Wave 1 removed **18**.
 - Wave 2 completed for `notifications`: namespace entries no longer use `legacyMethod(...)` (removed 8 more).
 - Note: `i18n/language`, `theme`, `dialogs`, `tooltips` already covered through `CMAX.utils` in Wave 1; no separate remaining `legacyMethod(...)` entries for "storage helpers".
+- Wave 3 partial completed: `surveys` fully migrated; `bins` read/navigation migrated (`init/show/render`); `importExport` dropdown/modal UI actions migrated.
 
 ## Exact Bridge Inventory (by namespace)
 
@@ -102,15 +103,8 @@
 - `exportInventoryToPDF -> exportWarehouseInventoryToPDF`
 - `handleImportExcel -> handleWarehouseImportExcel`
 
-### `CMAX.surveys` (8)
-- `init -> setupSurveyTargetHandlers`
-- `show -> showSurveys`
-- `render -> renderSurveysList`
-- `submit -> submitSurvey`
-- `addAnswerField -> addSurveyAnswerField`
-- `vote -> voteSurvey`
-- `togglePin -> toggleSurveyPin`
-- `delete -> deleteSurvey`
+### `CMAX.surveys` (0 legacyMethod bindings)
+- migrated in Wave 3 to direct namespace methods
 
 ### `CMAX.admin` (22)
 - `init -> initAdmins`
@@ -139,31 +133,21 @@
 ### `CMAX.reports` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods
 
-### `CMAX.importExport` (16)
+### `CMAX.importExport` (9)
 - `saveAll -> saveAllData`
 - `printPlanner -> handlePrint`
 - `exportPlanner -> handleExport`
 - `exportPlannerExcel -> exportPlannerToExcel`
 - `exportPlannerPDF -> exportPlannerToPDF`
 - `exportModule -> handleModuleExport`
-- `openImportModal -> openModuleImportModal`
-- `closeImportModal -> closeModuleImportModal`
-- `handleImportFileChange -> handleModuleImportFileChange`
-- `resetImportFile -> resetModuleImportModalFile`
 - `uploadImport -> uploadModuleImport`
 - `exportTidplanPDF -> handleTidplanExportPdf`
 - `exportWarehouseExcel -> handleWarehouseExportExcel`
-- `togglePlannerDropdown -> togglePlannerExportImportDropdown`
-- `toggleTidplanDropdown -> toggleTidplanExportImportDropdown`
-- `toggleWarehouseDropdown -> toggleWarehouseExportImportDropdown`
 
 ### `CMAX.utils` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods
 
-### `CMAX.bins` (5)
-- `init -> loadBinsData`
-- `show -> toggleBinsView`
-- `render -> renderBinsTable`
+### `CMAX.bins` (2)
 - `addPlan -> addBinPlan`
 - `removePlan -> removeBinPlan`
 
