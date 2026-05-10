@@ -32,9 +32,6 @@
   }
 
   assignNamespace("core", {
-    init: legacyMethod("initApp"),
-    render: legacyMethod("renderAll"),
-    load: legacyMethod("loadAllData"),
     save: legacyMethod("saveAllData"),
     saveData: legacyMethod("saveData"),
     login: legacyMethod("handleLogin"),
@@ -267,6 +264,9 @@
     showPromptDialog: legacyMethod("showPromptDialog"),
     showToast: legacyMethod("showToast"),
     initTooltips: legacyMethod("initTooltips"),
+    reloadPage() {
+      global.location.reload();
+    },
     handleImageFallback(img) {
       if (!img?.dataset?.cmaxImageFallback) return;
       const fallback = document.getElementById(img.dataset.cmaxImageFallback);

@@ -415,7 +415,7 @@ function showDataLoadError(message) {
         <h2>Ne mogu ucitati najnovije podatke</h2>
         <p>Backend nije vratio svjeze podatke, pa aplikacija nece prikazati stare lokalne podatke.</p>
         <p style="color:var(--text-light);">${escapeHtml(message || "DATA_LOAD_FAILED")}</p>
-        <button class="btn" onclick="window.location.reload()">Pokusaj ponovo</button>
+        <button class="btn" data-cmax-action="utils.reloadPage">Pokusaj ponovo</button>
       </div>
     `;
   }

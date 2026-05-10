@@ -21,10 +21,10 @@ function showAlert(message, icon, callback) {
   const okBtn = document.createElement("button");
   okBtn.className = "btn";
   okBtn.textContent = t("btnOk");
-  okBtn.onclick = () => {
+  okBtn.addEventListener("click", () => {
     overlay.style.display = "none";
     if (callback) callback();
-  };
+  });
   btns.appendChild(okBtn);
   overlay.style.display = "flex";
 }
@@ -45,18 +45,18 @@ function showConfirm(message, title, icon, onYes, onNo) {
   const noBtn = document.createElement("button");
   noBtn.className = "btn btn-secondary";
   noBtn.textContent = safeTitle === "Print Tidplan" ? "Trenutni prikaz" : t("btnNo");
-  noBtn.onclick = () => {
+  noBtn.addEventListener("click", () => {
     overlay.style.display = "none";
     if (onNo) onNo();
-  };
+  });
 
   const yesBtn = document.createElement("button");
   yesBtn.className = "btn";
   yesBtn.textContent = safeTitle === "Print Tidplan" ? "Cijeli Tidplan" : t("btnYes");
-  yesBtn.onclick = () => {
+  yesBtn.addEventListener("click", () => {
     overlay.style.display = "none";
     if (onYes) onYes();
-  };
+  });
 
   btns.appendChild(noBtn);
   btns.appendChild(yesBtn);
@@ -81,18 +81,18 @@ function showPromptDialog(message, icon, placeholder, callback) {
   const cancelBtn = document.createElement("button");
   cancelBtn.className = "btn btn-secondary";
   cancelBtn.textContent = t("btnCancel");
-  cancelBtn.onclick = () => {
+  cancelBtn.addEventListener("click", () => {
     overlay.style.display = "none";
     callback(null);
-  };
+  });
 
   const okBtn = document.createElement("button");
   okBtn.className = "btn";
   okBtn.textContent = t("btnOk");
-  okBtn.onclick = () => {
+  okBtn.addEventListener("click", () => {
     overlay.style.display = "none";
     callback(inp.value.trim());
-  };
+  });
 
   inp.onkeypress = (e) => {
     if (e.key === "Enter") {

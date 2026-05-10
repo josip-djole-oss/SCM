@@ -91,13 +91,13 @@ function renderPastDayLockNotice(containerId) {
       label.style.fontWeight = "600";
       label.replaceChildren(checkbox, document.createTextNode(` ${toggleText}`));
     }
-    checkbox.onchange = () => {
+    checkbox.addEventListener("change", () => {
       unlockedPastDates[normalizeDateOnly(appState.currentDate)] = checkbox.checked;
       renderAll();
       if (currentView === "bins") renderBinsTable();
       if (document.getElementById("tidplan-section")?.style.display === "block") CMAX.tidplan.update();
       applyPermissionVisibility();
-    };
+    });
   }
 }
 
@@ -110,4 +110,5 @@ function canEditTidplan() {
       (appState.isAdmin && appState.permissions.canManageTidplan !== false))
   );
 }
+
 

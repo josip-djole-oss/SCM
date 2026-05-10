@@ -57,7 +57,7 @@ function renderWorkersList() {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = isPresent;
-    checkbox.onchange = () => toggleWorkerAttendance(worker);
+    checkbox.addEventListener("change", () => toggleWorkerAttendance(worker));
     if (appState.isReadonly || !canEditDate(appState.currentDate)) checkbox.disabled = true;
     tdCheck.appendChild(checkbox);
     tr.appendChild(tdCheck);
@@ -102,7 +102,7 @@ function renderLiftsList() {
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = isAvailable;
-    checkbox.onchange = () => toggleLiftAvailability(lift);
+    checkbox.addEventListener("change", () => toggleLiftAvailability(lift));
     if (appState.isReadonly || !canEditDate(appState.currentDate)) checkbox.disabled = true;
     tdCheck.appendChild(checkbox);
     tr.appendChild(tdCheck);
@@ -126,7 +126,7 @@ function renderLiftsList() {
     planInput.className = "plan-input";
     planInput.value = liftPlan;
     planInput.placeholder = "Plan";
-    planInput.oninput = () => updateLiftPlan(lift, planInput.value);
+    planInput.addEventListener("input", () => updateLiftPlan(lift, planInput.value));
     if (appState.isReadonly || !canEditDate(appState.currentDate)) planInput.disabled = true;
     tdPlan.appendChild(planInput);
     tr.appendChild(tdPlan);
@@ -258,10 +258,10 @@ function createSelectCell(fieldName, selectedValue, options, rowIndex) {
     select.appendChild(o);
   });
 
-  select.onchange = () => {
+  select.addEventListener("change", () => {
     td.dataset.pval = select.value || "-";
     handlePlanningCellChange(rowIndex, fieldName, select.value);
-  };
+  });
   td.appendChild(select);
   return td;
 }
@@ -275,10 +275,10 @@ function createCommentCell(value, rowIndex) {
   input.value = value;
   input.placeholder = "Komentar...";
   input.disabled = appState.isReadonly || !canEditDate(appState.currentDate);
-  input.oninput = () => {
+  input.addEventListener("input", () => {
     td.dataset.pval = input.value;
     handlePlanningCellChange(rowIndex, "comment", input.value);
-  };
+  });
   td.appendChild(input);
   return td;
 }
@@ -488,3 +488,4 @@ function clearAllTable() {
 }
 
 /* ==================== ADMIN PANEL ==================== */
+

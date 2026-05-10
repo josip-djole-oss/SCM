@@ -201,7 +201,7 @@ function addSurveyAnswerField() {
   const removeBtn = document.createElement("button");
   removeBtn.className = "btn btn-danger btn-small";
   removeBtn.textContent = t("surveyRemoveAnswer");
-  removeBtn.onclick = () => wrapper.remove();
+  removeBtn.addEventListener("click", () => wrapper.remove());
 
   wrapper.appendChild(input);
   wrapper.appendChild(removeBtn);

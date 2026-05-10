@@ -823,11 +823,11 @@ function renderTidplanTable() {
       if (plan === activity.plan) option.selected = true;
       selectPlan.appendChild(option);
     });
-    selectPlan.onchange = () => {
+    selectPlan.addEventListener("change", () => {
       activity.plan = selectPlan.value;
       markTidplanChanged(activityIndex, "plan");
       updateTidplan();
-    };
+    });
     tdPlan.appendChild(selectPlan);
     tr.appendChild(tdPlan);
 
@@ -845,11 +845,11 @@ function renderTidplanTable() {
         if (zone.name === activity.zona) option.selected = true;
         selectZona.appendChild(option);
       });
-    selectZona.onchange = () => {
+    selectZona.addEventListener("change", () => {
       activity.zona = selectZona.value;
       markTidplanChanged(activityIndex, "zona");
       updateTidplan();
-    };
+    });
     tdZona.appendChild(selectZona);
     tr.appendChild(tdZona);
 
@@ -865,11 +865,11 @@ function renderTidplanTable() {
       if (karna === activity.karna) option.selected = true;
       selectKarna.appendChild(option);
     });
-    selectKarna.onchange = () => {
+    selectKarna.addEventListener("change", () => {
       activity.karna = selectKarna.value;
       markTidplanChanged(activityIndex, "karna");
       updateTidplan();
-    };
+    });
     tdKarna.appendChild(selectKarna);
     tr.appendChild(tdKarna);
 
@@ -885,11 +885,11 @@ function renderTidplanTable() {
       if (moment === activity.moment) option.selected = true;
       selectMoment.appendChild(option);
     });
-    selectMoment.onchange = () => {
+    selectMoment.addEventListener("change", () => {
       activity.moment = selectMoment.value;
       markTidplanChanged(activityIndex, "moment");
       updateTidplan();
-    };
+    });
     tdMoment.appendChild(selectMoment);
     tr.appendChild(tdMoment);
 
@@ -899,11 +899,11 @@ function renderTidplanTable() {
     inputResursi.value = activity.resursi || 1;
     inputResursi.min = 1;
     inputResursi.disabled = !editableTidplan;
-    inputResursi.onchange = () => {
+    inputResursi.addEventListener("change", () => {
       activity.resursi = parseInt(inputResursi.value) || 1;
       markTidplanChanged(activityIndex, "resursi");
       updateTidplan();
-    };
+    });
     tdResursi.appendChild(inputResursi);
     tr.appendChild(tdResursi);
 
@@ -912,11 +912,11 @@ function renderTidplanTable() {
     inputStart.type = "date";
     inputStart.value = activity.start || "";
     inputStart.disabled = !editableTidplan;
-    inputStart.onchange = () => {
+    inputStart.addEventListener("change", () => {
       activity.start = inputStart.value;
       markTidplanChanged(activityIndex, "start");
       updateTidplan();
-    };
+    });
     tdStart.appendChild(inputStart);
     tr.appendChild(tdStart);
 
@@ -925,11 +925,11 @@ function renderTidplanTable() {
     inputEnd.type = "date";
     inputEnd.value = activity.end || "";
     inputEnd.disabled = !editableTidplan;
-    inputEnd.onchange = () => {
+    inputEnd.addEventListener("change", () => {
       activity.end = inputEnd.value;
       markTidplanChanged(activityIndex, "end");
       updateTidplan();
-    };
+    });
     tdEnd.appendChild(inputEnd);
     tr.appendChild(tdEnd);
 
@@ -940,11 +940,11 @@ function renderTidplanTable() {
     inputKomentar.className = "tidplan-comment-input";
     inputKomentar.value = activity.komentar || "";
     inputKomentar.disabled = !editableTidplan;
-    inputKomentar.onchange = () => {
+    inputKomentar.addEventListener("change", () => {
       activity.komentar = inputKomentar.value;
       markTidplanChanged(activityIndex, "komentar");
       updateTidplan();
-    };
+    });
     tdKomentar.appendChild(inputKomentar);
     tr.appendChild(tdKomentar);
 
@@ -953,7 +953,7 @@ function renderTidplanTable() {
     btnToggleActive.className = `btn btn-small ${isTidplanActivityInactive(activity) ? "" : "btn-secondary"}`;
     btnToggleActive.disabled = !editableTidplan;
     btnToggleActive.textContent = isTidplanActivityInactive(activity) ? "Uključi" : "Isključi";
-    btnToggleActive.onclick = () => toggleTidplanActivityActive(Number(tr.dataset.activityIndex));
+    btnToggleActive.addEventListener("click", () => toggleTidplanActivityActive(Number(tr.dataset.activityIndex)));
     tdActions.appendChild(btnToggleActive);
 
     const btnDelete = document.createElement("button");
@@ -961,14 +961,14 @@ function renderTidplanTable() {
     btnDelete.disabled =
       !editableTidplan || !hasPermission("canDeleteTidplanActivity");
     btnDelete.textContent = "−";
-    btnDelete.onclick = () => {
+    btnDelete.addEventListener("click", () => {
       const toDeleteIndex = Number(tr.dataset.activityIndex);
       if (toDeleteIndex >= 0) {
         tidplanData.splice(toDeleteIndex, 1);
         markTidplanChanged(toDeleteIndex, "activity");
         updateTidplan();
       }
-    };
+    });
     tdActions.appendChild(document.createTextNode(" "));
     tdActions.appendChild(btnDelete);
     tr.appendChild(tdActions);
@@ -1552,7 +1552,13 @@ function saveAvailableKarne() {
 
 
 /* ==================== APP START ==================== */
-window.onerror = function (msg, url, lineNo, columnNo, error) {
+window.addEventListener("error", (event) => {
+  if (!(event instanceof ErrorEvent)) return;
+  const msg = event.message;
+  const url = event.filename;
+  const lineNo = event.lineno;
+  const columnNo = event.colno;
+  const error = event.error;
   const message = `JavaScript greška: ${msg} (${url}:${lineNo}:${columnNo})`;
   console.error(message, error);
   document.body.innerHTML = `<div style="padding:20px;color:#b00;background:#fee;font-family:sans-serif;">
@@ -1560,7 +1566,7 @@ window.onerror = function (msg, url, lineNo, columnNo, error) {
     <pre>${message}</pre>
     <p>Osvježite stranicu ili pogledajte konzolu za detalje.</p>
   </div>`;
-  return false;
-};
+});
+
 
 

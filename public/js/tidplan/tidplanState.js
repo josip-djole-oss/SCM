@@ -100,7 +100,7 @@ function renderZoneList() {
       nameSpan.textContent = zone.name;
       btn.appendChild(colorDot);
       btn.appendChild(nameSpan);
-      btn.onclick = () => {
+      btn.addEventListener("click", () => {
         if (!editableTidplan) return;
         showConfirm(`Želite li ukloniti zonu '${zone.name}'?`, null, "⚠️", () => {
           tidplanZones = tidplanZones.filter((z) => z.name !== zone.name);
@@ -108,7 +108,7 @@ function renderZoneList() {
           CMAX.tidplan.update();
           renderZoneList();
         });
-      };
+      });
       zoneList.appendChild(btn);
     });
 }
@@ -150,5 +150,6 @@ function loadTidplanData() {
 
   collectPlans();
 }
+
 
 
