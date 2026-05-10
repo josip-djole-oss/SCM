@@ -7,7 +7,7 @@
 
 ## Current State Summary
 
-- `legacyMethod(...)` bindings still active: **83**
+- `legacyMethod(...)` bindings still active: **57**
 - `CMAX.compat` still active and currently required by dispatcher flow.
 - Dispatcher entrypoint still routes all `data-cmax-action` calls through namespace actions that mostly call legacy globals via `callLegacy(...)`.
 - Wave 1 completed for `utils` and `reports`: namespace entries no longer use `legacyMethod(...)`.
@@ -17,6 +17,7 @@
 - Wave 3 partial completed: `surveys` fully migrated; `bins` read/navigation migrated (`init/show/render`); `importExport` dropdown/modal UI actions migrated.
 - Wave 4 partial completed: admin shell + backup list/view bridge entries migrated (`open/close/switchTab/openBackupRestorePanel/loadBackupRestoreOptions/listBackups/showBackupInfo/selectBackupForRestore`).
 - Wave 5 completed for planner UI/resource actions and remaining bins actions; planner import/export bridge entries migrated.
+- Wave 6 completed for warehouse UI/navigation/stock/catalog/log actions and warehouse export bridge entry.
 
 ## Exact Bridge Inventory (by namespace)
 
@@ -66,31 +67,8 @@
 - `removeMoment -> removeMoment`
 - `removeKarna -> removeKarna`
 
-### `CMAX.warehouse` (25)
-- `init/render -> renderWarehousePage`
-- `show -> showWarehouse`
-- `save -> persistWarehouseData`
-- `showLogs -> showWarehouseLogs`
-- `showGraph -> showWarehouseGraph`
-- `updateStockForm -> updateWarehouseStockForm`
-- `updateStockFormFromEvent -> updateWarehouseStockFormFromEvent`
-- `saveStockAdjustment -> saveWarehouseStockAdjustment`
-- `saveIssueRow -> saveWarehouseIssueRow`
-- `updateIssueDraftWorker -> updateWarehouseIssueDraftWorker`
-- `updateIssueDraftSlotItem -> updateWarehouseIssueDraftSlotItem`
-- `updateIssueDraftSlotQuantity -> updateWarehouseIssueDraftSlotQuantity`
-- `updateIssueDraftComment -> updateWarehouseIssueDraftComment`
-- `toggleProcurementUser -> toggleWarehouseProcurementUser`
-- `addCatalogItem -> addWarehouseCatalogItem`
-- `removeCatalogItem -> removeWarehouseCatalogItem`
-- `setCatalogItemLimit -> setWarehouseCatalogItemLimit`
-- `applyLogFilters -> applyWarehouseLogFilters`
-- `resetLogFilters -> resetWarehouseLogFilters`
-- `deleteLog -> deleteWarehouseLog`
-- `clearLogs -> clearAllWarehouseLogs`
-- `printInventory -> printWarehouseInventory`
-- `exportInventoryToPDF -> exportWarehouseInventoryToPDF`
-- `handleImportExcel -> handleWarehouseImportExcel`
+### `CMAX.warehouse` (0 legacyMethod bindings)
+- migrated in Wave 6 to direct namespace methods
 
 ### `CMAX.surveys` (0 legacyMethod bindings)
 - migrated in Wave 3 to direct namespace methods
@@ -114,12 +92,11 @@
 ### `CMAX.reports` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods
 
-### `CMAX.importExport` (5)
+### `CMAX.importExport` (4)
 - `saveAll -> saveAllData`
 - `exportModule -> handleModuleExport`
 - `uploadImport -> uploadModuleImport`
 - `exportTidplanPDF -> handleTidplanExportPdf`
-- `exportWarehouseExcel -> handleWarehouseExportExcel`
 
 ### `CMAX.utils` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods

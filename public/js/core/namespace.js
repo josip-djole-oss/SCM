@@ -127,31 +127,81 @@
   });
 
   assignNamespace("warehouse", {
-    init: legacyMethod("renderWarehousePage"),
-    show: legacyMethod("showWarehouse"),
-    render: legacyMethod("renderWarehousePage"),
-    save: legacyMethod("persistWarehouseData"),
-    showLogs: legacyMethod("showWarehouseLogs"),
-    showGraph: legacyMethod("showWarehouseGraph"),
-    updateStockForm: legacyMethod("updateWarehouseStockForm"),
-    updateStockFormFromEvent: legacyMethod("updateWarehouseStockFormFromEvent"),
-    saveStockAdjustment: legacyMethod("saveWarehouseStockAdjustment"),
-    saveIssueRow: legacyMethod("saveWarehouseIssueRow"),
-    updateIssueDraftWorker: legacyMethod("updateWarehouseIssueDraftWorker"),
-    updateIssueDraftSlotItem: legacyMethod("updateWarehouseIssueDraftSlotItem"),
-    updateIssueDraftSlotQuantity: legacyMethod("updateWarehouseIssueDraftSlotQuantity"),
-    updateIssueDraftComment: legacyMethod("updateWarehouseIssueDraftComment"),
-    toggleProcurementUser: legacyMethod("toggleWarehouseProcurementUser"),
-    addCatalogItem: legacyMethod("addWarehouseCatalogItem"),
-    removeCatalogItem: legacyMethod("removeWarehouseCatalogItem"),
-    setCatalogItemLimit: legacyMethod("setWarehouseCatalogItemLimit"),
-    applyLogFilters: legacyMethod("applyWarehouseLogFilters"),
-    resetLogFilters: legacyMethod("resetWarehouseLogFilters"),
-    deleteLog: legacyMethod("deleteWarehouseLog"),
-    clearLogs: legacyMethod("clearAllWarehouseLogs"),
-    printInventory: legacyMethod("printWarehouseInventory"),
-    exportInventoryToPDF: legacyMethod("exportWarehouseInventoryToPDF"),
-    handleImportExcel: legacyMethod("handleWarehouseImportExcel"),
+    init(...args) {
+      return callLegacy("renderWarehousePage", args);
+    },
+    show(...args) {
+      return callLegacy("showWarehouse", args);
+    },
+    render(...args) {
+      return callLegacy("renderWarehousePage", args);
+    },
+    save(...args) {
+      return callLegacy("persistWarehouseData", args);
+    },
+    showLogs(...args) {
+      return callLegacy("showWarehouseLogs", args);
+    },
+    showGraph(...args) {
+      return callLegacy("showWarehouseGraph", args);
+    },
+    updateStockForm(...args) {
+      return callLegacy("updateWarehouseStockForm", args);
+    },
+    updateStockFormFromEvent(...args) {
+      return callLegacy("updateWarehouseStockFormFromEvent", args);
+    },
+    saveStockAdjustment(...args) {
+      return callLegacy("saveWarehouseStockAdjustment", args);
+    },
+    saveIssueRow(...args) {
+      return callLegacy("saveWarehouseIssueRow", args);
+    },
+    updateIssueDraftWorker(...args) {
+      return callLegacy("updateWarehouseIssueDraftWorker", args);
+    },
+    updateIssueDraftSlotItem(...args) {
+      return callLegacy("updateWarehouseIssueDraftSlotItem", args);
+    },
+    updateIssueDraftSlotQuantity(...args) {
+      return callLegacy("updateWarehouseIssueDraftSlotQuantity", args);
+    },
+    updateIssueDraftComment(...args) {
+      return callLegacy("updateWarehouseIssueDraftComment", args);
+    },
+    toggleProcurementUser(...args) {
+      return callLegacy("toggleWarehouseProcurementUser", args);
+    },
+    addCatalogItem(...args) {
+      return callLegacy("addWarehouseCatalogItem", args);
+    },
+    removeCatalogItem(...args) {
+      return callLegacy("removeWarehouseCatalogItem", args);
+    },
+    setCatalogItemLimit(...args) {
+      return callLegacy("setWarehouseCatalogItemLimit", args);
+    },
+    applyLogFilters(...args) {
+      return callLegacy("applyWarehouseLogFilters", args);
+    },
+    resetLogFilters(...args) {
+      return callLegacy("resetWarehouseLogFilters", args);
+    },
+    deleteLog(...args) {
+      return callLegacy("deleteWarehouseLog", args);
+    },
+    clearLogs(...args) {
+      return callLegacy("clearAllWarehouseLogs", args);
+    },
+    printInventory(...args) {
+      return callLegacy("printWarehouseInventory", args);
+    },
+    exportInventoryToPDF(...args) {
+      return callLegacy("exportWarehouseInventoryToPDF", args);
+    },
+    handleImportExcel(...args) {
+      return callLegacy("handleWarehouseImportExcel", args);
+    },
   });
 
   assignNamespace("surveys", {
@@ -281,7 +331,9 @@
     },
     uploadImport: legacyMethod("uploadModuleImport"),
     exportTidplanPDF: legacyMethod("handleTidplanExportPdf"),
-    exportWarehouseExcel: legacyMethod("handleWarehouseExportExcel"),
+    exportWarehouseExcel(...args) {
+      return callLegacy("handleWarehouseExportExcel", args);
+    },
     togglePlannerDropdown(...args) {
       return callLegacy("togglePlannerExportImportDropdown", args);
     },
