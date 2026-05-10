@@ -56,21 +56,51 @@
   });
 
   assignNamespace("planner", {
-    init: legacyMethod("renderAll"),
-    render: legacyMethod("renderAll"),
-    save: legacyMethod("saveData"),
-    addRow: legacyMethod("addPlanningRow"),
-    removeRow: legacyMethod("removePlanningRow"),
-    clear: legacyMethod("clearAllTable"),
-    toggleList: legacyMethod("toggleList"),
-    openManagePanel: legacyMethod("openManagePanel"),
-    closeManagePanel: legacyMethod("closeManagePanel"),
-    manageSelectCategory: legacyMethod("manageSelectCategory"),
-    manageGoBack: legacyMethod("manageGoBack"),
-    manageGoAdd: legacyMethod("manageGoAdd"),
-    manageGoRemove: legacyMethod("manageGoRemove"),
-    manageDoAdd: legacyMethod("manageDoAdd"),
-    manageRemoveItem: legacyMethod("manageRemoveItem"),
+    init(...args) {
+      return callLegacy("renderAll", args);
+    },
+    render(...args) {
+      return callLegacy("renderAll", args);
+    },
+    save(...args) {
+      return callLegacy("saveData", args);
+    },
+    addRow(...args) {
+      return callLegacy("addPlanningRow", args);
+    },
+    removeRow(...args) {
+      return callLegacy("removePlanningRow", args);
+    },
+    clear(...args) {
+      return callLegacy("clearAllTable", args);
+    },
+    toggleList(...args) {
+      return callLegacy("toggleList", args);
+    },
+    openManagePanel(...args) {
+      return callLegacy("openManagePanel", args);
+    },
+    closeManagePanel(...args) {
+      return callLegacy("closeManagePanel", args);
+    },
+    manageSelectCategory(...args) {
+      return callLegacy("manageSelectCategory", args);
+    },
+    manageGoBack(...args) {
+      return callLegacy("manageGoBack", args);
+    },
+    manageGoAdd(...args) {
+      return callLegacy("manageGoAdd", args);
+    },
+    manageGoRemove(...args) {
+      return callLegacy("manageGoRemove", args);
+    },
+    manageDoAdd(...args) {
+      return callLegacy("manageDoAdd", args);
+    },
+    manageRemoveItem(...args) {
+      return callLegacy("manageRemoveItem", args);
+    },
   });
 
   assignNamespace("tidplan", {
@@ -224,10 +254,18 @@
 
   assignNamespace("importExport", {
     saveAll: legacyMethod("saveAllData"),
-    printPlanner: legacyMethod("handlePrint"),
-    exportPlanner: legacyMethod("handleExport"),
-    exportPlannerExcel: legacyMethod("exportPlannerToExcel"),
-    exportPlannerPDF: legacyMethod("exportPlannerToPDF"),
+    printPlanner(...args) {
+      return callLegacy("handlePrint", args);
+    },
+    exportPlanner(...args) {
+      return callLegacy("handleExport", args);
+    },
+    exportPlannerExcel(...args) {
+      return callLegacy("exportPlannerToExcel", args);
+    },
+    exportPlannerPDF(...args) {
+      return callLegacy("exportPlannerToPDF", args);
+    },
     exportModule: legacyMethod("handleModuleExport"),
     openImportModal(...args) {
       return callLegacy("openModuleImportModal", args);
@@ -373,8 +411,12 @@
     render(...args) {
       return callLegacy("renderBinsTable", args);
     },
-    addPlan: legacyMethod("addBinPlan"),
-    removePlan: legacyMethod("removeBinPlan"),
+    addPlan(...args) {
+      return callLegacy("addBinPlan", args);
+    },
+    removePlan(...args) {
+      return callLegacy("removeBinPlan", args);
+    },
   });
 
   assignNamespace("notifications", {

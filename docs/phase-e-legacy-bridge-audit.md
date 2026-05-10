@@ -7,7 +7,7 @@
 
 ## Current State Summary
 
-- `legacyMethod(...)` bindings still active: **104**
+- `legacyMethod(...)` bindings still active: **83**
 - `CMAX.compat` still active and currently required by dispatcher flow.
 - Dispatcher entrypoint still routes all `data-cmax-action` calls through namespace actions that mostly call legacy globals via `callLegacy(...)`.
 - Wave 1 completed for `utils` and `reports`: namespace entries no longer use `legacyMethod(...)`.
@@ -16,6 +16,7 @@
 - Note: `i18n/language`, `theme`, `dialogs`, `tooltips` already covered through `CMAX.utils` in Wave 1; no separate remaining `legacyMethod(...)` entries for "storage helpers".
 - Wave 3 partial completed: `surveys` fully migrated; `bins` read/navigation migrated (`init/show/render`); `importExport` dropdown/modal UI actions migrated.
 - Wave 4 partial completed: admin shell + backup list/view bridge entries migrated (`open/close/switchTab/openBackupRestorePanel/loadBackupRestoreOptions/listBackups/showBackupInfo/selectBackupForRestore`).
+- Wave 5 completed for planner UI/resource actions and remaining bins actions; planner import/export bridge entries migrated.
 
 ## Exact Bridge Inventory (by namespace)
 
@@ -41,21 +42,8 @@
 - `remove -> removeSite`
 - `updateTitle -> updateMainTitle`
 
-### `CMAX.planner` (15)
-- `init/render -> renderAll`
-- `save -> saveData`
-- `addRow -> addPlanningRow`
-- `removeRow -> removePlanningRow`
-- `clear -> clearAllTable`
-- `toggleList -> toggleList`
-- `openManagePanel -> openManagePanel`
-- `closeManagePanel -> closeManagePanel`
-- `manageSelectCategory -> manageSelectCategory`
-- `manageGoBack -> manageGoBack`
-- `manageGoAdd -> manageGoAdd`
-- `manageGoRemove -> manageGoRemove`
-- `manageDoAdd -> manageDoAdd`
-- `manageRemoveItem -> manageRemoveItem`
+### `CMAX.planner` (0 legacyMethod bindings)
+- migrated in Wave 5 to direct namespace methods
 
 ### `CMAX.tidplan` (20)
 - `init -> loadTidplanData`
@@ -126,12 +114,8 @@
 ### `CMAX.reports` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods
 
-### `CMAX.importExport` (9)
+### `CMAX.importExport` (5)
 - `saveAll -> saveAllData`
-- `printPlanner -> handlePrint`
-- `exportPlanner -> handleExport`
-- `exportPlannerExcel -> exportPlannerToExcel`
-- `exportPlannerPDF -> exportPlannerToPDF`
 - `exportModule -> handleModuleExport`
 - `uploadImport -> uploadModuleImport`
 - `exportTidplanPDF -> handleTidplanExportPdf`
@@ -140,9 +124,8 @@
 ### `CMAX.utils` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods
 
-### `CMAX.bins` (2)
-- `addPlan -> addBinPlan`
-- `removePlan -> removeBinPlan`
+### `CMAX.bins` (0 legacyMethod bindings)
+- migrated in Wave 5 to direct namespace methods
 
 ### `CMAX.notifications` (0 legacyMethod bindings)
 - migrated in Wave 2 to direct namespace methods
