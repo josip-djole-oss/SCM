@@ -7,11 +7,13 @@
 
 ## Current State Summary
 
-- `legacyMethod(...)` bindings still active: **138**
+- `legacyMethod(...)` bindings still active: **130**
 - `CMAX.compat` still active and currently required by dispatcher flow.
 - Dispatcher entrypoint still routes all `data-cmax-action` calls through namespace actions that mostly call legacy globals via `callLegacy(...)`.
 - Wave 1 completed for `utils` and `reports`: namespace entries no longer use `legacyMethod(...)`.
 - Baseline recount: pre-Wave-1 there were **156** `legacyMethod(...)` bindings; Wave 1 removed **18**.
+- Wave 2 completed for `notifications`: namespace entries no longer use `legacyMethod(...)` (removed 8 more).
+- Note: `i18n/language`, `theme`, `dialogs`, `tooltips` already covered through `CMAX.utils` in Wave 1; no separate remaining `legacyMethod(...)` entries for "storage helpers".
 
 ## Exact Bridge Inventory (by namespace)
 
@@ -165,15 +167,8 @@
 - `addPlan -> addBinPlan`
 - `removePlan -> removeBinPlan`
 
-### `CMAX.notifications` (8)
-- `show -> showNotifications`
-- `submit -> submitNotification`
-- `openPrintChooser -> openNotificationPrintChooser`
-- `closePrintChooser -> closeNotificationPrintChooser`
-- `printSelected -> printSelectedNotification`
-- `closeViewer -> closeNotificationViewer`
-- `previousImage -> prevNotificationImage`
-- `nextImage -> nextNotificationImage`
+### `CMAX.notifications` (0 legacyMethod bindings)
+- migrated in Wave 2 to direct namespace methods
 
 ## Recommended Migration Order (no feature logic changes)
 

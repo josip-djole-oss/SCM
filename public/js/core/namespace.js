@@ -326,14 +326,30 @@
   });
 
   assignNamespace("notifications", {
-    show: legacyMethod("showNotifications"),
-    submit: legacyMethod("submitNotification"),
-    openPrintChooser: legacyMethod("openNotificationPrintChooser"),
-    closePrintChooser: legacyMethod("closeNotificationPrintChooser"),
-    printSelected: legacyMethod("printSelectedNotification"),
-    closeViewer: legacyMethod("closeNotificationViewer"),
-    previousImage: legacyMethod("prevNotificationImage"),
-    nextImage: legacyMethod("nextNotificationImage"),
+    show(...args) {
+      return callLegacy("showNotifications", args);
+    },
+    submit(...args) {
+      return callLegacy("submitNotification", args);
+    },
+    openPrintChooser(...args) {
+      return callLegacy("openNotificationPrintChooser", args);
+    },
+    closePrintChooser(...args) {
+      return callLegacy("closeNotificationPrintChooser", args);
+    },
+    printSelected(...args) {
+      return callLegacy("printSelectedNotification", args);
+    },
+    closeViewer(...args) {
+      return callLegacy("closeNotificationViewer", args);
+    },
+    previousImage(...args) {
+      return callLegacy("prevNotificationImage", args);
+    },
+    nextImage(...args) {
+      return callLegacy("nextNotificationImage", args);
+    },
   });
 
   function resolveAction(path) {
