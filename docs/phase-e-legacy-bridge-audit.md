@@ -7,7 +7,7 @@
 
 ## Current State Summary
 
-- `legacyMethod(...)` bindings still active: **36**
+- `legacyMethod(...)` bindings still active: **14**
 - `CMAX.compat` still active and currently required by dispatcher flow.
 - Dispatcher entrypoint still routes all `data-cmax-action` calls through namespace actions that mostly call legacy globals via `callLegacy(...)`.
 - Wave 1 completed for `utils` and `reports`: namespace entries no longer use `legacyMethod(...)`.
@@ -19,30 +19,15 @@
 - Wave 5 completed for planner UI/resource actions and remaining bins actions; planner import/export bridge entries migrated.
 - Wave 6 completed for warehouse UI/navigation/stock/catalog/log actions and warehouse export bridge entry.
 - Wave 7 completed for tidplan UI/save/clear/row actions and tidplan export bridge entry.
+- Wave 8 completed for core auth/login shell bindings, site switching bindings, and critical save/import-export bridge bindings (`saveAll`, `exportModule`, `uploadImport`).
 
 ## Exact Bridge Inventory (by namespace)
 
-### `CMAX.core` (7)
-- `save -> saveAllData`
-- `saveData -> saveData`
-- `login -> handleLogin`
-- `enterReadonlyMode -> enterReadonlyMode`
-- `switchToLogin -> switchToLogin`
-- `logout -> logout`
-- `applyPermissions -> applyPermissionVisibility`
+### `CMAX.core` (0 legacyMethod bindings)
+- migrated in Wave 8 to direct namespace methods
 
-### `CMAX.sites` (11)
-- `init -> populateSiteSelect`
-- `render -> renderSiteSwitcher`
-- `switchSite -> changeSite`
-- `switchSiteFromLocal -> switchSiteFromLocal`
-- `toggleDropdown -> toggleSiteDropdown`
-- `closeDropdown -> closeSiteDropdown`
-- `promptAdd -> promptAddSite`
-- `confirmRemove -> confirmRemoveSite`
-- `add -> addSite`
-- `remove -> removeSite`
-- `updateTitle -> updateMainTitle`
+### `CMAX.sites` (0 legacyMethod bindings)
+- migrated in Wave 8 to direct namespace methods
 
 ### `CMAX.planner` (0 legacyMethod bindings)
 - migrated in Wave 5 to direct namespace methods
@@ -75,10 +60,8 @@
 ### `CMAX.reports` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods
 
-### `CMAX.importExport` (3)
-- `saveAll -> saveAllData`
-- `exportModule -> handleModuleExport`
-- `uploadImport -> uploadModuleImport`
+### `CMAX.importExport` (0 legacyMethod bindings)
+- migrated through Waves 3, 5, 6, 7, 8
 
 ### `CMAX.utils` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods

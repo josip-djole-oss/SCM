@@ -32,27 +32,63 @@
   }
 
   assignNamespace("core", {
-    save: legacyMethod("saveAllData"),
-    saveData: legacyMethod("saveData"),
-    login: legacyMethod("handleLogin"),
-    enterReadonlyMode: legacyMethod("enterReadonlyMode"),
-    switchToLogin: legacyMethod("switchToLogin"),
-    logout: legacyMethod("logout"),
-    applyPermissions: legacyMethod("applyPermissionVisibility"),
+    save(...args) {
+      return callLegacy("saveAllData", args);
+    },
+    saveData(...args) {
+      return callLegacy("saveData", args);
+    },
+    login(...args) {
+      return callLegacy("handleLogin", args);
+    },
+    enterReadonlyMode(...args) {
+      return callLegacy("enterReadonlyMode", args);
+    },
+    switchToLogin(...args) {
+      return callLegacy("switchToLogin", args);
+    },
+    logout(...args) {
+      return callLegacy("logout", args);
+    },
+    applyPermissions(...args) {
+      return callLegacy("applyPermissionVisibility", args);
+    },
   });
 
   assignNamespace("sites", {
-    init: legacyMethod("populateSiteSelect"),
-    render: legacyMethod("renderSiteSwitcher"),
-    switchSite: legacyMethod("changeSite"),
-    switchSiteFromLocal: legacyMethod("switchSiteFromLocal"),
-    toggleDropdown: legacyMethod("toggleSiteDropdown"),
-    closeDropdown: legacyMethod("closeSiteDropdown"),
-    promptAdd: legacyMethod("promptAddSite"),
-    confirmRemove: legacyMethod("confirmRemoveSite"),
-    add: legacyMethod("addSite"),
-    remove: legacyMethod("removeSite"),
-    updateTitle: legacyMethod("updateMainTitle"),
+    init(...args) {
+      return callLegacy("populateSiteSelect", args);
+    },
+    render(...args) {
+      return callLegacy("renderSiteSwitcher", args);
+    },
+    switchSite(...args) {
+      return callLegacy("changeSite", args);
+    },
+    switchSiteFromLocal(...args) {
+      return callLegacy("switchSiteFromLocal", args);
+    },
+    toggleDropdown(...args) {
+      return callLegacy("toggleSiteDropdown", args);
+    },
+    closeDropdown(...args) {
+      return callLegacy("closeSiteDropdown", args);
+    },
+    promptAdd(...args) {
+      return callLegacy("promptAddSite", args);
+    },
+    confirmRemove(...args) {
+      return callLegacy("confirmRemoveSite", args);
+    },
+    add(...args) {
+      return callLegacy("addSite", args);
+    },
+    remove(...args) {
+      return callLegacy("removeSite", args);
+    },
+    updateTitle(...args) {
+      return callLegacy("updateMainTitle", args);
+    },
   });
 
   assignNamespace("planner", {
@@ -343,7 +379,9 @@
   });
 
   assignNamespace("importExport", {
-    saveAll: legacyMethod("saveAllData"),
+    saveAll(...args) {
+      return callLegacy("saveAllData", args);
+    },
     printPlanner(...args) {
       return callLegacy("handlePrint", args);
     },
@@ -356,7 +394,9 @@
     exportPlannerPDF(...args) {
       return callLegacy("exportPlannerToPDF", args);
     },
-    exportModule: legacyMethod("handleModuleExport"),
+    exportModule(...args) {
+      return callLegacy("handleModuleExport", args);
+    },
     openImportModal(...args) {
       return callLegacy("openModuleImportModal", args);
     },
@@ -369,7 +409,9 @@
     resetImportFile(...args) {
       return callLegacy("resetModuleImportModalFile", args);
     },
-    uploadImport: legacyMethod("uploadModuleImport"),
+    uploadImport(...args) {
+      return callLegacy("uploadModuleImport", args);
+    },
     exportTidplanPDF(...args) {
       return callLegacy("handleTidplanExportPdf", args);
     },
