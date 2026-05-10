@@ -7,7 +7,7 @@
 
 ## Current State Summary
 
-- `legacyMethod(...)` bindings still active: **112**
+- `legacyMethod(...)` bindings still active: **104**
 - `CMAX.compat` still active and currently required by dispatcher flow.
 - Dispatcher entrypoint still routes all `data-cmax-action` calls through namespace actions that mostly call legacy globals via `callLegacy(...)`.
 - Wave 1 completed for `utils` and `reports`: namespace entries no longer use `legacyMethod(...)`.
@@ -15,6 +15,7 @@
 - Wave 2 completed for `notifications`: namespace entries no longer use `legacyMethod(...)` (removed 8 more).
 - Note: `i18n/language`, `theme`, `dialogs`, `tooltips` already covered through `CMAX.utils` in Wave 1; no separate remaining `legacyMethod(...)` entries for "storage helpers".
 - Wave 3 partial completed: `surveys` fully migrated; `bins` read/navigation migrated (`init/show/render`); `importExport` dropdown/modal UI actions migrated.
+- Wave 4 partial completed: admin shell + backup list/view bridge entries migrated (`open/close/switchTab/openBackupRestorePanel/loadBackupRestoreOptions/listBackups/showBackupInfo/selectBackupForRestore`).
 
 ## Exact Bridge Inventory (by namespace)
 
@@ -106,11 +107,8 @@
 ### `CMAX.surveys` (0 legacyMethod bindings)
 - migrated in Wave 3 to direct namespace methods
 
-### `CMAX.admin` (22)
+### `CMAX.admin` (14)
 - `init -> initAdmins`
-- `open -> openAdminPanel`
-- `close -> closeAdminPanel`
-- `switchTab -> switchTab`
 - `addNewAdmin -> addNewAdmin`
 - `saveGuestAccessSettings -> saveGuestAccessSettings`
 - `togglePerms -> toggleAdminPerms`
@@ -122,13 +120,8 @@
 - `resetTidplanLayoutSettings -> resetTidplanLayoutSettings`
 - `resetThemeSettings -> resetThemeSettings`
 - `runManualBackup -> runManualBackup`
-- `openBackupRestorePanel -> openBackupRestorePanel`
-- `loadBackupRestoreOptions -> loadBackupRestoreOptions`
 - `restoreSelectedBackup -> restoreSelectedBackup`
 - `confirmRestoreBackup -> confirmRestoreBackup`
-- `listBackups -> handleListBackups`
-- `showBackupInfo -> handleBackupInfo`
-- `selectBackupForRestore -> selectBackupForRestore`
 
 ### `CMAX.reports` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods

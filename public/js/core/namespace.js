@@ -153,9 +153,15 @@
 
   assignNamespace("admin", {
     init: legacyMethod("initAdmins"),
-    open: legacyMethod("openAdminPanel"),
-    close: legacyMethod("closeAdminPanel"),
-    switchTab: legacyMethod("switchTab"),
+    open(...args) {
+      return callLegacy("openAdminPanel", args);
+    },
+    close(...args) {
+      return callLegacy("closeAdminPanel", args);
+    },
+    switchTab(...args) {
+      return callLegacy("switchTab", args);
+    },
     addNewAdmin: legacyMethod("addNewAdmin"),
     saveGuestAccessSettings: legacyMethod("saveGuestAccessSettings"),
     togglePerms: legacyMethod("toggleAdminPerms"),
@@ -167,13 +173,23 @@
     resetTidplanLayoutSettings: legacyMethod("resetTidplanLayoutSettings"),
     resetThemeSettings: legacyMethod("resetThemeSettings"),
     runManualBackup: legacyMethod("runManualBackup"),
-    openBackupRestorePanel: legacyMethod("openBackupRestorePanel"),
-    loadBackupRestoreOptions: legacyMethod("loadBackupRestoreOptions"),
+    openBackupRestorePanel(...args) {
+      return callLegacy("openBackupRestorePanel", args);
+    },
+    loadBackupRestoreOptions(...args) {
+      return callLegacy("loadBackupRestoreOptions", args);
+    },
     restoreSelectedBackup: legacyMethod("restoreSelectedBackup"),
     confirmRestoreBackup: legacyMethod("confirmRestoreBackup"),
-    listBackups: legacyMethod("handleListBackups"),
-    showBackupInfo: legacyMethod("handleBackupInfo"),
-    selectBackupForRestore: legacyMethod("selectBackupForRestore"),
+    listBackups(...args) {
+      return callLegacy("handleListBackups", args);
+    },
+    showBackupInfo(...args) {
+      return callLegacy("handleBackupInfo", args);
+    },
+    selectBackupForRestore(...args) {
+      return callLegacy("selectBackupForRestore", args);
+    },
   });
 
   assignNamespace("reports", {
