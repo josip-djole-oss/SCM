@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "install-deps": "npm install"
+    "install-deps": "npm install",
+    "audit:dead-code": "node scripts/dead-code-audit.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
