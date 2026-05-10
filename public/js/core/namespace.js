@@ -161,15 +161,33 @@
   });
 
   assignNamespace("reports", {
-    open: legacyMethod("openReportModal"),
-    close: legacyMethod("closeReportModal"),
-    submit: legacyMethod("submitReport"),
-    filter: legacyMethod("filterReports"),
-    review: legacyMethod("reviewReport"),
-    delete: legacyMethod("deleteReport"),
-    openChangePassword: legacyMethod("openChangePasswordModal"),
-    closeChangePassword: legacyMethod("closeChangePasswordModal"),
-    submitChangePassword: legacyMethod("submitChangePassword"),
+    open(...args) {
+      return callLegacy("openReportModal", args);
+    },
+    close(...args) {
+      return callLegacy("closeReportModal", args);
+    },
+    submit(...args) {
+      return callLegacy("submitReport", args);
+    },
+    filter(...args) {
+      return callLegacy("filterReports", args);
+    },
+    review(...args) {
+      return callLegacy("reviewReport", args);
+    },
+    delete(...args) {
+      return callLegacy("deleteReport", args);
+    },
+    openChangePassword(...args) {
+      return callLegacy("openChangePasswordModal", args);
+    },
+    closeChangePassword(...args) {
+      return callLegacy("closeChangePasswordModal", args);
+    },
+    submitChangePassword(...args) {
+      return callLegacy("submitChangePassword", args);
+    },
   });
 
   assignNamespace("importExport", {
@@ -255,15 +273,33 @@
   });
 
   assignNamespace("utils", {
-    setLanguage: legacyMethod("setLanguage"),
-    toggleDarkMode: legacyMethod("toggleDarkMode"),
-    setColorTheme: legacyMethod("setColorTheme"),
-    toggleBinPermission: legacyMethod("toggleBinPermission"),
-    showAlert: legacyMethod("showAlert"),
-    showConfirm: legacyMethod("showConfirm"),
-    showPromptDialog: legacyMethod("showPromptDialog"),
-    showToast: legacyMethod("showToast"),
-    initTooltips: legacyMethod("initTooltips"),
+    setLanguage(...args) {
+      return callLegacy("setLanguage", args);
+    },
+    toggleDarkMode(...args) {
+      return callLegacy("toggleDarkMode", args);
+    },
+    setColorTheme(...args) {
+      return callLegacy("setColorTheme", args);
+    },
+    toggleBinPermission(...args) {
+      return callLegacy("toggleBinPermission", args);
+    },
+    showAlert(...args) {
+      return callLegacy("showAlert", args);
+    },
+    showConfirm(...args) {
+      return callLegacy("showConfirm", args);
+    },
+    showPromptDialog(...args) {
+      return callLegacy("showPromptDialog", args);
+    },
+    showToast(...args) {
+      return callLegacy("showToast", args);
+    },
+    initTooltips(...args) {
+      return callLegacy("initTooltips", args);
+    },
     reloadPage() {
       global.location.reload();
     },
