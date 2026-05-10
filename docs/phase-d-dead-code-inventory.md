@@ -48,3 +48,26 @@ Generated for safe cleanup after modularization and dispatcher migration.
 
 - This phase intentionally avoids touching optimistic concurrency/versioning code.
 - Backend source-of-truth flow remains unchanged.
+
+## Candidate Recheck (post legacy-bridge waves)
+
+Rechecked candidates against full repo references (`HTML`, `JS`, dispatcher, namespace, tests, generated handlers):
+
+- `removeAdminActionOld`: no references found
+- `mergeNotificationsSnapshot`: no references found
+- `canEditBinsDataAccess`: no references found
+- `togglePlannerExportDropdown`: no references found
+- `handlePlannerExportExcel`: no references found
+- `handlePlannerExportPdf`: no references found
+- `handlePlannerExportWord`: no references found
+- `handleTidplanImportPdf`: no references found
+- `handlePlannerImportExcel`: no references found
+- `getCmaxPrintHeaderHtmlLegacy`: no references found
+- `managePlans`: no references found
+- `manageMoments`: no references found
+- `manageKarne`: no references found
+- `removeTidplanZone`: no references found
+- `getWarehouseResponsibleAdminsLabel`: no references found
+- `addTidplanZone`: **not a standalone symbol**; active implementation is `addTidplanZoneFromInputs` and it is referenced by dispatcher + code, so not removable.
+
+Result: no additional safe body removals were applied in this pass because listed candidates were either already absent or still active under current names.

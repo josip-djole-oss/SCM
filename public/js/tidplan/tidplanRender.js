@@ -1547,26 +1547,3 @@ function saveAvailableKarne() {
   syncServerState().catch(() => {});
 }
 
-
-
-
-
-/* ==================== APP START ==================== */
-window.addEventListener("error", (event) => {
-  if (!(event instanceof ErrorEvent)) return;
-  const msg = event.message;
-  const url = event.filename;
-  const lineNo = event.lineno;
-  const columnNo = event.colno;
-  const error = event.error;
-  const message = `JavaScript greška: ${msg} (${url}:${lineNo}:${columnNo})`;
-  console.error(message, error);
-  document.body.innerHTML = `<div style="padding:20px;color:#b00;background:#fee;font-family:sans-serif;">
-    <h2>Dogodila se pogreška</h2>
-    <pre>${message}</pre>
-    <p>Osvježite stranicu ili pogledajte konzolu za detalje.</p>
-  </div>`;
-});
-
-
-
