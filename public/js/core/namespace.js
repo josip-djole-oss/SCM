@@ -104,26 +104,66 @@
   });
 
   assignNamespace("tidplan", {
-    init: legacyMethod("loadTidplanData"),
-    show: legacyMethod("showTidplan"),
-    showPlanner: legacyMethod("showPlanner"),
-    render: legacyMethod("updateTidplan"),
-    update: legacyMethod("updateTidplan"),
-    save: legacyMethod("saveTidplanData"),
-    clear: legacyMethod("clearTidplan"),
-    print: legacyMethod("printTidplan"),
-    addActivity: legacyMethod("addTidplanActivity"),
-    toggleSortMenu: legacyMethod("toggleTidplanSortMenu"),
-    applySort: legacyMethod("applyTidplanSort"),
-    toggleZoneManager: legacyMethod("toggleZoneManager"),
-    addZoneFromInputs: legacyMethod("addTidplanZoneFromInputs"),
-    clearZones: legacyMethod("clearAllTidplanZones"),
-    addPlan: legacyMethod("addPlan"),
-    addMoment: legacyMethod("addMoment"),
-    addKarna: legacyMethod("addKarna"),
-    removePlan: legacyMethod("removePlan"),
-    removeMoment: legacyMethod("removeMoment"),
-    removeKarna: legacyMethod("removeKarna"),
+    init(...args) {
+      return callLegacy("loadTidplanData", args);
+    },
+    show(...args) {
+      return callLegacy("showTidplan", args);
+    },
+    showPlanner(...args) {
+      return callLegacy("showPlanner", args);
+    },
+    render(...args) {
+      return callLegacy("updateTidplan", args);
+    },
+    update(...args) {
+      return callLegacy("updateTidplan", args);
+    },
+    save(...args) {
+      return callLegacy("saveTidplanData", args);
+    },
+    clear(...args) {
+      return callLegacy("clearTidplan", args);
+    },
+    print(...args) {
+      return callLegacy("printTidplan", args);
+    },
+    addActivity(...args) {
+      return callLegacy("addTidplanActivity", args);
+    },
+    toggleSortMenu(...args) {
+      return callLegacy("toggleTidplanSortMenu", args);
+    },
+    applySort(...args) {
+      return callLegacy("applyTidplanSort", args);
+    },
+    toggleZoneManager(...args) {
+      return callLegacy("toggleZoneManager", args);
+    },
+    addZoneFromInputs(...args) {
+      return callLegacy("addTidplanZoneFromInputs", args);
+    },
+    clearZones(...args) {
+      return callLegacy("clearAllTidplanZones", args);
+    },
+    addPlan(...args) {
+      return callLegacy("addPlan", args);
+    },
+    addMoment(...args) {
+      return callLegacy("addMoment", args);
+    },
+    addKarna(...args) {
+      return callLegacy("addKarna", args);
+    },
+    removePlan(...args) {
+      return callLegacy("removePlan", args);
+    },
+    removeMoment(...args) {
+      return callLegacy("removeMoment", args);
+    },
+    removeKarna(...args) {
+      return callLegacy("removeKarna", args);
+    },
   });
 
   assignNamespace("warehouse", {
@@ -330,7 +370,9 @@
       return callLegacy("resetModuleImportModalFile", args);
     },
     uploadImport: legacyMethod("uploadModuleImport"),
-    exportTidplanPDF: legacyMethod("handleTidplanExportPdf"),
+    exportTidplanPDF(...args) {
+      return callLegacy("handleTidplanExportPdf", args);
+    },
     exportWarehouseExcel(...args) {
       return callLegacy("handleWarehouseExportExcel", args);
     },

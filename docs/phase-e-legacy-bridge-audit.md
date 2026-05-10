@@ -7,7 +7,7 @@
 
 ## Current State Summary
 
-- `legacyMethod(...)` bindings still active: **57**
+- `legacyMethod(...)` bindings still active: **36**
 - `CMAX.compat` still active and currently required by dispatcher flow.
 - Dispatcher entrypoint still routes all `data-cmax-action` calls through namespace actions that mostly call legacy globals via `callLegacy(...)`.
 - Wave 1 completed for `utils` and `reports`: namespace entries no longer use `legacyMethod(...)`.
@@ -18,6 +18,7 @@
 - Wave 4 partial completed: admin shell + backup list/view bridge entries migrated (`open/close/switchTab/openBackupRestorePanel/loadBackupRestoreOptions/listBackups/showBackupInfo/selectBackupForRestore`).
 - Wave 5 completed for planner UI/resource actions and remaining bins actions; planner import/export bridge entries migrated.
 - Wave 6 completed for warehouse UI/navigation/stock/catalog/log actions and warehouse export bridge entry.
+- Wave 7 completed for tidplan UI/save/clear/row actions and tidplan export bridge entry.
 
 ## Exact Bridge Inventory (by namespace)
 
@@ -46,26 +47,8 @@
 ### `CMAX.planner` (0 legacyMethod bindings)
 - migrated in Wave 5 to direct namespace methods
 
-### `CMAX.tidplan` (20)
-- `init -> loadTidplanData`
-- `show -> showTidplan`
-- `showPlanner -> showPlanner`
-- `render/update -> updateTidplan`
-- `save -> saveTidplanData`
-- `clear -> clearTidplan`
-- `print -> printTidplan`
-- `addActivity -> addTidplanActivity`
-- `toggleSortMenu -> toggleTidplanSortMenu`
-- `applySort -> applyTidplanSort`
-- `toggleZoneManager -> toggleZoneManager`
-- `addZoneFromInputs -> addTidplanZoneFromInputs`
-- `clearZones -> clearAllTidplanZones`
-- `addPlan -> addPlan`
-- `addMoment -> addMoment`
-- `addKarna -> addKarna`
-- `removePlan -> removePlan`
-- `removeMoment -> removeMoment`
-- `removeKarna -> removeKarna`
+### `CMAX.tidplan` (0 legacyMethod bindings)
+- migrated in Wave 7 to direct namespace methods
 
 ### `CMAX.warehouse` (0 legacyMethod bindings)
 - migrated in Wave 6 to direct namespace methods
@@ -92,11 +75,10 @@
 ### `CMAX.reports` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods
 
-### `CMAX.importExport` (4)
+### `CMAX.importExport` (3)
 - `saveAll -> saveAllData`
 - `exportModule -> handleModuleExport`
 - `uploadImport -> uploadModuleImport`
-- `exportTidplanPDF -> handleTidplanExportPdf`
 
 ### `CMAX.utils` (0 legacyMethod bindings)
 - migrated in Wave 1 to direct namespace methods
