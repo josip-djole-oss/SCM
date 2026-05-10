@@ -17,6 +17,16 @@ fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadDir, { recursive: true });
 fs.mkdirSync(profileDir, { recursive: true });
 
+function isoDateOffset(daysAhead) {
+  const base = new Date();
+  base.setHours(12, 0, 0, 0);
+  base.setDate(base.getDate() + daysAhead);
+  return base.toISOString().slice(0, 10);
+}
+
+const TEST_DATE = isoDateOffset(7);
+const TEST_END_DATE = isoDateOffset(8);
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -177,7 +187,7 @@ function checkpointScript() {
           workers: planner.workers || [],
           plans: planner.plans || [],
           tidplanComments: tid.map((entry) => entry.komentar || ""),
-          binFirstTotal: bins["2026-05-09"]?.rows?.[0]?.totalAvailable ?? null,
+          binFirstTotal: bins["${TEST_DATE}"]?.rows?.[0]?.totalAvailable ?? null,
           warehouseNames: (wh.catalog || []).map((entry) => entry.name),
           warehouseStock: wh.stock || {},
           warehouseLogs: (wh.logs || []).map((entry) => entry.itemName || entry.comment || entry.type || ""),
@@ -185,14 +195,14 @@ function checkpointScript() {
       };
       const setSitePayload = (site, marker) => {
         go(site);
-        appState.currentDate = "2026-05-09";
+        appState.currentDate = "${TEST_DATE}";
         appState.workers = ["Worker " + marker];
         appState.lifts = ["Lift " + marker];
         appState.moments = ["Moment " + marker];
         appState.plans = ["Plan " + marker, "Plan " + marker + " 2"];
         appState.karnas = ["Karna " + marker];
         appState.dailyData = {
-          "2026-05-09": {
+          "${TEST_DATE}": {
             workerAttendance: {},
             liftAvailability: {},
             liftPlans: {},
@@ -213,8 +223,8 @@ function checkpointScript() {
           karna: "Karna " + marker,
           moment: "Moment " + marker,
           resursi: 1,
-          start: "2026-05-09",
-          end: "2026-05-10",
+          start: "${TEST_DATE}",
+          end: "${TEST_END_DATE}",
           komentar: "Tidplan " + marker,
           active: true,
         }];
@@ -248,7 +258,7 @@ function checkpointScript() {
       CMAX.core.login();
       await wait(() => appState?.currentUser === "phase8@cmax.test" && freshServerDataLoaded === true, "login");
       setAllAccess();
-      appState.currentDate = "2026-05-09";
+      appState.currentDate = "${TEST_DATE}";
 
       sites = ["Site A", "Site B", "Site C"];
       markLocalSiteMutation();
@@ -332,8 +342,8 @@ function checkpointScript() {
         karna: "Karna B",
         moment: "Moment B",
         resursi: 1,
-        start: "2026-05-09",
-        end: "2026-05-10",
+        start: "${TEST_DATE}",
+        end: "${TEST_END_DATE}",
         komentar: "Tidplan B",
         active: true,
       }];
@@ -348,7 +358,7 @@ function checkpointScript() {
       assert(tidplanDataChanged === true, "Tidplan row change did not mark dirty");
 
       currentView = "main";
-      appState.currentDate = "2026-05-09";
+      appState.currentDate = "${TEST_DATE}";
       appState.workers = ["Worker B", "Worker B2"];
       appState.lifts = ["Lift B"];
       appState.moments = ["Moment B"];

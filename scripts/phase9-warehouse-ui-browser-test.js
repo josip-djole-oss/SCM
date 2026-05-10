@@ -17,6 +17,15 @@ fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(uploadDir, { recursive: true });
 fs.mkdirSync(profileDir, { recursive: true });
 
+function isoDateOffset(daysAhead) {
+  const base = new Date();
+  base.setHours(12, 0, 0, 0);
+  base.setDate(base.getDate() + daysAhead);
+  return base.toISOString().slice(0, 10);
+}
+
+const TEST_DATE = isoDateOffset(7);
+
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -160,7 +169,7 @@ function smokeScript() {
       appState.isReadonly = false;
       appState.isAdmin = true;
       appState.isSuperAdmin = true;
-      appState.currentDate = "2026-05-09";
+      appState.currentDate = "${TEST_DATE}";
       currentView = "main";
       sites = ["Site A"];
       currentSite = "Site A";
@@ -174,7 +183,7 @@ function smokeScript() {
       appState.plans = ["Plan A"];
       appState.karnas = ["Karna A"];
       appState.dailyData = {
-        "2026-05-09": {
+        "${TEST_DATE}": {
           workerAttendance: {},
           liftAvailability: {},
           liftPlans: {},
