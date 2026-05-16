@@ -5508,6 +5508,42 @@ textarea:focus {
   align-items: flex-start;
 }
 
+.store-list-load-more,
+.notification-load-more {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0 8px;
+}
+
+#workwearProductsGrid,
+#notificationsList,
+#reportsList,
+#surveysList {
+  contain: layout style;
+}
+
+.workwear-product-card,
+.notification-card,
+.report-item,
+.workwear-order-card,
+.warehouse-catalog-item,
+.warehouse-alert-card {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 280px;
+}
+
+@media (max-width: 1024px) {
+  .account-notifications-panel,
+  .store-cart-drawer,
+  .store-image-viewer-shell,
+  .modal-box,
+  .tidplan-container-fullscreen {
+    backdrop-filter: none !important;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16) !important;
+  }
+}
+
 .title-section {
   justify-content: center;
   align-self: flex-start;

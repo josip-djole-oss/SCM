@@ -1,20 +1,20 @@
+var notificationsListRenderLimit = 40;
+var notificationsLoadAbortBySite = {};
+
 function getNotificationStorageKey(site) {
   return getSiteStorageKey("cmax_planner_notifications", site);
 }
 
 function getNotificationsForSite(site = currentSite) {
-  const stored = localStorage.getItem(getNotificationStorageKey(site));
-  return safeParseStoredJson(stored, []) || [];
+  return getCachedStorageJson(getNotificationStorageKey(site), []) || [];
 }
 
 function saveNotificationsForSite(site, notifications) {
-  localStorage.setItem(
-    getNotificationStorageKey(site),
-    JSON.stringify(notifications),
-  );
+  const changed = setCachedStorageJson(getNotificationStorageKey(site), notifications);
   if (site === currentSite) {
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+    setCachedStorageJson(NOTIFICATIONS_KEY, notifications);
   }
+  if (!changed) return Promise.resolve(true);
   if (!BACKEND_ENABLED) return Promise.resolve(true);
   return fetch("/api/notifications", {
     method: "POST",
@@ -44,25 +44,30 @@ function loadNotificationsData(site = currentSite, options = {}) {
     return Promise.resolve(getNotificationsForSite(site));
   }
 
+  if (notificationsLoadAbortBySite[site]) {
+    notificationsLoadAbortBySite[site].abort();
+  }
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  if (controller) notificationsLoadAbortBySite[site] = controller;
+
   return fetch(`/api/notifications?site=${encodeURIComponent(site)}`, {
     cache: "no-store",
+    signal: controller?.signal,
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((payload) => {
       const parsed = extractListPayload(payload, "notifications");
       const list = parsed.list;
       if (parsed.version) notificationsStateVersionBySite[site] = parsed.version;
-      localStorage.setItem(
-        getNotificationStorageKey(site),
-        JSON.stringify(list),
-      );
+      setCachedStorageJson(getNotificationStorageKey(site), list);
       if (site === currentSite) {
-        localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(list));
+        setCachedStorageJson(NOTIFICATIONS_KEY, list);
         updateNotificationsBadge();
       }
       return list;
     })
     .catch((error) => {
+      if (error?.name === "AbortError") return getNotificationsForSite(site);
       if (strict) throw error;
       return fetch("/api/state", { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : Promise.reject()))
@@ -76,23 +81,25 @@ function loadNotificationsData(site = currentSite, options = {}) {
             Array.isArray(state.siteData[site].notifications)
               ? state.siteData[site].notifications
               : [];
-          localStorage.setItem(
-            getNotificationStorageKey(site),
-            JSON.stringify(list),
-          );
+          setCachedStorageJson(getNotificationStorageKey(site), list);
       if (site === currentSite) {
-        localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(list));
+        setCachedStorageJson(NOTIFICATIONS_KEY, list);
         updateNotificationsBadge();
       }
       return list;
     })
         .catch(() => []);
+    })
+    .finally(() => {
+      if (notificationsLoadAbortBySite[site] === controller) {
+        delete notificationsLoadAbortBySite[site];
+      }
     });
 }
 
 function getNextNotificationId() {
   const storedCounter = parseInt(
-    localStorage.getItem(NOTIFICATIONS_COUNTER_KEY) || "0",
+    getCachedStorageValue(NOTIFICATIONS_COUNTER_KEY, "0") || "0",
     10,
   );
   let maxId = Number.isFinite(storedCounter) ? storedCounter : 0;
@@ -106,8 +113,17 @@ function getNextNotificationId() {
     });
   });
   const nextId = maxId + 1;
-  localStorage.setItem(NOTIFICATIONS_COUNTER_KEY, String(nextId));
+  setCachedStorageValue(NOTIFICATIONS_COUNTER_KEY, String(nextId));
   return nextId;
+}
+
+function resetNotificationsRenderLimit() {
+  notificationsListRenderLimit = 40;
+}
+
+function loadMoreNotificationsList() {
+  notificationsListRenderLimit += 40;
+  renderNotificationsList();
 }
 
 function formatNotificationId(id) {
@@ -243,6 +259,7 @@ function uploadNotificationImages(files) {
 function renderNotificationsList() {
   const container = document.getElementById("notificationsList");
   if (!container) return;
+  const token = CMAX_PERF?.begin?.("render-notifications-list");
   const siteFilter = document.getElementById("notificationFilterSite")?.value || "";
   const searchText = (document.getElementById("notificationSearch")?.value || "").trim().toLowerCase();
   const pinnedOnly = document.getElementById("notificationPinnedOnly")?.checked === true;
@@ -260,18 +277,21 @@ function renderNotificationsList() {
     .filter((note) => (pinnedOnly ? !!note.pinned : true))
     .filter((note) => {
       if (!searchText) return true;
-      const text = `${note.message || ""}`.toLowerCase();
+      const text = `${note.message || ""} ${note.authorName || ""} ${note.createdBy || ""}`.toLowerCase();
       return text.includes(searchText);
     })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-  if (!notifications.length) {
+  const visibleNotifications = notifications.slice(0, notificationsListRenderLimit);
+
+  if (!visibleNotifications.length) {
     container.innerHTML = `<div class="notification-empty">${escapeHtml(t("notificationsEmpty"))}</div>`;
+    if (token) CMAX_PERF.end(token, { count: 0 });
     return;
   }
 
   container.innerHTML = "";
-  notifications.forEach((note) => {
+  visibleNotifications.forEach((note) => {
     const card = document.createElement("div");
     card.className = "notification-card";
     card.dataset.notificationId = String(note.id || "");
@@ -306,6 +326,8 @@ function renderNotificationsList() {
         const imageEl = document.createElement("img");
         imageEl.src = img.url;
         imageEl.alt = img.name || "notification";
+        imageEl.loading = "lazy";
+        imageEl.decoding = "async";
         imageEl.addEventListener("click", () => {
           openNotificationViewer(
             note.images.map((i) => i.url),
@@ -344,6 +366,17 @@ function renderNotificationsList() {
     container.appendChild(card);
   });
 
+  if (notifications.length > visibleNotifications.length) {
+    const moreWrap = document.createElement("div");
+    moreWrap.className = "notification-load-more";
+    moreWrap.innerHTML = `
+      <button class="btn btn-secondary" data-cmax-action="notifications.loadMore">
+        ${escapeHtml(t("loadMore") || "Ucitaj jos")} (${visibleNotifications.length}/${notifications.length})
+      </button>
+    `;
+    container.appendChild(moreWrap);
+  }
+
   if (window.pendingNotificationFocus) {
     const targetId = String(window.pendingNotificationFocus.id || "");
     const targetSite = String(window.pendingNotificationFocus.site || "");
@@ -357,6 +390,8 @@ function renderNotificationsList() {
     }
     window.pendingNotificationFocus = null;
   }
+  CMAX_PERF?.count?.("renderNotificationsList");
+  if (token) CMAX_PERF.end(token, { count: visibleNotifications.length, total: notifications.length });
 }
 
 function getPrintableNotifications() {
@@ -660,6 +695,7 @@ function showNotifications() {
     currentView = "notifications";
     saveCurrentView("notifications");
     pushRouteForView("notifications");
+    resetNotificationsRenderLimit();
 
     Promise.all(getAccessibleSites().map((site) => loadNotificationsData(site)))
       .then(() => {

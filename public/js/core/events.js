@@ -1,4 +1,7 @@
 function setupEventListeners() {
+  if (document.body?.dataset?.cmaxCoreEventsBound === "true") return;
+  if (document.body) document.body.dataset.cmaxCoreEventsBound = "true";
+
   document
     .getElementById("loginPassword")
     .addEventListener("keypress", (e) => {
@@ -27,18 +30,29 @@ function setupEventListeners() {
   const notificationFilterSite = document.getElementById("notificationFilterSite");
   if (notificationFilterSite) {
     notificationFilterSite.addEventListener("change", () => {
+      if (typeof resetNotificationsRenderLimit === "function") resetNotificationsRenderLimit();
       renderNotificationsList();
     });
   }
   const notificationSearch = document.getElementById("notificationSearch");
   if (notificationSearch) {
+    const renderNotificationsSearch = typeof cmaxDebounce === "function"
+      ? cmaxDebounce(() => {
+          if (typeof resetNotificationsRenderLimit === "function") resetNotificationsRenderLimit();
+          renderNotificationsList();
+        }, 220)
+      : () => {
+          if (typeof resetNotificationsRenderLimit === "function") resetNotificationsRenderLimit();
+          renderNotificationsList();
+        };
     notificationSearch.addEventListener("input", () => {
-      renderNotificationsList();
+      renderNotificationsSearch();
     });
   }
   const notificationPinnedOnly = document.getElementById("notificationPinnedOnly");
   if (notificationPinnedOnly) {
     notificationPinnedOnly.addEventListener("change", () => {
+      if (typeof resetNotificationsRenderLimit === "function") resetNotificationsRenderLimit();
       renderNotificationsList();
     });
   }

@@ -1,4 +1,10 @@
-﻿var currentReportFilter = "all";
+var currentReportFilter = "all";
+var reportRenderLimit = 20;
+
+function loadMoreReports() {
+  reportRenderLimit += 20;
+  renderReportsList(currentReportFilter || "all");
+}
 
 function showReportsCenter() {
   if (!canAccessReportsModule()) {
@@ -6,6 +12,7 @@ function showReportsCenter() {
     return;
   }
   return loadFreshDataForView("loadingDefault", () => {
+    reportRenderLimit = 20;
     const homeSection = document.getElementById("home-section");
     const plannerSection = document.getElementById("planner-section");
     const tidplanSection = document.getElementById("tidplan-section");
@@ -218,6 +225,7 @@ function submitReport() {
 
 function filterReports(status) {
   currentReportFilter = status;
+  reportRenderLimit = 20;
   document
     .querySelectorAll("#reportFilterBar .btn")
     .forEach((b) => b.classList.remove("active"));
@@ -237,9 +245,11 @@ function filterReports(status) {
 function renderReportsList(status) {
   const container = document.getElementById("reportsList");
   if (!container) return;
+  const token = CMAX_PERF?.begin?.("render-reports-list");
   if (!hasAdminPermission("canViewReports")) {
     container.innerHTML =
       `<p style="color:var(--text-light); text-align:center; padding:20px; font-size:14px;">${t("accessReportsViewDenied")}</p>`;
+    if (token) CMAX_PERF.end(token, { count: 0 });
     return;
   }
   let reports = getReports();
@@ -248,13 +258,15 @@ function renderReportsList(status) {
 
   if (reports.length === 0) {
     container.innerHTML = `<p style="color:var(--text-light); text-align:center; padding:20px; font-size:14px;">${t("noReports")}</p>`;
+    if (token) CMAX_PERF.end(token, { count: 0 });
     return;
   }
 
   container.innerHTML = "";
-  reports
+  const sortedReports = reports
     .sort((a, b) => new Date(b.date) - new Date(a.date))
-    .forEach((report) => {
+    .slice(0, reportRenderLimit);
+  sortedReports.forEach((report) => {
       const div = document.createElement("div");
       div.className = `report-item ${report.status}`;
 
@@ -324,6 +336,19 @@ function renderReportsList(status) {
       container.appendChild(div);
     });
 
+  if (reports.length > sortedReports.length) {
+    container.insertAdjacentHTML(
+      "beforeend",
+      `
+        <div class="store-list-load-more">
+          <button class="btn btn-secondary" data-cmax-action="reports.loadMore">
+            ${escapeHtml(t("loadMore") || "Ucitaj jos")} (${sortedReports.length}/${reports.length})
+          </button>
+        </div>
+      `,
+    );
+  }
+
   // Mark all as seen
   const allReports = getReports();
   allReports.forEach((r) => {
@@ -331,6 +356,8 @@ function renderReportsList(status) {
   });
   saveReports(allReports);
   updateNotifBadge();
+  CMAX_PERF?.count?.("renderReportsList");
+  if (token) CMAX_PERF.end(token, { count: sortedReports.length, total: reports.length });
 }
 
 function reviewReport(id, action) {

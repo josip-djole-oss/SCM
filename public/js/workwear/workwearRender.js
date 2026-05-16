@@ -26,6 +26,8 @@ var workwearImageViewerState = {
   index: 0,
   title: "",
 };
+var workwearProductRenderLimit = 24;
+var workwearOrderRenderLimit = 20;
 var WORKWEAR_SIZE_PRESETS = {
   odjeca: ["XS", "S", "M", "L", "XL", "XXL", "3XL"],
   obuca: ["38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48"],
@@ -210,6 +212,7 @@ function getStoreProductGalleryImages(product) {
 function renderWorkwearProducts() {
   const root = getWorkwearProductsGrid();
   if (!root) return;
+  const token = CMAX_PERF?.begin?.("render-workwear-products");
 
   const query = (document.getElementById("workwearSearch")?.value || "").trim().toLowerCase();
   const category = document.getElementById("workwearCategoryFilter")?.value || "";
@@ -226,13 +229,15 @@ function renderWorkwearProducts() {
       const text = `${product.name || ""} ${product.description || ""} ${product.subcategory || ""} ${variantsText}`.toLowerCase();
       return text.includes(query);
     });
+  const visibleProducts = products.slice(0, workwearProductRenderLimit);
 
-  if (!products.length) {
+  if (!visibleProducts.length) {
     root.innerHTML = `<div class="module-empty-state">Nema dostupnih artikala za ovo gradiliste.</div>`;
+    if (token) CMAX_PERF.end(token, { count: 0 });
     return;
   }
 
-  root.innerHTML = products
+  root.innerHTML = visibleProducts
     .map((product) => {
       const sizes = Array.isArray(product.sizes) ? product.sizes : [];
       const activeVariants = getActiveStoreProductVariants(product);
@@ -255,7 +260,7 @@ function renderWorkwearProducts() {
                   data-cmax-args='${escapeHtml(JSON.stringify([product.id, 0]))}'
                   title="Otvori sliku preko cijelog ekrana"
                 >
-                  <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" class="workwear-product-image">
+                  <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" class="workwear-product-image" loading="lazy" decoding="async">
                 </button>
                 ${galleryImages.length > 1 ? `<span class="workwear-product-image-count">${galleryImages.length} slika</span>` : ""}
               `
@@ -283,8 +288,8 @@ function renderWorkwearProducts() {
                 <option value="">${escapeHtml(t("selectSize") || "Select size")}</option>
                 ${sizes.map((size) => `<option value="${escapeHtml(size)}">${escapeHtml(size)}</option>`).join("")}
               </select>
-              <input type="number" min="1" value="${escapeHtml(String(defaultQty))}" class="store-input" placeholder="${escapeHtml(t("quantity") || "Quantity")}" data-cmax-action="workwear.setQuantityForProduct" data-cmax-event="input" data-cmax-pass-element data-cmax-args='${escapeHtml(JSON.stringify([product.id]))}' />
-              <input class="store-input" placeholder="${escapeHtml(t("comment") || "Comment")} (optional)" value="${escapeHtml(workwearSelectedCommentByProduct[product.id] || "")}" data-cmax-action="workwear.setCommentForProduct" data-cmax-event="input" data-cmax-pass-element data-cmax-args='${escapeHtml(JSON.stringify([product.id]))}' />
+              <input type="number" min="1" value="${escapeHtml(String(defaultQty))}" class="store-input" placeholder="${escapeHtml(t("quantity") || "Quantity")}" data-cmax-action="workwear.setQuantityForProduct" data-cmax-event="input" data-cmax-debounce="160" data-cmax-pass-element data-cmax-args='${escapeHtml(JSON.stringify([product.id]))}' />
+              <input class="store-input" placeholder="${escapeHtml(t("comment") || "Comment")} (optional)" value="${escapeHtml(workwearSelectedCommentByProduct[product.id] || "")}" data-cmax-action="workwear.setCommentForProduct" data-cmax-event="input" data-cmax-debounce="220" data-cmax-pass-element data-cmax-args='${escapeHtml(JSON.stringify([product.id]))}' />
               <button class="btn btn-small" data-cmax-action="workwear.addToCart" data-cmax-args='${escapeHtml(JSON.stringify([product.id]))}'>${escapeHtml(t("addToCart") || "Add to cart")}</button>
             </div>
           </div>
@@ -292,6 +297,20 @@ function renderWorkwearProducts() {
       `;
     })
     .join("");
+  if (products.length > visibleProducts.length) {
+    root.insertAdjacentHTML(
+      "beforeend",
+      `
+        <div class="store-list-load-more">
+          <button class="btn btn-secondary" data-cmax-action="workwear.loadMoreProducts">
+            ${escapeHtml(t("loadMore") || "Ucitaj jos")} (${visibleProducts.length}/${products.length})
+          </button>
+        </div>
+      `,
+    );
+  }
+  CMAX_PERF?.count?.("renderWorkwearProducts");
+  if (token) CMAX_PERF.end(token, { count: visibleProducts.length, total: products.length });
 }
 
 function renderWorkwearHeaderControls() {
@@ -449,6 +468,7 @@ function renderWorkwearImageViewer() {
 function renderWorkwearOrders() {
   const list = getWorkwearOrdersList();
   if (!list) return;
+  const token = CMAX_PERF?.begin?.("render-workwear-orders");
   const userEmail = String(appState.currentUser || "").trim().toLowerCase();
   const isManager = canManageWorkwearModule() || canViewStoreTeamOrders();
 
@@ -456,14 +476,16 @@ function renderWorkwearOrders() {
     .filter((order) => (isManager ? true : order.workerId === userEmail))
     .slice()
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+  const visibleOrders = orders.slice(0, workwearOrderRenderLimit);
 
-  if (!orders.length) {
+  if (!visibleOrders.length) {
     list.innerHTML = `<div class="module-empty-state">Nema narudzbi.</div>`;
+    if (token) CMAX_PERF.end(token, { count: 0 });
     return;
   }
 
   const canManage = canManageWorkwearModule();
-  list.innerHTML = orders
+  list.innerHTML = visibleOrders
     .map((order) => {
       const canCancel = !canManage && ["Pending", "Approved"].includes(order.status || "Pending");
       const canApprove = canManage && (order.status || "Pending") === "Pending";
@@ -506,6 +528,20 @@ function renderWorkwearOrders() {
       `;
     })
     .join("");
+  if (orders.length > visibleOrders.length) {
+    list.insertAdjacentHTML(
+      "beforeend",
+      `
+        <div class="store-list-load-more">
+          <button class="btn btn-secondary" data-cmax-action="workwear.loadMoreOrders">
+            ${escapeHtml(t("loadMore") || "Ucitaj jos")} (${visibleOrders.length}/${orders.length})
+          </button>
+        </div>
+      `,
+    );
+  }
+  CMAX_PERF?.count?.("renderWorkwearOrders");
+  if (token) CMAX_PERF.end(token, { count: visibleOrders.length, total: orders.length });
 }
 
 function renderWorkwearAdminPanel() {
@@ -954,7 +990,7 @@ function renderWorkwearManagerOrders() {
     <div class="workwear-admin-card">
       <h3>Narudzbe</h3>
       <div class="workwear-admin-grid">
-        <input class="store-input" placeholder="Radnik" data-cmax-action="workwear.setOrderFilter" data-cmax-event="input" data-cmax-pass-element data-cmax-args='["worker"]' value="${escapeHtml(workwearOrderFilters.worker)}" />
+        <input class="store-input" placeholder="Radnik" data-cmax-action="workwear.setOrderFilter" data-cmax-event="input" data-cmax-debounce="220" data-cmax-pass-element data-cmax-args='["worker"]' value="${escapeHtml(workwearOrderFilters.worker)}" />
         <select class="store-input" data-cmax-action="workwear.setOrderFilter" data-cmax-event="change" data-cmax-pass-element data-cmax-args='["site"]'>
           <option value="">Sva gradilista</option>
           ${getWorkwearManagerSites().map((site) => `<option value="${escapeHtml(site)}" ${workwearOrderFilters.site === site ? "selected" : ""}>${escapeHtml(site)}</option>`).join("")}
@@ -967,7 +1003,7 @@ function renderWorkwearManagerOrders() {
           <option value="">Sve kategorije</option>
           ${getWorkwearCategories().map((category) => `<option value="${escapeHtml(category)}" ${workwearOrderFilters.category === category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
         </select>
-        <input class="store-input" placeholder="Artikal" data-cmax-action="workwear.setOrderFilter" data-cmax-event="input" data-cmax-pass-element data-cmax-args='["product"]' value="${escapeHtml(workwearOrderFilters.product)}" />
+        <input class="store-input" placeholder="Artikal" data-cmax-action="workwear.setOrderFilter" data-cmax-event="input" data-cmax-debounce="220" data-cmax-pass-element data-cmax-args='["product"]' value="${escapeHtml(workwearOrderFilters.product)}" />
       </div>
       <div class="store-orders-list">
         ${filtered.length ? filtered.map((order) => `

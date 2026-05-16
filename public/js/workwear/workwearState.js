@@ -37,6 +37,21 @@ function getWorkwearStorageKey(site = currentSite) {
   return getSiteStorageKey(WORKWEAR_STORAGE_PREFIX, site);
 }
 
+function workwearReadCachedJson(key, fallbackValue = null) {
+  if (typeof getCachedStorageJson === "function") {
+    return getCachedStorageJson(key, fallbackValue);
+  }
+  return safeParseStoredJson(localStorage.getItem(key), fallbackValue);
+}
+
+function workwearWriteCachedJson(key, value) {
+  if (typeof setCachedStorageJson === "function") {
+    return setCachedStorageJson(key, value);
+  }
+  localStorage.setItem(key, JSON.stringify(value));
+  return true;
+}
+
 function getStoreRoleOptions() {
   return STORE_ROLE_OPTIONS.map((role) => ({ ...role }));
 }
@@ -251,7 +266,7 @@ function getStoreCategoryCatalogState() {
 
 function loadWorkwearState(site = currentSite) {
   const key = getWorkwearStorageKey(site);
-  const raw = safeParseStoredJson(localStorage.getItem(key), null);
+  const raw = workwearReadCachedJson(key, null);
   const normalized = normalizeWorkwearState(raw);
   workwearStateCacheBySite[site] = normalized;
   if (site === currentSite) {
@@ -274,7 +289,7 @@ function saveWorkwearState(site = currentSite, options = {}) {
     updatedAt: new Date().toISOString(),
   };
   state.version = Math.max(1, Number(state.version || 1)) + 1;
-  localStorage.setItem(getWorkwearStorageKey(site), JSON.stringify(state));
+  workwearWriteCachedJson(getWorkwearStorageKey(site), state);
   if (site === currentSite) {
     workwearStateCacheBySite[site] = state;
   }
@@ -353,7 +368,7 @@ function workwearCanReceiveAccountEvent(event, email, roleKeys) {
 
 function syncWorkwearAccountNotifications() {
   if (!appState.currentUser || typeof pushAccountNotification !== "function") return;
-  const tracker = safeParseStoredJson(localStorage.getItem(getWorkwearAccountNotificationTrackerKey()), {}) || {};
+  const tracker = workwearReadCachedJson(getWorkwearAccountNotificationTrackerKey(), {}) || {};
   const accessibleSites = typeof getAccessibleSites === "function"
     ? getAccessibleSites()
     : [currentSite];
@@ -381,7 +396,7 @@ function syncWorkwearAccountNotifications() {
     });
     tracker[siteKey] = Array.from(seenIds).slice(-1200);
   });
-  localStorage.setItem(getWorkwearAccountNotificationTrackerKey(), JSON.stringify(tracker));
+  workwearWriteCachedJson(getWorkwearAccountNotificationTrackerKey(), tracker);
 }
 
 function ensureWorkerWorkwearProfile(workerEmail) {

@@ -284,6 +284,9 @@
     applyLogFilters(...args) {
       return callLegacy("applyWarehouseLogFilters", args);
     },
+    loadMoreLogs(...args) {
+      return callLegacy("loadMoreWarehouseLogs", args);
+    },
     resetLogFilters(...args) {
       return callLegacy("resetWarehouseLogFilters", args);
     },
@@ -316,6 +319,12 @@
     },
     applyFilters(...args) {
       return callLegacy("workwearApplyFilters", args);
+    },
+    loadMoreProducts(...args) {
+      return callLegacy("workwearLoadMoreProducts", args);
+    },
+    loadMoreOrders(...args) {
+      return callLegacy("workwearLoadMoreOrders", args);
     },
     selectSizeForProduct(...args) {
       return callLegacy("workwearSelectSizeForProduct", args);
@@ -542,6 +551,9 @@
     render(...args) {
       return callLegacy("renderSurveysList", args);
     },
+    loadMore(...args) {
+      return callLegacy("loadMoreSurveys", args);
+    },
     submit(...args) {
       return callLegacy("submitSurvey", args);
     },
@@ -615,6 +627,9 @@
     },
     filter(...args) {
       return callLegacy("filterReports", args);
+    },
+    loadMore(...args) {
+      return callLegacy("loadMoreReports", args);
     },
     review(...args) {
       return callLegacy("reviewReport", args);
@@ -814,6 +829,9 @@
     show(...args) {
       return callLegacy("showNotifications", args);
     },
+    loadMore(...args) {
+      return callLegacy("loadMoreNotificationsList", args);
+    },
     submit(...args) {
       return callLegacy("submitNotification", args);
     },
@@ -902,17 +920,26 @@
     el.setAttribute("aria-busy", isBusy ? "true" : "false");
   }
 
-  async function handleDelegatedEvent(event) {
-    const el = event.target.closest("[data-cmax-action]");
-    if (!el) return;
+  const delegatedDebounceMap = new WeakMap();
+  const delegatedThrottleMap = new WeakMap();
 
-    const expectedEvent = el.getAttribute("data-cmax-event") || "click";
-    if (expectedEvent !== event.type) return;
-    if (el.dataset.cmaxBusy === "true") {
-      event.preventDefault();
-      return;
-    }
+  function getDelegatedDelay(el, attributeName) {
+    const value = Number(el?.getAttribute(attributeName) || 0);
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
 
+  function createEventSnapshot(event) {
+    return {
+      type: event?.type || "click",
+      target: event?.target || null,
+      currentTarget: event?.currentTarget || null,
+      key: event?.key || "",
+      preventDefault() {},
+      stopPropagation() {},
+    };
+  }
+
+  async function dispatchDelegatedAction(el, event) {
     const isServerAction = el.getAttribute("data-cmax-server-action") === "true";
     const loadingKey = el.getAttribute("data-cmax-loading-key") || "loadingDefault";
     if (isServerAction && typeof showLoading === "function") {
@@ -927,6 +954,45 @@
         if (typeof hideLoading === "function") hideLoading();
       }
     }
+  }
+
+  async function handleDelegatedEvent(event) {
+    const el = event.target.closest("[data-cmax-action]");
+    if (!el) return;
+
+    const expectedEvent = el.getAttribute("data-cmax-event") || "click";
+    if (expectedEvent !== event.type) return;
+    if (el.dataset.cmaxBusy === "true") {
+      event.preventDefault();
+      return;
+    }
+
+    const debounceMs = getDelegatedDelay(el, "data-cmax-debounce");
+    if (debounceMs > 0 && typeof global.cmaxDebounce === "function") {
+      let debounced = delegatedDebounceMap.get(el);
+      if (!debounced) {
+        debounced = global.cmaxDebounce((nextEvent) => {
+          dispatchDelegatedAction(el, nextEvent).catch((error) => console.error(error));
+        }, debounceMs);
+        delegatedDebounceMap.set(el, debounced);
+      }
+      debounced(createEventSnapshot(event));
+      return;
+    }
+
+    const throttleMs = getDelegatedDelay(el, "data-cmax-throttle");
+    if (throttleMs > 0 && typeof global.cmaxThrottle === "function") {
+      let throttled = delegatedThrottleMap.get(el);
+      if (!throttled) {
+        throttled = global.cmaxThrottle((nextEvent) => {
+          dispatchDelegatedAction(el, nextEvent).catch((error) => console.error(error));
+        }, throttleMs);
+        delegatedThrottleMap.set(el, throttled);
+      }
+      throttled(createEventSnapshot(event));
+      return;
+    }
+    await dispatchDelegatedAction(el, event);
   }
 
   function handleImageFallbackEvent(event) {

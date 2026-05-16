@@ -1,4 +1,5 @@
 async function initApp() {
+  const perfToken = CMAX_PERF?.begin?.("init-app");
   showLoading("loadingDefault");
   const loadingText = document.getElementById("loadingText");
   if (loadingText) loadingText.textContent = "Loading latest data...";
@@ -24,6 +25,7 @@ async function initApp() {
   const authenticated = await checkAuth({ deferShow: true });
   if (!authenticated) {
     hideLoading();
+    if (perfToken) CMAX_PERF.end(perfToken, { authenticated: false, freshServerDataLoaded: false });
     return;
   }
   try {
@@ -37,6 +39,7 @@ async function initApp() {
     showMainApp();
     restoreLastView();
     startAutoSave();
+    CMAX_PERF?.count?.("initApp");
   } catch (error) {
     freshServerDataLoaded = false;
     appDataLoadError = error?.message || "DATA_LOAD_FAILED";
@@ -44,6 +47,7 @@ async function initApp() {
     showDataLoadError(appDataLoadError);
   } finally {
     hideLoading();
+    if (perfToken) CMAX_PERF.end(perfToken, { authenticated: true, freshServerDataLoaded });
   }
   window.addEventListener("focus", () => {
     if (!freshServerDataLoaded) return;

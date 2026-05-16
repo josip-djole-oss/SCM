@@ -1,7 +1,7 @@
 function loadData(options = {}) {
   const { strict = false } = options;
   if (!BACKEND_ENABLED) {
-    const savedData = localStorage.getItem(STORAGE_KEY);
+    const savedData = getCachedStorageValue(STORAGE_KEY, null);
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
@@ -38,6 +38,7 @@ function loadData(options = {}) {
 
 function loadAllData(options = {}) {
   const { strict = false } = options;
+  const token = CMAX_PERF?.begin?.("load-all-data", { strict });
   return Promise.resolve(loadData({ strict })).then(() => {
     loadBinsData();
     loadTidplanData();
@@ -46,29 +47,23 @@ function loadAllData(options = {}) {
     if (hasPermission("canViewReports")) tasks.push(loadReportsData({ strict }));
     if (canAccessNotificationsModule()) tasks.push(loadNotificationsData(currentSite, { strict }));
     if (hasPermission("canViewSurveys")) tasks.push(getSurveysList({ strict }));
-    return Promise.all(tasks);
+    return Promise.all(tasks).finally(() => {
+      CMAX_PERF?.count?.("loadAllData");
+      if (token) CMAX_PERF.end(token, { taskCount: tasks.length });
+    });
   });
 }
 function loadWarehouseData(site = currentSite) {
   warehouseData = normalizeWarehouseData(
-    safeParseStoredJson(localStorage.getItem(getSiteStorageKey("cmax_warehouse_data", site)), null),
+    getCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), null),
   );
 }
 
 function loadCurrentSiteRuntimeFromLocalStorage() {
-  const planner = safeParseStoredJson(
-    localStorage.getItem(getSiteStorageKey("cmax_planner_data", currentSite)),
-    createEmptyPlannerData(),
-  );
+  const planner = getCachedStorageJson(getSiteStorageKey("cmax_planner_data", currentSite), createEmptyPlannerData());
   applyPlannerDataToAppState(planner || createEmptyPlannerData());
-  appState.binsData = safeParseStoredJson(
-    localStorage.getItem(getSiteStorageKey("cmax_planner_bins", currentSite)),
-    {},
-  ) || {};
-  tidplanData = safeParseStoredJson(
-    localStorage.getItem(getSiteStorageKey("tidplan", currentSite)),
-    [],
-  ) || [];
+  appState.binsData = getCachedStorageJson(getSiteStorageKey("cmax_planner_bins", currentSite), {}) || {};
+  tidplanData = getCachedStorageJson(getSiteStorageKey("tidplan", currentSite), []) || [];
   loadTidplanZones();
   loadWarehouseData(currentSite);
   collectPlans();
@@ -82,9 +77,9 @@ function updateScopedStorageKeysForCurrentSite() {
 }
 
 function getSiteDebugSummary(site) {
-  const planner = safeParseStoredJson(localStorage.getItem(getSiteStorageKey("cmax_planner_data", site)), createEmptyPlannerData()) || {};
-  const tidplan = safeParseStoredJson(localStorage.getItem(getSiteStorageKey("tidplan", site)), []) || [];
-  const warehouse = safeParseStoredJson(localStorage.getItem(getSiteStorageKey("cmax_warehouse_data", site)), null) || {};
+  const planner = getCachedStorageJson(getSiteStorageKey("cmax_planner_data", site), createEmptyPlannerData()) || {};
+  const tidplan = getCachedStorageJson(getSiteStorageKey("tidplan", site), []) || [];
+  const warehouse = getCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), null) || {};
   return {
     workers: Array.isArray(planner.workers) ? planner.workers.length : 0,
     lifts: Array.isArray(planner.lifts) ? planner.lifts.length : 0,
@@ -102,29 +97,40 @@ function logSiteScopeDebug(action, details = {}) {
 }
 
 function renderCurrentSiteAfterHydrate() {
-  renderAll();
-  CMAX.tidplan.update();
-  if (currentView === "bins") {
-    renderBinsTable();
-  }
-  if (document.getElementById("notifications-section")?.style.display === "block") {
-    renderNotificationSiteOptions();
-    renderNotificationsList();
-  }
-  if (currentView === "warehouse") {
-    renderWarehousePage();
-  }
-  if (currentView === "warehouseLogs") {
-    renderWarehouseLogsPage();
-  }
-  if (currentView === "warehouseGraph") {
-    renderWarehouseGraphPage();
-  }
-  if (currentView === "workwear" && typeof renderWorkwearModule === "function") {
-    renderWorkwearModule();
-  }
+  renderActiveSharedModule();
   updateNotifBadge();
   updateMainTitle();
+}
+
+function renderActiveSharedModule() {
+  const token = typeof CMAX_PERF?.begin === "function"
+    ? CMAX_PERF.begin("render-active-module", { view: currentView })
+    : null;
+  if (currentView === "bins") {
+    renderAll();
+    renderBinsTable();
+  } else if (currentView === "warehouse") {
+    renderWarehousePage();
+  } else if (currentView === "warehouseLogs") {
+    renderWarehouseLogsPage();
+  } else if (currentView === "warehouseGraph") {
+    renderWarehouseGraphPage();
+  } else if (currentView === "workwear" && typeof renderWorkwearModule === "function") {
+    renderWorkwearModule();
+  } else if (currentView === "notifications") {
+    renderNotificationSiteOptions();
+    renderNotificationsList();
+  } else if (currentView === "reports" && typeof renderReportsList === "function") {
+    renderReportsList(typeof currentReportFilter === "string" ? currentReportFilter : "all");
+  } else if (currentView === "surveys" && typeof renderSurveysList === "function") {
+    renderSurveysList();
+  } else if (document.getElementById("tidplan-section")?.style.display === "block" || currentView === "tidplan") {
+    CMAX.tidplan.update();
+  } else {
+    renderAll();
+  }
+  CMAX_PERF?.count?.("renderActiveSharedModule");
+  if (token) CMAX_PERF.end(token);
 }
 
 function switchSiteFromLocal(toSite, options = {}) {
@@ -330,29 +336,18 @@ function persistCurrentStateToLocalStorage() {
     dailyData: normalizeDailyDataForSave(appState.dailyData),
     resourceHistory: normalizeResourceHistory(appState.resourceHistory),
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(plannerPayload));
-  localStorage.setItem(
-    getSiteStorageKey("cmax_planner_data", currentSite),
-    JSON.stringify(plannerPayload),
-  );
-  localStorage.setItem(BINS_KEY, JSON.stringify(appState.binsData || {}));
-  localStorage.setItem(BIN_PERMS_KEY, JSON.stringify(appState.binPermissions || {}));
-  localStorage.setItem(
-    getStorageKey("tidplan"),
-    JSON.stringify(tidplanData || []),
-  );
-  localStorage.setItem(
-    getStorageKey("tidplan_zones"),
-    JSON.stringify(tidplanZones || []),
-  );
-  localStorage.setItem(
+  setCachedStorageJson(STORAGE_KEY, plannerPayload);
+  setCachedStorageJson(getSiteStorageKey("cmax_planner_data", currentSite), plannerPayload);
+  setCachedStorageJson(BINS_KEY, appState.binsData || {});
+  setCachedStorageJson(BIN_PERMS_KEY, appState.binPermissions || {});
+  setCachedStorageJson(getStorageKey("tidplan"), tidplanData || []);
+  setCachedStorageJson(getStorageKey("tidplan_zones"), tidplanZones || []);
+  setCachedStorageJson(
     getSiteStorageKey("cmax_warehouse_data", currentSite),
-    JSON.stringify(normalizeWarehouseData(warehouseData)),
+    normalizeWarehouseData(warehouseData),
   );
-  localStorage.setItem(
-    GUEST_PERMISSIONS_KEY,
-    JSON.stringify(appState.guestPermissions || getGuestPermissions()),
-  );
+  setCachedStorageJson(GUEST_PERMISSIONS_KEY, appState.guestPermissions || getGuestPermissions());
+  CMAX_PERF?.count?.("persistCurrentStateToLocalStorage");
 }
 
 function mergePlannerSnapshot(localPlanner, serverPlanner, site = currentSite) {
@@ -452,10 +447,10 @@ function getCurrentUserAccountNotificationBundle() {
   const userKey = getCurrentUserAccountNotificationKey();
   if (!userKey) return null;
   return {
-    notifications: safeParseStoredJson(localStorage.getItem(`cmax_account_notifications_${userKey}`), []) || [],
-    siteTracker: safeParseStoredJson(localStorage.getItem(`cmax_account_notification_site_tracker_${userKey}`), {}) || {},
-    permissionSignature: String(localStorage.getItem(`cmax_account_notification_perm_${userKey}`) || ""),
-    workwearTracker: safeParseStoredJson(localStorage.getItem(`cmax_workwear_account_notification_tracker_${userKey}`), {}) || {},
+    notifications: getCachedStorageJson(`cmax_account_notifications_${userKey}`, []) || [],
+    siteTracker: getCachedStorageJson(`cmax_account_notification_site_tracker_${userKey}`, {}) || {},
+    permissionSignature: String(getCachedStorageValue(`cmax_account_notification_perm_${userKey}`, "") || ""),
+    workwearTracker: getCachedStorageJson(`cmax_workwear_account_notification_tracker_${userKey}`, {}) || {},
     updatedAt: new Date().toISOString(),
   };
 }
@@ -463,20 +458,20 @@ function getCurrentUserAccountNotificationBundle() {
 function applyCurrentUserAccountNotificationBundle(bundle) {
   const userKey = getCurrentUserAccountNotificationKey();
   if (!userKey || !bundle || typeof bundle !== "object") return;
-  localStorage.setItem(
+  setCachedStorageJson(
     `cmax_account_notifications_${userKey}`,
-    JSON.stringify(Array.isArray(bundle.notifications) ? bundle.notifications : []),
+    Array.isArray(bundle.notifications) ? bundle.notifications : [],
   );
-  localStorage.setItem(
+  setCachedStorageJson(
     `cmax_account_notification_site_tracker_${userKey}`,
-    JSON.stringify(bundle.siteTracker && typeof bundle.siteTracker === "object" ? bundle.siteTracker : {}),
+    bundle.siteTracker && typeof bundle.siteTracker === "object" ? bundle.siteTracker : {},
   );
-  localStorage.setItem(
+  setCachedStorageJson(
     `cmax_workwear_account_notification_tracker_${userKey}`,
-    JSON.stringify(bundle.workwearTracker && typeof bundle.workwearTracker === "object" ? bundle.workwearTracker : {}),
+    bundle.workwearTracker && typeof bundle.workwearTracker === "object" ? bundle.workwearTracker : {},
   );
   if (typeof bundle.permissionSignature === "string" && bundle.permissionSignature) {
-    localStorage.setItem(`cmax_account_notification_perm_${userKey}`, bundle.permissionSignature);
+    setCachedStorageValue(`cmax_account_notification_perm_${userKey}`, bundle.permissionSignature);
   }
 }
 
@@ -485,19 +480,10 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
   const serverState = baseState && typeof baseState === "object" ? baseState : {};
   const siteList = Array.isArray(sites) && sites.length ? [...sites] : ["default"];
   const siteData = {};
-  const localAdmins = safeParseStoredJson(localStorage.getItem(ADMINS_KEY), []);
-  const localGuestPermissions = safeParseStoredJson(
-    localStorage.getItem(GUEST_PERMISSIONS_KEY),
-    appState.guestPermissions,
-  );
-  const localAdminRemovalNotices = safeParseStoredJson(
-    localStorage.getItem(ADMIN_REMOVAL_NOTICES_KEY),
-    {},
-  );
-  const localBinPermissions = safeParseStoredJson(
-    localStorage.getItem(BIN_PERMS_KEY),
-    appState.binPermissions,
-  );
+  const localAdmins = getCachedStorageJson(ADMINS_KEY, []);
+  const localGuestPermissions = getCachedStorageJson(GUEST_PERMISSIONS_KEY, appState.guestPermissions);
+  const localAdminRemovalNotices = getCachedStorageJson(ADMIN_REMOVAL_NOTICES_KEY, {});
+  const localBinPermissions = getCachedStorageJson(BIN_PERMS_KEY, appState.binPermissions);
   const snapshotSites =
     options.includeSites === true
       ? siteList
@@ -523,10 +509,7 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
       : siteList.slice(0, 1);
 
   siteSnapshotList.forEach((site) => {
-    const localPlanner = safeParseStoredJson(
-      localStorage.getItem(getSiteStorageKey("cmax_planner_data", site)),
-      null,
-    );
+    const localPlanner = getCachedStorageJson(getSiteStorageKey("cmax_planner_data", site), null);
     const serverPlanner =
       serverState.siteData &&
       serverState.siteData[site] &&
@@ -540,10 +523,7 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
       Array.isArray(serverState.siteData[site].notifications)
         ? serverState.siteData[site].notifications
         : null;
-    const localNotifications = safeParseStoredJson(
-      localStorage.getItem(getSiteStorageKey("cmax_planner_notifications", site)),
-      null,
-    );
+    const localNotifications = getCachedStorageJson(getSiteStorageKey("cmax_planner_notifications", site), null);
     const plannerSnapshot = mergePlannerSnapshot(localPlanner, serverPlanner, site);
     siteData[site] = {
       planner: plannerSnapshot,
@@ -552,32 +532,14 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
       moments: Array.isArray(plannerSnapshot.moments) ? plannerSnapshot.moments : [],
       plans: Array.isArray(plannerSnapshot.plans) ? plannerSnapshot.plans : [],
       karnas: Array.isArray(plannerSnapshot.karnas) ? plannerSnapshot.karnas : [],
-      bins: safeParseStoredJson(
-        localStorage.getItem(getSiteStorageKey("cmax_planner_bins", site)),
-        null,
-      ),
-      tidplan: safeParseStoredJson(
-        localStorage.getItem(getSiteStorageKey("tidplan", site)),
-        null,
-      ),
-      tidplanZones: safeParseStoredJson(
-        localStorage.getItem(getSiteStorageKey("tidplan_zones", site)),
-        null,
-      ),
+      bins: getCachedStorageJson(getSiteStorageKey("cmax_planner_bins", site), null),
+      tidplan: getCachedStorageJson(getSiteStorageKey("tidplan", site), null),
+      tidplanZones: getCachedStorageJson(getSiteStorageKey("tidplan_zones", site), null),
       warehouse: normalizeWarehouseData(
-        safeParseStoredJson(
-          localStorage.getItem(getSiteStorageKey("cmax_warehouse_data", site)),
-          null,
-        ),
+        getCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), null),
       ),
-      store: safeParseStoredJson(
-        localStorage.getItem(getSiteStorageKey("cmax_workwear_data", site)),
-        null,
-      ),
-      reports: safeParseStoredJson(
-        localStorage.getItem(getSiteStorageKey("cmax_planner_reports", site)),
-        [],
-      ),
+      store: getCachedStorageJson(getSiteStorageKey("cmax_workwear_data", site), null),
+      reports: getCachedStorageJson(getSiteStorageKey("cmax_planner_reports", site), []),
       notifications: Array.isArray(localNotifications)
         ? localNotifications
         : Array.isArray(serverNotifications)
@@ -633,9 +595,9 @@ function applyServerStateSnapshot(snapshot) {
       ? snapshot.sites
       : ["default"];
   sites = [...snapshotSites];
-  localStorage.setItem(SITES_KEY, JSON.stringify(sites));
+  setCachedStorageJson(SITES_KEY, sites);
 
-  const storedCurrentSite = localStorage.getItem(CURRENT_SITE_KEY);
+  const storedCurrentSite = getCachedStorageValue(CURRENT_SITE_KEY, "");
   const preferredCurrentSite =
     storedCurrentSite && sites.includes(storedCurrentSite)
       ? storedCurrentSite
@@ -643,22 +605,16 @@ function applyServerStateSnapshot(snapshot) {
         ? snapshot.currentSite
         : sites[0];
   currentSite = preferredCurrentSite;
-  localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+  setCachedStorageValue(CURRENT_SITE_KEY, currentSite);
 
   if (Array.isArray(snapshot.admins)) {
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(snapshot.admins));
+    setCachedStorageJson(ADMINS_KEY, snapshot.admins);
   }
   if (snapshot.guestPermissions) {
-    localStorage.setItem(
-      GUEST_PERMISSIONS_KEY,
-      JSON.stringify(normalizeGuestPermissions(snapshot.guestPermissions)),
-    );
+    setCachedStorageJson(GUEST_PERMISSIONS_KEY, normalizeGuestPermissions(snapshot.guestPermissions));
   }
   if (snapshot.binPermissions) {
-    localStorage.setItem(
-      BIN_PERMS_KEY,
-      JSON.stringify(snapshot.binPermissions),
-    );
+    setCachedStorageJson(BIN_PERMS_KEY, snapshot.binPermissions);
   }
 
   const snapshotSiteData = snapshot.siteData || {};
@@ -682,42 +638,36 @@ function applyServerStateSnapshot(snapshot) {
           dailyData: siteEntry.dailyData,
           resourceHistory: siteEntry.resourceHistory,
         };
-    localStorage.setItem(
-      getSiteStorageKey("cmax_planner_data", site),
-      JSON.stringify(normalizePlannerData(planner, site)),
-    );
-    localStorage.setItem(
+    setCachedStorageJson(getSiteStorageKey("cmax_planner_data", site), normalizePlannerData(planner, site));
+    setCachedStorageJson(
       getSiteStorageKey("cmax_planner_bins", site),
-      JSON.stringify(siteEntry.bins && typeof siteEntry.bins === "object" ? siteEntry.bins : {}),
+      siteEntry.bins && typeof siteEntry.bins === "object" ? siteEntry.bins : {},
     );
-    localStorage.setItem(
-      getSiteStorageKey("tidplan", site),
-      JSON.stringify(Array.isArray(siteEntry.tidplan) ? siteEntry.tidplan : []),
-    );
-    localStorage.setItem(
+    setCachedStorageJson(getSiteStorageKey("tidplan", site), Array.isArray(siteEntry.tidplan) ? siteEntry.tidplan : []);
+    setCachedStorageJson(
       getSiteStorageKey("tidplan_zones", site),
-      JSON.stringify(Array.isArray(siteEntry.tidplanZones) ? siteEntry.tidplanZones : DEFAULT_SITE_TEMPLATE.tidplanZones),
+      Array.isArray(siteEntry.tidplanZones) ? siteEntry.tidplanZones : DEFAULT_SITE_TEMPLATE.tidplanZones,
     );
-    localStorage.setItem(
+    setCachedStorageJson(
       getSiteStorageKey("cmax_warehouse_data", site),
-      JSON.stringify(normalizeWarehouseData(siteEntry.warehouse)),
+      normalizeWarehouseData(siteEntry.warehouse),
     );
-    localStorage.setItem(
+    setCachedStorageJson(
       getSiteStorageKey("cmax_workwear_data", site),
-      JSON.stringify(siteEntry.store && typeof siteEntry.store === "object" ? siteEntry.store : {}),
+      siteEntry.store && typeof siteEntry.store === "object" ? siteEntry.store : {},
     );
-    localStorage.setItem(
+    setCachedStorageJson(
       getSiteStorageKey("cmax_planner_reports", site),
-      JSON.stringify(Array.isArray(siteEntry.reports) ? siteEntry.reports : []),
+      Array.isArray(siteEntry.reports) ? siteEntry.reports : [],
     );
-    localStorage.setItem(
+    setCachedStorageJson(
       getSiteStorageKey("cmax_planner_notifications", site),
-      JSON.stringify(Array.isArray(siteEntry.notifications) ? siteEntry.notifications : []),
+      Array.isArray(siteEntry.notifications) ? siteEntry.notifications : [],
     );
   });
 
   updateScopedStorageKeysForCurrentSite();
-  const currentPlanner = safeParseStoredJson(localStorage.getItem(STORAGE_KEY), null);
+  const currentPlanner = getCachedStorageJson(STORAGE_KEY, null);
   applyPlannerDataToAppState(currentPlanner || createEmptyPlannerData());
   appState.guestPermissions = getGuestPermissions();
   populateSiteSelect();
@@ -779,6 +729,11 @@ function syncServerState(options = {}) {
             ? "notifications"
             : "planner"),
   };
+  const token = CMAX_PERF?.begin?.("sync-server-state", {
+    includeAdmins,
+    includeSites,
+    module: syncOptions.module,
+  });
 
   serverSyncInFlight = fetch("/api/state", { cache: "no-store" })
     .then((res) => {
@@ -816,6 +771,8 @@ function syncServerState(options = {}) {
       if (includeAdminRemovalNotices) pendingServerSyncOptions.includeAdminRemovalNotices = false;
       if (adminEditTargetEmail) pendingServerSyncOptions.adminEditTargetEmail = "";
       if (showSuccess) showToast(t("dataSaved"), "success");
+      CMAX_PERF?.count?.("syncServerState");
+      if (token) CMAX_PERF.end(token, { success: true });
       return true;
     })
     .catch((error) => {
@@ -827,6 +784,7 @@ function syncServerState(options = {}) {
       }
       console.error("Server sync failed:", error);
       if (showSuccess) showToast("Server save failed.", "error");
+      if (token) CMAX_PERF.end(token, { success: false, error: error?.code || error?.message || "SYNC_FAILED" });
       return false;
     })
     .finally(() => {

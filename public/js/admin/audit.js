@@ -13,11 +13,12 @@ function getLogFilterValues() {
 }
 
 function setupLogFilters() {
+  const debouncedRender = typeof cmaxDebounce === "function" ? cmaxDebounce(renderLogs, 220) : renderLogs;
   ["logFilterText", "logFilterUser", "logFilterAction", "logFilterFrom", "logFilterTo"].forEach((id) => {
     const el = document.getElementById(id);
     if (el && !el.dataset.logFilterReady) {
       el.dataset.logFilterReady = "true";
-      el.addEventListener("input", renderLogs);
+      el.addEventListener("input", debouncedRender);
       el.addEventListener("change", renderLogs);
     }
   });

@@ -1058,6 +1058,8 @@
               data-cmax-image-fallback="mainLogoFallback"
               data-cmax-image-fallback-display="flex"
               alt="CMAX Logo"
+              loading="lazy"
+              decoding="async"
             />
             <span
               id="mainLogoFallback"
@@ -1696,7 +1698,7 @@
             <label id="notificationSearchLabel" for="notificationSearch"
               >Pretraga:</label
             >
-            <input type="text" id="notificationSearch" placeholder="Trazi..." />
+            <input type="search" id="notificationSearch" placeholder="Trazi..." />
           </div>
           <label class="notification-pin-toggle">
             <input type="checkbox" id="notificationPinnedOnly" />
@@ -1857,7 +1859,7 @@
         <div class="store-layout">
           <section class="store-catalog-card">
             <div class="store-search-row">
-              <input id="workwearSearch" class="store-input" placeholder="Search artikala..." data-cmax-action="workwear.applyFilters" data-cmax-event="input" />
+              <input id="workwearSearch" class="store-input" placeholder="Search artikala..." data-cmax-action="workwear.applyFilters" data-cmax-event="input" data-cmax-debounce="220" />
               <select id="workwearCategoryFilter" class="store-input" data-cmax-action="workwear.applyFilters" data-cmax-event="change"></select>
               <select id="workwearSeasonFilter" class="store-input" data-cmax-action="workwear.applyFilters" data-cmax-event="change"></select>
               <label class="workwear-check-row"><input type="checkbox" id="workwearNewFilter" data-cmax-action="workwear.applyFilters" data-cmax-event="change" /> New</label>

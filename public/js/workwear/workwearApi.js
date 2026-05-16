@@ -1,3 +1,5 @@
+var workwearOrdersListAbortController = null;
+
 function workwearApiParseResponse(response, fallbackError) {
   if (response.ok) {
     return response.json().catch(() => ({}));
@@ -39,7 +41,12 @@ function workwearApiSaveProduct(product) {
 function workwearApiListOrders() {
   if (typeof BACKEND_ENABLED !== "undefined" && BACKEND_ENABLED) {
     const site = String(currentSite || "default").trim() || "default";
-    return fetch(`/api/store/orders?site=${encodeURIComponent(site)}`, { cache: "no-store" })
+    if (workwearOrdersListAbortController) workwearOrdersListAbortController.abort();
+    workwearOrdersListAbortController = typeof AbortController === "function" ? new AbortController() : null;
+    return fetch(`/api/store/orders?site=${encodeURIComponent(site)}`, {
+      cache: "no-store",
+      signal: workwearOrdersListAbortController?.signal,
+    })
       .then((res) => workwearApiParseResponse(res, "STORE_ORDERS_LOAD_FAILED"))
       .then((payload) => {
         const state = getWorkwearState(site);
@@ -47,9 +54,16 @@ function workwearApiListOrders() {
         saveWorkwearState(site, { track: false });
         return (state.orders || []).slice();
       })
-      .catch(() => {
+      .catch((error) => {
+        if (error?.name === "AbortError") {
+          const state = getWorkwearState(site);
+          return (state.orders || []).slice();
+        }
         const state = getWorkwearState(site);
         return (state.orders || []).slice();
+      })
+      .finally(() => {
+        workwearOrdersListAbortController = null;
       });
   }
   const state = getWorkwearState();

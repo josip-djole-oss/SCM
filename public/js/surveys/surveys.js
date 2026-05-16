@@ -1,5 +1,12 @@
 /* ==================== SURVEYS ==================== */
 var surveysCache = [];
+var surveyRenderLimit = 15;
+var surveysListAbortController = null;
+
+function loadMoreSurveys() {
+  surveyRenderLimit += 15;
+  renderSurveysList();
+}
 
 function getSurveyReadKey() {
   return `cmax_surveys_read_${currentSite}_${getCurrentUserEmail() || "guest"}`;
@@ -42,9 +49,12 @@ function updateSurveysBadge() {
 function getSurveysList(options = {}) {
   const { strict = false } = options;
   if (!BACKEND_ENABLED) return Promise.resolve(surveysCache);
+  if (surveysListAbortController) surveysListAbortController.abort();
+  surveysListAbortController = typeof AbortController === "function" ? new AbortController() : null;
 
   return fetch(`/api/surveys?site=${encodeURIComponent(currentSite)}`, {
     cache: "no-store",
+    signal: surveysListAbortController?.signal,
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((data) => {
@@ -54,9 +64,13 @@ function getSurveysList(options = {}) {
       return surveys;
     })
     .catch((error) => {
+      if (error?.name === "AbortError") return surveysCache;
       if (strict) throw error;
       updateSurveysBadge();
       return surveysCache;
+    })
+    .finally(() => {
+      surveysListAbortController = null;
     });
 }
 
@@ -304,16 +318,19 @@ function setupSurveyTargetHandlers() {
 function renderSurveysList() {
   const container = document.getElementById("surveysList");
   if (!container) return;
+  const token = CMAX_PERF?.begin?.("render-surveys-list");
 
   getSurveysList().then((surveys) => {
     if (!surveys || surveys.length === 0) {
       container.innerHTML = `<div style="padding: 24px; text-align: center; color: var(--text-light);">${escapeHtml(t("surveyNoPublished"))}</div>`;
+      if (token) CMAX_PERF.end(token, { count: 0 });
       return;
     }
 
     container.innerHTML = "";
+    const visibleSurveys = surveys.slice(0, surveyRenderLimit);
 
-    surveys.forEach((survey) => {
+    visibleSurveys.forEach((survey) => {
       const card = document.createElement("div");
       card.className = "notification-card";
       card.style.marginBottom = "16px";
@@ -468,6 +485,20 @@ function renderSurveysList() {
 
       container.appendChild(card);
     });
+    if (surveys.length > visibleSurveys.length) {
+      container.insertAdjacentHTML(
+        "beforeend",
+        `
+          <div class="store-list-load-more">
+            <button class="btn btn-secondary" data-cmax-action="surveys.loadMore">
+              ${escapeHtml(t("loadMore") || "Ucitaj jos")} (${visibleSurveys.length}/${surveys.length})
+            </button>
+          </div>
+        `,
+      );
+    }
+    CMAX_PERF?.count?.("renderSurveysList");
+    if (token) CMAX_PERF.end(token, { count: visibleSurveys.length, total: surveys.length });
   });
 }
 
@@ -570,6 +601,7 @@ function showSurveys() {
     currentView = "surveys";
     saveCurrentView("surveys");
     pushRouteForView("surveys");
+    surveyRenderLimit = 15;
 
     setupSurveyTargetHandlers();
     renderSurveyTargetUsers();

@@ -66,6 +66,8 @@ function showWorkwear() {
     saveCurrentView("workwear");
     pushRouteForView("workwear");
     if (typeof updateShellForView === "function") updateShellForView("workwear");
+    if (typeof workwearProductRenderLimit !== "undefined") workwearProductRenderLimit = 24;
+    if (typeof workwearOrderRenderLimit !== "undefined") workwearOrderRenderLimit = 20;
 
     loadWorkwearState(currentSite);
     ensureWorkerWorkwearProfile(appState.currentUser || "guest");

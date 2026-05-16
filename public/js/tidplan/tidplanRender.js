@@ -137,7 +137,12 @@ function updateTidplanSummaryCards() {
   setText("tidplanSummaryCapacityDay", deltaToday >= 0 ? `+${deltaToday}` : `-${Math.abs(deltaToday)}`);
 }
 
+var tidplanDatePickerInitTimer = null;
+var tidplanLayoutSyncTimer = null;
+var tidplanLateLayoutSyncTimer = null;
+
 function updateTidplan() {
+  const token = CMAX_PERF?.begin?.("update-tidplan");
   renderPastDayLockNotice("tidplan-section");
   renderLastEditedInfo();
   collectPlans();
@@ -253,17 +258,34 @@ function updateTidplan() {
   updateTidplanSummaryCards();
 
   // Initialize flatpickr for tidplan date inputs
-  setTimeout(() => initTidplanDatePickers(), 10);
+  clearTimeout(tidplanDatePickerInitTimer);
+  tidplanDatePickerInitTimer = setTimeout(() => initTidplanDatePickers(), 10);
 
   // Setup scroll synchronization between left panel and timeline
-  setTimeout(() => {
-    syncTidplanMeasuredRowHeights();
-    syncTidplanScroll();
-    if (typeof initTidplanActionLayer === "function") initTidplanActionLayer();
+  clearTimeout(tidplanLayoutSyncTimer);
+  tidplanLayoutSyncTimer = setTimeout(() => {
+    if (typeof cmaxScheduleFrame === "function") {
+      cmaxScheduleFrame("tidplan-layout-sync", () => {
+        syncTidplanMeasuredRowHeights();
+        syncTidplanScroll();
+        if (typeof initTidplanActionLayer === "function") initTidplanActionLayer();
+      });
+    } else {
+      syncTidplanMeasuredRowHeights();
+      syncTidplanScroll();
+      if (typeof initTidplanActionLayer === "function") initTidplanActionLayer();
+    }
   }, 50);
-  setTimeout(() => {
-    syncTidplanMeasuredRowHeights();
+  clearTimeout(tidplanLateLayoutSyncTimer);
+  tidplanLateLayoutSyncTimer = setTimeout(() => {
+    if (typeof cmaxScheduleFrame === "function") {
+      cmaxScheduleFrame("tidplan-late-height-sync", () => syncTidplanMeasuredRowHeights());
+    } else {
+      syncTidplanMeasuredRowHeights();
+    }
   }, 180);
+  CMAX_PERF?.count?.("updateTidplan");
+  if (token) CMAX_PERF.end(token);
 }
 
 function syncTidplanScroll() {
@@ -271,6 +293,10 @@ function syncTidplanScroll() {
   const timeline = document.getElementById("tidplanTimeline");
 
   if (!leftPanel || !timeline) return;
+  if (leftPanel.dataset.cmaxScrollBound === "true" && timeline.dataset.cmaxScrollBound === "true") {
+    timeline.scrollTop = leftPanel.scrollTop;
+    return;
+  }
 
   let syncing = false;
 
@@ -288,8 +314,12 @@ function syncTidplanScroll() {
     syncing = false;
   };
 
-  leftPanel.onscroll = syncFromLeft;
-  timeline.onscroll = syncFromRight;
+  const leftHandler = typeof cmaxThrottle === "function" ? cmaxThrottle(syncFromLeft, 16) : syncFromLeft;
+  const rightHandler = typeof cmaxThrottle === "function" ? cmaxThrottle(syncFromRight, 16) : syncFromRight;
+  leftPanel.addEventListener("scroll", leftHandler);
+  timeline.addEventListener("scroll", rightHandler);
+  leftPanel.dataset.cmaxScrollBound = "true";
+  timeline.dataset.cmaxScrollBound = "true";
   timeline.scrollTop = leftPanel.scrollTop;
 }
 
@@ -313,20 +343,24 @@ function syncTidplanMeasuredRowHeights() {
     timelineHeader.style.maxHeight = "60px";
   }
 
-  const sharedHeight = Math.max(
-    40,
-    ...leftRows.map((row) => Math.round(row.getBoundingClientRect().height || 40)),
-  );
+  const sharedHeight = Math.max(40, ...leftRows.map((row) => Math.round(row.offsetHeight || 40)));
   const rowCount = Math.min(leftRows.length, timelineRows.length);
-  for (let index = 0; index < rowCount; index += 1) {
-    const leftRow = leftRows[index];
-    const timelineRow = timelineRows[index];
-    leftRow.style.height = `${sharedHeight}px`;
-    leftRow.style.minHeight = `${sharedHeight}px`;
-    leftRow.style.maxHeight = `${sharedHeight}px`;
-    timelineRow.style.height = `${sharedHeight}px`;
-    timelineRow.style.minHeight = `${sharedHeight}px`;
-    timelineRow.style.maxHeight = `${sharedHeight}px`;
+  const applyHeights = () => {
+    for (let index = 0; index < rowCount; index += 1) {
+      const leftRow = leftRows[index];
+      const timelineRow = timelineRows[index];
+      leftRow.style.height = `${sharedHeight}px`;
+      leftRow.style.minHeight = `${sharedHeight}px`;
+      leftRow.style.maxHeight = `${sharedHeight}px`;
+      timelineRow.style.height = `${sharedHeight}px`;
+      timelineRow.style.minHeight = `${sharedHeight}px`;
+      timelineRow.style.maxHeight = `${sharedHeight}px`;
+    }
+  };
+  if (typeof cmaxScheduleFrame === "function") {
+    cmaxScheduleFrame("tidplan-apply-row-heights", applyHeights);
+  } else {
+    applyHeights();
   }
 }
 

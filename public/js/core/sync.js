@@ -265,27 +265,10 @@ function renderLastEditedInfo() {
 }
 
 function renderAfterSharedDataRefresh() {
-  renderAll();
-  if (currentView === "bins") {
-    renderBinsTable();
-  }
-  if (currentView === "warehouse") {
-    renderWarehousePage();
-  }
-  if (currentView === "warehouseLogs") {
-    renderWarehouseLogsPage();
-  }
-  if (currentView === "warehouseGraph") {
-    renderWarehouseGraphPage();
-  }
-  if (currentView === "workwear" && typeof renderWorkwearModule === "function") {
-    renderWorkwearModule();
-  }
-  if (document.getElementById("tidplan-section")?.style.display === "block") {
-    CMAX.tidplan.update();
-  }
-  if (currentView === "notifications") {
-    renderNotificationsList();
+  if (typeof renderActiveSharedModule === "function") {
+    renderActiveSharedModule();
+  } else {
+    renderAll();
   }
   updateNotifBadge();
 }

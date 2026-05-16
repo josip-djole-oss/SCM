@@ -71,7 +71,18 @@ function workwearSwitchManagerTab(tab) {
 function workwearSetOrderFilter(key, el) {
   if (!key || !el) return;
   workwearOrderFilters[key] = String(el.value || "").trim();
+  workwearOrderRenderLimit = 20;
   renderWorkwearManagerOrders();
+}
+
+function workwearLoadMoreProducts() {
+  workwearProductRenderLimit += 24;
+  renderWorkwearProducts();
+}
+
+function workwearLoadMoreOrders() {
+  workwearOrderRenderLimit += 20;
+  renderWorkwearOrders();
 }
 
 function workwearSetBulkSelection(productId, el) {
@@ -1686,6 +1697,7 @@ function workwearRejectPasswordReset(requestId) {
 }
 
 function workwearApplyFilters() {
+  workwearProductRenderLimit = 24;
   renderWorkwearProducts();
 }
 

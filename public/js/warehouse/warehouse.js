@@ -29,6 +29,7 @@ function createDefaultWarehouseLogFilters() {
 }
 
 var warehouseLogFilterState = createDefaultWarehouseLogFilters();
+var warehouseLogRenderLimit = 50;
 
 function getWarehouseItemById(itemId) {
   return (warehouseData?.catalog || []).find((item) => item.id === itemId) || null;
@@ -44,9 +45,12 @@ function ensureWarehouseStockRecord(itemId) {
 
 function persistWarehouseData(site = currentSite) {
   warehouseData = normalizeWarehouseData(warehouseData);
-  localStorage.setItem(getSiteStorageKey("cmax_warehouse_data", site), JSON.stringify(warehouseData));
+  const changed = setCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), warehouseData);
+  if (!changed) return false;
   trackEditActivity();
   scheduleServerSync();
+  CMAX_PERF?.count?.("persistWarehouseData");
+  return true;
 }
 
 function getWarehouseAlerts() {
@@ -189,7 +193,11 @@ function createWorkerSelect(selectedValue, action, args = []) {
 
 function saveWarehouseDraft() {
   persistWarehouseData();
-  renderWarehouseIssueTable();
+  if (typeof cmaxScheduleFrame === "function") {
+    cmaxScheduleFrame("warehouse-issue-draft-render", () => renderWarehouseIssueTable());
+  } else {
+    renderWarehouseIssueTable();
+  }
 }
 
 function updateWarehouseIssueDraftWorker(event) {
@@ -447,6 +455,7 @@ function showWarehouseLogs() {
   currentView = "warehouseLogs";
   saveCurrentView("warehouseLogs");
   pushRouteForView("warehouseLogs");
+  warehouseLogRenderLimit = 50;
   renderWarehouseLogsPage();
   if (typeof updateShellForView === "function") updateShellForView("warehouseLogs");
 }
@@ -480,6 +489,7 @@ function showWarehouseGraph() {
 
 
 function updateWarehouseStockForm(field, value) {
+  if (warehouseData.stockForm[field] === value) return;
   warehouseData.stockForm[field] = value;
   persistWarehouseData();
 }
@@ -696,6 +706,7 @@ function syncWarehouseLogControls() {
 
 function applyWarehouseLogFilters() {
   warehouseLogFilterState = readWarehouseLogControls();
+  warehouseLogRenderLimit = 50;
   renderWarehouseLogsPage();
 }
 
@@ -734,7 +745,13 @@ function getWarehouseSortedLogs() {
 
 function resetWarehouseLogFilters() {
   warehouseLogFilterState = createDefaultWarehouseLogFilters();
+  warehouseLogRenderLimit = 50;
   syncWarehouseLogControls();
+  renderWarehouseLogsPage();
+}
+
+function loadMoreWarehouseLogs() {
+  warehouseLogRenderLimit += 50;
   renderWarehouseLogsPage();
 }
 
@@ -773,17 +790,20 @@ function renderWarehouseLogsPage() {
   const clearBtn = document.getElementById("warehouseClearLogsBtn");
   const actionsHead = document.getElementById("warehouseLogsActionsHead");
   if (!tbody || !warehouseData) return;
+  const token = CMAX_PERF?.begin?.("render-warehouse-logs");
   populateWarehouseLogFilters();
   syncWarehouseLogControls();
   if (clearBtn) clearBtn.style.display = appState.isSuperAdmin ? "inline-flex" : "none";
   if (actionsHead) actionsHead.style.display = appState.isSuperAdmin ? "" : "none";
   tbody.innerHTML = "";
   const visibleLogs = getWarehouseSortedLogs();
-  if (!visibleLogs.length) {
+  const pagedLogs = visibleLogs.slice(0, warehouseLogRenderLimit);
+  if (!pagedLogs.length) {
     tbody.innerHTML = `<tr><td colspan="${appState.isSuperAdmin ? 10 : 9}">${escapeHtml(t("warehouseNoVisibleLogs"))}</td></tr>`;
+    if (token) CMAX_PERF.end(token, { count: 0 });
     return;
   }
-  visibleLogs.forEach((entry) => {
+  pagedLogs.forEach((entry) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${new Date(entry.timestamp).toLocaleString(getCurrentLocale())}</td>
@@ -799,6 +819,19 @@ function renderWarehouseLogsPage() {
     `;
     tbody.appendChild(tr);
   });
+  if (visibleLogs.length > pagedLogs.length) {
+    const moreRow = document.createElement("tr");
+    moreRow.innerHTML = `
+      <td colspan="${appState.isSuperAdmin ? 10 : 9}" class="warehouse-log-load-more-cell">
+        <button class="btn btn-secondary" data-cmax-action="warehouse.loadMoreLogs">
+          ${escapeHtml(t("loadMore") || "Ucitaj jos")} (${pagedLogs.length}/${visibleLogs.length})
+        </button>
+      </td>
+    `;
+    tbody.appendChild(moreRow);
+  }
+  CMAX_PERF?.count?.("renderWarehouseLogsPage");
+  if (token) CMAX_PERF.end(token, { count: pagedLogs.length, total: visibleLogs.length });
 }
 
 function renderWarehouseGraphPage() {

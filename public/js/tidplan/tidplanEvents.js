@@ -1,9 +1,13 @@
 function initTidplanResizer() {
   const resizer = document.getElementById("tidplanResizer");
   const leftPanel = document.querySelector(".tidplan-left-panel");
-  const container = document.querySelector(".tidplan-container");
-
-  if (!resizer || !leftPanel || !container) return;
+  if (!resizer || !leftPanel) return;
+  if (resizer.dataset.cmaxResizerBound === "true") {
+    initTidplanPanelControls();
+    initTidplanFullscreenControls();
+    return;
+  }
+  resizer.dataset.cmaxResizerBound = "true";
 
   // Load saved width
   const savedWidth = localStorage.getItem("tidplanLeftPanelWidth");
@@ -17,6 +21,19 @@ function initTidplanResizer() {
   let isResizing = false;
   let startX = 0;
   let startWidth = 0;
+  const handleMouseMove = typeof cmaxThrottle === "function"
+    ? cmaxThrottle((e) => {
+        if (!isResizing) return;
+        const deltaX = e.clientX - startX;
+        const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
+        leftPanel.style.width = newWidth + "px";
+      }, 16)
+    : (e) => {
+        if (!isResizing) return;
+        const deltaX = e.clientX - startX;
+        const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
+        leftPanel.style.width = newWidth + "px";
+      };
 
   resizer.addEventListener("mousedown", (e) => {
     isResizing = true;
@@ -26,13 +43,7 @@ function initTidplanResizer() {
     document.body.style.userSelect = "none";
   });
 
-  document.addEventListener("mousemove", (e) => {
-    if (!isResizing) return;
-
-    const deltaX = e.clientX - startX;
-    const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
-    leftPanel.style.width = newWidth + "px";
-  });
+  document.addEventListener("mousemove", handleMouseMove);
 
   document.addEventListener("mouseup", () => {
     if (isResizing) {
@@ -57,6 +68,8 @@ function initTidplanPanelControls() {
   const resizer = document.getElementById("tidplanResizer");
 
   if (!panelToggle || !leftPanel || !container) return;
+  if (panelToggle.dataset.cmaxPanelToggleBound === "true") return;
+  panelToggle.dataset.cmaxPanelToggleBound = "true";
 
   let panelMode = localStorage.getItem("tidplanPanelMode") || "normal"; // "hidden", "normal", "expanded"
 
