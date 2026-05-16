@@ -253,6 +253,7 @@ function updateTidplan() {
 
   populateFilters();
   renderZoneList();
+  renderTidplanMobileList();
   renderTidplanTable();
   renderTidplanTimeline();
   updateTidplanSummaryCards();
@@ -477,6 +478,49 @@ function getFilteredTidplanData() {
   }
 
   return filteredData;
+}
+
+function renderTidplanMobileList() {
+  const container = document.getElementById("tidplanMobileList");
+  if (!container) return;
+  const rows = getFilteredTidplanData()
+    .slice()
+    .sort((a, b) => {
+      const aTime = new Date(a?.start || 0).getTime();
+      const bTime = new Date(b?.start || 0).getTime();
+      return aTime - bTime;
+    });
+
+  if (!rows.length) {
+    container.innerHTML = `<div class="module-empty-state">Nema aktivnosti za odabrane filtere.</div>`;
+    return;
+  }
+
+  const locale = getCurrentLocale();
+  container.innerHTML = rows
+    .map((activity, index) => {
+      const workers = Array.isArray(activity?.linkedWorkers) ? activity.linkedWorkers.filter(Boolean) : [];
+      const statusText = activity?.active === false ? "Neaktivna" : "Aktivna";
+      const start = activity?.start ? new Date(activity.start).toLocaleDateString(locale) : "-";
+      const end = activity?.end ? new Date(activity.end).toLocaleDateString(locale) : "-";
+      return `
+        <article class="tidplan-mobile-card" data-activity-index="${index}">
+          <div class="tidplan-mobile-card-head">
+            <strong>${escapeHtml(activity?.plan || "Bez plana")}</strong>
+            <span class="warehouse-log-badge ${activity?.active === false ? "type-minus" : "type-stock"}">${escapeHtml(statusText)}</span>
+          </div>
+          <div class="tidplan-mobile-card-grid">
+            <div><span>Zona</span><strong>${escapeHtml(activity?.zona || "-")}</strong></div>
+            <div><span>Moment</span><strong>${escapeHtml(activity?.moment || "-")}</strong></div>
+            <div><span>Datumi</span><strong>${escapeHtml(`${start} - ${end}`)}</strong></div>
+            <div><span>Resursi</span><strong>${escapeHtml(String(activity?.resursi || 0))}</strong></div>
+            <div><span>Radnici</span><strong>${escapeHtml(workers.length ? workers.join(", ") : "-")}</strong></div>
+            <div><span>Komentar</span><strong>${escapeHtml(activity?.komentar || "-")}</strong></div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function isTidplanActivityInactive(activity) {

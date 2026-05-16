@@ -164,6 +164,8 @@ function bindTidplanViewportFullscreen() {
   }
 
   function enterFullscreen() {
+    const mobileTimelineDetails = document.getElementById("tidplanMobileTimelineDetails");
+    if (mobileTimelineDetails && !mobileTimelineDetails.open) mobileTimelineDetails.open = true;
     container.classList.add("tidplan-container-fullscreen");
     timeline.classList.add("tidplan-timeline-fullscreen");
     document.body.classList.add("tidplan-fullscreen-open");
