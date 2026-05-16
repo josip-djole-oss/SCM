@@ -1239,7 +1239,6 @@ function renderWorkwearManagerTabs() {
   if (!manager) return;
   const visible = canManageWorkwearModule() && workwearManagerEditorOpen;
   manager.style.display = visible ? "block" : "none";
-  document.body.classList.toggle("workwear-manager-mobile-open", visible && window.innerWidth <= 640);
   if (!visible) return;
   ["products", "categories", "orders", "budgets", "rules", "export", "audit"].forEach((tab) => {
     const el = document.getElementById(`workwearManagerTab${tab.charAt(0).toUpperCase()}${tab.slice(1)}`);

@@ -322,60 +322,6 @@ function enhanceAdminComposerLayout() {
   if (adminListBlock) adminListBlock.classList.add("admin-compose-card", "admin-compose-card-list");
 
   renderAdminLevelQuickPicks();
-  syncAdminResponsiveSections();
-}
-
-function syncAdminResponsiveSections() {
-  const settingsSection = document.getElementById("settings-section");
-  if (!settingsSection) return;
-  const isMobile = window.innerWidth <= 640;
-  settingsSection.classList.toggle("admin-mobile-stack", isMobile);
-
-  const buttonMap = {
-    tabAdmins: "tabBtnAdmins",
-    tabGuest: "tabBtnGuest",
-    tabLogs: "tabBtnLogs",
-    tabSettings: "tabBtnSettings",
-    tabBackup: "tabBtnBackup",
-  };
-
-  const visibleSections = [];
-  settingsSection.querySelectorAll(".tab-content").forEach((tab) => {
-    tab.classList.add("admin-mobile-section");
-    const tabButton = document.getElementById(buttonMap[tab.id] || "");
-    let toggle = tab.querySelector(":scope > .admin-mobile-section-toggle");
-    if (!toggle) {
-      toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "admin-mobile-section-toggle";
-      toggle.addEventListener("click", () => {
-        if (!settingsSection.classList.contains("admin-mobile-stack")) return;
-        const shouldOpen = !tab.classList.contains("is-open");
-        settingsSection.querySelectorAll(".tab-content.admin-mobile-section").forEach((section) => {
-          section.classList.remove("is-open");
-        });
-        tab.classList.toggle("is-open", shouldOpen);
-      });
-      tab.prepend(toggle);
-    }
-    toggle.textContent = (tabButton?.textContent || "").trim() || tab.dataset.sectionTitle || tab.id;
-    if (tab.style.display !== "none") visibleSections.push(tab);
-  });
-
-  if (!isMobile) {
-    settingsSection.querySelectorAll(".tab-content.admin-mobile-section").forEach((tab) => {
-      tab.classList.remove("is-open");
-    });
-    return;
-  }
-
-  const active = settingsSection.querySelector(".tab-content.active:not([style*='display: none'])");
-  let openAssigned = false;
-  visibleSections.forEach((tab) => {
-    const shouldOpen = !openAssigned && (tab === active || (!active && visibleSections[0] === tab));
-    tab.classList.toggle("is-open", shouldOpen);
-    if (shouldOpen) openAssigned = true;
-  });
 }
 
 function renderGuestAccessPanel() {
@@ -590,7 +536,6 @@ function openAdminPanel() {
     }
 
     switchTab(firstTab);
-    syncAdminResponsiveSections();
     updateNotifBadge();
   });
 }
@@ -647,17 +592,6 @@ function switchTab(tabId) {
     CMAX.admin.listBackups();
     CMAX.admin.showBackupInfo();
   }
-  syncAdminResponsiveSections();
-}
-
-if (!window.__cmaxAdminResponsiveBound) {
-  window.__cmaxAdminResponsiveBound = true;
-  window.addEventListener(
-    "resize",
-    typeof cmaxThrottle === "function"
-      ? cmaxThrottle(() => syncAdminResponsiveSections(), 120)
-      : () => syncAdminResponsiveSections(),
-  );
 }
 
 function renderAdminList() {

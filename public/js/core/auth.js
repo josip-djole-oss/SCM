@@ -190,11 +190,9 @@ function getModuleIconForView(view) {
 
 function updateShellForView(view = currentView) {
   document.body.dataset.currentView = view;
-  if (typeof closeSidebarOnMobile === "function") closeSidebarOnMobile();
   const workwearSection = document.getElementById("workwear-section");
   if (workwearSection && view !== "workwear") {
     workwearSection.style.display = "none";
-    document.body.classList.remove("workwear-manager-mobile-open");
     if (typeof workwearCartOverlayOpen !== "undefined") workwearCartOverlayOpen = false;
     if (typeof renderWorkwearCartOverlay === "function") renderWorkwearCartOverlay();
   }
