@@ -1729,76 +1729,588 @@ function getRequestedStoreSite(req) {
   return sanitizeString(raw, 80) || 'default';
 }
 
-function sanitizeStoreOrderItem(rawItem) {
-  const item = rawItem && typeof rawItem === 'object' ? rawItem : {};
-  const quantity = Math.max(1, Number(item.quantity) || 1);
-  const unitCost = Math.max(0, Number(item.unitCost) || 0);
-  const lineCost = Math.max(0, Number(item.lineCost) || (unitCost * quantity));
+const STORE_ORDER_STATUSES = ['Pending', 'Approved', 'Delivered', 'Rejected', 'Cancelled'];
+const STORE_ROLE_NORMALIZE_MAP = {
+  worker: 'radnik',
+  radnik: 'radnik',
+  foreman: 'grupovodja',
+  grupovodja: 'grupovodja',
+  supervisor: 'poslovodja',
+  poslovodja: 'poslovodja',
+  project_manager: 'projektledare',
+  projektledare: 'projektledare',
+  office: 'kontor',
+  kontor: 'kontor',
+  store_manager: 'store_manager',
+  admin: 'admin',
+  superadmin: 'superadmin',
+};
+
+function createStoreValidationError(code, statusCode = 400, details = '') {
+  const error = new Error(code);
+  error.code = code;
+  error.statusCode = statusCode;
+  error.details = details;
+  return error;
+}
+
+function normalizeStoreRoleKeyServer(roleKey) {
+  const key = sanitizeString(roleKey || '', 60).toLowerCase();
+  return STORE_ROLE_NORMALIZE_MAP[key] || '';
+}
+
+function normalizeStoreRoleListServer(list) {
+  const source = Array.isArray(list) ? list : [];
+  const normalized = source
+    .map((role) => normalizeStoreRoleKeyServer(role))
+    .filter(Boolean);
+  return Array.from(new Set(normalized));
+}
+
+function getStoreRoleKeysForSession(session, adminRecord) {
+  const directRoles = normalizeStoreRoleListServer(adminRecord?.storeRoles || session?.storeRoles || []);
+  if (directRoles.length) return directRoles;
+  const fallback = [];
+  if (session?.isSuperAdmin) fallback.push('superadmin');
+  if (canManageStoreOrders(session)) fallback.push('store_manager');
+  if (sessionHasPermission(session, 'canOpenAdminPanel')) fallback.push('admin');
+  if (canViewStoreTeamOrdersPermission(session)) fallback.push('grupovodja');
+  fallback.push('radnik');
+  return Array.from(new Set(fallback));
+}
+
+function sanitizeStoreOrderDraft(rawOrder, site) {
+  const order = rawOrder && typeof rawOrder === 'object' ? rawOrder : {};
+  const sourceItems = Array.isArray(order.items) ? order.items : [];
   return {
-    productId: sanitizeString(item.productId || '', 120),
-    productName: sanitizeString(item.productName || '', 240),
-    variantId: sanitizeString(item.variantId || '', 120),
-    variantName: sanitizeString(item.variantName || '', 200),
-    variantImage: sanitizeString(item.variantImage || '', 1000),
-    size: sanitizeString(item.size || '', 80),
-    quantity,
-    unitCost,
-    lineCost,
-    freeApplied: item.freeApplied === true,
-    differenceCost: Math.max(0, Number(item.differenceCost) || 0),
-    comment: sanitizeString(item.comment || '', 800),
+    site,
+    urgent: order.urgent === true,
+    workerComment: sanitizeString(order.workerComment || order.comment || '', 1200),
+    passwordConfirmedAt: sanitizeString(order.passwordConfirmedAt || '', 80),
+    items: sourceItems.map((entry) => {
+      const item = entry && typeof entry === 'object' ? entry : {};
+      return {
+        productId: sanitizeString(item.productId || '', 120),
+        variantId: sanitizeString(item.variantId || '', 120),
+        size: sanitizeString(item.size || '', 80),
+        quantity: Math.max(1, Math.min(999, Math.floor(Number(item.quantity) || 1))),
+        comment: sanitizeString(item.comment || '', 800),
+        useUpgrade: item.useUpgrade === true,
+        clientUnitCost: Number(item.unitCost),
+        clientLineCost: Number(item.lineCost),
+        clientBudgetImpact: Number(item.budgetImpact),
+      };
+    }).filter((item) => item.productId),
+    clientBudgetImpact: Number(order.budgetImpact),
   };
 }
 
-function sanitizeStoreOrderPayload(rawOrder, fallbackWorkerId, site) {
-  const order = rawOrder && typeof rawOrder === 'object' ? rawOrder : {};
-  const now = new Date().toISOString();
-  const status = ['Pending', 'Approved', 'Delivered', 'Rejected', 'Cancelled'].includes(order.status)
-    ? order.status
-    : 'Pending';
-  const items = Array.isArray(order.items)
-    ? order.items.map((item) => sanitizeStoreOrderItem(item)).filter((item) => item.productId)
+function storeProductSiteAllowed(product, site) {
+  const availableSites = Array.isArray(product?.availableSites) && product.availableSites.length
+    ? product.availableSites.map((entry) => sanitizeString(entry, 80)).filter(Boolean)
+    : ['*'];
+  return availableSites.includes('*') || availableSites.includes(site);
+}
+
+function storeProductRoleAllowed(product, workerEmail, roleKeys) {
+  const visibleToUsers = Array.isArray(product?.visibleToUsers)
+    ? product.visibleToUsers.map((entry) => sanitizeString(entry, 160).toLowerCase()).filter(Boolean)
     : [];
-  const subtotal = items.reduce((sum, item) => sum + Math.max(0, Number(item.lineCost) || 0), 0);
-  const differenceTotal = items.reduce((sum, item) => sum + Math.max(0, Number(item.differenceCost) || 0), 0);
-  const workerId = sanitizeString(order.workerId || fallbackWorkerId || '', 160).toLowerCase();
-  return {
-    id: sanitizeString(order.id || `SO-${Date.now().toString().slice(-8)}`, 80),
+  const visibleToRoles = normalizeStoreRoleListServer(Array.isArray(product?.visibleToRoles) ? product.visibleToRoles : []);
+  if (!visibleToUsers.length && !visibleToRoles.length) return true;
+  if (visibleToUsers.includes(workerEmail)) return true;
+  return roleKeys.some((role) => visibleToRoles.includes(role));
+}
+
+function getStoreActiveVariants(product) {
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  return variants
+    .map((variant, index) => {
+      const id = sanitizeString(variant?.id || `var_${index + 1}`, 120);
+      return {
+        id,
+        name: sanitizeString(variant?.name || '', 200),
+        image: sanitizeString(variant?.image || variant?.imageUrl || '', 1000),
+        imageUrl: sanitizeString(variant?.imageUrl || variant?.image || '', 1000),
+        active: variant?.active !== false,
+        priceOverride: Number(variant?.priceOverride),
+        creditCostOverride: Number(variant?.creditCostOverride),
+        supplierProductId: sanitizeString(variant?.supplierProductId || '', 240),
+      };
+    })
+    .filter((variant) => variant.name && variant.active !== false);
+}
+
+function resolveStoreFreeRuleMode(product, settings) {
+  const rawMode = sanitizeString(product?.freeRule?.mode || settings?.freeRules?.mode || 'none', 40).toLowerCase();
+  if (['firstcategory', 'category'].includes(rawMode)) return 'category';
+  if (['firstorder', 'order', 'order:first'].includes(rawMode)) return 'order';
+  if (['firstitem', 'item', 'product', 'firstproduct', 'none'].includes(rawMode)) {
+    return rawMode === 'none' ? 'none' : 'product';
+  }
+  return 'product';
+}
+
+function resolveStorePeriodDays(value, fallback = 180) {
+  const direct = Math.floor(Number(value));
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  return fallback;
+}
+
+function canTransitionStoreOrderStatus(currentStatus, nextStatus) {
+  const map = {
+    Pending: ['Approved', 'Rejected', 'Cancelled'],
+    Approved: ['Delivered', 'Rejected', 'Cancelled'],
+    Delivered: [],
+    Rejected: [],
+    Cancelled: [],
+  };
+  const current = sanitizeString(currentStatus || '', 40) || 'Pending';
+  const next = sanitizeString(nextStatus || '', 40);
+  if (!STORE_ORDER_STATUSES.includes(next)) return false;
+  if (current === next) return true;
+  return Array.isArray(map[current]) && map[current].includes(next);
+}
+
+function appendStoreCreditLedgerEntry(store, payload = {}) {
+  store.creditLedger = Array.isArray(store.creditLedger) ? store.creditLedger : [];
+  store.creditLedger.push({
+    id: `ledger_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    workerId: sanitizeString(payload.workerId || '', 160).toLowerCase(),
+    delta: Number(payload.delta) || 0,
+    reserve: Number(payload.reserve) || 0,
+    reason: sanitizeString(payload.reason || 'store_adjustment', 120),
+    orderId: sanitizeString(payload.orderId || '', 80),
+    date: new Date().toISOString(),
+    changedBy: sanitizeString(payload.changedBy || 'system', 200),
+  });
+  if (store.creditLedger.length > 5000) {
+    store.creditLedger = store.creditLedger.slice(-5000);
+  }
+}
+
+function ensureStoreWorkerProfile(store, workerId, workerName = '') {
+  const key = sanitizeString(workerId || '', 160).toLowerCase();
+  if (!key) {
+    throw createStoreValidationError('STORE_WORKER_REQUIRED', 400, 'Worker id is missing');
+  }
+  const settings = store.settings && typeof store.settings === 'object' ? store.settings : {};
+  const amount = Math.max(0, Number(settings.creditRenewalAmount) || 2500);
+  const renewalMonths = Math.max(1, Number(settings.creditRenewalPeriodMonths) || 6);
+  store.workerProfiles = store.workerProfiles && typeof store.workerProfiles === 'object'
+    ? store.workerProfiles
+    : {};
+  if (!store.workerProfiles[key] || typeof store.workerProfiles[key] !== 'object') {
+    const renewalDate = new Date();
+    renewalDate.setMonth(renewalDate.getMonth() + renewalMonths);
+    store.workerProfiles[key] = {
+      workerId: key,
+      workerName: sanitizeString(workerName || key, 200),
+      creditBalance: amount,
+      reservedCredit: 0,
+      renewalDate: renewalDate.toISOString(),
+      renewalPeriodMonths: renewalMonths,
+      orderHistory: [],
+      savedSizes: {},
+      freeEligibility: {},
+      adjustments: [],
+    };
+  }
+  const profile = store.workerProfiles[key];
+  profile.workerId = key;
+  if (!profile.workerName) profile.workerName = sanitizeString(workerName || key, 200);
+  profile.creditBalance = Math.max(0, Number(profile.creditBalance) || 0);
+  profile.reservedCredit = Math.max(0, Number(profile.reservedCredit) || 0);
+  profile.orderHistory = Array.isArray(profile.orderHistory) ? profile.orderHistory : [];
+  profile.freeEligibility = profile.freeEligibility && typeof profile.freeEligibility === 'object'
+    ? profile.freeEligibility
+    : {};
+  profile.adjustments = Array.isArray(profile.adjustments) ? profile.adjustments : [];
+  return profile;
+}
+
+function generateStoreOrderId(existingIds = new Set()) {
+  let candidate = '';
+  let attempts = 0;
+  while (!candidate || existingIds.has(candidate)) {
+    attempts += 1;
+    candidate = `SO-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`.toUpperCase();
+    if (attempts > 20) {
+      candidate = `SO-${Date.now()}-${attempts}`;
+      break;
+    }
+  }
+  return sanitizeString(candidate, 80);
+}
+
+function getStoreProductHistoricalQuantity(orders, workerId, productId, sinceTimestamp) {
+  const sourceOrders = Array.isArray(orders) ? orders : [];
+  return sourceOrders.reduce((sum, order) => {
+    if (!order || String(order.workerId || '').toLowerCase() !== workerId) return sum;
+    if (['Rejected', 'Cancelled'].includes(sanitizeString(order.status || '', 40))) return sum;
+    const createdAtTs = new Date(order.createdAt || 0).getTime();
+    if (sinceTimestamp > 0 && (!Number.isFinite(createdAtTs) || createdAtTs < sinceTimestamp)) return sum;
+    const items = Array.isArray(order.items) ? order.items : [];
+    return sum + items.reduce((itemSum, item) => {
+      if (sanitizeString(item?.productId || '', 120) !== productId) return itemSum;
+      return itemSum + Math.max(0, Number(item?.quantity) || 0);
+    }, 0);
+  }, 0);
+}
+
+function buildServerPricedStoreOrder({
+  store,
+  site,
+  workerId,
+  workerName,
+  workerRoles,
+  orderDraft,
+  nowIso,
+  actorEmail,
+}) {
+  const products = Array.isArray(store.products) ? store.products : [];
+  const orders = Array.isArray(store.orders) ? store.orders : [];
+  const settings = store.settings && typeof store.settings === 'object' ? store.settings : {};
+  const profile = ensureStoreWorkerProfile(store, workerId, workerName);
+
+  if (!orderDraft.items.length) {
+    throw createStoreValidationError('INVALID_ORDER_PAYLOAD', 400, 'Order does not contain items');
+  }
+
+  const existingIds = new Set(orders.map((entry) => sanitizeString(entry?.id || '', 80)).filter(Boolean));
+  const tamperSignals = [];
+  const freeRulesEnabled = settings?.freeRulesEnabled !== false && settings?.freeRules?.enabled === true;
+  const nowTs = Date.now();
+  const currentBatchByProduct = {};
+  const freeUsageDraft = {};
+  let subtotal = 0;
+  let budgetImpact = 0;
+  let differenceTotal = 0;
+  let freeAppliedCount = 0;
+  let requiresApproval = false;
+
+  const items = orderDraft.items.map((item) => {
+    const product = products.find((entry) => sanitizeString(entry?.id || '', 120) === item.productId);
+    if (!product) {
+      throw createStoreValidationError('STORE_PRODUCT_NOT_FOUND', 404, item.productId);
+    }
+    if (product.active === false || product.archived === true || product.inactive === true) {
+      throw createStoreValidationError('STORE_PRODUCT_INACTIVE', 400, item.productId);
+    }
+    if (!storeProductSiteAllowed(product, site)) {
+      throw createStoreValidationError('STORE_PRODUCT_SITE_BLOCKED', 403, item.productId);
+    }
+    if (!storeProductRoleAllowed(product, workerId, workerRoles)) {
+      throw createStoreValidationError('STORE_PRODUCT_ROLE_BLOCKED', 403, item.productId);
+    }
+
+    const sizes = Array.isArray(product.sizes) ? product.sizes.map((size) => sanitizeString(size, 80)).filter(Boolean) : [];
+    if (sizes.length && !item.size) {
+      throw createStoreValidationError('STORE_SIZE_REQUIRED', 400, item.productId);
+    }
+    if (sizes.length && item.size && !sizes.includes(item.size)) {
+      throw createStoreValidationError('STORE_SIZE_INVALID', 400, item.size);
+    }
+
+    const activeVariants = getStoreActiveVariants(product);
+    let selectedVariant = null;
+    if (activeVariants.length > 0) {
+      if (!item.variantId) {
+        throw createStoreValidationError('STORE_VARIANT_REQUIRED', 400, item.productId);
+      }
+      selectedVariant = activeVariants.find((variant) => variant.id === item.variantId) || null;
+      if (!selectedVariant) {
+        throw createStoreValidationError('STORE_VARIANT_INVALID', 400, item.variantId);
+      }
+    } else if (item.variantId) {
+      const optionalVariant = getStoreActiveVariants(product).find((variant) => variant.id === item.variantId);
+      selectedVariant = optionalVariant || null;
+    }
+
+    const quantity = Math.max(1, Math.min(999, Math.floor(Number(item.quantity) || 1)));
+    const productUsesBudget = product.usesBudget !== false;
+    const approvalRequired = product.approvalRequired === true;
+    if (approvalRequired) requiresApproval = true;
+
+    const variantCredit = Number(selectedVariant?.creditCostOverride);
+    const variantPrice = Number(selectedVariant?.priceOverride);
+    let priceAtOrder = Number(product.price);
+    if (!Number.isFinite(priceAtOrder) || priceAtOrder < 0) priceAtOrder = 0;
+    let creditCostAtOrder = Number(product.creditCost);
+    if (!Number.isFinite(creditCostAtOrder) || creditCostAtOrder < 0) creditCostAtOrder = priceAtOrder;
+    if (Number.isFinite(variantPrice) && variantPrice >= 0) priceAtOrder = variantPrice;
+    if (Number.isFinite(variantCredit) && variantCredit >= 0) creditCostAtOrder = variantCredit;
+
+    const canUpgrade = product?.upgradeRule?.enabled === true || product?.enableUpgradeDifference === true;
+    let upgradeApplied = false;
+    let differenceAmount = 0;
+    let unitCost = creditCostAtOrder;
+    if (canUpgrade && item.useUpgrade === true) {
+      upgradeApplied = true;
+      differenceAmount = Math.max(0, Number(product?.upgradeRule?.differenceAmount ?? product?.differencePrice) || 0);
+      unitCost = differenceAmount;
+    }
+    if (!Number.isFinite(unitCost) || unitCost < 0) unitCost = 0;
+
+    const freeMode = resolveStoreFreeRuleMode(product, settings);
+    const productFreeEnabled = product?.freeRule?.enabled === true || product?.freeEligible === true;
+    const freePeriodDays = resolveStorePeriodDays(product?.freeRule?.periodDays || settings?.freeRules?.periodDays, 180);
+    const freeKey = freeMode === 'category'
+      ? `cat:${sanitizeString(product.category || 'general', 120)}`
+      : freeMode === 'order'
+        ? 'order:first'
+        : `product:${sanitizeString(product.id || '', 120)}`;
+    let freeApplied = false;
+    if (freeRulesEnabled && productFreeEnabled && freeMode !== 'none') {
+      const usedAtValue = freeUsageDraft[freeKey] || profile.freeEligibility?.[freeKey] || '';
+      const usedAtTs = usedAtValue ? new Date(usedAtValue).getTime() : 0;
+      const freePeriodMs = Math.max(1, freePeriodDays) * 24 * 60 * 60 * 1000;
+      if (!usedAtTs || !Number.isFinite(usedAtTs) || (nowTs - usedAtTs) > freePeriodMs) {
+        freeApplied = true;
+        freeUsageDraft[freeKey] = nowIso;
+      }
+    }
+
+    const lineCost = freeApplied ? 0 : (unitCost * quantity);
+    const itemBudgetImpact = productUsesBudget ? lineCost : 0;
+
+    const periodLimit = product?.periodLimit && typeof product.periodLimit === 'object'
+      ? product.periodLimit
+      : { enabled: false, quantity: 0, periodDays: 0 };
+    if (periodLimit.enabled === true) {
+      const periodQty = Math.max(1, Math.floor(Number(periodLimit.quantity) || 1));
+      const periodDays = resolveStorePeriodDays(periodLimit.periodDays, 180);
+      const sinceTs = nowTs - (periodDays * 24 * 60 * 60 * 1000);
+      const historicalQty = getStoreProductHistoricalQuantity(orders, workerId, item.productId, sinceTs);
+      const batchQty = Number(currentBatchByProduct[item.productId] || 0);
+      const nextQty = historicalQty + batchQty + quantity;
+      if (nextQty > periodQty) {
+        throw createStoreValidationError('STORE_PERIOD_LIMIT_EXCEEDED', 400, `${item.productId}:${periodQty}`);
+      }
+    }
+
+    currentBatchByProduct[item.productId] = Number(currentBatchByProduct[item.productId] || 0) + quantity;
+    subtotal += lineCost;
+    budgetImpact += itemBudgetImpact;
+    if (freeApplied) freeAppliedCount += 1;
+    if (upgradeApplied) differenceTotal += differenceAmount * quantity;
+
+    if (Number.isFinite(item.clientUnitCost) && Math.abs(item.clientUnitCost - unitCost) > 0.01) {
+      tamperSignals.push({ productId: item.productId, field: 'unitCost', client: item.clientUnitCost, server: unitCost });
+    }
+    if (Number.isFinite(item.clientLineCost) && Math.abs(item.clientLineCost - lineCost) > 0.01) {
+      tamperSignals.push({ productId: item.productId, field: 'lineCost', client: item.clientLineCost, server: lineCost });
+    }
+    if (Number.isFinite(item.clientBudgetImpact) && Math.abs(item.clientBudgetImpact - itemBudgetImpact) > 0.01) {
+      tamperSignals.push({ productId: item.productId, field: 'budgetImpact', client: item.clientBudgetImpact, server: itemBudgetImpact });
+    }
+
+    const differenceCost = Math.max(0, differenceAmount * quantity);
+    return {
+      productId: item.productId,
+      productName: sanitizeString(product?.name || item.productId, 240),
+      variantId: sanitizeString(selectedVariant?.id || '', 120),
+      variantName: sanitizeString(selectedVariant?.name || '', 200),
+      variantImage: sanitizeString(selectedVariant?.image || selectedVariant?.imageUrl || '', 1000),
+      size: item.size,
+      quantity,
+      unitCost,
+      lineCost,
+      freeApplied,
+      upgradeApplied,
+      differenceAmount: Math.max(0, differenceAmount),
+      differenceCost,
+      useUpgrade: upgradeApplied,
+      comment: item.comment,
+      priceAtOrder,
+      creditCostAtOrder,
+      budgetImpact: itemBudgetImpact,
+      ruleSnapshot: {
+        usesBudget: productUsesBudget,
+        approvalRequired,
+        freeRule: sanitizeObject(product?.freeRule || {}),
+        upgradeRule: sanitizeObject(product?.upgradeRule || {}),
+        periodLimit: sanitizeObject(periodLimit),
+      },
+    };
+  });
+
+  if (Number.isFinite(orderDraft.clientBudgetImpact) && Math.abs(orderDraft.clientBudgetImpact - budgetImpact) > 0.01) {
+    tamperSignals.push({ field: 'budgetImpact', client: orderDraft.clientBudgetImpact, server: budgetImpact });
+  }
+
+  const nextStatus = requiresApproval ? 'Pending' : 'Approved';
+  const reserveOnPending = settings.reserveOnPending !== false;
+  const shouldReserveBudget = budgetImpact > 0 && (nextStatus === 'Approved' || reserveOnPending);
+  const availableBudget = Math.max(0, Number(profile.creditBalance) || 0);
+  if (shouldReserveBudget && budgetImpact > availableBudget + 0.00001) {
+    throw createStoreValidationError('STORE_INSUFFICIENT_BUDGET', 400, String(budgetImpact));
+  }
+
+  let creditReserved = 0;
+  if (shouldReserveBudget && budgetImpact > 0) {
+    profile.creditBalance = Math.max(0, availableBudget - budgetImpact);
+    profile.reservedCredit = Math.max(0, Number(profile.reservedCredit) || 0) + budgetImpact;
+    creditReserved = budgetImpact;
+    appendStoreCreditLedgerEntry(store, {
+      workerId,
+      delta: -budgetImpact,
+      reserve: budgetImpact,
+      reason: nextStatus === 'Approved' ? 'auto_approved_reserve' : 'pending_reserve',
+      orderId: '',
+      changedBy: actorEmail,
+    });
+  }
+
+  Object.entries(freeUsageDraft).forEach(([key, value]) => {
+    profile.freeEligibility[key] = value;
+  });
+
+  const orderId = generateStoreOrderId(existingIds);
+  const siteName = sanitizeString(site, 120) || 'default';
+  const statusHistory = [{ status: nextStatus, at: nowIso, by: actorEmail || workerId }];
+
+  const order = {
+    id: orderId,
     workerId,
-    workerName: sanitizeString(order.workerName || order.worker || workerId, 200),
-    site: sanitizeString(site || order.site || 'default', 80),
-    siteId: sanitizeString(order.siteId || site || 'default', 80),
-    siteName: sanitizeString(order.siteName || site || 'default', 120),
-    status,
-    urgent: order.urgent === true,
-    workerComment: sanitizeString(order.workerComment || '', 1200),
-    internalNote: sanitizeString(order.internalNote || '', 1200),
-    externalNote: sanitizeString(order.externalNote || '', 1200),
+    workerName: sanitizeString(workerName || workerId, 200),
+    site,
+    siteId: site,
+    siteName,
+    status: nextStatus,
+    urgent: orderDraft.urgent === true,
+    workerComment: orderDraft.workerComment,
+    internalNote: '',
+    externalNote: '',
     items,
-    budgetImpact: Math.max(0, Number(order.budgetImpact) || subtotal),
+    budgetImpact,
     totals: {
       items,
       subtotal,
-      freeAppliedCount: Math.max(0, Number(order?.totals?.freeAppliedCount) || 0),
+      freeAppliedCount,
       differenceTotal,
     },
-    statusHistory: Array.isArray(order.statusHistory) && order.statusHistory.length
-      ? order.statusHistory.map((entry) => ({
-        status: ['Pending', 'Approved', 'Delivered', 'Rejected', 'Cancelled'].includes(entry?.status)
-          ? entry.status
-          : status,
-        at: sanitizeString(entry?.at || now, 80),
-        by: sanitizeString(entry?.by || workerId, 200),
-      }))
-      : [{ status, at: now, by: workerId }],
-    createdAt: sanitizeString(order.createdAt || now, 80),
-    updatedAt: sanitizeString(order.updatedAt || now, 80),
-    cancelledAt: sanitizeString(order.cancelledAt || '', 80),
-    cancelledBy: sanitizeString(order.cancelledBy || '', 200),
-    cancelReason: sanitizeString(order.cancelReason || '', 1000),
-    passwordConfirmedAt: sanitizeString(order.passwordConfirmedAt || now, 80),
-    creditReserved: Math.max(0, Number(order.creditReserved) || 0),
+    statusHistory,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+    cancelledAt: '',
+    cancelledBy: '',
+    cancelReason: '',
+    passwordConfirmedAt: sanitizeString(orderDraft.passwordConfirmedAt || nowIso, 80),
+    creditReserved,
+    budgetReleasedTotal: 0,
+    serverPriced: true,
   };
+
+  if (profile.orderHistory.length >= 5000) {
+    profile.orderHistory = profile.orderHistory.slice(-4999);
+  }
+  profile.orderHistory.push(orderId);
+  if (creditReserved > 0) {
+    const latestLedger = store.creditLedger[store.creditLedger.length - 1];
+    if (latestLedger && !latestLedger.orderId) latestLedger.orderId = orderId;
+  }
+
+  return {
+    order,
+    tamperSignals,
+    budget: {
+      workerId,
+      creditBalance: Math.max(0, Number(profile.creditBalance) || 0),
+      reservedCredit: Math.max(0, Number(profile.reservedCredit) || 0),
+    },
+    budgetReserved: creditReserved,
+  };
+}
+
+function applyServerStoreStatusChange({ store, order, nextStatus, actor, reason, internalNote, externalNote }) {
+  const current = order && typeof order === 'object' ? order : null;
+  if (!current) {
+    throw createStoreValidationError('STORE_ORDER_NOT_FOUND', 404);
+  }
+  const fromStatus = sanitizeString(current.status || 'Pending', 40) || 'Pending';
+  const toStatus = sanitizeString(nextStatus || '', 40);
+  if (!canTransitionStoreOrderStatus(fromStatus, toStatus)) {
+    throw createStoreValidationError('INVALID_STATUS_UPDATE', 400, `${fromStatus}->${toStatus}`);
+  }
+
+  const nowIso = new Date().toISOString();
+  current.internalNote = sanitizeString(internalNote || current.internalNote || '', 1200);
+  current.externalNote = sanitizeString(externalNote || current.externalNote || '', 1200);
+  current.updatedAt = nowIso;
+  if (fromStatus === toStatus) return { order: current, budgetDelta: 0, reservedDelta: 0 };
+
+  const profile = ensureStoreWorkerProfile(store, sanitizeString(current.workerId || '', 160).toLowerCase(), current.workerName || current.workerId);
+  const reserveOnPending = store?.settings?.reserveOnPending !== false;
+  const orderBudgetImpact = Math.max(0, Number(current.budgetImpact) || 0);
+  let budgetDelta = 0;
+  let reservedDelta = 0;
+
+  if (toStatus === 'Approved' && fromStatus === 'Pending' && Number(current.creditReserved || 0) <= 0 && orderBudgetImpact > 0 && !reserveOnPending) {
+    if (profile.creditBalance < orderBudgetImpact) {
+      throw createStoreValidationError('STORE_INSUFFICIENT_BUDGET', 400, String(orderBudgetImpact));
+    }
+    profile.creditBalance = Math.max(0, Number(profile.creditBalance || 0) - orderBudgetImpact);
+    profile.reservedCredit = Math.max(0, Number(profile.reservedCredit || 0) + orderBudgetImpact);
+    current.creditReserved = orderBudgetImpact;
+    budgetDelta -= orderBudgetImpact;
+    reservedDelta += orderBudgetImpact;
+    appendStoreCreditLedgerEntry(store, {
+      workerId: current.workerId,
+      delta: -orderBudgetImpact,
+      reserve: orderBudgetImpact,
+      reason: 'approved_reserve',
+      orderId: current.id,
+      changedBy: actor,
+    });
+  }
+
+  if ((toStatus === 'Rejected' || toStatus === 'Cancelled') && Number(current.creditReserved || 0) > 0) {
+    const release = Math.max(0, Number(current.creditReserved) || 0);
+    profile.creditBalance = Math.max(0, Number(profile.creditBalance || 0) + release);
+    profile.reservedCredit = Math.max(0, Number(profile.reservedCredit || 0) - release);
+    current.creditReserved = 0;
+    current.budgetReleasedTotal = Math.max(0, Number(current.budgetReleasedTotal || 0) + release);
+    budgetDelta += release;
+    reservedDelta -= release;
+    appendStoreCreditLedgerEntry(store, {
+      workerId: current.workerId,
+      delta: release,
+      reserve: -release,
+      reason: toStatus === 'Rejected' ? 'order_rejected' : 'order_cancelled',
+      orderId: current.id,
+      changedBy: actor,
+    });
+  }
+
+  if (toStatus === 'Delivered' && Number(current.creditReserved || 0) > 0) {
+    const finalizeAmount = Math.max(0, Number(current.creditReserved) || 0);
+    profile.reservedCredit = Math.max(0, Number(profile.reservedCredit || 0) - finalizeAmount);
+    current.creditReserved = 0;
+    reservedDelta -= finalizeAmount;
+    appendStoreCreditLedgerEntry(store, {
+      workerId: current.workerId,
+      delta: 0,
+      reserve: -finalizeAmount,
+      reason: 'delivery_locked',
+      orderId: current.id,
+      changedBy: actor,
+    });
+  }
+
+  current.status = toStatus;
+  const history = Array.isArray(current.statusHistory) ? current.statusHistory.slice() : [];
+  history.push({ status: toStatus, at: nowIso, by: sanitizeString(actor || 'system', 200) });
+  current.statusHistory = history;
+  if (toStatus === 'Rejected' || toStatus === 'Cancelled') {
+    current.cancelReason = sanitizeString(reason || current.cancelReason || '', 1000);
+    current.cancelledAt = nowIso;
+    current.cancelledBy = sanitizeString(actor || current.cancelledBy || '', 200);
+  }
+  if (toStatus === 'Delivered') {
+    current.deliveredAt = nowIso;
+  }
+  return { order: current, budgetDelta, reservedDelta };
 }
 
 function getUploadUrl(filePath) {
@@ -2616,21 +3128,23 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
       return res.status(403).json({ error: 'Access denied to this site' });
     }
     const sessionEmail = String(req.session?.email || '').trim().toLowerCase();
-    const submitted = sanitizeStoreOrderPayload(req.body?.order, sessionEmail, site);
-    if (!submitted.workerId || !submitted.items.length) {
+    const rawDraft = req.body?.order && typeof req.body.order === 'object' ? req.body.order : req.body;
+    const draftPayload = sanitizeStoreOrderDraft(rawDraft, site);
+    if (!sessionEmail || !draftPayload.items.length) {
       return res.status(400).json({ error: 'INVALID_ORDER_PAYLOAD' });
     }
-    if (!canManageStoreOrders(req.session) && submitted.workerId !== sessionEmail) {
-      return res.status(403).json({ error: 'FORBIDDEN_WORKER_ORDER' });
+    const admins = await readAdmins();
+    const workerAdmin = admins.find((entry) => entry.email === sessionEmail && entry.active !== false);
+    if (!workerAdmin && req.session?.role === 'admin') {
+      return res.status(403).json({ error: 'USER_INACTIVE_OR_MISSING' });
     }
+    const workerRoles = getStoreRoleKeysForSession(req.session, workerAdmin);
+    const workerName = sanitizeString(workerAdmin?.fullName || req.session?.fullName || sessionEmail, 200);
     const nowIso = new Date().toISOString();
-    submitted.createdAt = submitted.createdAt || nowIso;
-    submitted.updatedAt = nowIso;
-    submitted.site = site;
-    submitted.siteId = site;
-    submitted.siteName = site;
 
     let savedOrder = null;
+    let budgetSnapshot = null;
+    let tamperSignals = [];
     await mutateVersionedJsonFile(stateFile, {
       version: 2,
       savedAt: new Date().toISOString(),
@@ -2644,21 +3158,32 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
         ? { ...nextState.siteData[site] }
         : {};
       const store = siteEntry.store && typeof siteEntry.store === 'object' ? { ...siteEntry.store } : {};
-      const orders = Array.isArray(store.orders) ? [...store.orders] : [];
-      if (orders.some((entry) => sanitizeString(entry?.id || '', 80) === submitted.id)) {
-        const conflict = new Error('STORE_ORDER_EXISTS');
-        conflict.statusCode = 409;
-        throw conflict;
-      }
-      orders.push(submitted);
-      store.orders = orders;
+      store.orders = Array.isArray(store.orders) ? store.orders.slice() : [];
+      store.products = Array.isArray(store.products) ? store.products.slice() : [];
+      store.workerProfiles = store.workerProfiles && typeof store.workerProfiles === 'object'
+        ? { ...store.workerProfiles }
+        : {};
+      store.creditLedger = Array.isArray(store.creditLedger) ? store.creditLedger.slice() : [];
+      const calculated = buildServerPricedStoreOrder({
+        store,
+        site,
+        workerId: sessionEmail,
+        workerName,
+        workerRoles,
+        orderDraft: draftPayload,
+        nowIso,
+        actorEmail: sessionEmail,
+      });
+      store.orders.push(calculated.order);
       siteEntry.store = store;
       nextState.siteData[site] = siteEntry;
-      savedOrder = submitted;
+      savedOrder = calculated.order;
+      budgetSnapshot = calculated.budget;
+      tamperSignals = calculated.tamperSignals;
       return nextState;
     });
 
-    await logActivity(sessionEmail, 'store_order_submitted_server', {
+    await logActivity(sessionEmail, 'order_created_server_priced', {
       site,
       orderId: savedOrder?.id || '',
       workerId: savedOrder?.workerId || '',
@@ -2666,16 +3191,37 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
       itemsCount: Array.isArray(savedOrder?.items) ? savedOrder.items.length : 0,
       budgetImpact: Number(savedOrder?.budgetImpact || 0),
     });
-    return res.status(201).json({ ok: true, site, order: savedOrder });
+    if (Number(savedOrder?.creditReserved || 0) > 0) {
+      await logActivity(sessionEmail, 'budget_reserved', {
+        site,
+        orderId: savedOrder?.id || '',
+        workerId: savedOrder?.workerId || '',
+        amount: Number(savedOrder?.creditReserved || 0),
+      });
+    }
+    if (tamperSignals.length > 0) {
+      await logActivity(sessionEmail, 'rejected_invalid_client_price', {
+        site,
+        orderId: savedOrder?.id || '',
+        tamperSignals,
+      });
+    }
+    return res.status(201).json({ ok: true, site, order: savedOrder, budget: budgetSnapshot, serverPriced: true });
   } catch (error) {
-    if (error?.message === 'STORE_ORDER_EXISTS') {
-      return res.status(409).json({ error: 'STORE_ORDER_EXISTS' });
+    if (error?.code === 'STORE_INSUFFICIENT_BUDGET') {
+      return res.status(400).json({ error: 'STORE_INSUFFICIENT_BUDGET', details: error?.details || '' });
+    }
+    if (error?.code === 'STORE_PRODUCT_NOT_FOUND') {
+      return res.status(404).json({ error: 'STORE_PRODUCT_NOT_FOUND', details: error?.details || '' });
+    }
+    if (typeof error?.statusCode === 'number') {
+      return res.status(error.statusCode).json({ error: error?.code || error?.message || 'STORE_ORDER_SAVE_FAILED', details: error?.details || '' });
     }
     next(error);
   }
 });
 
-apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canManageStore', 'canManageWorkwear', 'canViewStoreTeamOrders']), async (req, res, next) => {
+apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canAccessStore', 'canAccessWorkwear', 'canManageStore', 'canManageWorkwear', 'canViewStoreTeamOrders']), async (req, res, next) => {
   try {
     if (req.session?.isReadonly) {
       return res.status(403).json({ error: 'READONLY_FORBIDDEN' });
@@ -2686,15 +3232,12 @@ apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canManag
     }
     const orderId = sanitizeString(req.params?.orderId || '', 80);
     const nextStatus = sanitizeString(req.body?.status || '', 40);
-    if (!orderId || !['Pending', 'Approved', 'Delivered', 'Rejected', 'Cancelled'].includes(nextStatus)) {
+    if (!orderId || !STORE_ORDER_STATUSES.includes(nextStatus)) {
       return res.status(400).json({ error: 'INVALID_STATUS_UPDATE' });
     }
     const actor = String(req.session?.email || '').trim().toLowerCase();
     const canManageAll = canManageStoreOrders(req.session);
     const canSeeTeam = canViewStoreTeamOrdersPermission(req.session);
-    if (!canManageAll && !canSeeTeam) {
-      return res.status(403).json({ error: 'FORBIDDEN' });
-    }
 
     let updatedOrder = null;
     await mutateVersionedJsonFile(stateFile, {
@@ -2723,24 +3266,39 @@ apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canManag
         broken.statusCode = 404;
         throw broken;
       }
-      const nowIso = new Date().toISOString();
-      current.status = nextStatus;
-      current.updatedAt = nowIso;
-      current.internalNote = sanitizeString(req.body?.internalNote || current.internalNote || '', 1200);
-      current.externalNote = sanitizeString(req.body?.externalNote || current.externalNote || '', 1200);
-      const history = Array.isArray(current.statusHistory) ? current.statusHistory.slice() : [];
-      history.push({ status: nextStatus, at: nowIso, by: actor });
-      current.statusHistory = history;
-      if (nextStatus === 'Rejected' || nextStatus === 'Cancelled') {
-        current.cancelReason = sanitizeString(req.body?.reason || current.cancelReason || '', 1000);
-        current.cancelledAt = nowIso;
-        current.cancelledBy = actor;
+      const isOwner = sanitizeString(current?.workerId || '', 160).toLowerCase() === actor;
+      const ownerCancelAllowed = isOwner && nextStatus === 'Cancelled';
+      if (!canManageAll && !canSeeTeam && !ownerCancelAllowed) {
+        const forbidden = new Error('FORBIDDEN');
+        forbidden.statusCode = 403;
+        throw forbidden;
       }
-      orders[index] = current;
+      if (!canManageAll && !canSeeTeam && ownerCancelAllowed) {
+        const fromStatus = sanitizeString(current.status || '', 40);
+        if (!['Pending', 'Approved'].includes(fromStatus)) {
+          const invalid = new Error('INVALID_STATUS_UPDATE');
+          invalid.statusCode = 400;
+          throw invalid;
+        }
+      }
+      store.workerProfiles = store.workerProfiles && typeof store.workerProfiles === 'object'
+        ? { ...store.workerProfiles }
+        : {};
+      store.creditLedger = Array.isArray(store.creditLedger) ? store.creditLedger.slice() : [];
+      const transitionResult = applyServerStoreStatusChange({
+        store,
+        order: current,
+        nextStatus,
+        actor,
+        reason: req.body?.reason || '',
+        internalNote: req.body?.internalNote || '',
+        externalNote: req.body?.externalNote || '',
+      });
+      orders[index] = transitionResult.order;
       store.orders = orders;
       siteEntry.store = store;
       nextState.siteData[site] = siteEntry;
-      updatedOrder = current;
+      updatedOrder = transitionResult.order;
       return nextState;
     });
 
@@ -2751,8 +3309,20 @@ apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canManag
     });
     return res.json({ ok: true, site, order: updatedOrder });
   } catch (error) {
+    if (error?.code === 'STORE_INSUFFICIENT_BUDGET') {
+      return res.status(400).json({ error: 'STORE_INSUFFICIENT_BUDGET', details: error?.details || '' });
+    }
+    if (error?.code === 'INVALID_STATUS_UPDATE') {
+      return res.status(400).json({ error: 'INVALID_STATUS_UPDATE', details: error?.details || '' });
+    }
+    if (error?.code === 'FORBIDDEN') {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
     if (error?.message === 'STORE_ORDER_NOT_FOUND') {
       return res.status(404).json({ error: 'STORE_ORDER_NOT_FOUND' });
+    }
+    if (typeof error?.statusCode === 'number') {
+      return res.status(error.statusCode).json({ error: error?.code || error?.message || 'STORE_ORDER_STATUS_UPDATE_FAILED', details: error?.details || '' });
     }
     next(error);
   }

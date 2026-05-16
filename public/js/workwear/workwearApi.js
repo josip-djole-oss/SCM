@@ -67,6 +67,9 @@ function workwearApiSaveOrder(order) {
       .then((res) => workwearApiParseResponse(res, "STORE_ORDER_SAVE_FAILED"))
       .then((payload) => {
         const saved = payload?.order || order;
+        if (saved && payload?.budget) {
+          saved.__budgetSnapshot = payload.budget;
+        }
         return workwearApiUpsertOrderLocal(saved, site);
       });
   }

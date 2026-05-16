@@ -329,30 +329,41 @@ function finalizeOrderSubmission(cart) {
   }
 
   const state = getWorkwearState();
-  const requiresApproval = totals.items.some((item) => {
+  const createdAt = new Date().toISOString();
+  const orderDraft = {
+    workerComment: cart.comment || "",
+    urgent: cart.urgent === true,
+    passwordConfirmedAt: createdAt,
+    items: (cart.items || []).map((item) => ({
+      productId: String(item.productId || "").trim(),
+      variantId: String(item.variantId || "").trim(),
+      size: String(item.size || "").trim(),
+      quantity: Math.max(1, Number(item.quantity) || 1),
+      comment: String(item.comment || "").trim(),
+      useUpgrade: item.useUpgrade === true,
+    })),
+  };
+  const fallbackRequiresApproval = totals.items.some((item) => {
     const product = getWorkwearProductById(item.productId);
     return product?.approvalRequired === true;
   });
-
-  const orderId = `SO-${Date.now().toString().slice(-8)}`;
-  const createdAt = new Date().toISOString();
-  const nextStatus = requiresApproval ? "Pending" : "Approved";
-  const order = {
-    id: orderId,
+  const fallbackStatus = fallbackRequiresApproval ? "Pending" : "Approved";
+  const fallbackOrder = {
+    id: `SO-${Date.now().toString().slice(-8)}`,
     workerId,
     workerName: workerProfile.workerName,
     siteId: currentSite,
     siteName: currentSite,
     site: currentSite,
     items: totals.items,
-    status: nextStatus,
+    status: fallbackStatus,
     urgent: cart.urgent === true,
     workerComment: cart.comment || "",
     internalNote: "",
     externalNote: "",
     budgetImpact: Number(totals.subtotal || 0),
     totals,
-    statusHistory: [{ status: nextStatus, at: createdAt, by: appState.currentUser || "system" }],
+    statusHistory: [{ status: fallbackStatus, at: createdAt, by: appState.currentUser || "system" }],
     cancelledAt: "",
     cancelledBy: "",
     cancelReason: "",
@@ -362,18 +373,30 @@ function finalizeOrderSubmission(cart) {
     creditReserved: 0,
   };
   const savePromise = (typeof workwearApiSaveOrder === "function")
-    ? workwearApiSaveOrder(order)
-    : Promise.resolve(order);
+    ? workwearApiSaveOrder(orderDraft)
+    : Promise.resolve(fallbackOrder);
   savePromise
     .then((savedOrder) => {
-      const persistedOrder = savedOrder && typeof savedOrder === "object" ? savedOrder : order;
-      if (state.settings.reserveOnPending || nextStatus === "Approved") {
-        workwearReserveCredit(workerId, totals.subtotal, nextStatus === "Approved" ? "auto_approved_reserve" : "pending_reserve", persistedOrder.id);
-        persistedOrder.creditReserved = totals.subtotal;
+      const persistedOrder = savedOrder && typeof savedOrder === "object" ? savedOrder : fallbackOrder;
+      const isBackend = (typeof BACKEND_ENABLED !== "undefined" && BACKEND_ENABLED);
+      if (!isBackend) {
+        if (state.settings.reserveOnPending || fallbackStatus === "Approved") {
+          workwearReserveCredit(workerId, totals.subtotal, fallbackStatus === "Approved" ? "auto_approved_reserve" : "pending_reserve", persistedOrder.id);
+          persistedOrder.creditReserved = totals.subtotal;
+        }
+        applyStoreFreeUsage(persistedOrder);
+      } else if (persistedOrder.__budgetSnapshot) {
+        const snapshot = persistedOrder.__budgetSnapshot;
+        delete persistedOrder.__budgetSnapshot;
+        const profile = ensureWorkerWorkwearProfile(workerId);
+        profile.creditBalance = Math.max(0, Number(snapshot.creditBalance || profile.creditBalance || 0));
+        profile.reservedCredit = Math.max(0, Number(snapshot.reservedCredit || profile.reservedCredit || 0));
       }
-      applyStoreFreeUsage(persistedOrder);
       upsertLocalStoreOrder(persistedOrder);
-      state.workerProfiles[workerId].orderHistory.push(persistedOrder.id);
+      state.workerProfiles[workerId] = state.workerProfiles[workerId] || ensureWorkerWorkwearProfile(workerId);
+      const history = Array.isArray(state.workerProfiles[workerId].orderHistory) ? state.workerProfiles[workerId].orderHistory : [];
+      if (!history.includes(persistedOrder.id)) history.push(persistedOrder.id);
+      state.workerProfiles[workerId].orderHistory = history;
       resetWorkwearCartForUser(workerId);
       workwearCartOverlayOpen = false;
       saveWorkwearState();

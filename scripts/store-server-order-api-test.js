@@ -17,15 +17,38 @@ try {
   mustContain(server, "apiRouter.get('/store/orders'", "store orders GET endpoint");
   mustContain(server, "apiRouter.post('/store/orders'", "store orders POST endpoint");
   mustContain(server, "apiRouter.patch('/store/orders/:orderId/status'", "store orders status PATCH endpoint");
+  mustContain(server, "buildServerPricedStoreOrder", "server-side order pricing builder");
+  mustContain(server, "sanitizeStoreOrderDraft", "minimal order payload sanitizer");
+  mustContain(server, "priceAtOrder", "order item price snapshot");
+  mustContain(server, "creditCostAtOrder", "order item credit snapshot");
+  mustContain(server, "upgradeApplied", "upgrade snapshot");
+  mustContain(server, "differenceAmount", "difference snapshot");
+  mustContain(server, "ruleSnapshot", "rule snapshot");
+  mustContain(server, "STORE_INSUFFICIENT_BUDGET", "budget validation");
+  mustContain(server, "STORE_PRODUCT_INACTIVE", "inactive product validation");
+  mustContain(server, "STORE_PRODUCT_SITE_BLOCKED", "site availability validation");
+  mustContain(server, "STORE_PRODUCT_ROLE_BLOCKED", "role availability validation");
+  mustContain(server, "STORE_SIZE_INVALID", "size validation");
+  mustContain(server, "STORE_VARIANT_INVALID", "variant validation");
+  mustContain(server, "STORE_PERIOD_LIMIT_EXCEEDED", "period limit validation");
+  mustContain(server, "order_created_server_priced", "server priced audit event");
+  mustContain(server, "budget_reserved", "budget reserve audit event");
+  mustContain(server, "rejected_invalid_client_price", "client tamper audit event");
+  mustContain(server, "canTransitionStoreOrderStatus", "server lifecycle guard");
   mustContain(api, "fetch(`/api/store/orders?site=", "client load orders from server");
   mustContain(api, "fetch(\"/api/store/orders\"", "client save order to server");
   mustContain(api, "fetch(`/api/store/orders/${encodeURIComponent(orderId)}/status`", "client update order status on server");
+  mustContain(api, "__budgetSnapshot", "server budget snapshot bridge");
   mustContain(events, "requestStoreOrderPasswordConfirmation", "submit order confirmation gateway");
+  mustContain(events, "const orderDraft = {", "minimal order draft payload");
+  mustContain(events, "productId: String(item.productId || \"\").trim()", "order draft product id");
+  mustContain(events, "variantId: String(item.variantId || \"\").trim()", "order draft variant id");
+  mustContain(events, "size: String(item.size || \"\").trim()", "order draft size");
+  mustContain(events, "quantity: Math.max(1, Number(item.quantity) || 1)", "order draft quantity");
   mustContain(events, "Narudzba nije spremljena na server", "server save error feedback");
 
-  console.log(JSON.stringify({ ok: true, checks: 8 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 31 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);
 }
-
