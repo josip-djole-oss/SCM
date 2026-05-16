@@ -35,6 +35,11 @@ try {
   mustContain(server, "budget_reserved", "budget reserve audit event");
   mustContain(server, "rejected_invalid_client_price", "client tamper audit event");
   mustContain(server, "canTransitionStoreOrderStatus", "server lifecycle guard");
+  mustContain(server, "budgetReleasedTotal", "single-refund tracking");
+  mustContain(server, "reason: toStatus === 'Rejected' ? 'order_rejected' : 'order_cancelled'", "refund reason guard");
+  mustContain(server, "if (toStatus === 'Delivered' && Number(current.creditReserved || 0) > 0)", "delivered reserve lock");
+  mustContain(server, "status: nextStatus", "status snapshot write");
+  mustContain(server, "serverPriced: true", "server authoritative order mark");
   mustContain(api, "fetch(`/api/store/orders?site=", "client load orders from server");
   mustContain(api, "fetch(\"/api/store/orders\"", "client save order to server");
   mustContain(api, "fetch(`/api/store/orders/${encodeURIComponent(orderId)}/status`", "client update order status on server");
@@ -47,7 +52,7 @@ try {
   mustContain(events, "quantity: Math.max(1, Number(item.quantity) || 1)", "order draft quantity");
   mustContain(events, "Narudzba nije spremljena na server", "server save error feedback");
 
-  console.log(JSON.stringify({ ok: true, checks: 31 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 36 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

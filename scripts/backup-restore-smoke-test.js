@@ -253,20 +253,7 @@ async function main() {
               },
             ],
             orders: [
-              {
-                id: "SO-11111111",
-                workerId: WORKER_EMAIL,
-                workerName: "Backup Worker",
-                site: "default",
-                status: "Pending",
-                items: [{ productId: "STP-1", productName: "Jakna CMAX", quantity: 1, lineCost: 500 }],
-                totals: { items: [], subtotal: 500, freeAppliedCount: 0, differenceTotal: 0 },
-                budgetImpact: 500,
-                statusHistory: [{ status: "Pending", at: new Date().toISOString(), by: WORKER_EMAIL }],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                creditReserved: 500,
-              },
+              
             ],
             carts: {
               [WORKER_EMAIL]: {
@@ -279,15 +266,15 @@ async function main() {
               [WORKER_EMAIL]: {
                 workerId: WORKER_EMAIL,
                 workerName: "Backup Worker",
-                creditBalance: 2000,
-                reservedCredit: 500,
-                orderHistory: ["SO-11111111"],
+                creditBalance: 2500,
+                reservedCredit: 0,
+                orderHistory: [],
                 savedSizes: { jacket: "L" },
                 freeEligibility: {},
                 adjustments: [],
               },
             },
-            creditLedger: [{ id: "ledger-1", workerId: WORKER_EMAIL, delta: -500, reason: "pending_reserve" }],
+            creditLedger: [],
             supplierConnections: [{ id: "manual", name: "Manual Supplier", adapter: "manualSupplierAdapter", active: true }],
             supplierSyncLog: [{ id: "sync-1", status: "ok" }],
             notificationEvents: [{ id: "evt-1", eventType: "store_notification", title: "Order pending" }],
@@ -324,6 +311,41 @@ async function main() {
       throw new Error("Seed state missing default store products");
     }
 
+    const workerLoginResSeed = await fetch(`${HOST}/api/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: WORKER_EMAIL, password: "WorkerPass!123" }),
+    });
+    if (!workerLoginResSeed.ok) throw new Error(`Worker login failed before order seed (${workerLoginResSeed.status})`);
+    const workerLoginSeed = await workerLoginResSeed.json();
+    const workerCookieSeed = parseCookie(
+      typeof workerLoginResSeed.headers.getSetCookie === "function"
+        ? workerLoginResSeed.headers.getSetCookie()
+        : workerLoginResSeed.headers.get("set-cookie"),
+    );
+    const workerCsrfSeed = String(workerLoginSeed?.csrfToken || "");
+    if (!workerCookieSeed || !workerCsrfSeed) throw new Error("Worker seed session missing");
+    const workerOrderSeedRes = await fetch(`${HOST}/api/store/orders`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Cookie: workerCookieSeed,
+        "x-csrf-token": workerCsrfSeed,
+      },
+      body: JSON.stringify({
+        site: "default",
+        order: {
+          workerComment: "Backup order seed",
+          urgent: false,
+          items: [{ productId: "STP-1", size: "M", quantity: 1 }],
+        },
+      }),
+    });
+    const workerOrderSeedPayload = await workerOrderSeedRes.json().catch(() => ({}));
+    if (!workerOrderSeedRes.ok) {
+      throw new Error(`Worker order seed failed (${workerOrderSeedRes.status}): ${JSON.stringify(workerOrderSeedPayload)}`);
+    }
+
     const backupCreated = await api("/api/backup", { method: "POST", json: {} });
     const backupId = backupCreated?.id || backupCreated?.file;
     if (!backupId) throw new Error("Backup response missing id/file");
@@ -356,7 +378,16 @@ async function main() {
       throw new Error("Mutation step failed: products not cleared");
     }
 
-    await api("/api/backup/restore", { method: "POST", json: { id: backupId } });
+    const restoreDryRun = await api("/api/backup/restore/dry-run", { method: "POST", json: { id: backupId } });
+    const restoreToken = String(restoreDryRun?.restoreToken || "");
+    if (!restoreToken) throw new Error("Restore dry-run missing restoreToken");
+    const restoreResult = await api("/api/backup/restore", {
+      method: "POST",
+      json: { id: backupId, restoreToken, confirmationText: "RESTORE" },
+    });
+    if (restoreResult?.integrity?.ok !== true) {
+      throw new Error(`Restore integrity check failed: ${JSON.stringify(restoreResult?.integrity || {})}`);
+    }
 
     const restored = await api("/api/state");
     const restoredStore = restored?.state?.siteData?.default?.store || {};
@@ -419,6 +450,7 @@ async function main() {
           ok: true,
           checks: [
             "backup_created",
+            "restore_dry_run_preview",
             "restore_completed",
             "store_products_restored",
             "store_orders_restored",

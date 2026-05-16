@@ -64,6 +64,7 @@ const warehouseFile = dataStorage.files?.warehouse || path.join(dataDir, 'wareho
 const warehouseLogsFile = dataStorage.files?.warehouseLogs || path.join(dataDir, 'warehouse-logs.json');
 const sessions = new Map();
 const activePresence = new Map();
+const pendingRestoreApprovals = new Map();
 const storageRuntime = {
   ready: false,
   initializing: false,
@@ -74,6 +75,7 @@ const storageRuntime = {
   nextRetryAt: null,
   backupIntervalStarted: false,
 };
+const RESTORE_APPROVAL_TTL_MS = Number(process.env.RESTORE_APPROVAL_TTL_MS) || (10 * 60 * 1000);
 
 const DEFAULT_PERMISSIONS = {
   canAccessPlanner: true,
@@ -244,6 +246,25 @@ function sanitizeObject(value, depth = 0) {
     return result;
   }
   if (typeof value === 'string') return sanitizeString(value);
+  return value;
+}
+
+function redactSensitiveObject(value, depth = 0) {
+  if (depth > 8) return null;
+  if (Array.isArray(value)) return value.slice(0, 500).map((entry) => redactSensitiveObject(entry, depth + 1));
+  if (value && typeof value === 'object') {
+    const result = {};
+    Object.entries(value).forEach(([key, entry]) => {
+      const safeKey = sanitizeString(key, 120);
+      if (/(password|token|secret|authorization|cookie)/i.test(safeKey)) {
+        result[safeKey] = '[REDACTED]';
+      } else {
+        result[safeKey] = redactSensitiveObject(entry, depth + 1);
+      }
+    });
+    return result;
+  }
+  if (typeof value === 'string') return sanitizeString(value, 1200);
   return value;
 }
 
@@ -1034,6 +1055,159 @@ async function readBackupSnapshotById(identifier) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+function countRecordsBySite(state, accessor) {
+  const siteData = state?.siteData && typeof state.siteData === 'object' ? state.siteData : {};
+  return Object.values(siteData).reduce((sum, siteEntry) => {
+    const value = typeof accessor === 'function' ? accessor(siteEntry || {}) : [];
+    if (Array.isArray(value)) return sum + value.length;
+    if (value && typeof value === 'object') return sum + Object.keys(value).length;
+    return sum;
+  }, 0);
+}
+
+function countStoreRecords(state, key) {
+  return countRecordsBySite(state, (siteEntry) => {
+    const store = siteEntry?.store && typeof siteEntry.store === 'object' ? siteEntry.store : {};
+    const value = store[key];
+    if (Array.isArray(value)) return value;
+    if (value && typeof value === 'object') return value;
+    return [];
+  });
+}
+
+function buildBackupModuleSummary(snapshot) {
+  const payload = snapshot && typeof snapshot === 'object' ? snapshot : {};
+  const admins = Array.isArray(payload.admins) ? payload.admins : [];
+  const state = payload.state && typeof payload.state === 'object' ? payload.state : {};
+  const warehouse = payload.warehouse && typeof payload.warehouse === 'object' ? payload.warehouse : {};
+  const warehouseItems = Array.isArray(warehouse.items) ? warehouse.items : [];
+  const reports = payload.reports && typeof payload.reports === 'object' ? payload.reports : {};
+  const notifications = payload.notifications && typeof payload.notifications === 'object' ? payload.notifications : {};
+  const stateSites = Array.isArray(state.sites) ? state.sites : [];
+  const accountNotifications = state.accountNotifications && typeof state.accountNotifications === 'object'
+    ? state.accountNotifications
+    : {};
+  const totalReports = Object.values(reports).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+  const totalSiteNotifications = Object.values(notifications).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0);
+  return {
+    users: admins.length,
+    userFunctions: admins.reduce((sum, admin) => sum + (Array.isArray(admin?.storeRoles) ? admin.storeRoles.length : 0), 0),
+    permissions: admins.reduce((sum, admin) => sum + Object.keys(admin?.permissions || {}).length, 0),
+    sites: stateSites.length,
+    planner: countRecordsBySite(state, (siteEntry) => siteEntry?.planner?.dailyData || siteEntry?.planner || []),
+    tidplan: countRecordsBySite(state, (siteEntry) => siteEntry?.tidplan || []),
+    bins: countRecordsBySite(state, (siteEntry) => siteEntry?.bins || []),
+    warehouse: warehouseItems.length,
+    reports: totalReports,
+    siteNotifications: totalSiteNotifications,
+    accountNotifications: Object.keys(accountNotifications).length,
+    storeProducts: countStoreRecords(state, 'products'),
+    storeOrders: countStoreRecords(state, 'orders'),
+    storeCategories: countRecordsBySite(state, (siteEntry) => siteEntry?.store?.settings?.categoryCatalog || {}),
+    storeBudgets: countRecordsBySite(state, (siteEntry) => siteEntry?.store?.workerProfiles || {}),
+    storeLedger: countStoreRecords(state, 'creditLedger'),
+    storeAudit: countStoreRecords(state, 'auditLog'),
+    storeSupplier: countRecordsBySite(state, (siteEntry) => siteEntry?.store?.supplierConnections || []),
+  };
+}
+
+function buildSummaryDiff(beforeSummary, afterSummary) {
+  const before = beforeSummary && typeof beforeSummary === 'object' ? beforeSummary : {};
+  const after = afterSummary && typeof afterSummary === 'object' ? afterSummary : {};
+  const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).sort();
+  return keys.map((key) => {
+    const previous = Number(before[key]) || 0;
+    const next = Number(after[key]) || 0;
+    return {
+      module: key,
+      before: previous,
+      after: next,
+      delta: next - previous,
+    };
+  });
+}
+
+async function buildCurrentBackupEquivalentSnapshot() {
+  const exported = await storageAdapter.exportAll();
+  return exported && typeof exported === 'object' ? exported : {};
+}
+
+function cleanupRestoreApprovals() {
+  const now = Date.now();
+  for (const [token, entry] of pendingRestoreApprovals.entries()) {
+    if (!entry || Number(entry.expiresAt) <= now) {
+      pendingRestoreApprovals.delete(token);
+    }
+  }
+}
+
+function createRestoreApprovalToken({ backupId, userEmail, diff, previewSummary }) {
+  cleanupRestoreApprovals();
+  const token = crypto.randomBytes(24).toString('hex');
+  const now = Date.now();
+  pendingRestoreApprovals.set(token, {
+    token,
+    backupId: sanitizeString(backupId, 255),
+    userEmail: sanitizeString(userEmail || '', 160).toLowerCase(),
+    diffChecksum: stableChecksum(diff || []),
+    previewChecksum: stableChecksum(previewSummary || {}),
+    createdAt: now,
+    expiresAt: now + RESTORE_APPROVAL_TTL_MS,
+  });
+  return token;
+}
+
+function validateRestoreApprovalToken({ token, backupId, userEmail, diff, previewSummary }) {
+  cleanupRestoreApprovals();
+  const key = sanitizeString(token || '', 120);
+  if (!key || !pendingRestoreApprovals.has(key)) {
+    const error = new Error('RESTORE_APPROVAL_REQUIRED');
+    error.statusCode = 400;
+    throw error;
+  }
+  const entry = pendingRestoreApprovals.get(key);
+  const normalizedUser = sanitizeString(userEmail || '', 160).toLowerCase();
+  if (!entry || entry.userEmail !== normalizedUser || entry.backupId !== sanitizeString(backupId, 255)) {
+    pendingRestoreApprovals.delete(key);
+    const error = new Error('RESTORE_APPROVAL_INVALID');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (entry.expiresAt <= Date.now()) {
+    pendingRestoreApprovals.delete(key);
+    const error = new Error('RESTORE_APPROVAL_EXPIRED');
+    error.statusCode = 400;
+    throw error;
+  }
+  const diffChecksum = stableChecksum(diff || []);
+  const previewChecksum = stableChecksum(previewSummary || {});
+  if (entry.diffChecksum !== diffChecksum || entry.previewChecksum !== previewChecksum) {
+    pendingRestoreApprovals.delete(key);
+    const error = new Error('RESTORE_APPROVAL_STALE');
+    error.statusCode = 409;
+    throw error;
+  }
+  pendingRestoreApprovals.delete(key);
+  return true;
+}
+
+async function verifyRestoreIntegrity(snapshot) {
+  const expectedSummary = buildBackupModuleSummary(snapshot);
+  const currentSnapshot = await buildCurrentBackupEquivalentSnapshot();
+  const actualSummary = buildBackupModuleSummary(currentSnapshot);
+  const diff = buildSummaryDiff(expectedSummary, actualSummary);
+  const mismatches = diff.filter((entry) => entry.delta !== 0);
+  return {
+    ok: mismatches.length === 0,
+    expected: expectedSummary,
+    actual: actualSummary,
+    diff,
+    mismatches,
+    checksumExpected: stableChecksum(expectedSummary),
+    checksumActual: stableChecksum(actualSummary),
+  };
+}
+
 async function restoreBackupSnapshot(identifier, userEmail) {
   const snapshot = await readBackupSnapshotById(identifier);
   if (!snapshot || typeof snapshot !== 'object') {
@@ -1066,12 +1240,23 @@ async function restoreBackupSnapshot(identifier, userEmail) {
     await writeVersionedJsonFile(getNotificationsFilePath(site), Array.isArray(list) ? list : [], { fallbackValue: [] });
   }
 
+  const restoredSummary = buildBackupModuleSummary(snapshot);
   await logActivity(userEmail, 'backup_restored', {
     backup: sanitizeString(identifier, 255),
     storageType: STORAGE_TYPE,
+    restoredSummary,
   });
 
-  return snapshot;
+  const integrity = await verifyRestoreIntegrity(snapshot);
+  await logActivity(userEmail, 'backup_restore_integrity_check', {
+    backup: sanitizeString(identifier, 255),
+    ok: integrity.ok,
+    mismatchCount: integrity.mismatches.length,
+    checksumExpected: integrity.checksumExpected,
+    checksumActual: integrity.checksumActual,
+  });
+
+  return { snapshot, integrity };
 }
 
 function redactAdminRecord(admin) {
@@ -1221,16 +1406,20 @@ function syncActiveSessionsWithAdmins(admins) {
   const adminsByEmail = new Map(
     (Array.isArray(admins) ? admins : []).map((admin) => [String(admin.email || '').toLowerCase(), normalizeAdminRecord(admin)]),
   );
-  for (const session of sessions.values()) {
+  for (const [sessionId, session] of sessions.entries()) {
     if (!session || session.role !== 'admin') continue;
     const admin = adminsByEmail.get(String(session.email || '').toLowerCase());
-    if (!admin) continue;
+    if (!admin || admin.active === false) {
+      sessions.delete(sessionId);
+      continue;
+    }
     session.fullName = admin.fullName || session.fullName || '';
     session.isSuperAdmin = admin.isSuperAdmin === true;
     session.isReadonly = admin.isReadonly === true;
     session.permissions = admin.isSuperAdmin ? { ...DEFAULT_PERMISSIONS } : normalizePermissions(admin.permissions || {});
     session.level = getAdminLevel(admin);
     session.allowedSites = Array.isArray(admin.allowedSites) ? admin.allowedSites.slice() : null;
+    session.authzUpdatedAt = new Date().toISOString();
   }
 }
 
@@ -2313,6 +2502,58 @@ function applyServerStoreStatusChange({ store, order, nextStatus, actor, reason,
   return { order: current, budgetDelta, reservedDelta };
 }
 
+function canExportStoreData(session) {
+  return session?.isSuperAdmin ||
+    canManageStoreOrders(session) ||
+    sessionHasPermission(session, 'canExportStore');
+}
+
+function buildStoreExportRows(orders, filters = {}) {
+  const source = Array.isArray(orders) ? orders : [];
+  const siteScope = sanitizeString(filters.siteScope || 'all', 20).toLowerCase();
+  const site = sanitizeString(filters.site || '', 80);
+  const statusScope = sanitizeString(filters.statusScope || 'all', 40).toLowerCase();
+  const fromDate = sanitizeString(filters.fromDate || '', 20);
+  const untilDate = sanitizeString(filters.untilDate || '', 20);
+  const fromTs = /^\d{4}-\d{2}-\d{2}$/.test(fromDate) ? new Date(`${fromDate}T00:00:00`).getTime() : 0;
+  const untilTs = /^\d{4}-\d{2}-\d{2}$/.test(untilDate) ? new Date(`${untilDate}T23:59:59`).getTime() : Number.POSITIVE_INFINITY;
+
+  return source
+    .filter((order) => (siteScope === 'single' && site ? sanitizeString(order?.site || '', 80) === site : true))
+    .filter((order) => {
+      if (statusScope === 'pending-approved') {
+        return ['Pending', 'Approved'].includes(sanitizeString(order?.status || '', 40));
+      }
+      if (statusScope === 'pending') return sanitizeString(order?.status || '', 40) === 'Pending';
+      if (statusScope === 'approved') return sanitizeString(order?.status || '', 40) === 'Approved';
+      return true;
+    })
+    .filter((order) => {
+      const createdAtTs = new Date(order?.createdAt || 0).getTime();
+      if (!Number.isFinite(createdAtTs)) return false;
+      if (createdAtTs < fromTs) return false;
+      if (createdAtTs > untilTs) return false;
+      return true;
+    })
+    .flatMap((order) => {
+      const items = Array.isArray(order?.items) ? order.items : [];
+      return items.map((item) => ({
+        orderId: sanitizeString(order?.id || '', 80),
+        worker: sanitizeString(order?.workerName || order?.workerId || '', 200),
+        workerId: sanitizeString(order?.workerId || '', 160),
+        site: sanitizeString(order?.site || '', 80),
+        date: sanitizeString(order?.createdAt || '', 80),
+        status: sanitizeString(order?.status || '', 40),
+        product: sanitizeString(item?.productName || item?.productId || '', 240),
+        variant: sanitizeString(item?.variantName || '', 200),
+        size: sanitizeString(item?.size || '', 80),
+        quantity: Math.max(1, Number(item?.quantity) || 1),
+        comment: sanitizeString(order?.workerComment || '', 1200),
+        budgetImpact: Math.max(0, Number(item?.budgetImpact ?? item?.lineCost) || 0),
+      }));
+    });
+}
+
 function getUploadUrl(filePath) {
   const relative = path.relative(uploadsDir, filePath).split(path.sep).join('/');
   return `/uploads/${relative}`;
@@ -2573,6 +2814,241 @@ function normalizeSiteEntryForScopeChecksum(entry) {
   return mirrorPlannerListsToSiteEntry(copy);
 }
 
+function sanitizeStoreCartRecord(cart) {
+  const source = cart && typeof cart === 'object' ? cart : {};
+  const itemsSource = Array.isArray(source.items) ? source.items : [];
+  return {
+    items: itemsSource.slice(0, 300).map((item) => {
+      const row = item && typeof item === 'object' ? item : {};
+      return {
+        productId: sanitizeString(row.productId || '', 120),
+        variantId: sanitizeString(row.variantId || '', 120),
+        variantName: sanitizeString(row.variantName || '', 200),
+        size: sanitizeString(row.size || '', 80),
+        quantity: Math.max(1, Math.min(999, Math.floor(Number(row.quantity) || 1))),
+        comment: sanitizeString(row.comment || '', 800),
+        useUpgrade: row.useUpgrade === true,
+      };
+    }).filter((item) => item.productId),
+    comment: sanitizeString(source.comment || '', 1200),
+    urgent: source.urgent === true,
+    updatedAt: sanitizeString(source.updatedAt || new Date().toISOString(), 80),
+  };
+}
+
+function sanitizeStorePasswordResetRequest(request) {
+  const source = request && typeof request === 'object' ? request : {};
+  const status = sanitizeString(source.status || 'pending', 30).toLowerCase();
+  return {
+    id: sanitizeString(source.id || `pr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, 120),
+    userEmail: sanitizeString(source.userEmail || '', 160).toLowerCase(),
+    requestedBy: sanitizeString(source.requestedBy || '', 160).toLowerCase(),
+    requestedAt: sanitizeString(source.requestedAt || new Date().toISOString(), 80),
+    status: ['pending', 'approved', 'rejected'].includes(status) ? status : 'pending',
+    approvedAt: sanitizeString(source.approvedAt || '', 80),
+    approvedBy: sanitizeString(source.approvedBy || '', 160).toLowerCase(),
+    rejectedAt: sanitizeString(source.rejectedAt || '', 80),
+    rejectedBy: sanitizeString(source.rejectedBy || '', 160).toLowerCase(),
+    generatedPassword: sanitizeString(source.generatedPassword || '', 180),
+  };
+}
+
+function canManageStoreCatalogState(session) {
+  return canManageStoreOrders(session);
+}
+
+function canManageStoreBudgetState(session) {
+  return canManageStoreOrders(session) ||
+    canWriteStateField(session, 'canManageStoreBudgets') ||
+    canWriteStateField(session, 'canManageWorkwearCredits');
+}
+
+function canManageStoreRulesState(session) {
+  return canManageStoreOrders(session) ||
+    canWriteStateField(session, 'canManageStoreRules') ||
+    canWriteStateField(session, 'canManageWorkwearSettings');
+}
+
+function mergeStoreStateForSession(previousStore, submittedStore, session, site) {
+  const previous = previousStore && typeof previousStore === 'object' ? previousStore : {};
+  const submitted = submittedStore && typeof submittedStore === 'object' ? submittedStore : {};
+  const next = { ...previous };
+  const actorEmail = sanitizeString(session?.email || '', 160).toLowerCase();
+  const deniedFields = [];
+  const appliedFields = [];
+  const deniedChangedFields = [];
+  const managerCanCatalog = canManageStoreCatalogState(session);
+  const managerCanBudget = canManageStoreBudgetState(session);
+  const managerCanRules = canManageStoreRulesState(session);
+  const managerCanOrderOps = canManageStoreOrders(session);
+
+  const trackDenied = (fieldName) => {
+    deniedFields.push(fieldName);
+    if (stableJson(canonicalize(previous?.[fieldName])) !== stableJson(canonicalize(submitted?.[fieldName]))) {
+      deniedChangedFields.push(fieldName);
+    }
+  };
+
+  if (Array.isArray(submitted.products)) {
+    if (managerCanCatalog) {
+      next.products = sanitizeObject(submitted.products);
+      appliedFields.push('products');
+    } else {
+      trackDenied('products');
+    }
+  }
+
+  if (submitted.settings && typeof submitted.settings === 'object') {
+    if (managerCanRules) {
+      next.settings = sanitizeObject(submitted.settings);
+      appliedFields.push('settings');
+    } else {
+      trackDenied('settings');
+    }
+  }
+
+  if (Array.isArray(submitted.orders)) {
+    if (session?.isSuperAdmin) {
+      next.orders = sanitizeObject(submitted.orders);
+      appliedFields.push('orders:superadmin');
+    } else {
+      // Orders are server-authoritative and cannot be overwritten via /api/state.
+      trackDenied('orders');
+    }
+  }
+
+  if (submitted.carts && typeof submitted.carts === 'object') {
+    if (managerCanOrderOps) {
+      const carts = {};
+      Object.entries(submitted.carts).forEach(([email, cart]) => {
+        const key = sanitizeString(email, 160).toLowerCase();
+        if (!key) return;
+        carts[key] = sanitizeStoreCartRecord(cart);
+      });
+      next.carts = carts;
+      appliedFields.push('carts');
+    } else if (actorEmail && submitted.carts[actorEmail]) {
+      const previousCarts = previous.carts && typeof previous.carts === 'object' ? { ...previous.carts } : {};
+      previousCarts[actorEmail] = sanitizeStoreCartRecord(submitted.carts[actorEmail]);
+      next.carts = previousCarts;
+      appliedFields.push('carts:own');
+    } else {
+      trackDenied('carts');
+    }
+  }
+
+  if (submitted.workerProfiles && typeof submitted.workerProfiles === 'object') {
+    if (managerCanBudget) {
+      next.workerProfiles = sanitizeObject(submitted.workerProfiles);
+      appliedFields.push('workerProfiles');
+    } else if (actorEmail && submitted.workerProfiles[actorEmail]) {
+      const previousProfiles = previous.workerProfiles && typeof previous.workerProfiles === 'object'
+        ? { ...previous.workerProfiles }
+        : {};
+      const existing = previousProfiles[actorEmail] && typeof previousProfiles[actorEmail] === 'object'
+        ? { ...previousProfiles[actorEmail] }
+        : {};
+      const incoming = submitted.workerProfiles[actorEmail] && typeof submitted.workerProfiles[actorEmail] === 'object'
+        ? submitted.workerProfiles[actorEmail]
+        : {};
+      existing.workerName = sanitizeString(incoming.workerName || existing.workerName || actorEmail, 200);
+      existing.savedSizes = sanitizeObject(incoming.savedSizes && typeof incoming.savedSizes === 'object' ? incoming.savedSizes : {});
+      previousProfiles[actorEmail] = existing;
+      next.workerProfiles = previousProfiles;
+      appliedFields.push('workerProfiles:own');
+    } else {
+      trackDenied('workerProfiles');
+    }
+  }
+
+  if (Array.isArray(submitted.creditLedger)) {
+    if (managerCanBudget) {
+      next.creditLedger = sanitizeObject(submitted.creditLedger);
+      appliedFields.push('creditLedger');
+    } else {
+      trackDenied('creditLedger');
+    }
+  }
+
+  if (Array.isArray(submitted.passwordResetRequests)) {
+    if (session?.isSuperAdmin) {
+      next.passwordResetRequests = submitted.passwordResetRequests
+        .slice(-2000)
+        .map((entry) => sanitizeStorePasswordResetRequest(entry));
+      appliedFields.push('passwordResetRequests');
+    } else {
+      const previousRequests = Array.isArray(previous.passwordResetRequests) ? previous.passwordResetRequests.slice() : [];
+      const recentOwnPending = previousRequests.filter((entry) => {
+        const email = sanitizeString(entry?.userEmail || '', 160).toLowerCase();
+        const status = sanitizeString(entry?.status || '', 30).toLowerCase();
+        const ts = new Date(entry?.requestedAt || 0).getTime();
+        return email === actorEmail && status === 'pending' && Number.isFinite(ts) && (Date.now() - ts) < (15 * 60 * 1000);
+      });
+      if (recentOwnPending.length >= 5) {
+        throw createStoreValidationError('PASSWORD_RESET_RATE_LIMIT', 429, actorEmail);
+      }
+      const previousById = new Set(previousRequests.map((entry) => sanitizeString(entry?.id || '', 120)).filter(Boolean));
+      const additions = submitted.passwordResetRequests
+        .map((entry) => sanitizeStorePasswordResetRequest(entry))
+        .filter((entry) => entry.userEmail === actorEmail && entry.requestedBy === actorEmail && entry.status === 'pending')
+        .filter((entry) => !previousById.has(entry.id))
+        .slice(0, 5);
+      if (additions.length > 0) {
+        next.passwordResetRequests = [...previousRequests, ...additions].slice(-2000);
+        appliedFields.push('passwordResetRequests:own');
+      } else {
+        trackDenied('passwordResetRequests');
+      }
+    }
+  }
+
+  if (Array.isArray(submitted.notificationEvents)) {
+    if (managerCanOrderOps) {
+      next.notificationEvents = sanitizeObject(submitted.notificationEvents);
+      appliedFields.push('notificationEvents');
+    } else {
+      trackDenied('notificationEvents');
+    }
+  }
+
+  if (Array.isArray(submitted.auditLog)) {
+    if (managerCanOrderOps) {
+      next.auditLog = sanitizeObject(submitted.auditLog);
+      appliedFields.push('auditLog');
+    } else {
+      trackDenied('auditLog');
+    }
+  }
+
+  if (Array.isArray(submitted.supplierConnections)) {
+    if (managerCanCatalog) {
+      next.supplierConnections = sanitizeObject(submitted.supplierConnections);
+      appliedFields.push('supplierConnections');
+    } else {
+      trackDenied('supplierConnections');
+    }
+  }
+
+  if (Array.isArray(submitted.supplierSyncLog)) {
+    if (managerCanCatalog) {
+      next.supplierSyncLog = sanitizeObject(submitted.supplierSyncLog);
+      appliedFields.push('supplierSyncLog');
+    } else {
+      trackDenied('supplierSyncLog');
+    }
+  }
+
+  if (submitted.meta && typeof submitted.meta === 'object') {
+    const mergedMeta = next.meta && typeof next.meta === 'object' ? { ...next.meta } : {};
+    mergedMeta.updatedAt = new Date().toISOString();
+    mergedMeta.updatedBy = actorEmail || 'system';
+    mergedMeta.site = sanitizeString(site || '', 80);
+    next.meta = mergedMeta;
+  }
+
+  return { store: next, deniedFields, deniedChangedFields, appliedFields };
+}
+
 function mergeStateForSession(previousState, submittedState, session) {
   const previous = previousState && typeof previousState === 'object' ? previousState : {};
   const submitted = submittedState && typeof submittedState === 'object' ? submittedState : {};
@@ -2639,6 +3115,7 @@ function mergeStateForSession(previousState, submittedState, session) {
   const previousSiteData = previous.siteData && typeof previous.siteData === 'object' ? previous.siteData : {};
   const submittedSiteData = submitted.siteData && typeof submitted.siteData === 'object' ? submitted.siteData : {};
   const nextSiteData = { ...previousSiteData };
+  const storeSecurityEvents = [];
 
   if (canWriteStateField(session, 'canManageSiteAccess') && Array.isArray(submitted.sites)) {
     const activeSiteIds = new Set(Array.isArray(merged.sites) ? merged.sites : []);
@@ -2670,7 +3147,22 @@ function mergeStateForSession(previousState, submittedState, session) {
       entry.warehouse = incoming.warehouse;
     }
     if ((canWriteStateField(session, 'canAccessStore') || canWriteStateField(session, 'canAccessWorkwear')) && incoming.store) {
-      entry.store = incoming.store;
+      const mergedStoreResult = mergeStoreStateForSession(previousEntry.store, incoming.store, session, site);
+      entry.store = mergedStoreResult.store;
+      if (mergedStoreResult.appliedFields.length > 0) {
+        storeSecurityEvents.push({
+          site,
+          type: 'store_applied',
+          fields: mergedStoreResult.appliedFields,
+        });
+      }
+      if (mergedStoreResult.deniedChangedFields.length > 0) {
+        storeSecurityEvents.push({
+          site,
+          type: 'store_denied',
+          fields: mergedStoreResult.deniedChangedFields,
+        });
+      }
     }
     if ((canWriteStateField(session, 'canApproveReports') || canWriteStateField(session, 'canDeleteReports')) && incoming.reports) {
       entry.reports = incoming.reports;
@@ -2686,6 +3178,9 @@ function mergeStateForSession(previousState, submittedState, session) {
   });
 
   merged.siteData = nextSiteData;
+  if (storeSecurityEvents.length > 0) {
+    merged.__storeSecurityEvents = storeSecurityEvents;
+  }
   return merged;
 }
 
@@ -2705,7 +3200,7 @@ async function logActivity(userEmail, action, details = {}) {
         user: cleanEmail,
         userName: sanitizeString(userName || cleanEmail, 180),
         action: sanitizeString(action || 'unknown', 160),
-        details: sanitizeObject(details),
+        details: redactSensitiveObject(sanitizeObject(details)),
       });
       return nextLogs.slice(-2000);
     });
@@ -2722,7 +3217,7 @@ async function logWarehouseActivity(userEmail, action, details = {}) {
         timestamp: new Date().toISOString(),
         user: sanitizeString(userEmail || 'unknown', 160),
         action: sanitizeString(action || 'unknown', 160),
-        details: sanitizeObject(details),
+        details: redactSensitiveObject(sanitizeObject(details)),
       });
       return nextLogs.slice(-5000);
     });
@@ -2889,6 +3384,15 @@ const backupLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many backup requests' },
+});
+
+const storePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: Number(process.env.STORE_PASSWORD_CONFIRM_RATE_LIMIT_MAX) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many password confirmation requests' },
+  skip: (req) => req.method !== 'POST',
 });
 
 /**
@@ -3060,7 +3564,7 @@ const apiRouter = express.Router();
 apiRouter.use(requireAuth);
 apiRouter.use(requireCsrf);
 
-apiRouter.post('/store/confirm-password', async (req, res, next) => {
+apiRouter.post('/store/confirm-password', storePasswordLimiter, async (req, res, next) => {
   try {
     if (req.session?.isReadonly) {
       return res.status(403).json({ error: 'READONLY_FORBIDDEN' });
@@ -3328,6 +3832,153 @@ apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canAcces
   }
 });
 
+apiRouter.get('/store/export/:format(csv|excel|pdf)', requireAnyPermission(['canAccessStore', 'canAccessWorkwear', 'canExportStore', 'canManageStore', 'canManageWorkwear', 'canViewStoreTeamOrders']), async (req, res, next) => {
+  try {
+    const format = sanitizeString(req.params?.format || 'csv', 20).toLowerCase();
+    if (!['csv', 'excel', 'pdf'].includes(format)) {
+      return res.status(400).json({ error: 'INVALID_EXPORT_FORMAT' });
+    }
+    if (!canExportStoreData(req.session)) {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
+    const site = getRequestedStoreSite(req);
+    const siteScope = sanitizeString(req.query?.siteScope || 'all', 20).toLowerCase();
+    const exportSite = sanitizeString(req.query?.site || site, 80);
+    const statusScope = sanitizeString(req.query?.statusScope || 'all', 40).toLowerCase();
+    const fromDate = sanitizeString(req.query?.fromDate || '', 20);
+    const untilDate = sanitizeString(req.query?.untilDate || '', 20);
+    if (siteScope === 'single' && exportSite && !canAccessSite(req.session, exportSite)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+    if (fromDate && untilDate) {
+      const fromTs = new Date(`${fromDate}T00:00:00`).getTime();
+      const untilTs = new Date(`${untilDate}T23:59:59`).getTime();
+      if (Number.isFinite(fromTs) && Number.isFinite(untilTs)) {
+        const diffDays = Math.ceil((untilTs - fromTs) / (24 * 60 * 60 * 1000));
+        if (diffDays > 400) {
+          return res.status(400).json({ error: 'EXPORT_RANGE_TOO_LARGE' });
+        }
+      }
+    }
+
+    const document = await getStateDocument();
+    const state = document?.data && typeof document.data === 'object' ? document.data : {};
+    const canManageAll = canManageStoreOrders(req.session);
+    const canSeeTeam = canViewStoreTeamOrdersPermission(req.session);
+    if (!canManageAll && !canSeeTeam) {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
+    const targetSites = siteScope === 'single' && exportSite ? [exportSite] : (
+      Array.isArray(state.sites) ? state.sites.filter((siteId) => canAccessSite(req.session, siteId)) : []
+    );
+    const scopedSites = canManageAll
+      ? targetSites
+      : [site].filter((siteId) => canAccessSite(req.session, siteId));
+    const allRows = scopedSites.flatMap((siteId) => {
+      const siteEntry = state?.siteData?.[siteId] && typeof state.siteData[siteId] === 'object' ? state.siteData[siteId] : {};
+      const store = siteEntry?.store && typeof siteEntry.store === 'object' ? siteEntry.store : {};
+      return buildStoreExportRows(store.orders, {
+        siteScope: 'single',
+        site: siteId,
+        statusScope,
+        fromDate,
+        untilDate,
+      });
+    });
+
+    const generatedAt = new Date().toISOString();
+    const exportLabel = `store-orders-${siteScope === 'single' ? exportSite : 'all-sites'}-${generatedAt.slice(0, 10)}`;
+    if (format === 'csv') {
+      const headers = ['Worker', 'WorkerId', 'Site', 'Date', 'Product', 'Variant', 'Size', 'Quantity', 'Status', 'Comment', 'Budget impact'];
+      const escapeCsv = (value) => {
+        const text = String(value ?? '');
+        if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+        return text;
+      };
+      const lines = [
+        headers.join(','),
+        ...allRows.map((row) => ([
+          row.worker,
+          row.workerId,
+          row.site,
+          row.date,
+          row.product,
+          row.variant,
+          row.size,
+          row.quantity,
+          row.status,
+          row.comment,
+          row.budgetImpact,
+        ].map(escapeCsv).join(','))),
+      ];
+      const csv = lines.join('\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${exportLabel}.csv"`);
+      await logActivity(req.session.email, 'export_store_csv', {
+        siteScope,
+        site: exportSite || null,
+        statusScope,
+        fromDate: fromDate || null,
+        untilDate: untilDate || null,
+        rows: allRows.length,
+      });
+      return res.send(csv);
+    }
+
+    if (format === 'excel') {
+      const data = allRows.map((row) => ({
+        Worker: row.worker,
+        WorkerId: row.workerId,
+        Site: row.site,
+        Date: row.date,
+        Product: row.product,
+        Variant: row.variant,
+        Size: row.size,
+        Quantity: row.quantity,
+        Status: row.status,
+        Comment: row.comment,
+        BudgetImpact: row.budgetImpact,
+      }));
+      const buffer = await exportToExcel(data, ['Worker', 'WorkerId', 'Site', 'Date', 'Product', 'Variant', 'Size', 'Quantity', 'Status', 'Comment', 'BudgetImpact']);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${exportLabel}.xlsx"`);
+      await logActivity(req.session.email, 'export_store_excel', {
+        siteScope,
+        site: exportSite || null,
+        statusScope,
+        fromDate: fromDate || null,
+        untilDate: untilDate || null,
+        rows: allRows.length,
+      });
+      return res.send(Buffer.from(buffer));
+    }
+
+    const lines = [
+      'Store Orders Export',
+      `Generated: ${generatedAt}`,
+      `Site scope: ${siteScope === 'single' ? exportSite : 'all sites'}`,
+      `Status scope: ${statusScope}`,
+      `Rows: ${allRows.length}`,
+      '',
+      ...allRows.map((row) => `${row.date} | ${row.site} | ${row.worker} | ${row.product} ${row.variant ? `(${row.variant})` : ''} | ${row.size} | x${row.quantity} | ${row.status} | Budget ${row.budgetImpact}`),
+    ];
+    const buffer = await exportToPDF('Store Orders Export', lines.join('\n'));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${exportLabel}.pdf"`);
+    await logActivity(req.session.email, 'export_store_pdf', {
+      siteScope,
+      site: exportSite || null,
+      statusScope,
+      fromDate: fromDate || null,
+      untilDate: untilDate || null,
+      rows: allRows.length,
+    });
+    return res.send(Buffer.from(buffer));
+  } catch (error) {
+    next(error);
+  }
+});
+
 apiRouter.get('/state', async (req, res, next) => {
   try {
     const document = await getStateDocument();
@@ -3340,6 +3991,7 @@ apiRouter.get('/state', async (req, res, next) => {
 apiRouter.post('/state', requireAdmin, async (req, res, next) => {
   try {
     const state = sanitizeObject(req.body?.state);
+    const moduleKey = sanitizeString(req.body?.module || req.body?.section || 'state', 80);
     const lastKnownVersion = Number(req.body?.lastKnownVersion);
     if (!validateStatePayload(state)) {
       return res.status(400).json({ error: 'Invalid state payload' });
@@ -3355,6 +4007,18 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
 
     const currentDocument = await getStateDocument();
     const mergedState = mergeStateForSession(currentDocument.data, state, req.session);
+    const storeSecurityEvents = Array.isArray(mergedState.__storeSecurityEvents) ? mergedState.__storeSecurityEvents.slice() : [];
+    delete mergedState.__storeSecurityEvents;
+    const deniedStoreMutations = storeSecurityEvents.filter((entry) => entry?.type === 'store_denied' && Array.isArray(entry?.fields) && entry.fields.length > 0);
+    if (deniedStoreMutations.length > 0) {
+      await logActivity(req.session.email, 'store_state_mutation_denied', {
+        module: moduleKey,
+        denied: deniedStoreMutations,
+      });
+      if (/store|workwear/i.test(moduleKey)) {
+        return res.status(403).json({ error: 'FORBIDDEN_STORE_MUTATION', details: deniedStoreMutations });
+      }
+    }
     
     // ============ SITE DELETION SAFETY CHECK ============
     // Prevent partial state updates that wipe other sites' data
@@ -3474,11 +4138,18 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       updatedAt,
       updatedBy: req.session.email,
       updatedByName: getSessionDisplayName(req.session),
-      module: sanitizeString(req.body?.module || req.body?.section || 'state', 80),
+      module: moduleKey,
     }, {
       lastKnownVersion: Number(currentDocument.version) || lastKnownVersion,
       fallbackValue: null,
     });
+    if (storeSecurityEvents.some((entry) => entry?.type === 'store_applied')) {
+      await logActivity(req.session.email, 'store_state_mutation_applied', {
+        module: sanitizeString(req.body?.module || req.body?.section || 'state', 80),
+        deniedIgnored: true,
+        applied: storeSecurityEvents.filter((entry) => entry?.type === 'store_applied'),
+      });
+    }
     res.json({
       ok: true,
       version: savedDocument.version,
@@ -3491,7 +4162,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     if (isVersionConflictError(error)) {
       await logActivity(req.session.email, 'version_conflict', {
         route: '/api/state',
-        module: sanitizeString(req.body?.module || req.body?.section || 'state', 80),
+        module: moduleKey,
       });
       return sendVersionConflict(res, async () => buildPublicStatePayload(await getStateDocument(), req.session));
     }
@@ -5168,6 +5839,54 @@ apiRouter.post('/backup', requirePermission('canManageBackups'), backupLimiter, 
   }
 });
 
+apiRouter.post('/backup/restore/dry-run', requirePermission('canRestoreBackups'), backupLimiter, async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) {
+      return res.status(403).json({ error: 'Read-only users cannot dry-run restore' });
+    }
+    const backupId = sanitizeString(req.body?.id || req.body?.filename || '', 255);
+    if (!backupId) return res.status(400).json({ error: 'Missing backup id' });
+    const snapshot = await readBackupSnapshotById(backupId);
+    if (!snapshot || typeof snapshot !== 'object') {
+      return res.status(400).json({ error: 'BACKUP_STRUCTURE_INVALID' });
+    }
+    const currentSnapshot = await buildCurrentBackupEquivalentSnapshot();
+    const currentSummary = buildBackupModuleSummary(currentSnapshot);
+    const previewSummary = buildBackupModuleSummary(snapshot);
+    const diff = buildSummaryDiff(currentSummary, previewSummary);
+    const restoreToken = createRestoreApprovalToken({
+      backupId,
+      userEmail: req.session.email,
+      diff,
+      previewSummary,
+    });
+    await logActivity(req.session.email, 'backup_restore_dry_run', {
+      backup: backupId,
+      diffChecksum: stableChecksum(diff),
+      previewChecksum: stableChecksum(previewSummary),
+      changedModules: diff.filter((entry) => entry.delta !== 0).map((entry) => entry.module),
+    });
+    return res.json({
+      ok: true,
+      backup: backupId,
+      dryRun: true,
+      restoreToken,
+      tokenExpiresInMs: RESTORE_APPROVAL_TTL_MS,
+      summary: {
+        current: currentSummary,
+        restore: previewSummary,
+        diff,
+      },
+    });
+  } catch (error) {
+    if (error?.message === 'BACKUP_NOT_FOUND') return res.status(404).json({ error: 'Backup not found' });
+    if (error?.message === 'INVALID_BACKUP_ID' || error?.message === 'BACKUP_STRUCTURE_INVALID') {
+      return res.status(error.statusCode || 400).json({ error: error.message });
+    }
+    next(error);
+  }
+});
+
 apiRouter.post('/backup/restore', requirePermission('canRestoreBackups'), backupLimiter, async (req, res, next) => {
   try {
     if (req.session.isReadonly) {
@@ -5175,17 +5894,52 @@ apiRouter.post('/backup/restore', requirePermission('canRestoreBackups'), backup
     }
     const backupId = sanitizeString(req.body?.id || req.body?.filename || '', 255);
     if (!backupId) return res.status(400).json({ error: 'Missing backup id' });
-    const snapshot = await restoreBackupSnapshot(backupId, req.session.email);
+    const confirmationText = sanitizeString(req.body?.confirmationText || req.body?.confirmText || '', 40).toUpperCase();
+    const restoreToken = sanitizeString(req.body?.restoreToken || '', 120);
+    if (confirmationText !== 'RESTORE') {
+      return res.status(400).json({ error: 'RESTORE_CONFIRMATION_REQUIRED' });
+    }
+    if (!restoreToken) {
+      return res.status(400).json({ error: 'RESTORE_APPROVAL_REQUIRED' });
+    }
+    const previewSnapshot = await readBackupSnapshotById(backupId);
+    const currentSnapshot = await buildCurrentBackupEquivalentSnapshot();
+    const currentSummary = buildBackupModuleSummary(currentSnapshot);
+    const previewSummary = buildBackupModuleSummary(previewSnapshot);
+    const diff = buildSummaryDiff(currentSummary, previewSummary);
+    validateRestoreApprovalToken({
+      token: restoreToken,
+      backupId,
+      userEmail: req.session.email,
+      diff,
+      previewSummary,
+    });
+    const restoredResult = await restoreBackupSnapshot(backupId, req.session.email);
+    const integrity = restoredResult?.integrity || { ok: false, mismatches: [] };
     res.json({
       ok: true,
       restored: true,
       backup: backupId,
       restoredAt: new Date().toISOString(),
-      storageType: snapshot.storageType || STORAGE_TYPE,
+      storageType: restoredResult?.snapshot?.storageType || STORAGE_TYPE,
+      integrity,
+    });
+    await logActivity(req.session.email, 'backup_restore_confirmed', {
+      backup: backupId,
+      integrityOk: integrity.ok === true,
+      mismatchCount: Array.isArray(integrity.mismatches) ? integrity.mismatches.length : 0,
     });
   } catch (error) {
     if (error?.message === 'BACKUP_NOT_FOUND') return res.status(404).json({ error: 'Backup not found' });
     if (error?.message === 'INVALID_BACKUP_ID' || error?.message === 'BACKUP_STRUCTURE_INVALID') {
+      return res.status(error.statusCode || 400).json({ error: error.message });
+    }
+    if ([
+      'RESTORE_APPROVAL_REQUIRED',
+      'RESTORE_APPROVAL_INVALID',
+      'RESTORE_APPROVAL_EXPIRED',
+      'RESTORE_APPROVAL_STALE',
+    ].includes(error?.message)) {
       return res.status(error.statusCode || 400).json({ error: error.message });
     }
     next(error);
