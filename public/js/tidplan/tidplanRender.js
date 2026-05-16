@@ -4,11 +4,17 @@ function showTidplan() {
     return;
   }
   return loadFreshDataForView("loadingTidplan", () => {
+    const homeSection = document.getElementById("home-section");
+    const reportsSection = document.getElementById("reports-section");
+    const settingsSection = document.getElementById("settings-section");
     const notificationsSection = document.getElementById("notifications-section");
     const surveysSection = document.getElementById("surveys-section");
     const warehouseSection = document.getElementById("warehouse-section");
     const warehouseLogsSection = document.getElementById("warehouse-logs-section");
     const warehouseGraphSection = document.getElementById("warehouse-graph-section");
+    if (homeSection) homeSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
     if (notificationsSection) notificationsSection.style.display = "none";
     if (surveysSection) surveysSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = "none";
@@ -25,6 +31,7 @@ function showTidplan() {
     pushRouteForView("tidplan");
     updateTidplan();
     initTidplanResizer();
+    if (typeof updateShellForView === "function") updateShellForView("tidplan");
     sendPresence(true).catch(() => {});
     refreshPresence().catch(() => {});
   });
@@ -32,6 +39,9 @@ function showTidplan() {
 
 function showPlanner() {
   return loadFreshDataForView("loadingDefault", () => {
+  const homeSection = document.getElementById("home-section");
+  const reportsSection = document.getElementById("reports-section");
+  const settingsSection = document.getElementById("settings-section");
   const notificationsSection = document.getElementById("notifications-section");
   const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
@@ -39,6 +49,9 @@ function showPlanner() {
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
   const tidplanSection = document.getElementById("tidplan-section");
   const plannerSection = document.getElementById("planner-section");
+  if (homeSection) homeSection.style.display = "none";
+  if (reportsSection) reportsSection.style.display = "none";
+  if (settingsSection) settingsSection.style.display = "none";
   if (notificationsSection) notificationsSection.style.display = "none";
   if (surveysSection) surveysSection.style.display = "none";
   if (warehouseSection) warehouseSection.style.display = "none";
@@ -50,9 +63,78 @@ function showPlanner() {
   applyPermissionVisibility();
   saveCurrentView("main");
   pushRouteForView("main");
+  if (typeof updateShellForView === "function") updateShellForView("main");
   sendPresence(true).catch(() => {});
   refreshPresence().catch(() => {});
   });
+}
+
+function updateTidplanSummaryCards() {
+  const activeRows = Array.isArray(tidplanData) ? tidplanData.filter((row) => row && row.active !== false) : [];
+  const dayData = getCurrentDayData();
+  const totalWorkers = getActiveResourceList("workers", appState.currentDate).length;
+  const presentWorkers = getActiveResourceList("workers", appState.currentDate).filter(
+    (worker) => dayData.workerAttendance[worker] !== false,
+  ).length;
+
+  const selectedDate = String(appState.currentDate || "");
+  const todayDate = new Date().toISOString().slice(0, 10);
+  const weekBase = new Date(`${selectedDate}T00:00:00`);
+  const weekDay = ((weekBase.getDay() + 6) % 7);
+  weekBase.setDate(weekBase.getDate() - weekDay);
+  const weekStart = weekBase.toISOString().slice(0, 10);
+  const weekEndDate = new Date(weekBase);
+  weekEndDate.setDate(weekEndDate.getDate() + 6);
+  const weekEnd = weekEndDate.toISOString().slice(0, 10);
+
+  const overlapsDate = (activity, dateStr) => {
+    if (typeof isTidplanActivityActiveOnDate === "function") {
+      return isTidplanActivityActiveOnDate(activity, dateStr);
+    }
+    if (!activity?.start || !activity?.end || !dateStr) return false;
+    return dateStr >= activity.start && dateStr <= activity.end;
+  };
+  const overlapsRange = (activity, start, end) => {
+    if (typeof getTidplanRemainingRange === "function") {
+      const range = getTidplanRemainingRange(activity);
+      if (!range?.hasRemaining) return false;
+      return range.remainingStart <= end && range.remainingEnd >= start;
+    }
+    if (!activity?.start || !activity?.end) return false;
+    return activity.start <= end && activity.end >= start;
+  };
+  const getNeededForDate = (dateStr) =>
+    activeRows.reduce((sum, activity) => {
+      if (!overlapsDate(activity, dateStr)) return sum;
+      return sum + (parseInt(activity.resursi, 10) || 0);
+    }, 0);
+
+  const currentActivities = activeRows.filter((activity) => overlapsDate(activity, selectedDate)).length;
+  const todayActivities = activeRows.filter((activity) => overlapsDate(activity, todayDate)).length;
+  const weekActivities = activeRows.filter((activity) => overlapsRange(activity, weekStart, weekEnd)).length;
+
+  const neededToday = getNeededForDate(selectedDate);
+  const deltaToday = presentWorkers - neededToday;
+
+  let peakNeedThisWeek = 0;
+  for (let offset = 0; offset < 7; offset += 1) {
+    const current = new Date(weekBase);
+    current.setDate(weekBase.getDate() + offset);
+    const dateStr = current.toISOString().slice(0, 10);
+    peakNeedThisWeek = Math.max(peakNeedThisWeek, getNeededForDate(dateStr));
+  }
+  const weeklyDelta = presentWorkers - peakNeedThisWeek;
+  const weeklyForecast =
+    weeklyDelta >= 0 ? `Prognoza +${weeklyDelta} ovaj tjedan` : `Prognoza ${weeklyDelta} ovaj tjedan`;
+
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(value);
+  };
+  setText("tidplanSummaryActivitiesCurrent", currentActivities);
+  setText("tidplanSummaryActivitiesTotal", activeRows.length);
+  setText("tidplanSummaryWorkersAvailable", presentWorkers);
+  setText("tidplanSummaryCapacityDay", deltaToday >= 0 ? `+${deltaToday}` : `-${Math.abs(deltaToday)}`);
 }
 
 function updateTidplan() {
@@ -117,8 +199,6 @@ function updateTidplan() {
     btnPrint.textContent = t("tidplanPrint");
     btnPrint.disabled = !hasPermission("canPrintTidplan");
   }
-  const btnBack = document.getElementById("btnBackToPlanner");
-  if (btnBack) btnBack.textContent = t("tidplanBackToPlanner");
   const btnSort = document.getElementById("btnSortTidplan");
   if (btnSort) btnSort.textContent = t("tidplanSort");
   const btnClear = document.getElementById("btnClearTidplan");
@@ -170,18 +250,24 @@ function updateTidplan() {
   renderZoneList();
   renderTidplanTable();
   renderTidplanTimeline();
+  updateTidplanSummaryCards();
 
   // Initialize flatpickr for tidplan date inputs
   setTimeout(() => initTidplanDatePickers(), 10);
 
   // Setup scroll synchronization between left panel and timeline
   setTimeout(() => {
+    syncTidplanMeasuredRowHeights();
     syncTidplanScroll();
+    if (typeof initTidplanActionLayer === "function") initTidplanActionLayer();
   }, 50);
+  setTimeout(() => {
+    syncTidplanMeasuredRowHeights();
+  }, 180);
 }
 
 function syncTidplanScroll() {
-  const leftPanel = document.querySelector(".tidplan-left-panel");
+  const leftPanel = document.querySelector(".tidplan-table-container");
   const timeline = document.getElementById("tidplanTimeline");
 
   if (!leftPanel || !timeline) return;
@@ -205,6 +291,43 @@ function syncTidplanScroll() {
   leftPanel.onscroll = syncFromLeft;
   timeline.onscroll = syncFromRight;
   timeline.scrollTop = leftPanel.scrollTop;
+}
+
+function syncTidplanMeasuredRowHeights() {
+  const leftRows = Array.from(document.querySelectorAll("#tidplanTbody tr[data-activity-index]"));
+  const timelineRows = Array.from(
+    document.querySelectorAll("#timelineBody .timeline-row:not(.timeline-resources-footer)"),
+  );
+  if (!leftRows.length || !timelineRows.length) return;
+
+  const thead = document.getElementById("tidplanThead");
+  const timelineHeader = document.getElementById("timelineHeader");
+  if (thead) {
+    thead.style.height = "60px";
+    thead.style.minHeight = "60px";
+    thead.style.maxHeight = "60px";
+  }
+  if (timelineHeader) {
+    timelineHeader.style.height = "60px";
+    timelineHeader.style.minHeight = "60px";
+    timelineHeader.style.maxHeight = "60px";
+  }
+
+  const sharedHeight = Math.max(
+    40,
+    ...leftRows.map((row) => Math.round(row.getBoundingClientRect().height || 40)),
+  );
+  const rowCount = Math.min(leftRows.length, timelineRows.length);
+  for (let index = 0; index < rowCount; index += 1) {
+    const leftRow = leftRows[index];
+    const timelineRow = timelineRows[index];
+    leftRow.style.height = `${sharedHeight}px`;
+    leftRow.style.minHeight = `${sharedHeight}px`;
+    leftRow.style.maxHeight = `${sharedHeight}px`;
+    timelineRow.style.height = `${sharedHeight}px`;
+    timelineRow.style.minHeight = `${sharedHeight}px`;
+    timelineRow.style.maxHeight = `${sharedHeight}px`;
+  }
 }
 
 var tidplanSortCriteria = [];
@@ -485,6 +608,7 @@ function populateFilters() {
 }
 
 function renderTidplanTimeline() {
+  if (typeof ensureAllTidplanActivities === "function") ensureAllTidplanActivities();
   const locale = getCurrentLocale();
   // Display total present and available workers
   const presentWorkersEl = document.getElementById("totalPresentWorkers");
@@ -525,6 +649,9 @@ function renderTidplanTimeline() {
     d.setDate(d.getDate() + 1)
   ) {
     days.push(new Date(d));
+  }
+  if (window.tidplanUiState) {
+    window.tidplanUiState.timelineDays = days.map((day) => getDateKey(day));
   }
 
   const weeks = {};
@@ -593,8 +720,8 @@ function renderTidplanTimeline() {
   body.innerHTML = "";
   body.style.width = days.length * 40 + "px";
   const filteredData = getFilteredTidplanData();
-  const todayStr = new Date().toDateString();
-  const todayIndex = days.findIndex((day) => day.toDateString() === todayStr);
+  const todayKey = getDateKey(new Date());
+  const todayIndex = days.findIndex((day) => getDateKey(day) === todayKey);
   const dayMetaList = days.map((day) => getSwedishDayMeta(day));
 
   const appendTodayLine = (target) => {
@@ -618,6 +745,10 @@ function renderTidplanTimeline() {
   filteredData.forEach((activity, index) => {
     const row = document.createElement("div");
     row.className = `timeline-row${isTidplanActivityInactive(activity) ? " timeline-row-inactive" : ""}`;
+    row.dataset.activityIndex = String(tidplanData.indexOf(activity));
+    row.style.height = "40px";
+    row.style.minHeight = "40px";
+    row.style.maxHeight = "40px";
     // Keep background white for better readability
     row.style.backgroundColor = "var(--card-bg)";
     appendDayHighlights(row);
@@ -625,15 +756,13 @@ function renderTidplanTimeline() {
 
     // Calculate bar position first to position zone indicator
     if (activity.start && activity.end) {
-      const start = new Date(activity.start);
-      const end = new Date(activity.end);
-      const startStr = start.toISOString().split("T")[0];
-      const endStr = end.toISOString().split("T")[0];
+      const startStr = String(activity.start || "").trim();
+      const endStr = String(activity.end || "").trim();
       const startIndex = days.findIndex(
-        (d) => d.toISOString().split("T")[0] === startStr,
+        (d) => getDateKey(d) === startStr,
       );
       const endIndex = days.findIndex(
-        (d) => d.toISOString().split("T")[0] === endStr,
+        (d) => getDateKey(d) === endStr,
       );
       if (startIndex >= 0 && endIndex >= 0) {
         const left = startIndex * 40;
@@ -650,6 +779,7 @@ function renderTidplanTimeline() {
 
         const bar = document.createElement("div");
         bar.className = `gantt-bar${isTidplanActivityInactive(activity) ? " gantt-bar-inactive" : ""}`;
+        bar.dataset.activityIndex = row.dataset.activityIndex;
         bar.style.left = left + "px";
         bar.style.width = width + "px";
         bar.style.backgroundColor = isTidplanActivityInactive(activity)
@@ -729,14 +859,18 @@ function renderTidplanTimeline() {
 
   // Calculate daily resources needed
   days.forEach((day, dayIndex) => {
-    const dayStr = day.toISOString().split("T")[0];
+    const dayStr = getDateKey(day);
     let dailyNeeded = 0;
 
     filteredData.forEach((activity) => {
       if (isTidplanActivityInactive(activity)) return;
-      if (activity.start && activity.end) {
-        const start = new Date(activity.start).toISOString().split("T")[0];
-        const end = new Date(activity.end).toISOString().split("T")[0];
+      if (typeof isTidplanActivityActiveOnDate === "function") {
+        if (isTidplanActivityActiveOnDate(activity, dayStr)) {
+          dailyNeeded += parseInt(activity.resursi) || 0;
+        }
+      } else if (activity.start && activity.end) {
+        const start = String(activity.start || "").trim();
+        const end = String(activity.end || "").trim();
         if (start <= dayStr && dayStr <= end) {
           dailyNeeded += parseInt(activity.resursi) || 0;
         }
@@ -789,6 +923,7 @@ function renderTidplanTimeline() {
 }
 
 function renderTidplanTable() {
+  if (typeof ensureAllTidplanActivities === "function") ensureAllTidplanActivities();
   const editableTidplan = canEditTidplan();
   const tbody = document.getElementById("tidplanTbody");
   tbody.innerHTML = "";
@@ -807,6 +942,9 @@ function renderTidplanTable() {
     tr.dataset.activityIndex = String(tidplanData.indexOf(activity));
     const activityIndex = Number(tr.dataset.activityIndex);
     tr.className = isTidplanActivityInactive(activity) ? "tidplan-row-inactive" : "";
+    tr.style.height = "40px";
+    tr.style.minHeight = "40px";
+    tr.style.maxHeight = "40px";
     tr.style.backgroundColor = isTidplanActivityInactive(activity)
       ? "rgba(148, 163, 184, 0.2)"
       : getZonaColor(activity.zona);
@@ -949,21 +1087,23 @@ function renderTidplanTable() {
     tr.appendChild(tdKomentar);
 
     const tdActions = document.createElement("td");
+    tdActions.className = "tidplan-actions-cell";
     const btnToggleActive = document.createElement("button");
-    btnToggleActive.className = `btn btn-small ${isTidplanActivityInactive(activity) ? "" : "btn-secondary"}`;
+    btnToggleActive.className = `btn btn-small tidplan-mini-btn ${isTidplanActivityInactive(activity) ? "" : "btn-secondary"}`;
     btnToggleActive.disabled = !editableTidplan;
     btnToggleActive.textContent = isTidplanActivityInactive(activity) ? "Uključi" : "Isključi";
     btnToggleActive.addEventListener("click", () => toggleTidplanActivityActive(Number(tr.dataset.activityIndex)));
     tdActions.appendChild(btnToggleActive);
 
     const btnDelete = document.createElement("button");
-    btnDelete.className = "btn btn-small btn-danger";
+    btnDelete.className = "btn btn-small btn-danger tidplan-mini-btn";
     btnDelete.disabled =
       !editableTidplan || !hasPermission("canDeleteTidplanActivity");
     btnDelete.textContent = "−";
     btnDelete.addEventListener("click", () => {
       const toDeleteIndex = Number(tr.dataset.activityIndex);
       if (toDeleteIndex >= 0) {
+        if (typeof recordTidplanHistory === "function") recordTidplanHistory("delete-activity");
         tidplanData.splice(toDeleteIndex, 1);
         markTidplanChanged(toDeleteIndex, "activity");
         updateTidplan();
@@ -981,19 +1121,34 @@ function renderTidplanTable() {
 }
 
 function getActivityColor(plan, moment) {
+  const normalizedMoment = String(moment || "").trim().toLowerCase();
+  const presetMomentColors = [
+    { match: ["iv enkling", "iv enking", "iv enk"], color: "#4f7cff" },
+    { match: ["iv dubbling", "iv dubbing", "iv dubbel"], color: "#dd5d74" },
+    { match: ["iz stomme", "iz stomme", "stomme"], color: "#35b36f" },
+    { match: ["isolering", "isoler"], color: "#14b8a6" },
+    { match: ["utsattning", "utsättning", "uts"], color: "#8b5cf6" },
+    { match: ["karna", "kärna"], color: "#f59e0b" },
+  ];
+
+  const preset = presetMomentColors.find((entry) =>
+    entry.match.some((token) => normalizedMoment.includes(token)),
+  );
+  if (preset) return preset.color;
+
   // Generate color based on moment only (not plan+moment combination)
-  const combined = moment || "none";
+  const combined = normalizedMoment || "none";
   let hash = 0;
   for (let i = 0; i < combined.length; i++) {
     hash = combined.charCodeAt(i) + ((hash << 5) - hash);
   }
   const hue = Math.abs(hash) % 360;
-  // Increased saturation and lightness for stronger colors
-  return `hsl(${hue}, 85%, 48%)`;
+  return `hsl(${hue}, 68%, 52%)`;
 }
 
 function addTidplanActivity() {
   if (!canEditTidplan() || !hasPermission("canAddTidplanActivity")) return;
+  if (typeof recordTidplanHistory === "function") recordTidplanHistory("add-activity");
   const defaultZone = tidplanZones[0] ? tidplanZones[0].name : "Zona A";
   const defaultKarna = availableKarne[0] || "Karna 1";
   tidplanData.push({
@@ -1021,6 +1176,7 @@ function toggleTidplanActivityActive(activityIndex) {
     : "Jeste li sigurni da zelite iskljuciti ovu aktivnost? Vise se nece racunati u resurse i vrijeme.";
 
   showConfirm(message, null, "⚠️", () => {
+    if (typeof recordTidplanHistory === "function") recordTidplanHistory("toggle-active");
     activity.active = nextActive;
     markTidplanChanged(activityIndex, "active");
     updateTidplan();
@@ -1111,6 +1267,7 @@ function clearTidplan() {
     null,
     "⚠️",
     () => {
+      if (typeof recordTidplanHistory === "function") recordTidplanHistory("clear");
       tidplanData = [];
       saveTidplanData();
       updateTidplan();

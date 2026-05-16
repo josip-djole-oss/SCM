@@ -16,12 +16,48 @@ function renderAll() {
   updateDateDisplay();
   renderPastDayLockNotice("planner-section");
   renderLastEditedInfo();
+  updatePlannerSummaryCards();
   renderWorkersList();
   renderLiftsList();
   renderMomensList();
   renderPlansList();
   renderKarnasList();
   renderPlanningTable();
+  if (typeof refreshDashboardView === "function") refreshDashboardView();
+  if (typeof refreshHomeLaunchpad === "function") refreshHomeLaunchpad();
+}
+
+function updatePlannerSummaryCards() {
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = String(value);
+  };
+  const dayData = getCurrentDayData();
+  const activeWorkers = getActiveResourceList("workers", appState.currentDate);
+  const workerInUse = getWorkersInUse();
+  const availableWorkers = activeWorkers.filter((worker) => dayData.workerAttendance[worker] !== false);
+  const busyWorkers = availableWorkers.filter((worker) => workerInUse.has(worker));
+  const freeWorkers = Math.max(availableWorkers.length - busyWorkers.length, 0);
+
+  const activeLifts = getActiveResourceList("lifts", appState.currentDate);
+  const assignedLifts = new Set();
+  (dayData.planningRows || []).forEach((row) => {
+    if (row?.l1) assignedLifts.add(row.l1);
+    if (row?.l2) assignedLifts.add(row.l2);
+    if (row?.l3) assignedLifts.add(row.l3);
+  });
+  const availableLifts = activeLifts.filter((lift) => dayData.liftAvailability[lift] !== false);
+  const busyLifts = availableLifts.filter((lift) => assignedLifts.has(lift));
+  const freeLifts = Math.max(availableLifts.length - busyLifts.length, 0);
+
+  setText("plannerSummaryWorkersTotal", activeWorkers.length);
+  setText("plannerSummaryWorkersBusy", busyWorkers.length);
+  setText("plannerSummaryWorkersFree", freeWorkers);
+  setText("plannerSummaryWorkersAvailable", availableWorkers.length);
+  setText("plannerSummaryLiftsTotal", activeLifts.length);
+  setText("plannerSummaryLiftsBusy", busyLifts.length);
+  setText("plannerSummaryLiftsFree", freeLifts);
+  setText("plannerSummaryLiftsAvailable", availableLifts.length);
 }
 
 function getWorkersInUse() {
@@ -209,6 +245,70 @@ function removePlanningRow() {
     markDirty();
     renderPlanningTable();
   }
+}
+
+function buildPlannerRowsFromTidplanForDate(dateStr = appState.currentDate) {
+  const activeTidplan = (Array.isArray(tidplanData) ? tidplanData : []).filter((activity) => {
+    if (!activity || activity.active === false) return false;
+    if (!Array.isArray(activity.linkedWorkers) || !activity.linkedWorkers.length) return false;
+    if (typeof isTidplanActivityActiveOnDate === "function") {
+      return isTidplanActivityActiveOnDate(activity, dateStr);
+    }
+    return Boolean(activity.start && activity.end && dateStr >= activity.start && dateStr <= activity.end);
+  });
+
+  const rows = [];
+  activeTidplan.forEach((activity) => {
+    const linkedWorkers = Array.from(new Set((activity.linkedWorkers || []).filter(Boolean)));
+    if (!linkedWorkers.length) return;
+    for (let index = 0; index < linkedWorkers.length; index += 3) {
+      const chunk = linkedWorkers.slice(index, index + 3);
+      rows.push({
+        w1: chunk[0] || "",
+        w2: chunk[1] || "",
+        w3: chunk[2] || "",
+        plan: activity.plan || "",
+        karna: activity.karna || "",
+        m1: activity.moment || "",
+        m2: "",
+        l1: "",
+        l2: "",
+        l3: "",
+        comment: activity.komentar || "",
+      });
+    }
+  });
+  return rows;
+}
+
+function applyTidplanSchemeToPlanner() {
+  const dayData = getCurrentDayData();
+  const nextRows = buildPlannerRowsFromTidplanForDate(appState.currentDate);
+  if (!nextRows.length) {
+    showToast("Nema uvezanih Tidplan momenata za odabrani dan.", "info");
+    return;
+  }
+  trackLocalEditKey(makePlannerEditKey(appState.currentDate, "day", "all"));
+  dayData.planningRows = nextRows;
+  saveData();
+  markDirty();
+  renderAll();
+  showToast("Tidplan shema je prebacena u Planner za odabrani dan.", "success");
+}
+
+function useTidplanSchemeForToday() {
+  if (appState.isReadonly || !appState.isAdmin || !canEditDate(appState.currentDate)) return;
+  const dayData = getCurrentDayData();
+  if (Array.isArray(dayData.planningRows) && dayData.planningRows.length) {
+    showConfirm(
+      "Postojeci raspored za ovaj dan ce biti zamijenjen Tidplan shemom. Nastaviti?",
+      null,
+      "⚠️",
+      () => applyTidplanSchemeToPlanner(),
+    );
+    return;
+  }
+  applyTidplanSchemeToPlanner();
 }
 
 function createPlanningRow(rowData, index) {

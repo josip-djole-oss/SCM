@@ -1,4 +1,4 @@
-function getAllAdminPermissionKeys() {
+﻿function getAllAdminPermissionKeys() {
   return ADMIN_PERMISSION_SECTIONS.flatMap((section) => section.keys);
 }
 
@@ -55,7 +55,7 @@ function handleAdminRemoval(notice) {
   if (adminRemovalHandled) return;
   adminRemovalHandled = true;
   const message = formatAdminRemovalMessage(notice);
-  showAlert(message, "⚠️", () => {
+  showAlert(message, "!", () => {
     forceLogoutAndReload();
   });
 }
@@ -175,6 +175,91 @@ function renderNewAdminSitesPanel() {
   });
 }
 
+function renderAdminLevelQuickPicks() {
+  const levelSelect = document.getElementById("newAdminLevel");
+  if (!levelSelect) return;
+  let quickPicks = document.getElementById("adminLevelQuickPicks");
+  if (!quickPicks) {
+    quickPicks = document.createElement("div");
+    quickPicks.id = "adminLevelQuickPicks";
+    quickPicks.className = "admin-level-quick-picks";
+    levelSelect.parentElement?.appendChild(quickPicks);
+  }
+  quickPicks.innerHTML = "";
+  Array.from(levelSelect.options || []).forEach((option) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `btn btn-ghost btn-small admin-level-chip${levelSelect.value === option.value ? " is-active" : ""}`;
+    button.textContent = option.textContent || option.value;
+    button.addEventListener("click", () => {
+      levelSelect.value = option.value;
+      renderNewAdminPermissionsPanel();
+      renderAdminLevelQuickPicks();
+      enhanceAdminComposerLayout();
+    });
+    quickPicks.appendChild(button);
+  });
+}
+
+function enhanceAdminComposerLayout() {
+  const tabAdmins = document.getElementById("tabAdmins");
+  if (!tabAdmins) return;
+
+  if (!tabAdmins.querySelector(".admin-compose-intro")) {
+    const intro = document.createElement("div");
+    intro.className = "admin-compose-intro";
+    intro.innerHTML = `
+      <div class="admin-compose-eyebrow">Account Management</div>
+      <h3>Dodaj admina</h3>
+    `;
+    tabAdmins.insertBefore(intro, tabAdmins.firstElementChild);
+  }
+
+  const formGrid = tabAdmins.querySelector(".admin-form-grid");
+  if (formGrid) formGrid.classList.add("admin-compose-card", "admin-compose-card-basic");
+
+  const permsPanel = document.getElementById("newAdminPermsPanel");
+  const permsWrap = permsPanel?.parentElement;
+  if (permsWrap) {
+    permsWrap.classList.add("admin-compose-card", "admin-compose-card-perms");
+    if (!permsWrap.querySelector(".admin-compose-section-kicker")) {
+      const kicker = document.createElement("div");
+      kicker.className = "admin-compose-section-kicker";
+      kicker.textContent = "Napredne ovlasti";
+      permsWrap.insertBefore(kicker, permsWrap.firstElementChild);
+    }
+  }
+
+  const sitesPanel = document.getElementById("newAdminSitesPanel");
+  const sitesWrap = sitesPanel?.parentElement;
+  if (sitesWrap) {
+    sitesWrap.classList.add("admin-compose-card", "admin-compose-card-sites");
+    if (!sitesWrap.querySelector(".admin-compose-section-kicker")) {
+      const kicker = document.createElement("div");
+      kicker.className = "admin-compose-section-kicker";
+      kicker.textContent = "Pristup gradilistima";
+      sitesWrap.insertBefore(kicker, sitesWrap.firstElementChild);
+    }
+  }
+
+  const addButton = document.getElementById("btnAddAdminEl");
+  if (addButton) {
+    let actionBar = document.getElementById("adminComposeActionBar");
+    if (!actionBar) {
+      actionBar = document.createElement("div");
+      actionBar.id = "adminComposeActionBar";
+      actionBar.className = "admin-compose-action-bar";
+      addButton.parentElement?.insertBefore(actionBar, addButton);
+      actionBar.appendChild(addButton);
+    }
+  }
+
+  const adminListBlock = document.getElementById("adminList")?.parentElement;
+  if (adminListBlock) adminListBlock.classList.add("admin-compose-card", "admin-compose-card-list");
+
+  renderAdminLevelQuickPicks();
+}
+
 function renderGuestAccessPanel() {
   if (!(appState.isSuperAdmin || hasAdminPermission("canManageGuestAccess"))) return;
 
@@ -291,16 +376,59 @@ function getAdminSummaryLabels(permissions) {
   return labels;
 }
 
+function ensureSettingsPageMount() {
+  const settingsSection = document.getElementById("settings-section");
+  const adminModal = document.getElementById("adminModal");
+  if (!settingsSection || !adminModal || settingsSection.dataset.mounted === "true") return;
+  const modalBox = adminModal.querySelector(".modal-box");
+  if (!modalBox) return;
+  settingsSection.innerHTML = "";
+  settingsSection.appendChild(modalBox);
+  settingsSection.dataset.mounted = "true";
+  adminModal.style.display = "none";
+  const title = document.getElementById("adminModalTitle");
+  if (title) title.textContent = "Postavke i upravljanje";
+}
+
 function openAdminPanel() {
   if (!canOpenAdminPanelAccess()) return;
   withLoading("loadingAdminPanel", () => {
-    document.getElementById("adminModal").style.display = "flex";
+    ensureSettingsPageMount();
+    const settingsSection = document.getElementById("settings-section");
+    const homeSection = document.getElementById("home-section");
+    const reportsSection = document.getElementById("reports-section");
+    const plannerSection = document.getElementById("planner-section");
+    const tidplanSection = document.getElementById("tidplan-section");
+    const notificationsSection = document.getElementById("notifications-section");
+    const surveysSection = document.getElementById("surveys-section");
+    const warehouseSection = document.getElementById("warehouse-section");
+    const warehouseLogsSection = document.getElementById("warehouse-logs-section");
+    const warehouseGraphSection = document.getElementById("warehouse-graph-section");
+    const binsSection = document.getElementById("binsSection");
+    const listsContainer = document.querySelector(".lists-container");
+
+    if (homeSection) homeSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (plannerSection) plannerSection.style.display = "none";
+    if (tidplanSection) tidplanSection.style.display = "none";
+    if (notificationsSection) notificationsSection.style.display = "none";
+    if (surveysSection) surveysSection.style.display = "none";
+    if (warehouseSection) warehouseSection.style.display = "none";
+    if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
+    if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "block";
+    if (listsContainer) listsContainer.classList.add("hidden");
+    if (binsSection) binsSection.classList.remove("active");
+
+    currentView = "admin";
+    saveCurrentView("admin");
+    pushRouteForView("admin");
+    if (typeof updateShellForView === "function") updateShellForView("admin");
 
     const canManageAdmins = canManageAdminsByLevel();
     const canManageGuest = appState.isSuperAdmin || hasAdminPermission("canManageGuestAccess");
-    const canViewReports = hasAdminPermission("canViewReports");
     const canViewLogs = hasAdminPermission("canViewLogs");
-    const canViewSettings = hasAdminPermission("canViewSettings") || appState.isSuperAdmin;
+    const canViewSettings = Boolean(appState.currentUser);
     const canViewBackupsAccess = canViewBackups();
 
 
@@ -308,8 +436,6 @@ function openAdminPanel() {
     document.getElementById("tabAdmins").style.display = canManageAdmins ? "" : "none";
     setVisibility("tabBtnGuest", canManageGuest);
     document.getElementById("tabGuest").style.display = canManageGuest ? "" : "none";
-    setVisibility("tabBtnReports", canViewReports);
-    document.getElementById("tabReports").style.display = canViewReports ? "" : "none";
     setVisibility("tabBtnLogs", canViewLogs);
     document.getElementById("tabLogs").style.display = canViewLogs ? "" : "none";
     setVisibility("tabBtnSettings", canViewSettings);
@@ -321,36 +447,25 @@ function openAdminPanel() {
     renderNewAdminLevelSelector();
     renderNewAdminPermissionsPanel();
     renderNewAdminSitesPanel();
+    enhanceAdminComposerLayout();
     renderGuestAccessPanel();
 
     if (canManageAdmins) {
       renderAdminList();
-    }
-    if (canViewReports) {
-      loadReportsData()
-        .then(() => {
-          renderReportsList("all");
-          updateNotifBadge();
-        })
-        .catch(() => {
-          renderReportsList("all");
-          updateNotifBadge();
-        });
     }
     if (canViewSettings) {
       initBinPermissionsUI();
     }
 
     const firstTab =
+      (canViewSettings && "tabSettings") ||
       (canManageAdmins && "tabAdmins") ||
       (canManageGuest && "tabGuest") ||
-      (canViewReports && "tabReports") ||
       (canViewLogs && "tabLogs") ||
-      (canViewSettings && "tabSettings") ||
       (canViewBackupsAccess && "tabBackup");
 
     if (!firstTab) {
-      document.getElementById("adminModal").style.display = "none";
+      if (settingsSection) settingsSection.style.display = "none";
       showToast(t("adminNoTabs"), "error");
       return;
     }
@@ -361,9 +476,15 @@ function openAdminPanel() {
 }
 
 function closeAdminPanel() {
-  document.getElementById("adminModal").style.display = "none";
+  const settingsSection = document.getElementById("settings-section");
+  if (settingsSection) settingsSection.style.display = "none";
   document.getElementById("newAdminEmail").value = "";
   document.getElementById("newAdminPassword").value = "";
+  if (typeof showHomeDashboard === "function") {
+    showHomeDashboard();
+  } else if (typeof updateShellForView === "function") {
+    updateShellForView(currentView);
+  }
 }
 
 function switchTab(tabId) {
@@ -371,10 +492,8 @@ function switchTab(tabId) {
     (tabId === "tabAdmins" && !canManageAdminsByLevel()) ||
     (tabId === "tabGuest" &&
       !(appState.isSuperAdmin || hasAdminPermission("canManageGuestAccess"))) ||
-    (tabId === "tabReports" && !hasAdminPermission("canViewReports")) ||
     (tabId === "tabLogs" && !hasAdminPermission("canViewLogs")) ||
-    (tabId === "tabSettings" &&
-      !(hasAdminPermission("canViewSettings") || appState.isSuperAdmin)) ||
+    (tabId === "tabSettings" && !appState.currentUser) ||
     (tabId === "tabBackup" && !canViewBackups())
   ) {
     return;
@@ -392,24 +511,12 @@ function switchTab(tabId) {
   const btnMap = {
     tabAdmins: "tabBtnAdmins",
     tabGuest: "tabBtnGuest",
-    tabReports: "tabBtnReports",
     tabLogs: "tabBtnLogs",
     tabSettings: "tabBtnSettings",
     tabBackup: "tabBtnBackup",
   };
   if (btnMap[tabId])
     document.getElementById(btnMap[tabId]).classList.add("active");
-  if (tabId === "tabReports") {
-    loadReportsData()
-      .then(() => {
-        renderReportsList("all");
-        updateNotifBadge();
-      })
-      .catch(() => {
-        renderReportsList("all");
-        updateNotifBadge();
-      });
-  }
   if (tabId === "tabLogs") {
     renderLogs();
   }
@@ -470,7 +577,7 @@ function renderAdminList() {
     if (!admin.isSuperAdmin) {
       const editBtn = document.createElement("button");
       editBtn.className = "btn btn-small";
-      editBtn.textContent = "⚙️";
+      editBtn.textContent = "Postavke";
       editBtn.title = t("editPermsTitle") + " " + displayName;
       if (canEditThisAdmin) {
         editBtn.dataset.cmaxAction = "admin.togglePerms";
@@ -480,7 +587,7 @@ function renderAdminList() {
 
       const removeBtn = document.createElement("button");
       removeBtn.className = "btn btn-small btn-danger";
-      removeBtn.textContent = "✕";
+      removeBtn.textContent = "Obrisi";
       if (canManageThisAdmin && !isSelf) {
         removeBtn.dataset.cmaxAction = "admin.removeAction";
         removeBtn.dataset.cmaxArgs = JSON.stringify([admin.email]);
@@ -791,7 +898,7 @@ function removeAdminAction(email) {
     showToast(t("errAdminManageDenied"), "error");
     return;
   }
-  showPromptDialog(t("promptRemoveAdminReason"), "⚠️", "", (reason) => {
+  showPromptDialog(t("promptRemoveAdminReason"), "!", "", (reason) => {
     const trimmed = (reason || "").trim();
     if (!trimmed) {
       showToast(t("adminRemoveReasonRequired"), "error");
@@ -800,7 +907,7 @@ function removeAdminAction(email) {
     showConfirm(
       `${t("confirmRemoveAdmin")} "${getUserDisplayName(email, targetAdmin.fullName)}"?\n${t("adminRemovedReasonLabel")} ${trimmed}`,
       null,
-      "⚠️",
+      "!",
       () => {
         let admins = getAdmins();
         admins = admins.filter((a) => a.email !== email);

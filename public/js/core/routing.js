@@ -11,9 +11,12 @@ function routeForView(view = currentView) {
     warehouse: "/warehouse",
     warehouseLogs: "/warehouse",
     warehouseGraph: "/warehouse",
+    reports: "/reports",
     notifications: "/notifications",
     surveys: "/surveys",
+    workwear: "/store",
     bins: "/bins",
+    admin: "/settings",
   };
   return routes[view] || "/planner";
 }
@@ -21,12 +24,16 @@ function routeForView(view = currentView) {
 function viewFromPath(pathname = window.location.pathname) {
   const path = String(pathname || "/").toLowerCase();
   if (path === "/login") return "login";
-  if (path === "/" || path === "/home" || path === "/planner") return "main";
+  if (path === "/" || path === "/home") return "home";
+  if (path === "/planner") return "main";
   if (path === "/tidplan") return "tidplan";
   if (path === "/warehouse") return "warehouse";
+  if (path === "/store" || path === "/workwear") return "workwear";
+  if (path === "/reports") return "reports";
   if (path === "/notifications") return "notifications";
   if (path === "/surveys") return "surveys";
   if (path === "/bins" || path === "/kante") return "bins";
+  if (path === "/settings") return "admin";
   return null;
 }
 
@@ -46,18 +53,26 @@ function applyRouteFromPath(pathname = window.location.pathname) {
   try {
     if (view === "login") {
       showLogin();
+    } else if (view === "home") {
+      CMAX.core.showHome();
     } else if (view === "main") {
       CMAX.tidplan.showPlanner();
     } else if (view === "tidplan") {
       CMAX.tidplan.show();
     } else if (view === "warehouse") {
       CMAX.warehouse.show();
+    } else if (view === "workwear") {
+      CMAX.workwear.show();
+    } else if (view === "reports") {
+      CMAX.reports.showCenter();
     } else if (view === "notifications") {
       CMAX.notifications.show();
     } else if (view === "surveys") {
       CMAX.surveys.show();
     } else if (view === "bins") {
       if (currentView !== "bins") CMAX.bins.show();
+    } else if (view === "admin") {
+      CMAX.admin.open();
     }
   } finally {
     suppressRoutePush = false;
@@ -67,7 +82,11 @@ function applyRouteFromPath(pathname = window.location.pathname) {
 
 function restoreLastView() {
   if (applyRouteFromPath(window.location.pathname)) return;
-  const savedView = localStorage.getItem(CURRENT_VIEW_KEY) || "main";
+  const savedView = localStorage.getItem(CURRENT_VIEW_KEY) || "home";
+  if (savedView === "home") {
+    CMAX.core.showHome();
+    return;
+  }
   if (savedView === "tidplan") {
     if (document.getElementById("tidplan-section").style.display !== "block") {
       CMAX.tidplan.show();
@@ -76,6 +95,10 @@ function restoreLastView() {
   }
   if (savedView === "notifications") {
     CMAX.notifications.show();
+    return;
+  }
+  if (savedView === "reports") {
+    CMAX.reports.showCenter();
     return;
   }
   if (savedView === "bins") {
@@ -94,5 +117,13 @@ function restoreLastView() {
   }
   if (savedView === "warehouseGraph") {
     CMAX.warehouse.showGraph();
+    return;
+  }
+  if (savedView === "workwear") {
+    CMAX.workwear.show();
+    return;
+  }
+  if (savedView === "admin") {
+    CMAX.admin.open();
   }
 }

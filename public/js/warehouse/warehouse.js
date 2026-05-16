@@ -388,12 +388,28 @@ function renderWarehousePage() {
   if (catalogAddButton) catalogAddButton.disabled = !canEditWarehouse();
 }
 
+function toggleWarehouseSection(sectionId) {
+  const card = document.getElementById(sectionId);
+  if (!card) return;
+  card.classList.toggle("is-collapsed");
+  const button = card.querySelector(".warehouse-collapse-btn");
+  if (button) {
+    button.textContent = card.classList.contains("is-collapsed") ? "Prikazi" : "Sakrij";
+  }
+}
+
 function showWarehouse() {
   if (!canAccessWarehouseModule()) {
     showToast(t("warehouseAccessDenied"), "error");
     return;
   }
   return loadFreshDataForView("loadingDefault", () => {
+  const homeSection = document.getElementById("home-section");
+  const reportsSection = document.getElementById("reports-section");
+  const settingsSection = document.getElementById("settings-section");
+  if (homeSection) homeSection.style.display = "none";
+  if (reportsSection) reportsSection.style.display = "none";
+  if (settingsSection) settingsSection.style.display = "none";
   document.getElementById("tidplan-section").style.display = "none";
   document.getElementById("notifications-section").style.display = "none";
   document.getElementById("surveys-section").style.display = "none";
@@ -405,6 +421,7 @@ function showWarehouse() {
   saveCurrentView("warehouse");
   pushRouteForView("warehouse");
   renderWarehousePage();
+  if (typeof updateShellForView === "function") updateShellForView("warehouse");
   sendPresence(true).catch(() => {});
   refreshPresence().catch(() => {});
   });
@@ -415,6 +432,12 @@ function showWarehouseLogs() {
     showToast(t("warehouseLogsAccessDenied"), "error");
     return;
   }
+  const homeSection = document.getElementById("home-section");
+  const reportsSection = document.getElementById("reports-section");
+  const settingsSection = document.getElementById("settings-section");
+  if (homeSection) homeSection.style.display = "none";
+  if (reportsSection) reportsSection.style.display = "none";
+  if (settingsSection) settingsSection.style.display = "none";
   document.getElementById("tidplan-section").style.display = "none";
   document.getElementById("notifications-section").style.display = "none";
   document.getElementById("planner-section").style.display = "none";
@@ -425,6 +448,7 @@ function showWarehouseLogs() {
   saveCurrentView("warehouseLogs");
   pushRouteForView("warehouseLogs");
   renderWarehouseLogsPage();
+  if (typeof updateShellForView === "function") updateShellForView("warehouseLogs");
 }
 
 function showWarehouseGraph() {
@@ -432,6 +456,12 @@ function showWarehouseGraph() {
     showToast(t("warehouseGraphAccessDenied"), "error");
     return;
   }
+  const homeSection = document.getElementById("home-section");
+  const reportsSection = document.getElementById("reports-section");
+  const settingsSection = document.getElementById("settings-section");
+  if (homeSection) homeSection.style.display = "none";
+  if (reportsSection) reportsSection.style.display = "none";
+  if (settingsSection) settingsSection.style.display = "none";
   document.getElementById("tidplan-section").style.display = "none";
   document.getElementById("notifications-section").style.display = "none";
   document.getElementById("planner-section").style.display = "none";
@@ -442,6 +472,7 @@ function showWarehouseGraph() {
   saveCurrentView("warehouseGraph");
   pushRouteForView("warehouseGraph");
   renderWarehouseGraphPage();
+  if (typeof updateShellForView === "function") updateShellForView("warehouseGraph");
 }
 
 

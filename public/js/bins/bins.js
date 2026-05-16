@@ -64,20 +64,30 @@ function toggleBinsView() {
     return;
   }
   return loadFreshDataForView("loadingDefault", () => {
+  const plannerSection = document.getElementById("planner-section");
+  const tidplanSection = document.getElementById("tidplan-section");
   const notificationsSection = document.getElementById("notifications-section");
   const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
+  const homeSection = document.getElementById("home-section");
+  const reportsSection = document.getElementById("reports-section");
+  const settingsSection = document.getElementById("settings-section");
+  if (plannerSection) plannerSection.style.display = "grid";
+  if (tidplanSection) tidplanSection.style.display = "none";
   if (notificationsSection) notificationsSection.style.display = "none";
   if (surveysSection) surveysSection.style.display = "none";
   if (warehouseSection) warehouseSection.style.display = "none";
   if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
   if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+  if (homeSection) homeSection.style.display = "none";
+  if (reportsSection) reportsSection.style.display = "none";
+  if (settingsSection) settingsSection.style.display = "none";
   if (currentView === "notifications") {
     currentView = "main";
   }
-  if (currentView === "main") {
+  if (currentView !== "bins") {
     currentView = "bins";
     saveCurrentView("bins");
     pushRouteForView("bins");
@@ -93,6 +103,7 @@ function toggleBinsView() {
       document.getElementById("binsAdminControls").style.display = "flex";
     }
     renderBinsTable();
+    if (typeof updateShellForView === "function") updateShellForView("bins");
     addLog("Switched to Bins view");
     sendPresence(true).catch(() => {});
     refreshPresence().catch(() => {});
@@ -111,6 +122,7 @@ function toggleBinsView() {
       document.getElementById("btnSave").style.display = "inline-flex";
     }
     addLog("Switched to Main view");
+    if (typeof updateShellForView === "function") updateShellForView("main");
     sendPresence(true).catch(() => {});
     refreshPresence().catch(() => {});
   }

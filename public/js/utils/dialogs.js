@@ -1,6 +1,6 @@
 function normalizeText(value) {
   if (typeof value !== "string") return value;
-  if (!/[ÃÂâÅÄ]/.test(value)) return value;
+  if (!/[\u00C3\u00C2\u00E2\u00C5\u00C4]/.test(value)) return value;
   try {
     return decodeURIComponent(escape(value));
   } catch {

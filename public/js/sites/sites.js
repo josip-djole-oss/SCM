@@ -131,6 +131,7 @@ function addSite() {
       const newSiteTidplanKey = getSiteStorageKey("tidplan", newSite);
       const newSiteTidplanZonesKey = getSiteStorageKey("tidplan_zones", newSite);
       const newSiteWarehouseKey = getSiteStorageKey("cmax_warehouse_data", newSite);
+      const newSiteStoreKey = getSiteStorageKey("cmax_workwear_data", newSite);
       const newSiteReportsKey = getSiteStorageKey("cmax_planner_reports", newSite);
       const newSiteNotificationsKey = getSiteStorageKey("cmax_planner_notifications", newSite);
       sites.push(newSite);
@@ -156,6 +157,7 @@ function addSite() {
           localStorage.removeItem(newSiteTidplanKey);
           localStorage.removeItem(newSiteTidplanZonesKey);
           localStorage.removeItem(newSiteWarehouseKey);
+          localStorage.removeItem(newSiteStoreKey);
           localStorage.removeItem(newSiteReportsKey);
           localStorage.removeItem(newSiteNotificationsKey);
           populateSiteSelect();
@@ -193,6 +195,7 @@ function removeSite() {
         const removedTidplanData = localStorage.getItem(getSiteStorageKey("tidplan", siteToRemove));
         const removedBinsData = localStorage.getItem(getSiteStorageKey("cmax_planner_bins", siteToRemove));
         const removedWarehouseData = localStorage.getItem(getSiteStorageKey("cmax_warehouse_data", siteToRemove));
+        const removedStoreData = localStorage.getItem(getSiteStorageKey("cmax_workwear_data", siteToRemove));
         const removedReportsData = localStorage.getItem(getSiteStorageKey("cmax_planner_reports", siteToRemove));
         const removedNotificationsData = localStorage.getItem(getSiteStorageKey("cmax_planner_notifications", siteToRemove));
         const removedTidplanZonesData = localStorage.getItem(getSiteStorageKey("tidplan_zones", siteToRemove));
@@ -203,6 +206,7 @@ function removeSite() {
         localStorage.removeItem(getSiteStorageKey("tidplan", siteToRemove));
         localStorage.removeItem(getSiteStorageKey("cmax_planner_bins", siteToRemove));
         localStorage.removeItem(getSiteStorageKey("cmax_warehouse_data", siteToRemove));
+        localStorage.removeItem(getSiteStorageKey("cmax_workwear_data", siteToRemove));
         localStorage.removeItem(getSiteStorageKey("cmax_planner_reports", siteToRemove));
         localStorage.removeItem(getSiteStorageKey("cmax_planner_notifications", siteToRemove));
         localStorage.removeItem(getSiteStorageKey("tidplan_zones", siteToRemove));
@@ -237,6 +241,9 @@ function removeSite() {
             if (removedWarehouseData !== null) {
               localStorage.setItem(getSiteStorageKey("cmax_warehouse_data", siteToRemove), removedWarehouseData);
             }
+            if (removedStoreData !== null) {
+              localStorage.setItem(getSiteStorageKey("cmax_workwear_data", siteToRemove), removedStoreData);
+            }
             if (removedReportsData !== null) {
               localStorage.setItem(getSiteStorageKey("cmax_planner_reports", siteToRemove), removedReportsData);
             }
@@ -265,8 +272,8 @@ function removeSite() {
 }
 
 function updateMainTitle() {
-  document.getElementById("mainTitle").textContent =
-    `CMAX SCM - ${currentSite}`;
+  const title = document.getElementById("mainTitle");
+  if (title) title.textContent = "CMAX SCM";
 }
 
 /* ==================== TIDPLAN FUNCTIONS ==================== */

@@ -1,0 +1,22 @@
+<svg width="360" height="96" viewBox="0 0 360 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="wordBg" x1="0" y1="0" x2="360" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="0.65" stop-color="#243B6B"/>
+      <stop offset="1" stop-color="#395D95"/>
+    </linearGradient>
+    <linearGradient id="wordAccent" x1="48" y1="18" x2="104" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6D79FF"/>
+      <stop offset="1" stop-color="#39A0FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="360" height="96" rx="28" fill="url(#wordBg)"/>
+  <rect x="18" y="18" width="60" height="60" rx="18" fill="rgba(255,255,255,0.08)"/>
+  <path d="M34 64L45.4 37.4C47.1 33.4 52.7 33.2 54.7 37.1L59.5 46.7C60.1 47.8 61.7 47.9 62.4 46.8L66.6 39.6C68.5 36.3 73.6 37.6 73.6 41.4V64H65.8V53.8C65.8 52.4 64.1 51.9 63.3 53L57.6 62.3C56.2 64.5 53 64.3 51.9 61.9L47.8 53.1C47.1 51.7 45 51.8 44.5 53.3L41.2 64H34Z" fill="url(#wordAccent)"/>
+  <path d="M37.5 64L47.5 41C48.3 39.2 50.8 39.1 51.8 40.8L56.1 49.6" stroke="white" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M107 62V34H117.2L126.3 51.8L135.4 34H145.6V62H137.2V46.6L130.6 59.8H122L115.4 46.6V62H107Z" fill="white"/>
+  <path d="M153.9 62V34H163.1L177.2 50.9V34H186V62H176.8L162.7 45.1V62H153.9Z" fill="white"/>
+  <path d="M194.3 62V34H217.8V41.5H203.1V45H216.6V52H203.1V54.5H218.2V62H194.3Z" fill="white"/>
+  <path d="M224.7 62L236.2 47.7L225.2 34H235.6L241.5 41.9L247.4 34H257.7L246.7 47.7L258.3 62H247.6L241.5 53.7L235.4 62H224.7Z" fill="white"/>
+  <path d="M266.3 62V34H280.3C286.4 34 290.9 35.3 293.8 38C296.8 40.7 298.3 44.6 298.3 49.8C298.3 55.3 296.8 59.4 293.7 62.1C290.7 64.7 286.2 66 280.2 66H266.3V62ZM275.1 54.2H279.4C282.3 54.2 284.5 53.6 285.9 52.5C287.4 51.3 288.1 49.5 288.1 47.1C288.1 44.8 287.4 43 285.9 41.8C284.5 40.6 282.3 40 279.4 40H275.1V54.2Z" fill="white"/>
+</svg>

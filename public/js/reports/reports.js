@@ -1,4 +1,69 @@
-var currentReportFilter = "all";
+﻿var currentReportFilter = "all";
+
+function showReportsCenter() {
+  if (!canAccessReportsModule()) {
+    showToast(t("accessReportsDenied"), "error");
+    return;
+  }
+  return loadFreshDataForView("loadingDefault", () => {
+    const homeSection = document.getElementById("home-section");
+    const plannerSection = document.getElementById("planner-section");
+    const tidplanSection = document.getElementById("tidplan-section");
+    const binsSection = document.getElementById("binsSection");
+    const listsContainer = document.querySelector(".lists-container");
+    const notificationsSection = document.getElementById("notifications-section");
+    const surveysSection = document.getElementById("surveys-section");
+    const warehouseSection = document.getElementById("warehouse-section");
+    const warehouseLogsSection = document.getElementById("warehouse-logs-section");
+    const warehouseGraphSection = document.getElementById("warehouse-graph-section");
+    const reportsSection = document.getElementById("reports-section");
+    const settingsSection = document.getElementById("settings-section");
+
+    if (homeSection) homeSection.style.display = "none";
+    if (plannerSection) plannerSection.style.display = "none";
+    if (tidplanSection) tidplanSection.style.display = "none";
+    if (notificationsSection) notificationsSection.style.display = "none";
+    if (surveysSection) surveysSection.style.display = "none";
+    if (warehouseSection) warehouseSection.style.display = "none";
+    if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
+    if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "block";
+    if (settingsSection) settingsSection.style.display = "none";
+    if (listsContainer) listsContainer.classList.add("hidden");
+    if (binsSection) binsSection.classList.remove("active");
+
+    currentView = "reports";
+    saveCurrentView("reports");
+    pushRouteForView("reports");
+    if (typeof updateShellForView === "function") updateShellForView("reports");
+    const launchButton = document.getElementById("btnOpenLiftReportCenter");
+    const launchCard = document.getElementById("reportsLaunchCard");
+    const filterBar = document.getElementById("reportFilterBar");
+    const list = document.getElementById("reportsList");
+    const canCreate = canCreateReportsAccess();
+    const canView = hasAdminPermission("canViewReports");
+    if (launchButton) launchButton.style.display = canCreate ? "inline-flex" : "none";
+    if (launchCard) launchCard.style.display = canCreate ? "" : "none";
+    if (filterBar) filterBar.style.display = canView ? "flex" : "none";
+    if (list) {
+      if (canView) {
+        loadReportsData()
+          .then(() => {
+            renderReportsList(currentReportFilter || "all");
+            updateNotifBadge();
+          })
+          .catch(() => {
+            renderReportsList(currentReportFilter || "all");
+            updateNotifBadge();
+          });
+      } else {
+        list.innerHTML = "";
+      }
+    }
+    sendPresence(true).catch(() => {});
+    refreshPresence().catch(() => {});
+  });
+}
 
 function openReportModal() {
   if (!canCreateReportsAccess()) {
@@ -39,7 +104,8 @@ function closeReportModal() {
 }
 
 function openChangePasswordModal() {
-  CMAX.admin.close();
+  const settingsSection = document.getElementById("settings-section");
+  if (settingsSection) settingsSection.style.display = "none";
   document.getElementById("oldPassword").value = "";
   document.getElementById("newPassword").value = "";
   document.getElementById("confirmPassword").value = "";
@@ -59,22 +125,22 @@ function submitChangePassword() {
 
   // Validation
   if (!oldPassword || !newPassword || !confirmPassword) {
-    showAlert("Molimo popunite sva polja.", "⚠️");
+    showAlert("Molimo popunite sva polja.", "!");
     return;
   }
 
   if (newPassword.length < 6) {
-    showAlert("Nova lozinka mora imati najmanje 6 znakova.", "⚠️");
+    showAlert("Nova lozinka mora imati najmanje 6 znakova.", "!");
     return;
   }
 
   if (newPassword !== confirmPassword) {
-    showAlert("Nove lozinke se ne podudaraju.", "⚠️");
+    showAlert("Nove lozinke se ne podudaraju.", "!");
     return;
   }
 
   if (oldPassword === newPassword) {
-    showAlert("Nova lozinka mora biti različita od stare.", "⚠️");
+    showAlert("Nova lozinka mora biti razlicita od stare.", "!");
     return;
   }
 
@@ -85,7 +151,7 @@ function submitChangePassword() {
   const currentUserEmail = authData.email || appState.currentUser;
 
   if (!currentUserEmail) {
-    showAlert("Korisnik nije pronađen.", "⚠️");
+    showAlert("Korisnik nije pronadjen.", "!");
     return;
   }
 
@@ -94,12 +160,12 @@ function submitChangePassword() {
   const userIndex = admins.findIndex((a) => a.email === currentUserEmail);
 
   if (userIndex === -1) {
-    showAlert("Korisnik nije pronađen u sustavu.", "⚠️");
+    showAlert("Korisnik nije pronadjen u sustavu.", "!");
     return;
   }
 
   if (admins[userIndex].password !== oldPassword) {
-    showAlert("Stara lozinka nije točna!", "⚠️");
+    showAlert("Stara lozinka nije tocna!", "!");
     return;
   }
 
@@ -117,7 +183,7 @@ function submitChangePassword() {
   document.getElementById("confirmPassword").value = "";
 
   closeChangePasswordModal();
-  showAlert("Lozinka je uspješno promijenjena!", "✅");
+  showAlert("Lozinka je uspjesno promijenjena!", "OK");
 }
 
 function submitReport() {
@@ -170,6 +236,7 @@ function filterReports(status) {
 
 function renderReportsList(status) {
   const container = document.getElementById("reportsList");
+  if (!container) return;
   if (!hasAdminPermission("canViewReports")) {
     container.innerHTML =
       `<p style="color:var(--text-light); text-align:center; padding:20px; font-size:14px;">${t("accessReportsViewDenied")}</p>`;
@@ -207,15 +274,15 @@ function renderReportsList(status) {
       div.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:6px;">
         <div>
-          <strong>🛗 ${escapeHtml(report.liftNumber)}</strong> — <strong>${escapeHtml(report.plan)}</strong>
+          <strong>Lift ${escapeHtml(report.liftNumber)}</strong> - <strong>${escapeHtml(report.plan)}</strong>
           <span class="report-status-badge ${badgeClass}" style="margin-left:8px;">${badgeText}</span>
           ${report.isNew ? `<span class="report-status-badge badge-new" style="margin-left:4px;">${t("badgeNew")}</span>` : ""}
         </div>
         <div class="report-meta">${new Date(report.date).toLocaleString()}</div>
       </div>
-      <div class="report-meta" style="margin-top:4px;">👤 ${escapeHtml(report.reporterName)}</div>
-      ${report.comment ? `<div class="report-comment">💬 ${escapeHtml(report.comment)}</div>` : ""}
-      ${report.adminNote ? `<div class="report-comment" style="color:#e74c3c;">📝 ${t("reportAdminNote")} ${escapeHtml(report.adminNote)}</div>` : ""}
+      <div class="report-meta" style="margin-top:4px;">Prijavio: ${escapeHtml(report.reporterName)}</div>
+      ${report.comment ? `<div class="report-comment">Komentar: ${escapeHtml(report.comment)}</div>` : ""}
+      ${report.adminNote ? `<div class="report-comment" style="color:#e74c3c;">${t("reportAdminNote")} ${escapeHtml(report.adminNote)}</div>` : ""}
     `;
 
       if (report.status === "pending" && hasAdminPermission("canApproveReports")) {
@@ -246,7 +313,7 @@ function renderReportsList(status) {
 
         const deleteBtn = document.createElement("button");
         deleteBtn.className = "btn btn-small btn-danger";
-        deleteBtn.textContent = "🗑️ " + t("btnDeleteReport");
+        deleteBtn.textContent = t("btnDeleteReport");
         deleteBtn.dataset.cmaxAction = "reports.delete";
         deleteBtn.dataset.cmaxArgs = JSON.stringify([report.id]);
 
@@ -269,11 +336,11 @@ function renderReportsList(status) {
 function reviewReport(id, action) {
   if (!hasAdminPermission("canApproveReports")) return;
   if (action === "rejected") {
-    showPromptDialog(t("rejectConfirm"), "❌", "", (note) => {
+    showPromptDialog(t("rejectConfirm"), "!", "", (note) => {
       doReviewReport(id, action, note || "");
     });
   } else {
-    showConfirm(t("approveConfirm"), null, "✅", () => {
+    showConfirm(t("approveConfirm"), null, "OK", () => {
       doReviewReport(id, action, "");
     });
   }

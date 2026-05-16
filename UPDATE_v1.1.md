@@ -10,7 +10,7 @@
 
 ### 1. ✅ FIKSANA IZOLACIJA PODATAKA PO GRADILISTU
 
-**Problem:** Brisanje jednog gradilistâ briše sve podatke sa svih gradilistâ i TidPlana
+**Problem:** Brisanje jednog gradilišta briše sve podatke sa svih gradilišta i TidPlana
 
 **Rješenje:** 
 - Svako gradilište sada ima **zasebne datoteke**

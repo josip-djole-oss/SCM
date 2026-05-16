@@ -274,6 +274,8 @@ function renderNotificationsList() {
   notifications.forEach((note) => {
     const card = document.createElement("div");
     card.className = "notification-card";
+    card.dataset.notificationId = String(note.id || "");
+    card.dataset.notificationSite = String(note.site || "");
 
     const author = document.createElement("div");
     author.className = "notification-author";
@@ -341,6 +343,20 @@ function renderNotificationsList() {
 
     container.appendChild(card);
   });
+
+  if (window.pendingNotificationFocus) {
+    const targetId = String(window.pendingNotificationFocus.id || "");
+    const targetSite = String(window.pendingNotificationFocus.site || "");
+    const match = Array.from(container.querySelectorAll(".notification-card")).find((card) => {
+      return card.dataset.notificationId === targetId && card.dataset.notificationSite === targetSite;
+    });
+    if (match) {
+      match.classList.add("notification-card-focus");
+      match.scrollIntoView({ behavior: "smooth", block: "center" });
+      setTimeout(() => match.classList.remove("notification-card-focus"), 2200);
+    }
+    window.pendingNotificationFocus = null;
+  }
 }
 
 function getPrintableNotifications() {
@@ -615,6 +631,9 @@ function showNotifications() {
     return;
   }
   return loadFreshDataForView("loadingNotifications", () => {
+    const homeSection = document.getElementById("home-section");
+    const reportsSection = document.getElementById("reports-section");
+    const settingsSection = document.getElementById("settings-section");
     const plannerSection = document.getElementById("planner-section");
     const listsContainer = document.querySelector(".lists-container");
     const binsSection = document.getElementById("binsSection");
@@ -625,6 +644,9 @@ function showNotifications() {
     const warehouseLogsSection = document.getElementById("warehouse-logs-section");
     const warehouseGraphSection = document.getElementById("warehouse-graph-section");
 
+    if (homeSection) homeSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
     if (tidplanSection) tidplanSection.style.display = "none";
     if (plannerSection) plannerSection.style.display = "none";
     if (listsContainer) listsContainer.classList.add("hidden");
@@ -643,6 +665,11 @@ function showNotifications() {
       .then(() => {
         renderNotificationSiteOptions();
         renderNotificationFilterSites();
+        if (window.pendingNotificationFilterSite) {
+          const filter = document.getElementById("notificationFilterSite");
+          if (filter) filter.value = window.pendingNotificationFilterSite;
+          window.pendingNotificationFilterSite = "";
+        }
         renderNotificationsList();
         const composer = document.getElementById("notificationsComposer");
         if (composer) {
@@ -651,9 +678,11 @@ function showNotifications() {
         const currentList = getNotificationsForSite(currentSite);
         markNotificationsRead(currentList);
         updateNotificationsBadge();
+        if (typeof updateShellForView === "function") updateShellForView("notifications");
       })
       .catch(() => {
         renderNotificationsList();
+        if (typeof updateShellForView === "function") updateShellForView("notifications");
       });
 
     sendPresence(true).catch(() => {});

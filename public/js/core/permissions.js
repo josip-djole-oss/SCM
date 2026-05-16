@@ -96,6 +96,45 @@ function canCreateReportsAccess() {
   return hasPermission("canCreateReports");
 }
 
+function canAccessReportsModule() {
+  return canCreateReportsAccess() || hasAdminPermission("canViewReports");
+}
+
+function canAccessWorkwearModule() {
+  return hasPermission("canAccessStore") || hasPermission("canAccessWorkwear");
+}
+
+function canManageWorkwearModule() {
+  if (appState.isReadonly) return false;
+  return hasPermission("canManageStore") || hasPermission("canManageWorkwear");
+}
+
+function canViewWorkwearAnalyticsModule() {
+  if (appState.isReadonly) return false;
+  return (
+    appState.isSuperAdmin ||
+    hasPermission("canManageStore") ||
+    hasPermission("canViewStoreManagerDashboard") ||
+    hasPermission("canViewWorkwearAnalytics")
+  );
+}
+
+function canManageWorkwearCredits() {
+  if (appState.isReadonly) return false;
+  return hasPermission("canManageStoreBudgets") || hasPermission("canManageWorkwearCredits") || hasPermission("canManageStore");
+}
+
+function canManageWorkwearSettings() {
+  if (appState.isReadonly) return false;
+  return hasPermission("canManageStoreRules") || hasPermission("canManageWorkwearSettings") || hasPermission("canManageStore");
+}
+
+function canViewStoreTeamOrders() {
+  if (appState.isReadonly) return false;
+  return hasPermission("canViewStoreTeamOrders") || canManageWorkwearModule();
+}
+
 function canOpenAdminPanelAccess() {
-  return !appState.isReadonly && appState.isAdmin && hasPermission("canOpenAdminPanel");
+  if (appState.isReadonly || !appState.currentUser) return false;
+  return appState.isSuperAdmin || hasPermission("canOpenAdminPanel");
 }

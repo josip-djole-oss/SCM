@@ -120,7 +120,23 @@ function applyRemotePlannerDayChanges(baseDay = {}, remoteDay = {}, localDay = {
 function applyRemoteTidplanChanges(baseList = [], remoteList = []) {
   let changed = false;
   const localList = Array.isArray(tidplanData) ? tidplanData : [];
-  const fieldNames = ["plan", "zona", "karna", "moment", "resursi", "start", "end", "komentar", "active"];
+  const fieldNames = [
+    "plan",
+    "zona",
+    "karna",
+    "moment",
+    "resursi",
+    "start",
+    "end",
+    "komentar",
+    "active",
+    "completionPercent",
+    "locked",
+    "notes",
+    "materialOrder",
+    "linkedWorkers",
+    "_metaId",
+  ];
   remoteList.forEach((remoteActivity, activityIndex) => {
     fieldNames.forEach((field) => {
       const key = makeTidplanEditKey(activityIndex, field);
@@ -261,6 +277,9 @@ function renderAfterSharedDataRefresh() {
   }
   if (currentView === "warehouseGraph") {
     renderWarehouseGraphPage();
+  }
+  if (currentView === "workwear" && typeof renderWorkwearModule === "function") {
+    renderWorkwearModule();
   }
   if (document.getElementById("tidplan-section")?.style.display === "block") {
     CMAX.tidplan.update();
@@ -672,7 +691,7 @@ function startReportsPolling() {
   loadReportsData()
     .then(() => {
       updateNotifBadge();
-      if (document.getElementById("tabReports")?.classList.contains("active")) {
+      if (currentView === "reports") {
         renderReportsList(currentReportFilter);
       }
     })
@@ -682,7 +701,7 @@ function startReportsPolling() {
     loadReportsData()
       .then(() => {
         updateNotifBadge();
-        if (document.getElementById("tabReports")?.classList.contains("active")) {
+        if (currentView === "reports") {
           renderReportsList(currentReportFilter);
         }
       })

@@ -30,11 +30,13 @@ function getUnreadSurveysCount() {
 }
 
 function updateSurveysBadge() {
-  const badge = document.getElementById("surveysNotifBadge");
-  if (!badge) return;
   const count = getUnreadSurveysCount();
-  badge.textContent = count;
-  badge.style.display = count > 0 ? "inline-flex" : "none";
+  [document.getElementById("surveysNotifBadge"), document.getElementById("surveysSidebarBadge")]
+    .filter(Boolean)
+    .forEach((badge) => {
+      badge.textContent = count;
+      badge.style.display = count > 0 ? "inline-flex" : "none";
+    });
 }
 
 function getSurveysList(options = {}) {
@@ -539,6 +541,9 @@ function showSurveys() {
   }
 
   const showSurveyView = () => {
+    const homeSection = document.getElementById("home-section");
+    const reportsSection = document.getElementById("reports-section");
+    const settingsSection = document.getElementById("settings-section");
     const plannerSection = document.getElementById("planner-section");
     const listsContainer = document.querySelector(".lists-container");
     const binsSection = document.getElementById("binsSection");
@@ -546,13 +551,20 @@ function showSurveys() {
     const notificationsSection = document.getElementById("notifications-section");
     const surveysSection = document.getElementById("surveys-section");
     const warehouseSection = document.getElementById("warehouse-section");
+    const warehouseLogsSection = document.getElementById("warehouse-logs-section");
+    const warehouseGraphSection = document.getElementById("warehouse-graph-section");
 
+    if (homeSection) homeSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
     if (tidplanSection) tidplanSection.style.display = "none";
     if (plannerSection) plannerSection.style.display = "none";
     if (listsContainer) listsContainer.classList.add("hidden");
     if (binsSection) binsSection.classList.remove("active");
     if (notificationsSection) notificationsSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = "none";
+    if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
+    if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
     if (surveysSection) surveysSection.style.display = "block";
 
     currentView = "surveys";
@@ -570,6 +582,7 @@ function showSurveys() {
       if (composer) {
         composer.style.display = hasAdminPermission("canPublishSurveys") ? "block" : "none";
       }
+      if (typeof updateShellForView === "function") updateShellForView("surveys");
     });
 
     sendPresence(true).catch(() => {});

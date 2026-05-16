@@ -4,7 +4,7 @@
 
 ### 1. 🏗️ **IZOLACIJA PODATAKA PO GRADILISTU**
 - ✅ Svako gradilište je sada **potpuno odvojeno**
-- ✅ Brisanje jednog gradilistâ **NE briše** ostala
+- ✅ Brisanje jednog gradilišta **NE briše** ostala
 - ✅ TidPlan i Planner su **po gradilistu**
 - ✅ Warehouse je **globalan** (dijeljeno za sve)
 

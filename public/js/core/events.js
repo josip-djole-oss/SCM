@@ -47,6 +47,8 @@ function setupEventListeners() {
   if (newAdminLevel) {
     newAdminLevel.addEventListener("change", () => {
       renderNewAdminPermissionsPanel();
+      if (typeof renderAdminLevelQuickPicks === "function") renderAdminLevelQuickPicks();
+      if (typeof enhanceAdminComposerLayout === "function") enhanceAdminComposerLayout();
     });
   }
 }

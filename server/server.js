@@ -114,6 +114,18 @@ const DEFAULT_PERMISSIONS = {
   canManageBackups: true,
   canRestoreBackups: true,
   canAccessWarehouse: false,
+  canAccessStore: true,
+  canManageStore: false,
+  canViewStoreTeamOrders: false,
+  canManageStoreBudgets: false,
+  canManageStoreRules: false,
+  canViewStoreManagerDashboard: false,
+  canExportStore: false,
+  canAccessWorkwear: true,
+  canManageWorkwear: false,
+  canManageWorkwearCredits: false,
+  canManageWorkwearSettings: false,
+  canViewWorkwearAnalytics: false,
   canViewWarehouse: false,
   canManageWarehouse: false,
   canManageWarehouseStock: false,
@@ -148,6 +160,8 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canPrint: false,
   canExport: false,
   canAccessWarehouse: false,
+  canAccessStore: true,
+  canAccessWorkwear: true,
   canViewWarehouse: false,
   canManageWarehouse: false,
   canManageWarehouseStock: false,
@@ -312,11 +326,15 @@ function normalizeAdminRecord(admin) {
     fullName,
     isSuperAdmin: Boolean(admin?.isSuperAdmin),
     isReadonly: Boolean(admin?.isReadonly),
+    active: admin?.active !== false,
     level: getAdminLevel(admin),
     permissions: normalizePermissions(admin?.permissions),
     allowedSites: Array.isArray(admin?.allowedSites)
       ? admin.allowedSites.map((site) => sanitizeString(site, 80)).filter(Boolean)
       : null,
+    storeRoles: Array.isArray(admin?.storeRoles)
+      ? admin.storeRoles.map((role) => sanitizeString(role, 40).toLowerCase()).filter(Boolean)
+      : [],
   };
 }
 
@@ -2017,6 +2035,9 @@ function mergeStateForSession(previousState, submittedState, session) {
     if (canWriteStateField(session, 'canManageWarehouse') && incoming.warehouse) {
       entry.warehouse = incoming.warehouse;
     }
+    if ((canWriteStateField(session, 'canAccessStore') || canWriteStateField(session, 'canAccessWorkwear')) && incoming.store) {
+      entry.store = incoming.store;
+    }
     if ((canWriteStateField(session, 'canApproveReports') || canWriteStateField(session, 'canDeleteReports')) && incoming.reports) {
       entry.reports = incoming.reports;
     }
@@ -2236,7 +2257,7 @@ const backupLimiter = rateLimit({
 });
 
 /**
- * Ä‚ËÄąâ€şĂ˘â‚¬Â¦ CORS FIX (RAILWAY + DEV SAFE)
+ * CORS FIX (RAILWAY + DEV SAFE)
  * - allows Railway + custom domains
  * - supports cookies/session auth
  */
@@ -2295,6 +2316,10 @@ app.post('/api/login', loginLimiter, async (req, res, next) => {
       await logActivity(email, 'login', { success: false });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+    if (admin.active === false) {
+      await logActivity(email, 'login', { success: false, reason: 'inactive_account' });
+      return res.status(403).json({ error: 'Account is inactive' });
+    }
 
     const matches = await bcrypt.compare(password, admin.password || '');
     if (!matches) {
@@ -2307,7 +2332,7 @@ app.post('/api/login', loginLimiter, async (req, res, next) => {
       fullName: admin.fullName,
       role: 'admin',
       isSuperAdmin: admin.isSuperAdmin,
-      isReadonly: false,
+      isReadonly: admin.isReadonly === true,
       permissions: normalizePermissions(admin.permissions),
       allowedSites: admin.allowedSites,
       level: admin.level,
@@ -2399,6 +2424,33 @@ app.get('/api/health', (req, res) => {
 const apiRouter = express.Router();
 apiRouter.use(requireAuth);
 apiRouter.use(requireCsrf);
+
+apiRouter.post('/store/confirm-password', async (req, res, next) => {
+  try {
+    if (req.session?.isReadonly) {
+      return res.status(403).json({ error: 'READONLY_FORBIDDEN' });
+    }
+    const password = String(req.body?.password || '');
+    if (!password) {
+      return res.status(400).json({ error: 'PASSWORD_REQUIRED' });
+    }
+    const email = String(req.session?.email || '').trim().toLowerCase();
+    const admins = await readAdmins();
+    const admin = admins.find((entry) => entry.email === email);
+    if (!admin) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND' });
+    }
+    const valid = await bcrypt.compare(password, String(admin.password || ''));
+    if (!valid) {
+      await logActivity(email, 'store_password_confirm', { success: false });
+      return res.status(401).json({ error: 'INVALID_PASSWORD' });
+    }
+    await logActivity(email, 'store_password_confirm', { success: true });
+    return res.json({ ok: true, confirmedAt: new Date().toISOString() });
+  } catch (error) {
+    next(error);
+  }
+});
 
 apiRouter.get('/state', async (req, res, next) => {
   try {
@@ -4283,7 +4335,7 @@ apiRouter.get('/backup/info', requirePermission('canViewBackups'), async (req, r
 
 app.use('/api', apiRouter);
 
-app.get(['/', '/login', '/home', '/planner', '/tidplan', '/bins', '/kante', '/warehouse', '/notifications', '/surveys'], (req, res) => {
+app.get(['/', '/login', '/home', '/planner', '/tidplan', '/bins', '/kante', '/warehouse', '/store', '/workwear', '/reports', '/notifications', '/surveys', '/settings'], (req, res) => {
   res.sendFile(path.join(STATIC_DIR, 'index.html'));
 });
 

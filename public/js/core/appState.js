@@ -146,6 +146,7 @@ var DEFAULT_SITE_TEMPLATE = {
     { name: "Zona C", color: "#f4a460" },
   ],
   warehouse: null,
+  store: null,
   reports: [],
   notifications: [],
 };
@@ -324,6 +325,7 @@ function initializeSiteStorage(siteName) {
   const tidplanKey = getSiteStorageKey("tidplan", siteName);
   const tidplanZonesKey = getSiteStorageKey("tidplan_zones", siteName);
   const warehouseKey = getSiteStorageKey("cmax_warehouse_data", siteName);
+  const storeKey = getSiteStorageKey("cmax_workwear_data", siteName);
   const reportsKey = getSiteStorageKey("cmax_planner_reports", siteName);
   const notificationsKey = getSiteStorageKey("cmax_planner_notifications", siteName);
 
@@ -338,6 +340,7 @@ function initializeSiteStorage(siteName) {
     JSON.stringify(DEFAULT_SITE_TEMPLATE.tidplanZones.map((zone) => ({ ...zone }))),
   );
   localStorage.setItem(warehouseKey, JSON.stringify(getDefaultWarehouseData()));
+  localStorage.setItem(storeKey, JSON.stringify({}));
   localStorage.setItem(reportsKey, JSON.stringify([]));
   localStorage.setItem(notificationsKey, JSON.stringify([]));
 }
@@ -368,6 +371,10 @@ function normalizeAdminRecord(admin) {
     lastName,
     fullName,
     level: inferredLevel,
+    active: admin?.active !== false,
+    storeRoles: Array.isArray(admin?.storeRoles)
+      ? admin.storeRoles.map((role) => String(role || "").trim().toLowerCase()).filter(Boolean)
+      : [],
     allowedSites: Array.isArray(admin?.allowedSites) ? admin.allowedSites : null,
     permissions: normalizedPerms,
   };

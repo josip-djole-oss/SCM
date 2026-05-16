@@ -120,6 +120,9 @@ function renderCurrentSiteAfterHydrate() {
   if (currentView === "warehouseGraph") {
     renderWarehouseGraphPage();
   }
+  if (currentView === "workwear" && typeof renderWorkwearModule === "function") {
+    renderWorkwearModule();
+  }
   updateNotifBadge();
   updateMainTitle();
 }
@@ -521,6 +524,10 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
           null,
         ),
       ),
+      store: safeParseStoredJson(
+        localStorage.getItem(getSiteStorageKey("cmax_workwear_data", site)),
+        null,
+      ),
       reports: safeParseStoredJson(
         localStorage.getItem(getSiteStorageKey("cmax_planner_reports", site)),
         [],
@@ -640,6 +647,10 @@ function applyServerStateSnapshot(snapshot) {
     localStorage.setItem(
       getSiteStorageKey("cmax_warehouse_data", site),
       JSON.stringify(normalizeWarehouseData(siteEntry.warehouse)),
+    );
+    localStorage.setItem(
+      getSiteStorageKey("cmax_workwear_data", site),
+      JSON.stringify(siteEntry.store && typeof siteEntry.store === "object" ? siteEntry.store : {}),
     );
     localStorage.setItem(
       getSiteStorageKey("cmax_planner_reports", site),

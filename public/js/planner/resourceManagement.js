@@ -203,7 +203,9 @@ function updateNotifBadge() {
   ).length;
 
   const adminBadge = document.getElementById("adminNotifBadge");
+  const adminSidebarBadge = document.getElementById("adminSidebarBadge");
   const reportBadge = document.getElementById("reportNotifBadge");
+  const reportSidebarBadge = document.getElementById("reportSidebarBadge");
 
   if (adminBadge) {
     adminBadge.textContent = pendingCount;
@@ -212,10 +214,24 @@ function updateNotifBadge() {
         ? "inline-flex"
         : "none";
   }
+  if (adminSidebarBadge) {
+    adminSidebarBadge.textContent = pendingCount;
+    adminSidebarBadge.style.display =
+      pendingCount > 0 && canOpenAdminPanelAccess() && hasAdminPermission("canViewReports")
+        ? "inline-flex"
+        : "none";
+  }
   if (reportBadge) {
     reportBadge.textContent = pendingCount;
     reportBadge.style.display =
       pendingCount > 0 && hasAdminPermission("canViewReports")
+        ? "inline-flex"
+        : "none";
+  }
+  if (reportSidebarBadge) {
+    reportSidebarBadge.textContent = pendingCount;
+    reportSidebarBadge.style.display =
+      pendingCount > 0 && (hasAdminPermission("canViewReports") || canCreateReportsAccess())
         ? "inline-flex"
         : "none";
   }
@@ -243,10 +259,14 @@ function markNotificationsRead(notifications) {
 
 function updateNotificationsBadge() {
   const btnBadge = document.getElementById("notificationsNotifBadge");
-  if (!btnBadge) return;
   const unreadCount = getUnreadNotificationsCount();
-  btnBadge.textContent = unreadCount;
-  btnBadge.style.display = unreadCount > 0 ? "inline-flex" : "none";
+  [btnBadge, document.getElementById("notificationsSidebarBadge")]
+    .filter(Boolean)
+    .forEach((badge) => {
+      badge.textContent = unreadCount;
+      badge.style.display = unreadCount > 0 ? "inline-flex" : "none";
+    });
+  if (typeof syncAccountNotifications === "function") syncAccountNotifications();
 }
 
 /* ==================== DATA MANAGEMENT ==================== */
