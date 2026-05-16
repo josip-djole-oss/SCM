@@ -143,13 +143,13 @@ function bindTidplanViewportFullscreen() {
     closeBtn.textContent = "X";
     closeBtn.setAttribute("aria-label", "Zatvori fullscreen");
     closeBtn.addEventListener("click", exitFullscreen);
-    container.appendChild(closeBtn);
+    document.body.appendChild(closeBtn);
     return closeBtn;
   }
 
   function syncToggleLabel() {
     fullscreenToggle.classList.toggle("fullscreen-active", isFullscreen);
-    fullscreenToggle.textContent = isFullscreen ? "X" : "[ ]";
+    fullscreenToggle.textContent = isFullscreen ? "✕" : "⛶";
     fullscreenToggle.title = isFullscreen ? "Exit Fullscreen" : "Fullscreen Gantt";
     ensureCloseButton().hidden = !isFullscreen;
   }

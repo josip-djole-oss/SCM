@@ -1467,17 +1467,25 @@ body {
 
 /* Fullscreen mode for timeline */
 .tidplan-timeline-fullscreen {
-  position: relative !important;
-  width: 100% !important;
-  height: 100% !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
   background: var(--card-bg) !important;
+  z-index: 10000 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   overflow: auto !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
 .tidplan-fullscreen-toggle.fullscreen-active {
-  position: relative !important;
+  position: fixed !important;
+  top: max(12px, env(safe-area-inset-top, 0px) + 12px) !important;
+  right: max(12px, env(safe-area-inset-right, 0px) + 60px) !important;
   background: var(--error-color) !important;
   z-index: 10001 !important;
 }
@@ -1492,29 +1500,12 @@ body {
 }
 
 .tidplan-container-fullscreen {
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  height: 100dvh !important;
-  z-index: 10000 !important;
-  margin: 0 !important;
-  padding: 18px !important;
-  background: rgba(238, 243, 251, 0.99) !important;
-  display: grid !important;
-  grid-template-columns: minmax(280px, 38vw) 8px minmax(0, 1fr) !important;
-  align-items: stretch !important;
-  gap: 0 !important;
-  box-sizing: border-box;
-  overflow: hidden !important;
-  border-radius: 0 !important;
+  position: relative !important;
+  z-index: auto !important;
 }
 
-.tidplan-container-fullscreen .tidplan-left-panel,
 .tidplan-container-fullscreen .tidplan-timeline {
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .tidplan-fullscreen-close {
@@ -1532,10 +1523,15 @@ body {
   box-shadow: 0 12px 26px rgba(15, 23, 42, 0.22);
 }
 
-.tidplan-container-fullscreen .tidplan-table-container,
-.tidplan-container-fullscreen .timeline-body,
-.tidplan-container-fullscreen .tidplan-timeline {
+.tidplan-timeline-fullscreen .timeline-body,
+.tidplan-timeline-fullscreen {
   overscroll-behavior: contain;
+}
+
+.tidplan-timeline-fullscreen .timeline-header {
+  position: sticky;
+  top: 0;
+  z-index: 10001;
 }
 
 /* Panel modes */
