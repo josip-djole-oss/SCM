@@ -76,8 +76,13 @@ try {
   mustContain(html, 'id="storeSidebarBadge"', "store manager pending badge");
   mustContain(html, 'id="workwearCartOverlay"', "store cart overlay");
   mustContain(html, 'id="workwearManagerEditorToggle"', "store manager editor toggle");
+  mustContain(html, 'id="workwearOrdersDisclosure"', "orders disclosure");
   mustContain(events, "workwearToggleCartOverlay", "cart overlay toggle handler");
   mustContain(events, "workwearToggleManagerEditor", "manager editor toggle handler");
+  mustContain(events, "workwearSetCheckoutBusy", "checkout busy state helper");
+  mustContain(events, "showLoading(\"loadingStoreCheckout\")", "checkout loading overlay");
+  mustContain(render, "data-cmax-server-action=\"true\"", "server action button wiring");
+  mustContain(render, "storeSubmittingOrder", "checkout loading label");
   mustContain(events, "workwearAddCategory", "add category handler");
   mustContain(events, "workwearRenameCategory", "rename category handler");
   mustContain(events, "workwearArchiveCategory", "archive category handler");

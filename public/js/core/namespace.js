@@ -892,14 +892,41 @@
     return args;
   }
 
-  function handleDelegatedEvent(event) {
+  function setDelegatedActionBusy(el, isBusy) {
+    if (!el) return;
+    el.dataset.cmaxBusy = isBusy ? "true" : "false";
+    el.classList.toggle("is-loading", isBusy);
+    if ("disabled" in el) {
+      el.disabled = isBusy;
+    }
+    el.setAttribute("aria-busy", isBusy ? "true" : "false");
+  }
+
+  async function handleDelegatedEvent(event) {
     const el = event.target.closest("[data-cmax-action]");
     if (!el) return;
 
     const expectedEvent = el.getAttribute("data-cmax-event") || "click";
     if (expectedEvent !== event.type) return;
+    if (el.dataset.cmaxBusy === "true") {
+      event.preventDefault();
+      return;
+    }
 
-    CMAX.events.dispatch(el.getAttribute("data-cmax-action"), el, event);
+    const isServerAction = el.getAttribute("data-cmax-server-action") === "true";
+    const loadingKey = el.getAttribute("data-cmax-loading-key") || "loadingDefault";
+    if (isServerAction && typeof showLoading === "function") {
+      setDelegatedActionBusy(el, true);
+      showLoading(loadingKey);
+    }
+    try {
+      await Promise.resolve(CMAX.events.dispatch(el.getAttribute("data-cmax-action"), el, event));
+    } finally {
+      if (isServerAction) {
+        setDelegatedActionBusy(el, false);
+        if (typeof hideLoading === "function") hideLoading();
+      }
+    }
   }
 
   function handleImageFallbackEvent(event) {

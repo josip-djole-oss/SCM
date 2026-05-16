@@ -17,6 +17,8 @@ try {
   mustContain(server, "apiRouter.get('/store/orders'", "store orders GET endpoint");
   mustContain(server, "apiRouter.post('/store/orders'", "store orders POST endpoint");
   mustContain(server, "apiRouter.patch('/store/orders/:orderId/status'", "store orders status PATCH endpoint");
+  mustContain(server, "const autoApproveOrders = settings?.autoApproveOrders === true;", "explicit auto approve setting");
+  mustContain(server, "return res.json({ ok: true, site, order: updatedOrder, budget: updatedBudget });", "status update budget snapshot response");
   mustContain(server, "buildServerPricedStoreOrder", "server-side order pricing builder");
   mustContain(server, "sanitizeStoreOrderDraft", "minimal order payload sanitizer");
   mustContain(server, "priceAtOrder", "order item price snapshot");

@@ -109,7 +109,71 @@ function initTidplanPanelControls() {
   });
 }
 
+function bindTidplanViewportFullscreen() {
+  const fullscreenToggle = document.getElementById("tidplanFullscreenToggle");
+  const timeline = document.getElementById("tidplanTimeline");
+  const container = timeline?.closest(".tidplan-container");
+
+  if (!fullscreenToggle || !timeline || !container) return;
+  if (fullscreenToggle.dataset.cmaxFullscreenBound === "true") return;
+  fullscreenToggle.dataset.cmaxFullscreenBound = "true";
+
+  let isFullscreen = false;
+  let closeBtn = document.getElementById("tidplanFullscreenClose");
+
+  function ensureCloseButton() {
+    if (closeBtn) return closeBtn;
+    closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.id = "tidplanFullscreenClose";
+    closeBtn.className = "tidplan-fullscreen-close";
+    closeBtn.textContent = "X";
+    closeBtn.setAttribute("aria-label", "Zatvori fullscreen");
+    closeBtn.addEventListener("click", exitFullscreen);
+    container.appendChild(closeBtn);
+    return closeBtn;
+  }
+
+  function syncToggleLabel() {
+    fullscreenToggle.classList.toggle("fullscreen-active", isFullscreen);
+    fullscreenToggle.textContent = isFullscreen ? "X" : "[ ]";
+    fullscreenToggle.title = isFullscreen ? "Exit Fullscreen" : "Fullscreen Gantt";
+    ensureCloseButton().hidden = !isFullscreen;
+  }
+
+  function exitFullscreen() {
+    container.classList.remove("tidplan-container-fullscreen");
+    timeline.classList.remove("tidplan-timeline-fullscreen");
+    document.body.classList.remove("tidplan-fullscreen-open");
+    isFullscreen = false;
+    syncToggleLabel();
+  }
+
+  function enterFullscreen() {
+    container.classList.add("tidplan-container-fullscreen");
+    timeline.classList.add("tidplan-timeline-fullscreen");
+    document.body.classList.add("tidplan-fullscreen-open");
+    isFullscreen = true;
+    syncToggleLabel();
+  }
+
+  fullscreenToggle.addEventListener("click", () => {
+    if (isFullscreen) exitFullscreen();
+    else enterFullscreen();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && isFullscreen) {
+      exitFullscreen();
+    }
+  });
+
+  syncToggleLabel();
+}
+
 function initTidplanFullscreenControls() {
+  bindTidplanViewportFullscreen();
+  return;
   const fullscreenToggle = document.getElementById("tidplanFullscreenToggle");
   const timeline = document.getElementById("tidplanTimeline");
 

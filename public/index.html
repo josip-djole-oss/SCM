@@ -544,7 +544,7 @@
             <div class="permissions-editor" id="newAdminSitesPanel"></div>
           </div>
 
-          <button class="btn" data-cmax-action="admin.addNewAdmin" id="btnAddAdminEl">
+          <button class="btn" data-cmax-action="admin.addNewAdmin" data-cmax-server-action="true" data-cmax-loading-key="loadingAdminSave" id="btnAddAdminEl">
             Dodaj Admina
           </button>
 
@@ -587,6 +587,8 @@
             <button
               class="btn"
               data-cmax-action="admin.saveGuestAccessSettings"
+              data-cmax-server-action="true"
+              data-cmax-loading-key="loadingAdminSave"
               id="btnSaveGuestAccess"
             >
               Spremi guest pristup
@@ -813,6 +815,8 @@
             <button
               class="btn"
               data-cmax-action="admin.saveGuestAccessSettings"
+              data-cmax-server-action="true"
+              data-cmax-loading-key="loadingAdminSave"
               id="btnSaveGuestAccessOld"
             >
               Spremi guest pristup
@@ -1863,8 +1867,10 @@
 
           <aside class="store-side-column">
             <section class="store-orders-card">
-              <h3>Moje narudzbe</h3>
-              <div id="workwearOrdersList" class="store-orders-list"></div>
+              <details id="workwearOrdersDisclosure" class="store-disclosure">
+                <summary>Moje narudzbe</summary>
+                <div id="workwearOrdersList" class="store-orders-list"></div>
+              </details>
             </section>
           </aside>
         </div>

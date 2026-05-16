@@ -115,6 +115,7 @@ function createDefaultWorkwearState() {
     settings: {
       budgetMode: "global",
       budgetEnabled: true,
+      autoApproveOrders: false,
       reserveOnPending: true,
       creditRenewalAmount: 2500,
       creditRenewalPeriodMonths: 6,

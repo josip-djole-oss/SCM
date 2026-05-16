@@ -290,6 +290,9 @@ async function main() {
     }
     const orderId = String(workerOrderSeed.payload?.order?.id || "");
     if (!orderId) throw new Error("Missing seeded order id");
+    if (workerOrderSeed.payload?.order?.status !== "Pending") {
+      throw new Error(`Worker order should default to Pending, got ${workerOrderSeed.payload?.order?.status}`);
+    }
 
     const workerState = await api(workerSession, "/api/state");
     const workerVersion = Number(workerState.payload?.version || 1);
@@ -361,6 +364,7 @@ async function main() {
         "worker_manager_action_forbidden_403",
         "worker_export_forbidden_403",
         "worker_status_update_forbidden_403",
+        "worker_order_defaults_pending",
         "store_manager_can_approve",
         "store_manager_can_deliver",
         "admin_cannot_call_superadmin_action",

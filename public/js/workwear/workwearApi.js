@@ -100,6 +100,9 @@ function workwearApiUpdateOrderStatus(orderId, status, extra = {}) {
     .then((res) => workwearApiParseResponse(res, "STORE_ORDER_STATUS_UPDATE_FAILED"))
     .then((payload) => {
       const updated = payload?.order || null;
+      if (updated && payload?.budget) {
+        updated.__budgetSnapshot = payload.budget;
+      }
       if (updated) workwearApiUpsertOrderLocal(updated, site);
       return updated;
     });

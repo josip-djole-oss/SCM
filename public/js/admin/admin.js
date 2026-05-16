@@ -789,6 +789,8 @@ function renderAdminList() {
         saveBtn.className = "btn btn-small btn-success";
         saveBtn.textContent = t("btnSavePerms");
         saveBtn.dataset.cmaxAction = "admin.savePerms";
+        saveBtn.dataset.cmaxServerAction = "true";
+        saveBtn.dataset.cmaxLoadingKey = "loadingAdminSave";
         saveBtn.dataset.cmaxArgs = JSON.stringify([admin.email, idx]);
         permsDiv.appendChild(saveBtn);
       }
@@ -905,12 +907,15 @@ function saveAdminPerms(email, idx) {
     localStorage.setItem(AUTH_KEY, JSON.stringify(authData));
     applyPermissionVisibility();
   }
-  syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
-  addLog("Admin account updated", { email, level: nextLevel, storeRoles: admins[adminIndex].storeRoles || [] });
-  renderAdminList();
-  populateSiteSelect();
-  updateNotificationsBadge();
-  showToast(t("successPermsSaved"), "success");
+  return syncServerState({ includeAdmins: true, adminEditTargetEmail: email })
+    .catch(() => {})
+    .finally(() => {
+      addLog("Admin account updated", { email, level: nextLevel, storeRoles: admins[adminIndex].storeRoles || [] });
+      renderAdminList();
+      populateSiteSelect();
+      updateNotificationsBadge();
+      showToast(t("successPermsSaved"), "success");
+    });
 }
 
 function addNewAdmin() {
@@ -979,18 +984,21 @@ function addNewAdmin() {
         : filteredSites,
   });
   localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-  syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
   trackEditActivity();
-  addLog("Admin account created", { email, level, storeRoles: functionRoles });
-  document.getElementById("newAdminFirstName").value = "";
-  document.getElementById("newAdminLastName").value = "";
-  document.getElementById("newAdminEmail").value = "";
-  document.getElementById("newAdminPassword").value = "";
-  renderNewAdminLevelSelector();
-  renderNewAdminRolePanel();
-  renderNewAdminPermissionsPanel();
-  renderAdminList();
-  showToast(t("successAdminAdded"), "success");
+  return syncServerState({ includeAdmins: true, adminEditTargetEmail: email })
+    .catch(() => {})
+    .finally(() => {
+      addLog("Admin account created", { email, level, storeRoles: functionRoles });
+      document.getElementById("newAdminFirstName").value = "";
+      document.getElementById("newAdminLastName").value = "";
+      document.getElementById("newAdminEmail").value = "";
+      document.getElementById("newAdminPassword").value = "";
+      renderNewAdminLevelSelector();
+      renderNewAdminRolePanel();
+      renderNewAdminPermissionsPanel();
+      renderAdminList();
+      showToast(t("successAdminAdded"), "success");
+    });
 }
 
 function removeAdminAction(email) {

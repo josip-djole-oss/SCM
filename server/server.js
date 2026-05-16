@@ -2328,7 +2328,8 @@ function buildServerPricedStoreOrder({
     tamperSignals.push({ field: 'budgetImpact', client: orderDraft.clientBudgetImpact, server: budgetImpact });
   }
 
-  const nextStatus = requiresApproval ? 'Pending' : 'Approved';
+  const autoApproveOrders = settings?.autoApproveOrders === true;
+  const nextStatus = !requiresApproval && autoApproveOrders ? 'Approved' : 'Pending';
   const reserveOnPending = settings.reserveOnPending !== false;
   const shouldReserveBudget = budgetImpact > 0 && (nextStatus === 'Approved' || reserveOnPending);
   const availableBudget = Math.max(0, Number(profile.creditBalance) || 0);
@@ -3744,6 +3745,7 @@ apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canAcces
     const canSeeTeam = canViewStoreTeamOrdersPermission(req.session);
 
     let updatedOrder = null;
+    let updatedBudget = null;
     await mutateVersionedJsonFile(stateFile, {
       version: 2,
       savedAt: new Date().toISOString(),
@@ -3799,6 +3801,15 @@ apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canAcces
         externalNote: req.body?.externalNote || '',
       });
       orders[index] = transitionResult.order;
+      const workerId = sanitizeString(transitionResult.order?.workerId || '', 160).toLowerCase();
+      const profile = workerId ? ensureStoreWorkerProfile(store, workerId, transitionResult.order?.workerName || workerId) : null;
+      updatedBudget = profile
+        ? {
+            workerId,
+            creditBalance: Math.max(0, Number(profile.creditBalance || 0)),
+            reservedCredit: Math.max(0, Number(profile.reservedCredit || 0)),
+          }
+        : null;
       store.orders = orders;
       siteEntry.store = store;
       nextState.siteData[site] = siteEntry;
@@ -3811,7 +3822,7 @@ apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canAcces
       orderId,
       status: nextStatus,
     });
-    return res.json({ ok: true, site, order: updatedOrder });
+    return res.json({ ok: true, site, order: updatedOrder, budget: updatedBudget });
   } catch (error) {
     if (error?.code === 'STORE_INSUFFICIENT_BUDGET') {
       return res.status(400).json({ error: 'STORE_INSUFFICIENT_BUDGET', details: error?.details || '' });

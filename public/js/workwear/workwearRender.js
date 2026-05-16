@@ -18,6 +18,7 @@ var workwearBulkAllRoles = true;
 var workwearEditingStoreUserEmail = "";
 var workwearManagerEditorOpen = false;
 var workwearCartOverlayOpen = false;
+var workwearCheckoutInFlight = false;
 var workwearImageViewerState = {
   open: false,
   productId: "",
@@ -376,7 +377,11 @@ function renderWorkwearCart() {
     </div>
     <div class="workwear-cart-actions">
       <button class="btn btn-secondary" data-cmax-action="workwear.saveDraft">Spremi draft</button>
-      <button class="btn" data-cmax-action="workwear.submitOrder">${escapeHtml(t("checkout") || "Checkout")}</button>
+      <button
+        class="btn"
+        data-cmax-action="workwear.submitOrder"
+        ${workwearCheckoutInFlight ? "disabled aria-busy=\"true\"" : ""}
+      >${escapeHtml(workwearCheckoutInFlight ? (t("storeSubmittingOrder") || "Saljemo narudzbu...") : (t("checkout") || "Checkout"))}</button>
     </div>
   `;
 }
@@ -458,11 +463,12 @@ function renderWorkwearOrders() {
   }
 
   const canManage = canManageWorkwearModule();
-  const canSeeTeam = canViewStoreTeamOrders();
-
   list.innerHTML = orders
     .map((order) => {
       const canCancel = !canManage && ["Pending", "Approved"].includes(order.status || "Pending");
+      const canApprove = canManage && (order.status || "Pending") === "Pending";
+      const canReject = canManage && ["Pending", "Approved"].includes(order.status || "Pending");
+      const canDeliver = canManage && (order.status || "Pending") === "Approved";
       const timeline = Array.isArray(order.statusHistory)
         ? order.statusHistory.map((entry) => `<span class="warehouse-log-badge type-stock">${escapeHtml(entry.status || "-")}</span>`).join(" ")
         : "";
@@ -491,9 +497,9 @@ function renderWorkwearOrders() {
             <div>Ukupno: <strong>${workwearFormatCurrency(order.totals?.subtotal || 0)}</strong></div>
             <div class="workwear-order-actions">
               ${canCancel ? `<button class="btn btn-small btn-danger" data-cmax-action="workwear.cancelOrder" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Cancel</button>` : ""}
-              ${(canManage || canSeeTeam) ? `<button class="btn btn-small" data-cmax-action="workwear.approveOrder" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Approve</button>` : ""}
-              ${(canManage || canSeeTeam) ? `<button class="btn btn-small btn-danger" data-cmax-action="workwear.rejectOrder" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Reject</button>` : ""}
-              ${(canManage || canSeeTeam) ? `<button class="btn btn-small" data-cmax-action="workwear.markDelivered" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Delivered</button>` : ""}
+              ${canApprove ? `<button class="btn btn-small" data-cmax-action="workwear.approveOrder" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreStatus" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Approve</button>` : ""}
+              ${canReject ? `<button class="btn btn-small btn-danger" data-cmax-action="workwear.rejectOrder" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Reject</button>` : ""}
+              ${canDeliver ? `<button class="btn btn-small" data-cmax-action="workwear.markDelivered" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreStatus" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Delivered</button>` : ""}
             </div>
           </div>
         </article>
@@ -795,7 +801,7 @@ function renderWorkwearAdminPanel() {
           <div class="workwear-cart-actions">
             <button class="btn btn-secondary" data-cmax-action="workwear.prevProductWizardStep">Nazad</button>
             <button class="btn btn-secondary" data-cmax-action="workwear.nextProductWizardStep">Naprijed</button>
-            <button class="btn" data-cmax-action="workwear.saveProduct">Spremi artikal</button>
+            <button class="btn" data-cmax-action="workwear.saveProduct" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreSave">Spremi artikal</button>
           </div>
         </div>
       </div>
@@ -855,7 +861,7 @@ function renderWorkwearBulkEditPanel() {
           </div>
         </div>
         <div class="workwear-cart-actions">
-          <button class="btn" data-cmax-action="workwear.applyBulkEdit">Primijeni bulk edit</button>
+          <button class="btn" data-cmax-action="workwear.applyBulkEdit" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreSave">Primijeni bulk edit</button>
         </div>
       ` : `<div class="module-empty-state">Oznaci artikle u tabeli da otvoris bulk editor.</div>`}
     </div>
@@ -985,9 +991,9 @@ function renderWorkwearManagerOrders() {
             <div class="workwear-order-foot">
               <div>Budget impact: <strong>${workwearFormatCurrency(order.totals?.subtotal || 0)}</strong></div>
               <div class="workwear-order-actions">
-                <button class="btn btn-small" data-cmax-action="workwear.approveOrder" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Approve</button>
-                <button class="btn btn-small btn-danger" data-cmax-action="workwear.rejectOrder" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Reject</button>
-                <button class="btn btn-small" data-cmax-action="workwear.markDelivered" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Delivered</button>
+                ${order.status === "Pending" ? `<button class="btn btn-small" data-cmax-action="workwear.approveOrder" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreStatus" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Approve</button>` : ""}
+                ${["Pending", "Approved"].includes(order.status) ? `<button class="btn btn-small btn-danger" data-cmax-action="workwear.rejectOrder" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Reject</button>` : ""}
+                ${order.status === "Approved" ? `<button class="btn btn-small" data-cmax-action="workwear.markDelivered" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreStatus" data-cmax-args='${escapeHtml(JSON.stringify([order.id]))}'>Delivered</button>` : ""}
               </div>
             </div>
           </article>
@@ -1013,7 +1019,7 @@ function renderWorkwearBudgetPanel() {
         </select>
         <input id="workwearBudgetDelta" class="store-input" type="number" placeholder="+/- amount" />
         <input id="workwearBudgetReason" class="store-input" placeholder="Reason" />
-        <button class="btn" data-cmax-action="workwear.adjustBudget">Apply</button>
+        <button class="btn" data-cmax-action="workwear.adjustBudget" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreSave">Apply</button>
       </div>
       <div class="store-orders-list">
         ${profiles.map((profile) => `<div class="workwear-cart-item"><div><strong>${escapeHtml(profile.workerName || profile.workerId)}</strong><div>${escapeHtml(profile.workerId || "")}</div></div><div>${workwearFormatCurrency(profile.creditBalance || 0)}</div></div>`).join("")}
@@ -1065,7 +1071,7 @@ function renderWorkwearRulesPanel() {
         </div>
       </div>
       <div class="workwear-cart-actions">
-        <button class="btn" data-cmax-action="workwear.saveGlobalRules">Spremi pravila</button>
+        <button class="btn" data-cmax-action="workwear.saveGlobalRules" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreSave">Spremi pravila</button>
       </div>
     </div>
   `;
@@ -1113,7 +1119,7 @@ function renderWorkwearUsersPanel() {
         `).join("")}
       </div>
       <div class="workwear-cart-actions">
-        <button class="btn" data-cmax-action="workwear.saveStoreUser">${editing ? "Spremi korisnika" : "Kreiraj korisnika"}</button>
+        <button class="btn" data-cmax-action="workwear.saveStoreUser" data-cmax-server-action="true" data-cmax-loading-key="loadingAdminSave">${editing ? "Spremi korisnika" : "Kreiraj korisnika"}</button>
         ${editing ? `<button class="btn btn-secondary" data-cmax-action="workwear.cancelStoreUserEdit">Odustani</button>` : ""}
       </div>
       <div class="store-orders-list">
@@ -1144,7 +1150,7 @@ function renderWorkwearUsersPanel() {
             </div>
             <div class="workwear-order-actions">
               ${request.status === "pending" && appState.isSuperAdmin ? `
-                <button class="btn btn-small" data-cmax-action="workwear.approvePasswordReset" data-cmax-args='${escapeHtml(JSON.stringify([request.id]))}'>Odobri</button>
+                <button class="btn btn-small" data-cmax-action="workwear.approvePasswordReset" data-cmax-server-action="true" data-cmax-loading-key="loadingAdminSave" data-cmax-args='${escapeHtml(JSON.stringify([request.id]))}'>Odobri</button>
                 <button class="btn btn-small btn-danger" data-cmax-action="workwear.rejectPasswordReset" data-cmax-args='${escapeHtml(JSON.stringify([request.id]))}'>Odbij</button>
               ` : `<span>${escapeHtml(request.status || "-")}</span>`}
             </div>
@@ -1180,7 +1186,7 @@ function renderWorkwearExportPanel() {
         </select>
       </div>
       <div class="workwear-cart-actions">
-        <button class="btn" data-cmax-action="workwear.runExportWizard">Generiraj export</button>
+        <button class="btn" data-cmax-action="workwear.runExportWizard" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreExport">Generiraj export</button>
       </div>
     </div>
   `;

@@ -3,6 +3,27 @@ var workwearSelectedVariantByProduct = {};
 var workwearSelectedQuantityByProduct = {};
 var workwearSelectedCommentByProduct = {};
 var workwearBulkSelection = {};
+function workwearSetCheckoutBusy(isBusy) {
+  workwearCheckoutInFlight = isBusy === true;
+  if (typeof renderWorkwearCart === "function") renderWorkwearCart();
+}
+
+function workwearApplyBudgetSnapshot(workerId, snapshot) {
+  if (!snapshot) return;
+  const profile = ensureWorkerWorkwearProfile(workerId);
+  profile.creditBalance = Math.max(0, Number(snapshot.creditBalance || profile.creditBalance || 0));
+  profile.reservedCredit = Math.max(0, Number(snapshot.reservedCredit || profile.reservedCredit || 0));
+}
+
+function workwearRefreshOrdersView() {
+  if (typeof workwearApiListOrders === "function") {
+    return workwearApiListOrders().catch(() => []).finally(() => {
+      renderWorkwearModule();
+    });
+  }
+  renderWorkwearModule();
+  return Promise.resolve();
+}
 // Legacy workflow labels kept for backward-compatible smoke tests/report exports.
 const LEGACY_WORKWEAR_WORKFLOW = ["Draft", "Pending", "Approved", "Ordered", "Purchased", "Ready for Pickup", "Delivered", "Rejected", "Cancelled"];
 
@@ -347,7 +368,8 @@ function finalizeOrderSubmission(cart) {
     const product = getWorkwearProductById(item.productId);
     return product?.approvalRequired === true;
   });
-  const fallbackStatus = fallbackRequiresApproval ? "Pending" : "Approved";
+  const fallbackAutoApprove = state.settings?.autoApproveOrders === true && !fallbackRequiresApproval;
+  const fallbackStatus = fallbackAutoApprove ? "Approved" : "Pending";
   const fallbackOrder = {
     id: `SO-${Date.now().toString().slice(-8)}`,
     workerId,
@@ -375,7 +397,9 @@ function finalizeOrderSubmission(cart) {
   const savePromise = (typeof workwearApiSaveOrder === "function")
     ? workwearApiSaveOrder(orderDraft)
     : Promise.resolve(fallbackOrder);
-  savePromise
+  workwearSetCheckoutBusy(true);
+  if (typeof showLoading === "function") showLoading("loadingStoreCheckout");
+  return savePromise
     .then((savedOrder) => {
       const persistedOrder = savedOrder && typeof savedOrder === "object" ? savedOrder : fallbackOrder;
       const isBackend = (typeof BACKEND_ENABLED !== "undefined" && BACKEND_ENABLED);
@@ -388,9 +412,7 @@ function finalizeOrderSubmission(cart) {
       } else if (persistedOrder.__budgetSnapshot) {
         const snapshot = persistedOrder.__budgetSnapshot;
         delete persistedOrder.__budgetSnapshot;
-        const profile = ensureWorkerWorkwearProfile(workerId);
-        profile.creditBalance = Math.max(0, Number(snapshot.creditBalance || profile.creditBalance || 0));
-        profile.reservedCredit = Math.max(0, Number(snapshot.reservedCredit || profile.reservedCredit || 0));
+        workwearApplyBudgetSnapshot(workerId, snapshot);
       }
       upsertLocalStoreOrder(persistedOrder);
       state.workerProfiles[workerId] = state.workerProfiles[workerId] || ensureWorkerWorkwearProfile(workerId);
@@ -415,19 +437,21 @@ function finalizeOrderSubmission(cart) {
         metadata: { orderId: persistedOrder.id, status: persistedOrder.status, urgent: persistedOrder.urgent },
       });
       showToast("Order submitted", "success");
-      if (typeof workwearApiListOrders === "function") {
-        workwearApiListOrders().finally(() => renderWorkwearModule());
-      } else {
-        renderWorkwearModule();
-      }
+      return workwearRefreshOrdersView();
     })
     .catch((error) => {
       console.error("Store order submit failed:", error);
       showToast("Narudzba nije spremljena na server. Pokusaj ponovo.", "error");
+      throw error;
+    })
+    .finally(() => {
+      workwearSetCheckoutBusy(false);
+      if (typeof hideLoading === "function") hideLoading();
     });
 }
 
 function workwearSubmitOrder() {
+  if (workwearCheckoutInFlight) return Promise.resolve(false);
   const cart = getWorkwearCartForCurrentUser();
   cart.comment = (document.getElementById("workwearCartComment")?.value || "").trim();
   cart.urgent = document.getElementById("workwearCartUrgent")?.checked === true;
@@ -464,9 +488,10 @@ function workwearSubmitOrder() {
         showToast("Potvrda lozinke nije uspjela.", "error");
         return;
       }
-      finalizeOrderSubmission(cart);
+      finalizeOrderSubmission(cart).catch(() => {});
     });
   });
+  return Promise.resolve(true);
 }
 
 function workwearCancelOrder(orderId) {
@@ -477,11 +502,38 @@ function workwearCancelOrder(orderId) {
   if (["Rejected", "Cancelled", "Delivered"].includes(order.status)) return;
 
   showPromptDialog("Razlog otkazivanja (opcionalno):", "??", "Razlog", (reason) => {
+    const cancelReason = String(reason || "").trim();
+    if (typeof workwearApiUpdateOrderStatus === "function") {
+      if (typeof showLoading === "function") showLoading("loadingStoreStatus");
+      workwearApiUpdateOrderStatus(order.id, "Cancelled", { reason: cancelReason || "" })
+        .then((updatedOrder) => {
+          if (updatedOrder?.__budgetSnapshot) {
+            workwearApplyBudgetSnapshot(order.workerId, updatedOrder.__budgetSnapshot);
+            delete updatedOrder.__budgetSnapshot;
+          }
+          pushWorkwearAudit("order_cancelled", { entityType: "order", entityId: order.id, after: { status: "Cancelled" } });
+          addWorkwearNotification(`Narudzba ${order.id} je otkazana.`, {
+            title: "Store narudzba otkazana",
+            targetUsers: [order.workerId],
+            targetId: order.id,
+            metadata: { orderId: order.id, status: "Cancelled" },
+          });
+          showToast("Narudzba je otkazana.", "success");
+          return workwearRefreshOrdersView();
+        })
+        .catch(() => {
+          showToast("Status nije sinkroniziran sa serverom.", "error");
+        })
+        .finally(() => {
+          if (typeof hideLoading === "function") hideLoading();
+        });
+      return;
+    }
     order.status = "Cancelled";
     order.updatedAt = new Date().toISOString();
     order.cancelledAt = order.updatedAt;
     order.cancelledBy = appState.currentUser || "system";
-    order.cancelReason = String(reason || "").trim();
+    order.cancelReason = cancelReason;
     order.statusHistory.push({ status: "Cancelled", at: order.updatedAt, by: appState.currentUser || "system" });
     if (Number(order.creditReserved || 0) > 0) {
       workwearReleaseReservedCredit(order.workerId, order.creditReserved, "order_cancelled", order.id);
@@ -495,23 +547,12 @@ function workwearCancelOrder(orderId) {
       targetId: order.id,
       metadata: { orderId: order.id, status: order.status },
     });
-    if (typeof workwearApiUpdateOrderStatus === "function") {
-      workwearApiUpdateOrderStatus(order.id, "Cancelled", { reason: order.cancelReason || "" })
-        .then(() => (typeof workwearApiListOrders === "function" ? workwearApiListOrders() : Promise.resolve([])))
-        .catch(() => {
-          showToast("Status nije sinkroniziran sa serverom.", "error");
-        })
-        .finally(() => {
-          renderWorkwearModule();
-        });
-      return;
-    }
     renderWorkwearModule();
   });
 }
 
 function workwearApproveOrder(orderId) {
-  if (!canManageWorkwearModule() && !canViewStoreTeamOrders()) return;
+  if (!canManageWorkwearModule()) return;
   const state = getWorkwearState();
   const order = state.orders.find((entry) => entry.id === orderId);
   if (!order) return;
@@ -520,12 +561,32 @@ function workwearApproveOrder(orderId) {
     return;
   }
 
+  const previous = order.status;
+  if (typeof workwearApiUpdateOrderStatus === "function") {
+    return workwearApiUpdateOrderStatus(order.id, "Approved")
+      .then((updatedOrder) => {
+        if (updatedOrder?.__budgetSnapshot) {
+          workwearApplyBudgetSnapshot(order.workerId, updatedOrder.__budgetSnapshot);
+          delete updatedOrder.__budgetSnapshot;
+        }
+        pushWorkwearAudit("order_approved", { entityType: "order", entityId: order.id, before: { status: previous }, after: { status: "Approved" } });
+        addWorkwearNotification(`Narudzba ${order.id} je odobrena.`, {
+          title: "Store narudzba odobrena",
+          targetUsers: [order.workerId],
+          targetId: order.id,
+          metadata: { orderId: order.id, status: "Approved" },
+        });
+        showToast("Narudzba je odobrena.", "success");
+        return workwearRefreshOrdersView();
+      })
+      .catch(() => {
+        showToast("Status nije sinkroniziran sa serverom.", "error");
+      });
+  }
   if (Number(order.creditReserved || 0) === 0) {
     workwearReserveCredit(order.workerId, Number(order.totals?.subtotal || 0), "approved_reserve", order.id);
     order.creditReserved = Number(order.totals?.subtotal || 0);
   }
-
-  const previous = order.status;
   order.status = "Approved";
   order.updatedAt = new Date().toISOString();
   order.statusHistory.push({ status: "Approved", at: order.updatedAt, by: appState.currentUser || "system" });
@@ -537,22 +598,12 @@ function workwearApproveOrder(orderId) {
     targetId: order.id,
     metadata: { orderId: order.id, status: order.status },
   });
-  if (typeof workwearApiUpdateOrderStatus === "function") {
-    workwearApiUpdateOrderStatus(order.id, "Approved")
-      .then(() => (typeof workwearApiListOrders === "function" ? workwearApiListOrders() : Promise.resolve([])))
-      .catch(() => {
-        showToast("Status nije sinkroniziran sa serverom.", "error");
-      })
-      .finally(() => {
-        renderWorkwearModule();
-      });
-    return;
-  }
   renderWorkwearModule();
+  return Promise.resolve(order);
 }
 
 function workwearMarkDelivered(orderId) {
-  if (!canManageWorkwearModule() && !canViewStoreTeamOrders()) return;
+  if (!canManageWorkwearModule()) return;
   const state = getWorkwearState();
   const order = state.orders.find((entry) => entry.id === orderId);
   if (!order) return;
@@ -562,6 +613,27 @@ function workwearMarkDelivered(orderId) {
   }
 
   const previous = order.status;
+  if (typeof workwearApiUpdateOrderStatus === "function") {
+    return workwearApiUpdateOrderStatus(order.id, "Delivered")
+      .then((updatedOrder) => {
+        if (updatedOrder?.__budgetSnapshot) {
+          workwearApplyBudgetSnapshot(order.workerId, updatedOrder.__budgetSnapshot);
+          delete updatedOrder.__budgetSnapshot;
+        }
+        pushWorkwearAudit("order_delivered", { entityType: "order", entityId: order.id, before: { status: previous }, after: { status: "Delivered" } });
+        addWorkwearNotification(`Narudzba ${order.id} je isporucena.`, {
+          title: "Store narudzba isporucena",
+          targetUsers: [order.workerId],
+          targetId: order.id,
+          metadata: { orderId: order.id, status: "Delivered" },
+        });
+        showToast("Narudzba je oznacena kao isporucena.", "success");
+        return workwearRefreshOrdersView();
+      })
+      .catch(() => {
+        showToast("Status nije sinkroniziran sa serverom.", "error");
+      });
+  }
   if (Number(order.creditReserved || 0) > 0) {
     workwearFinalizeDelivery(order.workerId, Number(order.creditReserved || 0), order.id);
     order.creditReserved = 0;
@@ -577,18 +649,8 @@ function workwearMarkDelivered(orderId) {
     targetId: order.id,
     metadata: { orderId: order.id, status: order.status },
   });
-  if (typeof workwearApiUpdateOrderStatus === "function") {
-    workwearApiUpdateOrderStatus(order.id, "Delivered")
-      .then(() => (typeof workwearApiListOrders === "function" ? workwearApiListOrders() : Promise.resolve([])))
-      .catch(() => {
-        showToast("Status nije sinkroniziran sa serverom.", "error");
-      })
-      .finally(() => {
-        renderWorkwearModule();
-      });
-    return;
-  }
   renderWorkwearModule();
+  return Promise.resolve(order);
 }
 
 function workwearTransitionOrderStatus(order, next) {
@@ -609,23 +671,48 @@ function workwearAdvanceStatus(orderId) {
 }
 
 function workwearRejectOrder(orderId) {
-  if (!canManageWorkwearModule() && !canViewStoreTeamOrders()) return;
+  if (!canManageWorkwearModule()) return;
   const state = getWorkwearState();
   const order = state.orders.find((entry) => entry.id === orderId);
   if (!order || ["Rejected", "Cancelled", "Delivered"].includes(order.status)) return;
 
   showPromptDialog("Razlog odbijanja (opcionalno):", "??", "Razlog", (reason) => {
+    const rejectionReason = String(reason || "").trim();
+    if (typeof workwearApiUpdateOrderStatus === "function") {
+      if (typeof showLoading === "function") showLoading("loadingStoreStatus");
+      workwearApiUpdateOrderStatus(order.id, "Rejected", { reason: rejectionReason || "" })
+        .then((updatedOrder) => {
+          if (updatedOrder?.__budgetSnapshot) {
+            workwearApplyBudgetSnapshot(order.workerId, updatedOrder.__budgetSnapshot);
+            delete updatedOrder.__budgetSnapshot;
+          }
+          pushWorkwearAudit("order_rejected", { entityType: "order", entityId: order.id, after: { status: "Rejected" } });
+          addWorkwearNotification(`Narudzba ${order.id} je odbijena.`, {
+            title: "Store narudzba odbijena",
+            targetUsers: [order.workerId],
+            targetId: order.id,
+            metadata: { orderId: order.id, status: "Rejected" },
+          });
+          showToast("Narudzba je odbijena.", "success");
+          return workwearRefreshOrdersView();
+        })
+        .catch(() => {
+          showToast("Status nije sinkroniziran sa serverom.", "error");
+        })
+        .finally(() => {
+          if (typeof hideLoading === "function") hideLoading();
+        });
+      return;
+    }
     order.status = "Rejected";
     order.updatedAt = new Date().toISOString();
     order.rejectedBy = appState.currentUser || "";
-    order.externalNote = String(reason || "").trim();
+    order.externalNote = rejectionReason;
     order.statusHistory.push({ status: "Rejected", at: order.updatedAt, by: appState.currentUser || "system" });
-
     if (Number(order.creditReserved || 0) > 0) {
       workwearReleaseReservedCredit(order.workerId, order.creditReserved, "order_rejected", order.id);
       order.creditReserved = 0;
     }
-
     saveWorkwearState();
     pushWorkwearAudit("order_rejected", { entityType: "order", entityId: order.id, after: { status: order.status } });
     addWorkwearNotification(`Narudzba ${order.id} je odbijena.`, {
@@ -634,17 +721,6 @@ function workwearRejectOrder(orderId) {
       targetId: order.id,
       metadata: { orderId: order.id, status: order.status },
     });
-    if (typeof workwearApiUpdateOrderStatus === "function") {
-      workwearApiUpdateOrderStatus(order.id, "Rejected", { reason: order.externalNote || "" })
-        .then(() => (typeof workwearApiListOrders === "function" ? workwearApiListOrders() : Promise.resolve([])))
-        .catch(() => {
-          showToast("Status nije sinkroniziran sa serverom.", "error");
-        })
-        .finally(() => {
-          renderWorkwearModule();
-        });
-      return;
-    }
     renderWorkwearModule();
   });
 }
@@ -1254,7 +1330,7 @@ function workwearSaveProduct() {
     },
   });
 
-  workwearApiSaveProduct(product).then(() => {
+  return workwearApiSaveProduct(product).then(() => {
     pushWorkwearAudit("product_saved", {
       entityType: "product",
       entityId: product.id,
@@ -1330,6 +1406,7 @@ function workwearApplyBulkEdit() {
   selectedIds.forEach((id) => { workwearBulkSelection[id] = false; });
   renderWorkwearModule();
   showToast("Bulk edit applied.", "success");
+  return Promise.resolve(true);
 }
 function workwearAdjustBudget() {
   if (!canManageWorkwearCredits()) return;
@@ -1373,6 +1450,7 @@ function workwearAdjustBudget() {
   renderWorkwearBudgetPanel();
   renderWorkwearCart();
   showToast("Budget updated.", "success");
+  return Promise.resolve(true);
 }
 
 function workwearSaveGlobalRules() {
@@ -1390,6 +1468,7 @@ function workwearSaveGlobalRules() {
   saveWorkwearState();
   pushWorkwearAudit("store_rules_saved", { entityType: "settings", after: state.settings });
   showToast("Store pravila spremljena.", "success");
+  return Promise.resolve(true);
 }
 
 function workwearDeriveAccountConfigFromRoles(roleKeys) {
@@ -1490,15 +1569,18 @@ function workwearSaveStoreUser() {
   if (existingIndex >= 0) users[existingIndex] = { ...users[existingIndex], ...nextUser };
   else users.push(nextUser);
   localStorage.setItem(ADMINS_KEY, JSON.stringify(users));
-  syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
   pushWorkwearAudit(existingIndex >= 0 ? "store_user_updated" : "store_user_created", {
     entityType: "user",
     entityId: email,
     metadata: { roles: roleKeys, active },
   });
   workwearEditingStoreUserEmail = "";
-  renderWorkwearUsersPanel();
-  showToast(existingIndex >= 0 ? "Korisnik azuriran." : "Korisnik kreiran.", "success");
+  return syncServerState({ includeAdmins: true, adminEditTargetEmail: email })
+    .catch(() => {})
+    .finally(() => {
+      renderWorkwearUsersPanel();
+      showToast(existingIndex >= 0 ? "Korisnik azuriran." : "Korisnik kreiran.", "success");
+    });
 }
 
 function workwearEditStoreUser(email) {
@@ -1560,8 +1642,6 @@ function workwearApprovePasswordReset(requestId) {
   }
   users[targetIndex].password = tempPassword;
   localStorage.setItem(ADMINS_KEY, JSON.stringify(users));
-  syncServerState({ includeAdmins: true, adminEditTargetEmail: request.userEmail }).catch(() => {});
-
   request.status = "approved";
   request.approvedAt = new Date().toISOString();
   request.approvedBy = String(appState.currentUser || "").trim().toLowerCase();
@@ -1577,8 +1657,12 @@ function workwearApprovePasswordReset(requestId) {
     targetUsers: [request.userEmail],
     metadata: { requestId: request.id, status: "approved" },
   });
-  renderWorkwearUsersPanel();
-  showToast(`Reset odobren. Nova lozinka: ${tempPassword}`, "success");
+  return syncServerState({ includeAdmins: true, adminEditTargetEmail: request.userEmail })
+    .catch(() => {})
+    .finally(() => {
+      renderWorkwearUsersPanel();
+      showToast(`Reset odobren. Nova lozinka: ${tempPassword}`, "success");
+    });
 }
 
 function workwearRejectPasswordReset(requestId) {
@@ -1598,6 +1682,7 @@ function workwearRejectPasswordReset(requestId) {
     metadata: { requestId: request.id, status: "rejected" },
   });
   renderWorkwearUsersPanel();
+  return Promise.resolve(true);
 }
 
 function workwearApplyFilters() {
@@ -1783,6 +1868,7 @@ function workwearRunExportWizard() {
     },
   });
   showToast("Store export generated.", "success");
+  return Promise.resolve(exportPayload);
 }
 function workwearOpenImport() {
   const input = document.getElementById("workwearImportInput");
