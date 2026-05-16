@@ -145,6 +145,7 @@ function bindTidplanViewportFullscreen() {
     container.classList.remove("tidplan-container-fullscreen");
     timeline.classList.remove("tidplan-timeline-fullscreen");
     document.body.classList.remove("tidplan-fullscreen-open");
+    document.documentElement.classList.remove("tidplan-fullscreen-open");
     isFullscreen = false;
     syncToggleLabel();
   }
@@ -153,6 +154,7 @@ function bindTidplanViewportFullscreen() {
     container.classList.add("tidplan-container-fullscreen");
     timeline.classList.add("tidplan-timeline-fullscreen");
     document.body.classList.add("tidplan-fullscreen-open");
+    document.documentElement.classList.add("tidplan-fullscreen-open");
     isFullscreen = true;
     syncToggleLabel();
   }

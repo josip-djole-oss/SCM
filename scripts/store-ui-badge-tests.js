@@ -23,11 +23,17 @@ try {
   mustContain(accountNotifications, 'count > 99 ? "99+" : String(count)', "99+ topbar badge");
   mustContain(accountNotifications, 'button.classList.toggle("has-badge", count > 0)', "topbar badge class toggle");
   mustContain(styles, ".topbar-bell.has-badge", "topbar bell expanded style");
+  mustContain(styles, ".account-notifications-panel", "account notifications panel style");
+  mustContain(styles, "position: fixed;", "mobile fixed overlay support");
+  mustContain(styles, "left: 12px;", "mobile in-screen left clamp");
+  mustContain(styles, "right: 12px;", "mobile in-screen right clamp");
+  mustContain(styles, ".logo-section", "logo section alignment styles");
+  mustContain(styles, "margin-top: -10px;", "logo raised upward");
   mustContain(render, "workwearSettingsRenewalAmount", "renewal amount settings field");
   mustContain(render, "workwearSettingsRenewalMonths", "renewal months settings field");
   mustContain(render, "Koliko budzeta se automatski dodaje korisniku pri obnovi", "renewal amount description");
 
-  console.log(JSON.stringify({ ok: true, checks: 11 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 17 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

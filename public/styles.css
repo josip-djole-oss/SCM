@@ -1496,24 +1496,31 @@ body {
   inset: 0 !important;
   width: 100vw !important;
   height: 100vh !important;
+  height: 100dvh !important;
   z-index: 10000 !important;
   margin: 0 !important;
-  padding: 20px !important;
+  padding: 18px !important;
   background: rgba(238, 243, 251, 0.99) !important;
+  display: grid !important;
   grid-template-columns: minmax(280px, 38vw) 8px minmax(0, 1fr) !important;
+  align-items: stretch !important;
+  gap: 0 !important;
   box-sizing: border-box;
+  overflow: hidden !important;
+  border-radius: 0 !important;
 }
 
 .tidplan-container-fullscreen .tidplan-left-panel,
 .tidplan-container-fullscreen .tidplan-timeline {
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
 .tidplan-fullscreen-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 0px) + 12px);
+  right: max(12px, env(safe-area-inset-right, 0px) + 12px);
   width: 42px;
   height: 42px;
   border-radius: 999px;
@@ -1523,6 +1530,12 @@ body {
   cursor: pointer;
   z-index: 10002;
   box-shadow: 0 12px 26px rgba(15, 23, 42, 0.22);
+}
+
+.tidplan-container-fullscreen .tidplan-table-container,
+.tidplan-container-fullscreen .timeline-body,
+.tidplan-container-fullscreen .tidplan-timeline {
+  overscroll-behavior: contain;
 }
 
 /* Panel modes */
@@ -5035,6 +5048,8 @@ textarea:focus {
   width: 116px;
   height: 116px;
   border-radius: 28px;
+  align-self: flex-start;
+  margin-top: -10px;
 }
 
 .logo[role="button"],
@@ -5490,12 +5505,12 @@ textarea:focus {
 }
 
 .logo-section {
-  align-items: center;
+  align-items: flex-start;
 }
 
 .title-section {
   justify-content: center;
-  align-self: center;
+  align-self: flex-start;
 }
 
 #mainTitle::before {
@@ -6705,9 +6720,14 @@ body {
     width: 100%;
   }
 
+  .topbar-bell-wrap {
+    position: static;
+  }
+
   .logo {
     width: 120px;
     height: 120px;
+    margin-top: -6px;
   }
 
   #mainTitle {
@@ -6755,6 +6775,17 @@ body {
     top: 12px;
     right: 12px;
   }
+
+  .account-notifications-panel {
+    position: fixed;
+    top: max(74px, env(safe-area-inset-top, 0px) + 12px);
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
+    max-height: calc(100dvh - 92px);
+    z-index: 1200;
+  }
 }
 
 @media (min-width: 641px) and (max-width: 1024px) {
@@ -6783,6 +6814,13 @@ body {
   .workwear-manager-products-layout,
   .workwear-admin-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .account-notifications-panel {
+    right: 0;
+    left: auto;
+    width: min(420px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
   }
 }
 
