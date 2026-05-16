@@ -77,10 +77,12 @@
 
   function updateAccountNotificationsBadge() {
     const badge = document.getElementById("topbarNotificationsBadge");
+    const button = document.getElementById("topbarNotificationsBtn");
     if (!badge) return;
     const count = getUnreadAccountNotificationsCount();
-    badge.textContent = String(count);
+    badge.textContent = count > 99 ? "99+" : String(count);
     badge.style.display = count > 0 ? "inline-flex" : "none";
+    if (button) button.classList.toggle("has-badge", count > 0);
   }
 
   function markAccountNotificationRead(id) {

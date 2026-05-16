@@ -386,6 +386,12 @@
     updateWizardCategory(...args) {
       return callLegacy("workwearUpdateWizardCategory", args);
     },
+    quickAddWizardCategory(...args) {
+      return callLegacy("workwearQuickAddWizardCategory", args);
+    },
+    quickAddWizardSubcategory(...args) {
+      return callLegacy("workwearQuickAddWizardSubcategory", args);
+    },
     toggleWizardSize(...args) {
       return callLegacy("workwearToggleWizardSize", args);
     },
@@ -433,6 +439,24 @@
     },
     applyBulkEdit(...args) {
       return callLegacy("workwearApplyBulkEdit", args);
+    },
+    addCategory(...args) {
+      return callLegacy("workwearAddCategory", args);
+    },
+    renameCategory(...args) {
+      return callLegacy("workwearRenameCategory", args);
+    },
+    archiveCategory(...args) {
+      return callLegacy("workwearArchiveCategory", args);
+    },
+    addSubcategory(...args) {
+      return callLegacy("workwearAddSubcategory", args);
+    },
+    renameSubcategory(...args) {
+      return callLegacy("workwearRenameSubcategory", args);
+    },
+    archiveSubcategory(...args) {
+      return callLegacy("workwearArchiveSubcategory", args);
     },
     setBulkSelection(...args) {
       return callLegacy("workwearSetBulkSelection", args);

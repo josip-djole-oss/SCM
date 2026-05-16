@@ -52,7 +52,8 @@ try {
   mustContain(render, "STEP 9 — Pregled i spremi", "wizard review step");
   mustContain(render, "workwearWizardAllSites", "all sites checkbox");
   mustContain(render, "workwearWizardAllRoles", "role visibility checkboxes");
-  mustContain(render, "Korisnici / Role", "users/role manager tab");
+  mustContain(html, 'data-cmax-args=\'["categories"]\'', "categories manager tab");
+  if (html.includes('data-cmax-args=\'["users"]\'')) throw new Error("Store users/role tab should not exist in Store manager tabs");
   mustContain(render, "renderWorkwearRulesPanel", "rules tab renderer");
   mustContain(events, "workwearToggleWizardSite", "wizard site checkbox handler");
   mustContain(events, "workwearToggleWizardRole", "wizard role checkbox handler");
@@ -77,6 +78,11 @@ try {
   mustContain(html, 'id="workwearManagerEditorToggle"', "store manager editor toggle");
   mustContain(events, "workwearToggleCartOverlay", "cart overlay toggle handler");
   mustContain(events, "workwearToggleManagerEditor", "manager editor toggle handler");
+  mustContain(events, "workwearAddCategory", "add category handler");
+  mustContain(events, "workwearRenameCategory", "rename category handler");
+  mustContain(events, "workwearArchiveCategory", "archive category handler");
+  mustContain(events, "workwearRunExportWizard", "export handler");
+  if (events.includes("store-export-${format}-${Date.now()}.json")) throw new Error("Store export should not download JSON");
   mustContain(events, "workwearRemoveOrArchiveProduct", "delete/archive handler");
   mustContain(render, "workwearManagerEditorOpen", "manager editor state");
   mustContain(render, "renderWorkwearCartBadge", "cart badge render");
@@ -91,7 +97,7 @@ try {
   mustContain(events, "addWorkwearNotification", "notification creation");
   mustContain(state, "currentSite", "site isolation context");
 
-  console.log(JSON.stringify({ ok: true, checks: 53 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 58 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

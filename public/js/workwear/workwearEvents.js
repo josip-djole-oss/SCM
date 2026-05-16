@@ -42,7 +42,7 @@ function addWorkwearNotification(message, options = {}) {
 }
 
 function workwearSwitchManagerTab(tab) {
-  const allowed = ["products", "orders", "budgets", "rules", "users", "export", "audit"];
+  const allowed = ["products", "categories", "orders", "budgets", "rules", "export", "audit"];
   workwearManagerTab = allowed.includes(tab) ? tab : "products";
   renderWorkwearModule();
 }
@@ -664,6 +664,174 @@ function workwearUpdateWizardCategory(el) {
   renderWorkwearModule();
 }
 
+function workwearQuickAddWizardCategory() {
+  const input = document.getElementById("workwearWizardQuickCategory");
+  const name = String(input?.value || "").trim();
+  if (!name) return;
+  ensureStoreCategory(name);
+  saveWorkwearState();
+  pushWorkwearAudit("category_added", { entityType: "category", entityId: name });
+  const wizard = workwearReadWizardFormState();
+  wizard.category = name;
+  wizard.subcategory = "";
+  workwearProductWizardSeed = wizard;
+  if (input) input.value = "";
+  renderWorkwearModule();
+}
+
+function workwearQuickAddWizardSubcategory() {
+  const wizard = workwearReadWizardFormState();
+  const category = String(wizard.category || "").trim();
+  const input = document.getElementById("workwearWizardQuickSubcategory");
+  const name = String(input?.value || "").trim();
+  if (!category || !name) return;
+  ensureStoreSubcategory(category, name);
+  saveWorkwearState();
+  pushWorkwearAudit("subcategory_added", { entityType: "subcategory", entityId: `${category}:${name}` });
+  wizard.subcategory = name;
+  workwearProductWizardSeed = wizard;
+  if (input) input.value = "";
+  renderWorkwearModule();
+}
+
+function workwearAddCategory() {
+  if (!canManageWorkwearModule()) return;
+  const input = document.getElementById("workwearNewCategoryName");
+  const name = String(input?.value || "").trim();
+  if (!name) return;
+  ensureStoreCategory(name);
+  saveWorkwearState();
+  pushWorkwearAudit("category_added", { entityType: "category", entityId: name });
+  if (input) input.value = "";
+  renderWorkwearCategoriesPanel();
+  renderWorkwearAdminPanel();
+}
+
+function workwearRenameCategory(currentName) {
+  if (!canManageWorkwearModule()) return;
+  const currentKey = String(currentName || "").trim();
+  if (!currentKey) return;
+  const input = document.getElementById(`workwearRenameCategory_${sanitizeSiteId(currentKey)}`);
+  const nextKey = String(input?.value || "").trim();
+  if (!nextKey || nextKey === currentKey) return;
+  const catalog = getStoreCategoryCatalogState();
+  if (catalog[nextKey]) {
+    showToast("Kategorija vec postoji.", "error");
+    return;
+  }
+  const entry = catalog[currentKey];
+  if (!entry) return;
+  catalog[nextKey] = entry;
+  delete catalog[currentKey];
+  const state = getWorkwearState();
+  state.products = (state.products || []).map((rawProduct) => {
+    const product = normalizeStoreProduct(rawProduct);
+    if (String(product.category || "").trim() === currentKey) product.category = nextKey;
+    return product;
+  });
+  saveWorkwearState();
+  pushWorkwearAudit("category_renamed", { entityType: "category", entityId: currentKey, metadata: { nextKey } });
+  renderWorkwearModule();
+}
+
+function workwearArchiveCategory(categoryName) {
+  if (!canManageWorkwearModule()) return;
+  const key = String(categoryName || "").trim();
+  if (!key) return;
+  const used = isStoreCategoryInUse(key);
+  showConfirm(
+    used
+      ? `Kategorija "${key}" se koristi na artiklima i bit ce arhivirana.`
+      : `Kategorija "${key}" ce biti obrisana.`,
+    "Potvrda",
+    "⚠️",
+    () => {
+      const catalog = getStoreCategoryCatalogState();
+      if (!catalog[key]) return;
+      if (used) {
+        catalog[key].active = false;
+      } else {
+        delete catalog[key];
+      }
+      saveWorkwearState();
+      pushWorkwearAudit(used ? "category_archived" : "category_deleted", { entityType: "category", entityId: key });
+      renderWorkwearModule();
+    },
+  );
+}
+
+function workwearAddSubcategory(categoryName) {
+  if (!canManageWorkwearModule()) return;
+  const category = String(categoryName || "").trim();
+  const input = document.getElementById(`workwearAddSubcategory_${sanitizeSiteId(category)}`);
+  const name = String(input?.value || "").trim();
+  if (!category || !name) return;
+  ensureStoreSubcategory(category, name);
+  saveWorkwearState();
+  pushWorkwearAudit("subcategory_added", { entityType: "subcategory", entityId: `${category}:${name}` });
+  if (input) input.value = "";
+  renderWorkwearCategoriesPanel();
+  renderWorkwearAdminPanel();
+}
+
+function workwearRenameSubcategory(categoryName, subcategoryName) {
+  if (!canManageWorkwearModule()) return;
+  const category = String(categoryName || "").trim();
+  const currentSub = String(subcategoryName || "").trim();
+  if (!category || !currentSub) return;
+  const nextSub = window.prompt("Novi naziv podkategorije:", currentSub);
+  const nextKey = String(nextSub || "").trim();
+  if (!nextKey || nextKey === currentSub) return;
+  const catalog = getStoreCategoryCatalogState();
+  const entry = catalog[category];
+  if (!entry || !entry.subcategories || !entry.subcategories[currentSub]) return;
+  if (entry.subcategories[nextKey]) {
+    showToast("Podkategorija vec postoji.", "error");
+    return;
+  }
+  entry.subcategories[nextKey] = entry.subcategories[currentSub];
+  delete entry.subcategories[currentSub];
+  const state = getWorkwearState();
+  state.products = (state.products || []).map((rawProduct) => {
+    const product = normalizeStoreProduct(rawProduct);
+    if (String(product.category || "").trim() === category && String(product.subcategory || "").trim() === currentSub) {
+      product.subcategory = nextKey;
+    }
+    return product;
+  });
+  saveWorkwearState();
+  pushWorkwearAudit("subcategory_renamed", { entityType: "subcategory", entityId: `${category}:${currentSub}`, metadata: { nextKey } });
+  renderWorkwearModule();
+}
+
+function workwearArchiveSubcategory(categoryName, subcategoryName) {
+  if (!canManageWorkwearModule()) return;
+  const category = String(categoryName || "").trim();
+  const subcategory = String(subcategoryName || "").trim();
+  if (!category || !subcategory) return;
+  const used = isStoreSubcategoryInUse(category, subcategory);
+  showConfirm(
+    used
+      ? `Podkategorija "${subcategory}" se koristi i bit ce arhivirana.`
+      : `Podkategorija "${subcategory}" ce biti obrisana.`,
+    "Potvrda",
+    "⚠️",
+    () => {
+      const catalog = getStoreCategoryCatalogState();
+      const categoryEntry = catalog[category];
+      if (!categoryEntry || !categoryEntry.subcategories || !categoryEntry.subcategories[subcategory]) return;
+      if (used) {
+        categoryEntry.subcategories[subcategory].active = false;
+      } else {
+        delete categoryEntry.subcategories[subcategory];
+      }
+      saveWorkwearState();
+      pushWorkwearAudit(used ? "subcategory_archived" : "subcategory_deleted", { entityType: "subcategory", entityId: `${category}:${subcategory}` });
+      renderWorkwearModule();
+    },
+  );
+}
+
 function workwearToggleWizardSize(size, el) {
   const wizard = workwearReadWizardFormState();
   const value = String(size || "").trim();
@@ -892,6 +1060,8 @@ function workwearSaveProduct() {
     return;
   }
   const category = wizard.category || "Odjeca";
+  ensureStoreCategory(category);
+  if (wizard.subcategory) ensureStoreSubcategory(category, wizard.subcategory);
   const periodCycleDays = wizard.periodLimitCycle === "1m"
     ? 30
     : wizard.periodLimitCycle === "3m"
@@ -990,8 +1160,14 @@ function workwearApplyBulkEdit() {
   state.products = (state.products || []).map((rawProduct) => {
     const product = normalizeStoreProduct(rawProduct);
     if (!selectedIds.includes(product.id)) return product;
-    if (category) product.category = category;
-    if (subcategory) product.subcategory = subcategory;
+    if (category) {
+      ensureStoreCategory(category);
+      product.category = category;
+    }
+    if (subcategory) {
+      ensureStoreSubcategory(product.category, subcategory);
+      product.subcategory = subcategory;
+    }
     if (sites.length) product.availableSites = sites;
     if (!useAllRoles) product.visibleToRoles = roles;
     if (useAllRoles) product.visibleToRoles = [];
@@ -1131,8 +1307,12 @@ function workwearDeriveAccountConfigFromRoles(roleKeys) {
   };
 }
 
+function canManageStoreUserAccounts() {
+  return canManageWorkwearModule() || (typeof canManageAdminsByLevel === "function" && canManageAdminsByLevel());
+}
+
 function workwearSaveStoreUser() {
-  if (!canManageWorkwearModule()) return;
+  if (!canManageStoreUserAccounts()) return;
   const name = String(document.getElementById("workwearUserName")?.value || "").trim();
   const email = String(document.getElementById("workwearUserEmail")?.value || "").trim().toLowerCase();
   const password = String(document.getElementById("workwearUserPassword")?.value || "");
@@ -1203,7 +1383,7 @@ function workwearCancelStoreUserEdit() {
 }
 
 function workwearRequestPasswordReset(email) {
-  if (!canManageWorkwearModule()) return;
+  if (!canManageStoreUserAccounts()) return;
   const target = String(email || "").trim().toLowerCase();
   if (!target) return;
   const state = getWorkwearState();
@@ -1310,7 +1490,7 @@ function workwearSaveSizes() {
 
 function buildStoreExportPayload(options = {}) {
   const state = getWorkwearState();
-  const { siteScope = "all", site = "", orderScope = "pending-approved", untilDate = "", format = "excel" } = options;
+  const { siteScope = "all", site = "", orderScope = "pending-approved", untilDate = "", format = "csv" } = options;
   const targetSite = siteScope === "single" ? site : "all";
   const untilTs = untilDate ? new Date(untilDate).getTime() : Infinity;
   const rows = (state.orders || [])
@@ -1331,7 +1511,7 @@ function buildStoreExportPayload(options = {}) {
       quantity: Number(item.quantity) || 1,
       comment: order.workerComment || "",
       budgetImpact: item.lineCost || 0,
-      date: order.createdAt,
+      date: new Date(order.createdAt || Date.now()).toLocaleString(getCurrentLocale()),
     })));
 
   return {
@@ -1345,21 +1525,104 @@ function buildStoreExportPayload(options = {}) {
   };
 }
 
-function workwearExportData() {
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    site: currentSite,
-    workwear: getWorkwearState(),
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+function storeExportFileName(payload, extension) {
+  const dateKey = new Date().toISOString().slice(0, 10);
+  const siteKey = payload.siteScope === "single" ? sanitizeSiteId(payload.site || "site") : "all-sites";
+  const statusKey = payload.orderScope === "pending-approved" ? "pending-approved" : "all-statuses";
+  const untilKey = payload.untilDate ? payload.untilDate : "all-dates";
+  return `store-orders-${siteKey}-${statusKey}-${untilKey}-${dateKey}.${extension}`;
+}
+
+function escapeStoreCsv(value) {
+  const text = String(value ?? "");
+  if (text.includes(",") || text.includes("\"") || text.includes("\n")) {
+    return `"${text.replace(/"/g, "\"\"")}"`;
+  }
+  return text;
+}
+
+function downloadStoreCsv(payload) {
+  const headers = ["Worker", "Site", "Date", "Product", "Variant", "Size", "Quantity", "Status", "Comment", "Budget impact"];
+  const lines = [
+    headers.join(","),
+    ...payload.rows.map((row) => ([
+      row.worker,
+      row.site,
+      row.date,
+      row.product,
+      row.variant,
+      row.size,
+      row.quantity,
+      row.status,
+      row.comment,
+      row.budgetImpact,
+    ].map(escapeStoreCsv).join(","))),
+  ];
+  const csv = `\uFEFF${lines.join("\n")}`;
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `store-${sanitizeSiteId(currentSite)}-${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = storeExportFileName(payload, "csv");
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
   URL.revokeObjectURL(url);
+}
+
+function downloadStorePdf(payload) {
+  const jsPdfLib = window.jspdf?.jsPDF;
+  if (!jsPdfLib || typeof jsPdfLib !== "function") {
+    showToast("PDF export nije dostupan.", "error");
+    return;
+  }
+  const doc = new jsPdfLib({ orientation: "landscape", unit: "mm", format: "a4" });
+  doc.setFontSize(15);
+  doc.text("Store Orders Export", 14, 14);
+  doc.setFontSize(9);
+  doc.text(`Exported: ${new Date(payload.exportedAt || Date.now()).toLocaleString(getCurrentLocale())}`, 14, 20);
+  doc.text(`Site: ${payload.siteScope === "single" ? payload.site : "All sites"} | Status: ${payload.orderScope} | Until: ${payload.untilDate || "All dates"}`, 14, 25);
+  const tableRows = payload.rows.map((row) => [
+    row.worker,
+    row.site,
+    row.date,
+    row.product,
+    row.variant,
+    row.size,
+    String(row.quantity),
+    row.status,
+    row.comment,
+    workwearFormatCurrency(row.budgetImpact || 0),
+  ]);
+  doc.autoTable({
+    startY: 30,
+    head: [["Worker", "Site", "Date", "Product", "Variant", "Size", "Qty", "Status", "Comment", "Budget impact"]],
+    body: tableRows,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [46, 76, 161], textColor: [255, 255, 255] },
+    margin: { left: 10, right: 10 },
+  });
+  const totalBudget = payload.rows.reduce((sum, row) => sum + Number(row.budgetImpact || 0), 0);
+  const endY = doc.lastAutoTable?.finalY || 34;
+  doc.setFontSize(9);
+  doc.text(`Rows: ${payload.rows.length} | Budget impact total: ${workwearFormatCurrency(totalBudget)}`, 14, endY + 8);
+  doc.save(storeExportFileName(payload, "pdf"));
+}
+
+function workwearExportData() {
+  const exportPayload = buildStoreExportPayload({
+    siteScope: "single",
+    site: currentSite,
+    orderScope: "all",
+    untilDate: "",
+    format: "csv",
+  });
+  downloadStoreCsv(exportPayload);
+  pushWorkwearAudit("store_export_generated", {
+    entityType: "export",
+    metadata: { format: "csv", siteScope: "single", selectedSite: currentSite, orderScope: "all", rows: exportPayload.rows.length },
+  });
+  showToast("Store export generated.", "success");
 }
 
 function workwearRunExportWizard() {
@@ -1367,7 +1630,7 @@ function workwearRunExportWizard() {
   const selectedSite = String(document.getElementById("workwearExportSite")?.value || currentSite).trim();
   const orderScope = document.getElementById("workwearExportOrderScope")?.value === "all" ? "all" : "pending-approved";
   const untilDate = String(document.getElementById("workwearExportUntilDate")?.value || "").trim();
-  const format = document.getElementById("workwearExportFormat")?.value === "pdf" ? "pdf" : "excel";
+  const format = document.getElementById("workwearExportFormat")?.value === "pdf" ? "pdf" : "csv";
 
   const exportPayload = buildStoreExportPayload({
     siteScope,
@@ -1377,15 +1640,19 @@ function workwearRunExportWizard() {
     format,
   });
 
-  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `store-export-${format}-${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  if (format === "pdf") downloadStorePdf(exportPayload);
+  else downloadStoreCsv(exportPayload);
+  pushWorkwearAudit("store_export_generated", {
+    entityType: "export",
+    metadata: {
+      format,
+      siteScope,
+      selectedSite,
+      orderScope,
+      untilDate,
+      rows: exportPayload.rows.length,
+    },
+  });
   showToast("Store export generated.", "success");
 }
 function workwearOpenImport() {

@@ -175,6 +175,70 @@ function renderNewAdminSitesPanel() {
   });
 }
 
+function getGlobalFunctionOptions() {
+  if (typeof getStoreRoleOptions === "function") return getStoreRoleOptions();
+  return [
+    { key: "radnik", label: "Radnik" },
+    { key: "grupovodja", label: "Grupovođa" },
+    { key: "poslovodja", label: "Poslovođa" },
+    { key: "projektledare", label: "Projektledare" },
+    { key: "kontor", label: "Kontor" },
+    { key: "store_manager", label: "Store Manager" },
+    { key: "admin", label: "Admin" },
+    { key: "superadmin", label: "Superadmin" },
+  ];
+}
+
+function normalizeGlobalFunctionKeys(list) {
+  if (typeof normalizeStoreRoleList === "function") return normalizeStoreRoleList(list || []);
+  const keys = Array.isArray(list) ? list : [];
+  return Array.from(new Set(keys.map((key) => String(key || "").trim().toLowerCase()).filter(Boolean)));
+}
+
+function renderFunctionRoleEditor(containerTarget, prefix, selectedRoles = [], options = {}) {
+  const { disableAll = false } = options;
+  const container =
+    typeof containerTarget === "string"
+      ? document.getElementById(containerTarget)
+      : containerTarget;
+  if (!container) return;
+  container.innerHTML = "";
+  const selected = new Set(normalizeGlobalFunctionKeys(selectedRoles));
+  const grid = document.createElement("div");
+  grid.className = "permission-section-grid";
+  getGlobalFunctionOptions().forEach((role) => {
+    const label = document.createElement("label");
+    label.className = "perm-label";
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = `${prefix}${role.key}`;
+    cb.dataset.role = role.key;
+    cb.checked = selected.has(role.key);
+    cb.disabled = disableAll;
+    const span = document.createElement("span");
+    span.textContent = role.label;
+    label.appendChild(cb);
+    label.appendChild(span);
+    grid.appendChild(label);
+  });
+  container.appendChild(grid);
+}
+
+function readFunctionRoleEditor(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+  return normalizeGlobalFunctionKeys(
+    Array.from(container.querySelectorAll("input[type='checkbox'][data-role]:checked"))
+      .map((cb) => cb.dataset.role),
+  );
+}
+
+function renderNewAdminRolePanel() {
+  renderFunctionRoleEditor("newAdminRolePanel", "nr_", ["radnik"], {
+    disableAll: !canManageAdminsByLevel(),
+  });
+}
+
 function renderAdminLevelQuickPicks() {
   const levelSelect = document.getElementById("newAdminLevel");
   if (!levelSelect) return;
@@ -445,6 +509,7 @@ function openAdminPanel() {
     if (backupTab) backupTab.style.display = canViewBackupsAccess ? "" : "none";
 
     renderNewAdminLevelSelector();
+    renderNewAdminRolePanel();
     renderNewAdminPermissionsPanel();
     renderNewAdminSitesPanel();
     enhanceAdminComposerLayout();
@@ -569,6 +634,19 @@ function renderAdminList() {
     levelBadge.className = `admin-level-badge level-${level}`;
     levelBadge.textContent = `${t("adminLevelShort")} ${level}`;
     infoDiv.appendChild(levelBadge);
+    const functionRoles = normalizeGlobalFunctionKeys(admin.storeRoles || []);
+    if (functionRoles.length) {
+      const roleBadgeWrap = document.createElement("div");
+      roleBadgeWrap.className = "admin-role-badge-wrap";
+      functionRoles.forEach((roleKey) => {
+        const roleLabel = typeof getStoreRoleLabel === "function" ? getStoreRoleLabel(roleKey) : roleKey;
+        const badge = document.createElement("span");
+        badge.className = "admin-function-badge";
+        badge.textContent = roleLabel;
+        roleBadgeWrap.appendChild(badge);
+      });
+      infoDiv.appendChild(roleBadgeWrap);
+    }
     header.appendChild(infoDiv);
 
     const btnGroup = document.createElement("div");
@@ -692,6 +770,20 @@ function renderAdminList() {
       });
       permsDiv.appendChild(sitesSection);
 
+      const rolesSection = document.createElement("div");
+      rolesSection.className = "permission-section";
+      const rolesHeader = document.createElement("div");
+      rolesHeader.className = "permission-section-header";
+      rolesHeader.innerHTML = `<div class="permission-section-title">Funkcija</div><div class="permission-section-note">Globalna funkcija korisnika u SCM-u.</div>`;
+      rolesSection.appendChild(rolesHeader);
+      const rolesContainer = document.createElement("div");
+      rolesContainer.id = `roles_${idx}`;
+      rolesSection.appendChild(rolesContainer);
+      renderFunctionRoleEditor(rolesContainer, `role_${idx}_`, admin.storeRoles || [], {
+        disableAll: !canEditThisAdmin,
+      });
+      permsDiv.appendChild(rolesSection);
+
       if (canEditThisAdmin) {
         const saveBtn = document.createElement("button");
         saveBtn.className = "btn btn-small btn-success";
@@ -799,6 +891,7 @@ function saveAdminPerms(email, idx) {
     const allSitesSelected = filteredSites.length === (sites || []).length;
     admins[adminIndex].allowedSites = allSitesSelected ? null : filteredSites;
   }
+  admins[adminIndex].storeRoles = readFunctionRoleEditor(`roles_${idx}`);
   localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
   clearPendingAdminLevel(email);
   clearPendingAdminPerms(email);
@@ -813,6 +906,7 @@ function saveAdminPerms(email, idx) {
     applyPermissionVisibility();
   }
   syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
+  addLog("Admin account updated", { email, level: nextLevel, storeRoles: admins[adminIndex].storeRoles || [] });
   renderAdminList();
   populateSiteSelect();
   updateNotificationsBadge();
@@ -845,6 +939,11 @@ function addNewAdmin() {
   const requestedLevel = getSelectedNewAdminLevel();
   const maxLevel = getMaxGrantableLevel();
   const level = getCurrentAdminLevel() >= 6 ? requestedLevel : Math.min(requestedLevel, maxLevel);
+  const functionRoles = readFunctionRoleEditor("newAdminRolePanel");
+  if (!functionRoles.length) {
+    showToast("Odaberite barem jednu funkciju.", "error");
+    return;
+  }
   const perms = readPermissionEditor(
     "np_",
     getAllAdminPermissionKeys(),
@@ -871,6 +970,7 @@ function addNewAdmin() {
     isSuperAdmin: false,
     level,
     permissions: normalizePermissions(guardedPerms),
+    storeRoles: functionRoles,
     allowedSites:
       canManageSiteAccess() && Array.isArray(filteredSites)
         ? filteredSites.length === (sites || []).length
@@ -881,11 +981,13 @@ function addNewAdmin() {
   localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
   syncServerState({ includeAdmins: true, adminEditTargetEmail: email }).catch(() => {});
   trackEditActivity();
+  addLog("Admin account created", { email, level, storeRoles: functionRoles });
   document.getElementById("newAdminFirstName").value = "";
   document.getElementById("newAdminLastName").value = "";
   document.getElementById("newAdminEmail").value = "";
   document.getElementById("newAdminPassword").value = "";
   renderNewAdminLevelSelector();
+  renderNewAdminRolePanel();
   renderNewAdminPermissionsPanel();
   renderAdminList();
   showToast(t("successAdminAdded"), "success");

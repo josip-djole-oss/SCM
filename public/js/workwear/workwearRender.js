@@ -269,9 +269,8 @@ function renderWorkwearHeaderControls() {
   }
   if (cartBtn) {
     cartBtn.style.display = currentView === "workwear" ? "inline-flex" : "none";
-    if (cartBadge) {
-      cartBtn.firstChild.nodeValue = `${t("cart") || "Cart"} `;
-    }
+    const cartLabel = cartBtn.querySelector(".store-cart-label");
+    if (cartLabel) cartLabel.textContent = t("cart") || "Cart";
   }
   const drawerTitle = document.querySelector(".store-cart-drawer-head h3");
   if (drawerTitle) drawerTitle.textContent = t("cart") || "Cart";
@@ -438,8 +437,12 @@ function renderWorkwearAdminPanel() {
     .sort((a, b) => compareNaturally(a.name, b.name));
   const wizard = getWorkwearWizardState();
   const selectedIds = workwearGetSelectedBulkProductIds();
-  const categories = getWorkwearCategories();
-  const subcategories = getStoreSubcategoryOptions(wizard.category);
+  const categories = getStoreCategoryOptions(true);
+  if (wizard.category && !categories.includes(wizard.category)) categories.push(wizard.category);
+  categories.sort((a, b) => compareNaturally(a, b));
+  const subcategories = getStoreSubcategoryOptions(wizard.category, true);
+  if (wizard.subcategory && !subcategories.includes(wizard.subcategory)) subcategories.push(wizard.subcategory);
+  subcategories.sort((a, b) => compareNaturally(a, b));
   const storeRoles = getWorkwearStoreRoles();
   const allSites = getWorkwearManagerSites();
   const reviewSites = wizard.allSites ? "Sva gradilista (ukljucuje buduca)" : (wizard.availableSites.length ? wizard.availableSites.join(", ") : "Nije odabrano");
@@ -503,10 +506,18 @@ function renderWorkwearAdminPanel() {
               <select id="workwearProductCategory" class="store-input" data-cmax-action="workwear.updateWizardCategory" data-cmax-event="change" data-cmax-pass-element>
                 ${categories.map((category) => `<option value="${escapeHtml(category)}" ${wizard.category === category ? "selected" : ""}>${escapeHtml(category)}</option>`).join("")}
               </select>
+              <div class="workwear-order-actions">
+                <input id="workwearWizardQuickCategory" class="store-input" placeholder="+ Dodaj kategoriju" />
+                <button class="btn btn-small" data-cmax-action="workwear.quickAddWizardCategory">Dodaj kategoriju</button>
+              </div>
               <select id="workwearProductSubcategory" class="store-input">
                 <option value="">Podkategorija</option>
                 ${subcategories.map((subcategory) => `<option value="${escapeHtml(subcategory)}" ${wizard.subcategory === subcategory ? "selected" : ""}>${escapeHtml(subcategory)}</option>`).join("")}
               </select>
+              <div class="workwear-order-actions">
+                <input id="workwearWizardQuickSubcategory" class="store-input" placeholder="+ Dodaj podkategoriju" />
+                <button class="btn btn-small" data-cmax-action="workwear.quickAddWizardSubcategory">Dodaj podkategoriju</button>
+              </div>
               <label class="workwear-check-row"><input type="checkbox" id="workwearProductActive" ${wizard.active ? "checked" : ""} /> Active</label>
               <label class="workwear-check-row"><input type="checkbox" id="workwearProductNew" ${wizard.isNew ? "checked" : ""} /> New badge</label>
             </div>
@@ -772,6 +783,61 @@ function renderWorkwearBulkEditPanel() {
   `;
 }
 
+function renderWorkwearCategoriesPanel() {
+  const panel = document.getElementById("workwearCategoriesPanel");
+  if (!panel) return;
+  if (!canManageWorkwearModule() || !workwearManagerEditorOpen) {
+    panel.innerHTML = "";
+    return;
+  }
+  const catalog = getStoreCategoryCatalogState();
+  const categories = getStoreCategoryOptions(true);
+  panel.innerHTML = `
+    <div class="workwear-admin-card">
+      <h3>Kategorije i podkategorije</h3>
+      <div class="workwear-admin-grid">
+        <input id="workwearNewCategoryName" class="store-input" placeholder="+ Dodaj kategoriju" />
+        <button class="btn" data-cmax-action="workwear.addCategory">Dodaj kategoriju</button>
+      </div>
+      <div class="store-orders-list">
+        ${categories.map((category) => {
+          const entry = catalog[category] || { active: true, subcategories: {} };
+          const subcategories = Object.keys(entry.subcategories || {}).sort((a, b) => compareNaturally(a, b));
+          return `
+            <div class="workwear-cart-item">
+              <div>
+                <strong>${escapeHtml(category)}</strong>
+                <div class="workwear-product-meta">${entry.active === false ? "Arhivirana" : "Aktivna"}</div>
+                <div class="workwear-admin-grid" style="margin-top:8px;">
+                  <input id="workwearRenameCategory_${sanitizeSiteId(category)}" class="store-input" value="${escapeHtml(category)}" />
+                  <button class="btn btn-small" data-cmax-action="workwear.renameCategory" data-cmax-args='${escapeHtml(JSON.stringify([category]))}'>Preimenuj</button>
+                  <button class="btn btn-small btn-danger" data-cmax-action="workwear.archiveCategory" data-cmax-args='${escapeHtml(JSON.stringify([category]))}'>Obrisi/Arhiviraj</button>
+                </div>
+                <div class="workwear-admin-grid" style="margin-top:8px;">
+                  <input id="workwearAddSubcategory_${sanitizeSiteId(category)}" class="store-input" placeholder="+ Dodaj podkategoriju" />
+                  <button class="btn btn-small" data-cmax-action="workwear.addSubcategory" data-cmax-args='${escapeHtml(JSON.stringify([category]))}'>Dodaj podkategoriju</button>
+                </div>
+                <div class="workwear-chip-grid" style="margin-top:8px;">
+                  ${subcategories.map((subcategory) => {
+                    const subEntry = entry.subcategories[subcategory] || { active: true };
+                    return `
+                      <span class="workwear-chip ${subEntry.active === false ? "is-muted" : ""}">
+                        ${escapeHtml(subcategory)}
+                        <button class="workwear-mini-link" data-cmax-action="workwear.renameSubcategory" data-cmax-args='${escapeHtml(JSON.stringify([category, subcategory]))}'>Preimenuj</button>
+                        <button class="workwear-mini-link" data-cmax-action="workwear.archiveSubcategory" data-cmax-args='${escapeHtml(JSON.stringify([category, subcategory]))}'>Obrisi/Arhiviraj</button>
+                      </span>
+                    `;
+                  }).join("") || `<span class="workwear-product-meta">Nema podkategorija</span>`}
+                </div>
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
 function renderWorkwearManagerOrders() {
   const list = document.getElementById("workwearManagerOrdersList");
   if (!list || !canManageWorkwearModule()) return;
@@ -885,15 +951,39 @@ function renderWorkwearRulesPanel() {
     <div class="workwear-admin-card">
       <h3>Pravila</h3>
       <div class="workwear-admin-grid">
-        <select id="workwearSettingsBudgetMode" class="store-input">
-          <option value="global" ${settings.budgetMode === "global" ? "selected" : ""}>Budget mode: Global</option>
-          <option value="perCategory" ${settings.budgetMode === "perCategory" ? "selected" : ""}>Budget mode: Po kategoriji</option>
-        </select>
-        <label class="workwear-check-row"><input type="checkbox" id="workwearSettingsBudgetEnabled" ${settings.budgetEnabled !== false ? "checked" : ""} /> Budget enabled</label>
-        <label class="workwear-check-row"><input type="checkbox" id="workwearSettingsFreeEnabled" ${settings.freeRulesEnabled === true ? "checked" : ""} /> Free rule defaults</label>
-        <label class="workwear-check-row"><input type="checkbox" id="workwearSettingsReserveOnPending" ${settings.reserveOnPending === true ? "checked" : ""} /> Reserve on pending</label>
-        <input id="workwearSettingsRenewalAmount" class="store-input" type="number" min="0" placeholder="Renewal amount" value="${escapeHtml(String(settings.creditRenewalAmount || 2500))}" />
-        <input id="workwearSettingsRenewalMonths" class="store-input" type="number" min="1" placeholder="Renewal months" value="${escapeHtml(String(settings.creditRenewalPeriodMonths || 6))}" />
+        <div class="workwear-setting-card">
+          <strong>Koristi budzet sistem</strong>
+          <small>Ako je ukljuceno, narudzbe mogu skidati iznos iz korisnikovog Store budzeta.</small>
+          <label class="workwear-check-row"><input type="checkbox" id="workwearSettingsBudgetEnabled" ${settings.budgetEnabled !== false ? "checked" : ""} /> Ukljuceno</label>
+        </div>
+        <div class="workwear-setting-card">
+          <strong>Budget mode</strong>
+          <small>Global = jedan budzet, Po kategoriji = odvojena kontrola po kategorijama.</small>
+          <select id="workwearSettingsBudgetMode" class="store-input">
+            <option value="global" ${settings.budgetMode === "global" ? "selected" : ""}>Global</option>
+            <option value="perCategory" ${settings.budgetMode === "perCategory" ? "selected" : ""}>Po kategoriji</option>
+          </select>
+        </div>
+        <div class="workwear-setting-card">
+          <strong>Prva narudzba gratis (default)</strong>
+          <small>Ako je ukljuceno, korisnik moze imati jednu besplatnu narudzbu unutar odabranog perioda zavisno od pravila artikla.</small>
+          <label class="workwear-check-row"><input type="checkbox" id="workwearSettingsFreeEnabled" ${settings.freeRulesEnabled === true ? "checked" : ""} /> Ukljuceno</label>
+        </div>
+        <div class="workwear-setting-card">
+          <strong>Trazi odobrenje (rezervacija na pending)</strong>
+          <small>Ako je ukljuceno, budzet se rezervira odmah na Pending statusu narudzbe.</small>
+          <label class="workwear-check-row"><input type="checkbox" id="workwearSettingsReserveOnPending" ${settings.reserveOnPending === true ? "checked" : ""} /> Reserve on pending</label>
+        </div>
+        <div class="workwear-setting-card">
+          <strong>Renewal amount</strong>
+          <small>Koliko budzeta se automatski dodaje korisniku pri obnovi. Primjer: 2500 SEK.</small>
+          <input id="workwearSettingsRenewalAmount" class="store-input" type="number" min="0" placeholder="Renewal amount (SEK)" value="${escapeHtml(String(settings.creditRenewalAmount || 2500))}" />
+        </div>
+        <div class="workwear-setting-card">
+          <strong>Renewal months</strong>
+          <small>Nakon koliko mjeseci se obnavlja budzet. Primjer: svakih 6 mjeseci.</small>
+          <input id="workwearSettingsRenewalMonths" class="store-input" type="number" min="1" placeholder="Renewal months" value="${escapeHtml(String(settings.creditRenewalPeriodMonths || 6))}" />
+        </div>
       </div>
       <div class="workwear-cart-actions">
         <button class="btn" data-cmax-action="workwear.saveGlobalRules">Spremi pravila</button>
@@ -904,7 +994,8 @@ function renderWorkwearRulesPanel() {
 
 function renderWorkwearUsersPanel() {
   const panel = document.getElementById("workwearUsersPanel");
-  if (!panel || !canManageWorkwearModule()) return;
+  const canManageAccounts = canManageWorkwearModule() || (typeof canManageAdminsByLevel === "function" && canManageAdminsByLevel());
+  if (!panel || !canManageAccounts) return;
   const users = listStoreUsers();
   const state = getWorkwearState();
   const requests = (state.passwordResetRequests || []).slice().sort((a, b) => new Date(b.requestedAt || 0).getTime() - new Date(a.requestedAt || 0).getTime());
@@ -1005,8 +1096,8 @@ function renderWorkwearExportPanel() {
         </select>
         <input id="workwearExportUntilDate" class="store-input" type="date" />
         <select id="workwearExportFormat" class="store-input">
-          <option value="excel">Excel (JSON export)</option>
-          <option value="pdf">PDF (JSON export)</option>
+          <option value="csv">Excel/CSV</option>
+          <option value="pdf">PDF</option>
         </select>
       </div>
       <div class="workwear-cart-actions">
@@ -1028,7 +1119,7 @@ function renderWorkwearManagerTabs() {
   const visible = canManageWorkwearModule() && workwearManagerEditorOpen;
   manager.style.display = visible ? "block" : "none";
   if (!visible) return;
-  ["products", "orders", "budgets", "rules", "users", "export", "audit"].forEach((tab) => {
+  ["products", "categories", "orders", "budgets", "rules", "export", "audit"].forEach((tab) => {
     const el = document.getElementById(`workwearManagerTab${tab.charAt(0).toUpperCase()}${tab.slice(1)}`);
     if (el) el.classList.toggle("is-active", workwearManagerTab === tab);
   });
@@ -1063,10 +1154,11 @@ function renderWorkwearModule() {
   renderWorkwearManagerTabs();
   renderWorkwearBulkEditPanel();
   renderWorkwearAdminPanel();
+  renderWorkwearCategoriesPanel();
   renderWorkwearManagerOrders();
   renderWorkwearBudgetPanel();
   renderWorkwearRulesPanel();
-  renderWorkwearUsersPanel();
+  if (currentView === "admin" || currentView === "workwear") renderWorkwearUsersPanel();
   renderWorkwearExportPanel();
   renderWorkwearDashboard();
   renderWorkwearAuditLog();

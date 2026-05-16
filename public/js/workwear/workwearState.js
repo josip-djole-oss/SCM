@@ -7,6 +7,7 @@ var STORE_CATEGORIES = {
   Alati: ["Skalpel", "Metar", "Marker", "Baterije", "Sitni alat"],
   Ostalo: ["Torbe", "Dodaci", "Ostalo"],
 };
+var STORE_CATEGORY_CATALOG_VERSION = 1;
 var STORE_ROLE_OPTIONS = [
   { key: "radnik", label: "Radnik", aliases: ["worker"] },
   { key: "grupovodja", label: "Grupovodja", aliases: ["foreman"] },
@@ -127,6 +128,8 @@ function createDefaultWorkwearState() {
         mode: "none",
         periodDays: 180,
       },
+      categoryCatalog: {},
+      categoryCatalogVersion: STORE_CATEGORY_CATALOG_VERSION,
     },
     products: [],
     orders: [],
@@ -168,6 +171,8 @@ function normalizeWorkwearState(raw) {
       ...(raw?.settings?.freeRules || {}),
     },
   };
+  next.settings.categoryCatalog = normalizeStoreCategoryCatalog(next.settings.categoryCatalog);
+  next.settings.categoryCatalogVersion = STORE_CATEGORY_CATALOG_VERSION;
   next.products = Array.isArray(raw?.products) ? raw.products : [];
   next.orders = Array.isArray(raw?.orders) ? raw.orders : [];
   next.carts = raw?.carts && typeof raw.carts === "object" ? raw.carts : {};
@@ -185,6 +190,61 @@ function normalizeWorkwearState(raw) {
     updatedAt: new Date().toISOString(),
   };
   next.products = next.products.map((product) => normalizeStoreProduct(product));
+  return next;
+}
+
+function buildDefaultStoreCategoryCatalog() {
+  const catalog = {};
+  Object.keys(STORE_CATEGORIES).forEach((category) => {
+    catalog[category] = {
+      active: true,
+      subcategories: (STORE_CATEGORIES[category] || []).reduce((acc, subcategory) => {
+        acc[subcategory] = { active: true };
+        return acc;
+      }, {}),
+    };
+  });
+  return catalog;
+}
+
+function normalizeStoreCategoryCatalog(rawCatalog) {
+  const base = buildDefaultStoreCategoryCatalog();
+  const incoming = rawCatalog && typeof rawCatalog === "object" ? rawCatalog : {};
+  const next = { ...base };
+  Object.keys(incoming).forEach((category) => {
+    const entry = incoming[category];
+    if (!entry || typeof entry !== "object") return;
+    const key = String(category || "").trim();
+    if (!key) return;
+    const existing = next[key] || { active: true, subcategories: {} };
+    const incomingSub = entry.subcategories && typeof entry.subcategories === "object" ? entry.subcategories : {};
+    const mergedSub = { ...(existing.subcategories || {}) };
+    Object.keys(incomingSub).forEach((sub) => {
+      const subKey = String(sub || "").trim();
+      if (!subKey) return;
+      const subEntry = incomingSub[sub];
+      if (subEntry && typeof subEntry === "object") {
+        mergedSub[subKey] = { active: subEntry.active !== false };
+      } else if (subEntry === false) {
+        mergedSub[subKey] = { active: false };
+      } else {
+        mergedSub[subKey] = { active: true };
+      }
+    });
+    next[key] = {
+      active: entry.active !== false,
+      subcategories: mergedSub,
+    };
+  });
+  return next;
+}
+
+function getStoreCategoryCatalogState() {
+  const state = getWorkwearState();
+  const next = normalizeStoreCategoryCatalog(state.settings?.categoryCatalog || {});
+  state.settings = state.settings || {};
+  state.settings.categoryCatalog = next;
+  state.settings.categoryCatalogVersion = STORE_CATEGORY_CATALOG_VERSION;
   return next;
 }
 
@@ -407,12 +467,64 @@ function getWorkwearProductById(productId) {
   return getWorkwearState().products.find((product) => product.id === productId) || null;
 }
 
-function getStoreCategoryOptions() {
-  return Object.keys(STORE_CATEGORIES);
+function getStoreCategoryOptions(includeInactive = false) {
+  const catalog = getStoreCategoryCatalogState();
+  return Object.keys(catalog)
+    .filter((category) => (includeInactive ? true : catalog[category].active !== false))
+    .sort((a, b) => compareNaturally(a, b));
 }
 
-function getStoreSubcategoryOptions(category) {
-  return STORE_CATEGORIES[category] || [];
+function getStoreSubcategoryOptions(category, includeInactive = false) {
+  const key = String(category || "").trim();
+  if (!key) return [];
+  const catalog = getStoreCategoryCatalogState();
+  const entry = catalog[key];
+  if (!entry || !entry.subcategories || typeof entry.subcategories !== "object") return [];
+  return Object.keys(entry.subcategories)
+    .filter((subcategory) => (includeInactive ? true : entry.subcategories[subcategory].active !== false))
+    .sort((a, b) => compareNaturally(a, b));
+}
+
+function ensureStoreCategory(categoryName) {
+  const key = String(categoryName || "").trim();
+  if (!key) return "";
+  const catalog = getStoreCategoryCatalogState();
+  if (!catalog[key]) {
+    catalog[key] = { active: true, subcategories: {} };
+  } else {
+    catalog[key].active = true;
+    catalog[key].subcategories = catalog[key].subcategories && typeof catalog[key].subcategories === "object"
+      ? catalog[key].subcategories
+      : {};
+  }
+  return key;
+}
+
+function ensureStoreSubcategory(categoryName, subcategoryName) {
+  const categoryKey = ensureStoreCategory(categoryName);
+  const subKey = String(subcategoryName || "").trim();
+  if (!categoryKey || !subKey) return "";
+  const catalog = getStoreCategoryCatalogState();
+  catalog[categoryKey].subcategories[subKey] = { active: true };
+  return subKey;
+}
+
+function isStoreCategoryInUse(categoryName) {
+  const key = String(categoryName || "").trim();
+  if (!key) return false;
+  const state = getWorkwearState();
+  return (state.products || []).some((product) => String(product.category || "").trim() === key);
+}
+
+function isStoreSubcategoryInUse(categoryName, subcategoryName) {
+  const categoryKey = String(categoryName || "").trim();
+  const subKey = String(subcategoryName || "").trim();
+  if (!categoryKey || !subKey) return false;
+  const state = getWorkwearState();
+  return (state.products || []).some((product) => (
+    String(product.category || "").trim() === categoryKey &&
+    String(product.subcategory || "").trim() === subKey
+  ));
 }
 
 function getCurrentStoreRoleKeys() {
