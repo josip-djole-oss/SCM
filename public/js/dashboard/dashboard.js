@@ -409,6 +409,7 @@ function toggleSidebarOverlay(forceOpen) {
     ? forceOpen
     : !mainContainer.classList.contains("sidebar-overlay-open");
   mainContainer.classList.toggle("sidebar-overlay-open", shouldOpen);
+  document.body.classList.toggle("sidebar-overlay-open", shouldOpen);
 }
 
 function initializeAppShell() {
@@ -416,11 +417,22 @@ function initializeAppShell() {
   setSidebarCollapsed(stored);
   syncSidebarAccessState();
   updateShellNavigationState();
+  const sidebarBackdrop = document.getElementById("appSidebarBackdrop");
+  if (sidebarBackdrop && !sidebarBackdrop.dataset.cmaxBound) {
+    sidebarBackdrop.dataset.cmaxBound = "true";
+    sidebarBackdrop.addEventListener("click", closeSidebarOnMobile);
+  }
   document.querySelectorAll(".app-nav-item").forEach((item) => {
     if (item.dataset.shellNavBound) return;
     item.dataset.shellNavBound = "true";
     item.addEventListener("click", closeSidebarOnMobile);
   });
+  if (!document.body.dataset.cmaxSidebarEscBound) {
+    document.body.dataset.cmaxSidebarEscBound = "true";
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeSidebarOnMobile();
+    });
+  }
 }
 
 function notifyDashboardViewChanged() {

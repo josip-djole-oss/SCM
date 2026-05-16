@@ -4987,6 +4987,44 @@ textarea:focus {
 .container.sidebar-collapsed .app-nav-badge { display: none; }
 .container.sidebar-collapsed .sidebar-brand { justify-content: center; }
 .container.sidebar-collapsed .app-nav-item { justify-content: center; padding-inline: 0; }
+.app-sidebar-backdrop,
+.app-shell-menu-btn { display: none; }
+.app-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  border: 0;
+  padding: 0;
+  background: rgba(8, 15, 28, 0.56);
+}
+.app-shell-menu-btn {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+}
+.app-shell-menu-icon,
+.app-shell-menu-icon::before,
+.app-shell-menu-icon::after {
+  display: block;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+.app-shell-menu-icon {
+  position: relative;
+}
+.app-shell-menu-icon::before,
+.app-shell-menu-icon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+}
+.app-shell-menu-icon::before { top: -6px; }
+.app-shell-menu-icon::after { top: 6px; }
 
 @media (max-width: 1340px) {
   #planner-section,
@@ -5009,6 +5047,8 @@ textarea:focus {
 @media (max-width: 1100px) {
   body { padding: 10px; }
   .app-shell { grid-template-columns: 1fr; }
+  body.sidebar-overlay-open { overflow: hidden; }
+  .app-shell-menu-btn { display: inline-flex; }
   .app-sidebar {
     position: fixed;
     inset: 12px auto 12px 12px;
@@ -5020,6 +5060,7 @@ textarea:focus {
     box-shadow: 0 30px 80px rgba(15,23,42,0.28);
   }
   .container.sidebar-overlay-open .app-sidebar { transform: translateX(0); }
+  .container.sidebar-overlay-open .app-sidebar-backdrop { display: block; }
   .container.sidebar-collapsed .app-shell { grid-template-columns: 1fr; }
   .header { padding: 14px 16px; }
   .app-content { padding: 18px; }
