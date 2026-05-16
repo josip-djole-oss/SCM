@@ -683,11 +683,29 @@ function handleLogin() {
   const email = document.getElementById("loginEmail").value.trim();
   const password = document.getElementById("loginPassword").value;
   if (!email || !password) {
-    showToast(t("errEmailPassword"), "error");
+    showLoginError(t("errEmailPassword"));
     return;
   }
 
-  showLoading("loadingLogin");
+  // Clear previous error
+  clearLoginError();
+
+  // Disable inputs and show spinner
+  const loginEmail = document.getElementById("loginEmail");
+  const loginPassword = document.getElementById("loginPassword");
+  const loginBtn = document.getElementById("loginBtnEl");
+  const guestBtn = document.getElementById("guestBtnEl");
+
+  loginEmail.disabled = true;
+  loginPassword.disabled = true;
+  loginBtn.disabled = true;
+  guestBtn.disabled = true;
+
+  const btnText = loginBtn.querySelector(".login-btn-text");
+  const btnSpinner = loginBtn.querySelector(".login-btn-spinner");
+  if (btnText) btnText.style.display = "none";
+  if (btnSpinner) btnSpinner.style.display = "inline-block";
+
   fetch("/api/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -737,20 +755,43 @@ function handleLogin() {
     })
     .then(() => {
       renderAll();
-      hideLoading();
     })
     .catch((error) => {
+      // Re-enable inputs on error
+      loginEmail.disabled = false;
+      loginPassword.disabled = false;
+      loginBtn.disabled = false;
+      guestBtn.disabled = false;
+
+      if (btnText) btnText.style.display = "inline";
+      if (btnSpinner) btnSpinner.style.display = "none";
+
       const message = error?.message && error.message !== "LOGIN_FAILED"
         ? error.message
         : t("errWrongCredentials");
       console.warn("Login failed:", message);
-      showToast(message, "error");
-      hideLoading();
+      showLoginError(message);
     });
 }
 
 function enterReadonlyMode() {
-  showLoading("loadingLogin");
+  const loginEmail = document.getElementById("loginEmail");
+  const loginPassword = document.getElementById("loginPassword");
+  const loginBtn = document.getElementById("loginBtnEl");
+  const guestBtn = document.getElementById("guestBtnEl");
+
+  loginEmail.disabled = true;
+  loginPassword.disabled = true;
+  loginBtn.disabled = true;
+  guestBtn.disabled = true;
+
+  const guestBtnText = guestBtn.querySelector(".login-guest-btn-text");
+  const guestBtnSpinner = guestBtn.querySelector(".login-guest-btn-spinner");
+  if (guestBtnText) guestBtnText.style.display = "none";
+  if (guestBtnSpinner) guestBtnSpinner.style.display = "inline-block";
+
+  clearLoginError();
+
   fetch("/api/login/guest", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -783,11 +824,18 @@ function enterReadonlyMode() {
     })
     .then(() => {
       renderAll();
-      hideLoading();
     })
     .catch(() => {
-      showToast("Read-only prijava nije uspjela.", "error");
-      hideLoading();
+      // Re-enable inputs on error
+      loginEmail.disabled = false;
+      loginPassword.disabled = false;
+      loginBtn.disabled = false;
+      guestBtn.disabled = false;
+
+      if (guestBtnText) guestBtnText.style.display = "inline";
+      if (guestBtnSpinner) guestBtnSpinner.style.display = "none";
+
+      showLoginError(t("errReadonlyFailed") || "Read-only prijava nije uspjela.");
     });
 }
 
@@ -797,6 +845,7 @@ function switchToLogin() {
   document.getElementById("mainContainer").style.display = "none";
   document.getElementById("loginEmail").value = "";
   document.getElementById("loginPassword").value = "";
+  clearLoginError();
   updateLangButtons();
 }
 
@@ -815,6 +864,22 @@ function logout() {
     appState.guestPermissions = getGuestPermissions();
     showLogin();
   });
+}
+
+function showLoginError(message) {
+  const errorContainer = document.getElementById("loginErrorContainer");
+  const errorMessage = document.getElementById("loginErrorMessage");
+  if (errorContainer && errorMessage) {
+    errorMessage.textContent = message || t("errWrongCredentials");
+    errorContainer.style.display = "block";
+  }
+}
+
+function clearLoginError() {
+  const errorContainer = document.getElementById("loginErrorContainer");
+  if (errorContainer) {
+    errorContainer.style.display = "none";
+  }
 }
 
 /* ==================== EVENT LISTENERS ==================== */

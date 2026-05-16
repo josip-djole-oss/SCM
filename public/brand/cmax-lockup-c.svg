@@ -12,7 +12,15 @@
   </defs>
   <rect width="360" height="96" rx="28" fill="url(#wordBg)"/>
   <rect x="18" y="18" width="60" height="60" rx="18" fill="rgba(255,255,255,0.08)"/>
-  <path transform="translate(18 18) scale(0.5)" d="M96 38 A50 50 0 0 0 36 64 A50 50 0 0 0 96 90 L96 80 A38 38 0 0 1 52 64 A38 38 0 0 1 96 48 L96 38Z" fill="url(#wordAccent)"/>
-  <path transform="translate(18 18) scale(0.5)" d="M90 48 A42 42 0 0 0 48 64 A42 42 0 0 0 90 80" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path transform="translate(18 18) scale(0.5)" d="M96 38
+       A50 50 0 0 0 36 64
+       A50 50 0 0 0 96 90
+       L96 80
+       A38 38 0 0 1 52 64
+       A38 38 0 0 1 96 48
+       L96 38Z" fill="url(#wordAccent)"/>
+  <path transform="translate(18 18) scale(0.5)" d="M90 48
+       A42 42 0 0 0 48 64
+       A42 42 0 0 0 90 80" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
   <text x="108" y="62" fill="white" font-family="Inter, Helvetica, Arial, sans-serif" font-size="36" font-weight="800" letter-spacing="0.08em">CMAX AB</text>
 </svg>

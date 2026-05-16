@@ -29,78 +29,122 @@
 
     <!-- ==================== LOGIN OVERLAY ==================== -->
     <div id="loginOverlay" class="login-overlay" style="display: none">
-      <div class="login-top-bar" id="loginTopBar">
-        <div class="lang-selector" id="loginLangSelector">
-          <button
-            class="lang-btn"
-            data-cmax-action="utils.setLanguage"
-            data-cmax-args='["hr"]'
-          >
-            HR
-          </button>
-          <button
-            class="lang-btn"
-            data-cmax-action="utils.setLanguage"
-            data-cmax-args='["en"]'
-          >
-            EN
-          </button>
-          <button
-            class="lang-btn"
-            data-cmax-action="utils.setLanguage"
-            data-cmax-args='["sv"]'
-          >
-            SV
-          </button>
+      <!-- Left Branding Panel -->
+      <div class="login-branding-panel">
+        <div class="login-branding-content">
+          <div class="login-brand-logo">
+            <svg width="96" height="96" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="loginBg" x1="18" y1="14" x2="112" y2="114" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#6D79FF"/>
+                  <stop offset="1" stop-color="#39A0FF"/>
+                </linearGradient>
+                <linearGradient id="loginAccent" x1="28" y1="30" x2="98" y2="98" gradientUnits="userSpaceOnUse">
+                  <stop stop-color="#FFFFFF" stop-opacity="0.95"/>
+                  <stop offset="1" stop-color="#F8FAFF"/>
+                </linearGradient>
+              </defs>
+              <rect x="6" y="6" width="116" height="116" rx="28" fill="url(#loginBg)"/>
+              <path d="M96 38 A50 50 0 0 0 36 64 A50 50 0 0 0 96 90 L96 80 A38 38 0 0 1 52 64 A38 38 0 0 1 96 48 L96 38Z" fill="url(#loginAccent)"/>
+              <path d="M90 48 A42 42 0 0 0 48 64 A42 42 0 0 0 90 80" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h1 class="login-brand-title">CMAX SCM</h1>
+          <p class="login-brand-subtitle" id="loginBrandSubtitle">Construction Management System</p>
+          <div class="login-env-badge" id="loginEnvBadge" style="display: none">
+            <span id="loginEnvBadgeText">Local</span>
+          </div>
         </div>
       </div>
 
-      <div class="login-box">
-        <div class="login-logo">
-          <img
-            src="cmaxlogo.png"
-            id="loginLogoImg"
-            data-cmax-image-fallback="loginLogoFallback"
-            data-cmax-image-fallback-display="block"
-            alt="CMAX Logo"
-          />
-          <span id="loginLogoFallback" style="display: none">CM</span>
+      <!-- Right Login Card -->
+      <div class="login-card-wrapper">
+        <div class="login-card-top-bar">
+          <div class="login-card-lang-selector" id="loginLangSelector">
+            <button
+              class="login-lang-btn"
+              data-cmax-action="utils.setLanguage"
+              data-cmax-args='["hr"]'
+              title="Hrvatski"
+            >
+              HR
+            </button>
+            <button
+              class="login-lang-btn"
+              data-cmax-action="utils.setLanguage"
+              data-cmax-args='["en"]'
+              title="English"
+            >
+              EN
+            </button>
+            <button
+              class="login-lang-btn"
+              data-cmax-action="utils.setLanguage"
+              data-cmax-args='["sv"]'
+              title="Svenska"
+            >
+              SV
+            </button>
+          </div>
         </div>
 
-        <h2 id="loginTitle">CMAX SCM</h2>
+        <div class="login-box">
+          <div class="login-card-header">
+            <h2 id="loginTitle">Prijava</h2>
+            <p id="loginSubtitle">Unesite vaše kredencijale</p>
+          </div>
 
-        <div class="form-group">
-          <label id="labelEmail" for="loginEmail">Email adresa:</label>
-          <input
-            type="email"
-            id="loginEmail"
-            placeholder="ime@primjer.com"
-            autocomplete="email"
-          />
+          <!-- Error Message -->
+          <div class="login-error-container" id="loginErrorContainer" style="display: none">
+            <div class="login-error-message" id="loginErrorMessage"></div>
+          </div>
+
+          <div class="form-group">
+            <label id="labelEmail" for="loginEmail">Email adresa</label>
+            <input
+              type="email"
+              id="loginEmail"
+              placeholder="vas@primjer.com"
+              autocomplete="email"
+              class="login-input"
+            />
+          </div>
+
+          <div class="form-group">
+            <label id="labelPassword" for="loginPassword">Lozinka</label>
+            <input
+              type="password"
+              id="loginPassword"
+              placeholder="Unesite lozinku"
+              autocomplete="current-password"
+              class="login-input"
+            />
+          </div>
+
+          <button
+            class="login-btn"
+            data-cmax-action="core.login"
+            id="loginBtnEl"
+          >
+            <span class="login-btn-text">Prijava</span>
+            <span class="login-btn-spinner" style="display: none;"></span>
+          </button>
+
+          <div class="login-divider"></div>
+
+          <button
+            class="login-guest-btn"
+            data-cmax-action="core.enterReadonlyMode"
+            id="guestBtnEl"
+          >
+            <span class="login-guest-btn-text">Nastavi kao gledatelj</span>
+            <span class="login-guest-btn-spinner" style="display: none;"></span>
+          </button>
+
+          <p class="login-footer-text" id="loginFooterText">
+            Zaštita podataka | Uvjeti korištenja
+          </p>
         </div>
-        <div class="form-group">
-          <label id="labelPassword" for="loginPassword">Lozinka:</label>
-          <input
-            type="password"
-            id="loginPassword"
-            placeholder="Unesite lozinku"
-            autocomplete="current-password"
-          />
-        </div>
-        <button
-          class="login-btn"
-          data-cmax-action="core.login"
-          id="loginBtnEl"
-        >
-          Prijava
-        </button>
-        <button
-          class="guest-btn"
-          data-cmax-action="core.enterReadonlyMode"
-          id="guestBtnEl"
-        >
-          Nastavi kao gledatelj (read-only)
-        </button>
       </div>
     </div>
 
