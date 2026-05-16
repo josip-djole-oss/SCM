@@ -15,11 +15,12 @@ try {
   const events = read("public/js/tidplan/tidplanEvents.js");
 
   mustContain(html, 'id="tidplanFullscreenToggle"', "fullscreen toggle button");
+  mustContain(events, "tidplan-container-fullscreen", "fullscreen container class");
   mustContain(events, "fullscreen-active", "fullscreen active toggle state");
   mustContain(events, 'isFullscreen ? "✕" : "⛶"', "fullscreen toggle label swap");
-  mustContain(events, "timeline.classList.add(\"tidplan-timeline-fullscreen\")", "timeline fullscreen enter");
-  mustContain(events, "timeline.classList.remove(\"tidplan-timeline-fullscreen\")", "timeline fullscreen exit");
+  mustContain(events, "document.body.classList.add(\"tidplan-fullscreen-open\")", "body lock on enter");
   mustContain(events, "if (e.key === \"Escape\" && isFullscreen)", "escape close handler");
+  mustContain(styles, ".tidplan-container-fullscreen", "fullscreen container styles");
   mustContain(styles, ".tidplan-timeline-fullscreen", "fullscreen timeline styles");
   mustContain(styles, ".tidplan-fullscreen-toggle.fullscreen-active", "fullscreen toggle styles");
 
