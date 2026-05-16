@@ -16,13 +16,15 @@ try {
 
   mustContain(html, 'id="tidplanFullscreenToggle"', "fullscreen toggle button");
   mustContain(events, "tidplan-container-fullscreen", "fullscreen container class");
-  mustContain(events, "tidplanFullscreenClose", "fullscreen close button");
+  mustContain(events, "fullscreen-active", "fullscreen active toggle state");
+  mustContain(events, 'isFullscreen ? "✕" : "⛶"', "fullscreen toggle label swap");
   mustContain(events, "document.body.classList.add(\"tidplan-fullscreen-open\")", "body lock on enter");
   mustContain(events, "if (e.key === \"Escape\" && isFullscreen)", "escape close handler");
   mustContain(styles, ".tidplan-container-fullscreen", "fullscreen container styles");
-  mustContain(styles, ".tidplan-fullscreen-close", "fullscreen close styles");
+  mustContain(styles, ".tidplan-timeline-fullscreen", "fullscreen timeline styles");
+  mustContain(styles, ".tidplan-fullscreen-toggle.fullscreen-active", "fullscreen toggle styles");
 
-  console.log(JSON.stringify({ ok: true, checks: 7 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 8 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

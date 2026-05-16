@@ -132,26 +132,11 @@ function bindTidplanViewportFullscreen() {
   fullscreenToggle.dataset.cmaxFullscreenBound = "true";
 
   let isFullscreen = false;
-  let closeBtn = document.getElementById("tidplanFullscreenClose");
-
-  function ensureCloseButton() {
-    if (closeBtn) return closeBtn;
-    closeBtn = document.createElement("button");
-    closeBtn.type = "button";
-    closeBtn.id = "tidplanFullscreenClose";
-    closeBtn.className = "tidplan-fullscreen-close";
-    closeBtn.textContent = "X";
-    closeBtn.setAttribute("aria-label", "Zatvori fullscreen");
-    closeBtn.addEventListener("click", exitFullscreen);
-    document.body.appendChild(closeBtn);
-    return closeBtn;
-  }
 
   function syncToggleLabel() {
     fullscreenToggle.classList.toggle("fullscreen-active", isFullscreen);
     fullscreenToggle.textContent = isFullscreen ? "✕" : "⛶";
     fullscreenToggle.title = isFullscreen ? "Exit Fullscreen" : "Fullscreen Gantt";
-    ensureCloseButton().hidden = !isFullscreen;
   }
 
   function exitFullscreen() {

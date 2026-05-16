@@ -1477,15 +1477,17 @@ body {
   z-index: 10000 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  overflow: auto !important;
+  overflow-x: scroll !important;
+  overflow-y: auto !important;
+  scrollbar-gutter: stable both-edges;
   margin: 0 !important;
   padding: 0 !important;
 }
 
 .tidplan-fullscreen-toggle.fullscreen-active {
   position: fixed !important;
-  top: max(12px, env(safe-area-inset-top, 0px) + 12px) !important;
-  right: max(12px, env(safe-area-inset-right, 0px) + 60px) !important;
+  top: 20px !important;
+  right: 20px !important;
   background: var(--error-color) !important;
   z-index: 10001 !important;
 }
@@ -1506,6 +1508,11 @@ body {
 
 .tidplan-container-fullscreen .tidplan-timeline {
   overflow: visible;
+}
+
+.tidplan-timeline-fullscreen .timeline-header,
+.tidplan-timeline-fullscreen .timeline-body {
+  min-width: max-content;
 }
 
 .tidplan-fullscreen-close {
