@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="hr" data-theme="blue" data-dark="false">
   <head>
     <meta charset="UTF-8" />
@@ -7,6 +7,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
     />
     <title>CMAX SCM</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
@@ -22,7 +23,7 @@
       <div class="loading-box">
         <div class="loading-spinner"></div>
         <div class="loading-title" id="loadingTitle">CMAX SCM</div>
-        <div class="loading-text" id="loadingText">Učitavanje...</div>
+        <div class="loading-text" id="loadingText">Ucitavanje...</div>
       </div>
     </div>
 
@@ -35,21 +36,21 @@
             data-cmax-action="utils.setLanguage"
             data-cmax-args='["hr"]'
           >
-            🇭🇷 HR
+            HR
           </button>
           <button
             class="lang-btn"
             data-cmax-action="utils.setLanguage"
             data-cmax-args='["en"]'
           >
-            🇬🇧 EN
+            EN
           </button>
           <button
             class="lang-btn"
             data-cmax-action="utils.setLanguage"
             data-cmax-args='["sv"]'
           >
-            🇸🇪 SV
+            SV
           </button>
         </div>
       </div>
@@ -98,7 +99,7 @@
           data-cmax-action="core.enterReadonlyMode"
           id="guestBtnEl"
         >
-          👁 Nastavi kao gledatelj (read-only)
+          Nastavi kao gledatelj (read-only)
         </button>
       </div>
     </div>
@@ -251,7 +252,7 @@
               data-cmax-action="planner.manageGoBack"
               data-cmax-args='[1]'
             >
-              ← <span id="manageBackLbl">Natrag</span>
+              <- <span id="manageBackLbl">Natrag</span>
             </button>
             <span class="manage-subtitle" id="manageStep2Title"></span>
           </div>
@@ -268,7 +269,7 @@
               data-cmax-action="planner.manageGoRemove"
               id="manageRemoveBtn"
             >
-              − Ukloni
+              - Ukloni
             </button>
           </div>
         </div>
@@ -281,7 +282,7 @@
               data-cmax-action="planner.manageGoBack"
               data-cmax-args='[2]'
             >
-              ← <span id="manageBackLbl2">Natrag</span>
+              <- <span id="manageBackLbl2">Natrag</span>
             </button>
             <span class="manage-subtitle" id="manageAddTitle"></span>
           </div>
@@ -327,7 +328,7 @@
               data-cmax-action="planner.manageGoBack"
               data-cmax-args='[2]'
             >
-              ← <span id="manageBackLbl3">Natrag</span>
+              <- <span id="manageBackLbl3">Natrag</span>
             </button>
             <span class="manage-subtitle" id="manageRemoveTitle"></span>
           </div>
@@ -377,21 +378,7 @@
           >
             Gost mode
           </button>
-          <button
-            class="tab-btn"
-            data-cmax-action="admin.switchTab"
-            data-cmax-args='["tabReports"]'
-            id="tabBtnReports"
-          >
-            Prijave liftova
-            <span
-              id="reportNotifBadge"
-              class="notif-badge"
-              style="display: none"
-              >0</span
-            >
-          </button>
-          <button
+<button
             class="tab-btn"
             data-cmax-action="admin.switchTab"
             data-cmax-args='["tabLogs"]'
@@ -494,7 +481,7 @@
                 margin-bottom: 8px;
               "
               id="labelAdminSites"
-              >Gradilišta (pristup):</label
+              >Gradilista (pristup):</label
             >
             <div class="permissions-editor" id="newAdminSitesPanel"></div>
           </div>
@@ -526,7 +513,7 @@
           >
             <h4 id="guestAccessTitle">Gost mode pristup</h4>
             <p class="admin-section-note" id="guestAccessNote">
-              Ovdje određuješ što posjetitelj vidi i koje komande su mu
+              Ovdje odredujes sto posjetitelj vidi i koje komande su mu
               dostupne.
             </p>
             <div class="permissions-editor" id="guestAccessPermsPanel"></div>
@@ -542,45 +529,6 @@
               Spremi guest pristup
             </button>
           </div>
-        </div>
-
-        <!-- Tab: Reports -->
-        <div id="tabReports" class="tab-content">
-          <div class="filter-bar" id="reportFilterBar">
-            <button
-              class="btn active"
-              id="filterAll"
-              data-cmax-action="reports.filter"
-              data-cmax-args='["all"]'
-            >
-              Sve
-            </button>
-            <button
-              class="btn"
-              id="filterPending"
-              data-cmax-action="reports.filter"
-              data-cmax-args='["pending"]'
-            >
-              Na čekanju
-            </button>
-            <button
-              class="btn"
-              id="filterApproved"
-              data-cmax-action="reports.filter"
-              data-cmax-args='["approved"]'
-            >
-              Odobrene
-            </button>
-            <button
-              class="btn"
-              id="filterRejected"
-              data-cmax-action="reports.filter"
-              data-cmax-args='["rejected"]'
-            >
-              Odbijene
-            </button>
-          </div>
-          <div id="reportsList"></div>
         </div>
 
         <!-- Tab: Logs -->
@@ -604,7 +552,7 @@
               data-cmax-action="admin.clearLogs"
               id="btnClearLogs"
             >
-              Očisti logove
+              Ocisti logove
             </button>
           </div>
           <div
@@ -636,7 +584,7 @@
               id="darkModeToggleBtn"
               data-cmax-action="utils.toggleDarkMode"
             >
-              Uključi tamnu temu
+              Ukljuci tamnu temu
             </button>
           </div>
 
@@ -656,7 +604,7 @@
                 class="theme-btn"
                 id="themeBtnOrange"
                 style="background: linear-gradient(135deg, #f39c12, #e67e22)"
-                title="Narančasta"
+                title="Narancasta"
                 data-cmax-action="utils.setColorTheme"
                 data-cmax-args='["orange"]'
               ></button>
@@ -728,7 +676,7 @@
           <!-- Bins column permissions -->
           <div class="admin-settings-section">
             <h4 id="settingsBinsTitle">
-              Bins tablica - omogući uređivanje kolona
+              Bins tablica - omoguci uredjivanje kolona
             </h4>
             <div class="permissions-grid">
               <label class="perm-label"
@@ -783,7 +731,7 @@
               </button>
             </div>
             <p class="admin-section-note" id="settingsLayoutNote">
-              Vraća spremljeni layout i temu na početne vrijednosti bez brisanja
+              Vraca spremljeni layout i temu na pocetne vrijednosti bez brisanja
               podataka.
             </p>
           </div>
@@ -795,7 +743,7 @@
           >
             <h4 id="guestAccessTitleOld">Guest mode pristup</h4>
             <p class="admin-section-note" id="guestAccessNoteOld">
-              Superadmin ovdje određuje koje module i komande vidi korisnik u
+              Superadmin ovdje odredjuje koje module i komande vidi korisnik u
               guest modu.
             </p>
             <div class="permissions-editor" id="guestAccessPermsPanelOld"></div>
@@ -852,7 +800,7 @@
                   id="btnRefreshBackupRestore"
                   data-cmax-action="admin.loadBackupRestoreOptions"
                 >
-                  Osvježi
+                  Osvjezi
                 </button>
                 <button
                   class="btn btn-danger"
@@ -881,14 +829,14 @@
         id="notificationViewerClose"
         data-cmax-action="notifications.closeViewer"
       >
-        ✕
+        x
       </button>
       <button
         class="image-viewer-nav image-viewer-prev"
         id="notificationViewerPrev"
         data-cmax-action="notifications.previousImage"
       >
-        ‹
+        <
       </button>
       <img id="notificationViewerImage" alt="Obavijest slika" />
       <button
@@ -896,7 +844,7 @@
         id="notificationViewerNext"
         data-cmax-action="notifications.nextImage"
       >
-        ›
+        >
       </button>
     </div>
 
@@ -919,7 +867,7 @@
           <select id="reportPlan"></select>
         </div>
         <div class="form-group">
-          <label id="labelReporter" for="reporterName">Vaše ime:</label>
+          <label id="labelReporter" for="reporterName">Vase ime:</label>
           <input
             type="text"
             id="reporterName"
@@ -942,7 +890,7 @@
           style="width: 100%"
           id="btnSubmitReportEl"
         >
-          Pošalji prijavu
+          Posalji prijavu
         </button>
       </div>
     </div>
@@ -1013,12 +961,32 @@
 
     <!-- ==================== MAIN CONTAINER ==================== -->
     <div class="container" id="mainContainer" style="display: none">
-      <!-- HEADER -->
+      <div class="app-shell">
+        <aside class="app-sidebar">
+          <div class="sidebar-brand">
+            <img src="brand/cmax-lockup.svg" class="sidebar-brand-lockup" alt="CMAX SCM" />
+            <button class="sidebar-collapse-btn" id="sidebarCollapseBtn" type="button" data-cmax-action="dashboard.toggleSidebarCollapse" aria-label="Collapse sidebar"></button>
+          </div>
+          <nav class="sidebar-nav" aria-label="Main navigation">
+            <button class="app-nav-item" id="navHomeBtn" data-view="home" data-cmax-action="core.showHome"><span class="app-nav-icon app-nav-icon-home"></span><span class="app-nav-label">Home</span></button>
+            <button class="app-nav-item" id="navPlannerBtn" data-view="main" data-cmax-action="tidplan.showPlanner"><span class="app-nav-icon app-nav-icon-planner"></span><span class="app-nav-label">Planner</span></button>
+            <button class="app-nav-item" id="navTidplanBtn" data-view="tidplan" data-cmax-action="tidplan.show"><span class="app-nav-icon app-nav-icon-tidplan"></span><span class="app-nav-label">Tidplan</span></button>
+            <button class="app-nav-item" id="navBinsBtn" data-view="bins" data-cmax-action="bins.show"><span class="app-nav-icon app-nav-icon-bins"></span><span class="app-nav-label">Kante za smece</span></button>
+            <button class="app-nav-item" id="navWarehouseBtn" data-view="warehouse" data-cmax-action="warehouse.show"><span class="app-nav-icon app-nav-icon-warehouse"></span><span class="app-nav-label">Skladiste</span></button>
+            <button class="app-nav-item" id="navWorkwearBtn" data-view="workwear" data-cmax-action="workwear.show"><span class="app-nav-icon app-nav-icon-store"></span><span class="app-nav-label">Store</span><span id="storeSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
+            <button class="app-nav-item" id="navNotificationsBtn" data-view="notifications" data-cmax-action="notifications.show"><span class="app-nav-icon app-nav-icon-notifications"></span><span class="app-nav-label">Obavijesti</span><span id="notificationsSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
+            <button class="app-nav-item" id="navReportsBtn" data-view="reports" data-cmax-action="reports.showCenter" style="display:none"><span class="app-nav-icon app-nav-icon-planner"></span><span class="app-nav-label">Report</span><span id="reportSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
+            <button class="app-nav-item" id="navSurveysBtn" data-view="surveys" data-cmax-action="surveys.show"><span class="app-nav-icon app-nav-icon-surveys"></span><span class="app-nav-label">Ankete / Pitanja</span><span id="surveysSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
+            <button class="app-nav-item" id="navAdminBtn" data-view="admin" data-cmax-action="admin.open" style="display:none"><span class="app-nav-icon app-nav-icon-admin"></span><span class="app-nav-label">Postavke</span><span id="adminSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
+          </nav>
+        </aside>
+
+        <main class="app-main">
       <div class="header">
         <div class="logo-section">
-          <div class="logo">
+          <div class="logo" data-cmax-action="core.showHome" role="button" tabindex="0" title="Povratak na Home">
             <img
-              src="cmaxlogo.png"
+              src="brand/cmax-mark.svg"
               id="mainLogoImg"
               data-cmax-image-fallback="mainLogoFallback"
               data-cmax-image-fallback-display="flex"
@@ -1035,7 +1003,8 @@
             >
           </div>
           <div class="title-section">
-            <h1 id="mainTitle" title="CMAX Site Control Manager">CMAX SCM</h1>
+            <h1 id="mainTitle" title="CMAX Site Control Manager" data-cmax-action="core.showHome" role="button" tabindex="0">CMAX SCM</h1>
+            <div class="module-context"><span class="module-context-icon"></span><span id="currentModuleLabel">Home</span></div>
             <div class="date-display" id="dateDisplay"></div>
             <div class="site-switcher">
               <select id="siteSelect" style="display: none"></select>
@@ -1044,7 +1013,7 @@
                 id="siteSwitcherBtn"
                 data-cmax-action="sites.toggleDropdown"
               >
-                <span id="siteSwitcherLabel">Gradilište</span>
+                <span id="siteSwitcherLabel">Gradiliste</span>
               </button>
               <div
                 class="site-dropdown"
@@ -1078,64 +1047,96 @@
             >
             <div class="presence-list" id="presenceList"></div>
           </div>
-          <div class="lang-selector" id="headerLangSelector">
-            <button
-              class="lang-btn"
-              data-cmax-action="utils.setLanguage"
-              data-cmax-args='["hr"]'
-            >
-              🇭🇷 HR
-            </button>
-            <button
-              class="lang-btn"
-              data-cmax-action="utils.setLanguage"
-              data-cmax-args='["en"]'
-            >
-              🇬🇧 EN
-            </button>
-            <button
-              class="lang-btn"
-              data-cmax-action="utils.setLanguage"
-              data-cmax-args='["sv"]'
-            >
-              🇸🇪 SV
-            </button>
-          </div>
-
-          <button
-            class="btn"
-            id="guestLoginBtn"
-            style="display: none"
-            data-cmax-action="core.switchToLogin"
-          >
+          <button class="btn" id="guestLoginBtn" style="display: none" data-cmax-action="core.switchToLogin">
             <span id="guestLoginBtnText">Prijava</span>
           </button>
 
-          <div class="date-picker-section">
-            <label for="datePicker" id="labelDate">Odaberi datum:</label>
-            <input type="text" id="datePicker" class="date-picker" />
+          <div class="topbar-meta-stack">
+            <div class="lang-selector" id="headerLangSelector">
+              <button class="lang-btn" data-cmax-action="utils.setLanguage" data-cmax-args='["hr"]'>HR</button>
+              <button class="lang-btn" data-cmax-action="utils.setLanguage" data-cmax-args='["en"]'>EN</button>
+              <button class="lang-btn" data-cmax-action="utils.setLanguage" data-cmax-args='["sv"]'>SV</button>
+            </div>
+            <div class="date-picker-section">
+              <label for="datePicker" id="labelDate">Odaberi datum:</label>
+              <input type="text" id="datePicker" class="date-picker" />
+            </div>
           </div>
+          <div class="topbar-bell-wrap">
+            <button class="btn btn-ghost topbar-bell" id="topbarNotificationsBtn" data-cmax-action="accountNotifications.togglePanel" type="button"><span class="topbar-bell-icon"></span><span id="topbarNotificationsBadge" class="notif-badge" style="display:none">0</span></button>
+            <div class="account-notifications-panel" id="accountNotificationsPanel" style="display:none">
+              <div class="account-notifications-head">
+                <strong>Account obavijesti</strong>
+                <button class="btn btn-ghost btn-small" type="button" data-cmax-action="accountNotifications.markAllRead">Oznaci procitano</button>
+              </div>
+              <div class="account-notifications-list" id="accountNotificationsList"></div>
+            </div>
+          </div>
+          <div class="topbar-user" id="topbarUser">-</div>
+          <button class="btn btn-ghost" id="topbarLogoutBtn" data-cmax-action="core.logout" type="button">Odjava</button>
         </div>
       </div>
 
+      <div class="app-content">
+      <div id="settings-section" style="display: none"></div>
+      <div id="home-section" style="display: none">
+        <div class="home-hero-card">
+          <div class="home-hero-copy">
+            <div class="home-eyebrow">CMAX SCM</div>
+            <h2>Operations launchpad</h2>
+            <p>Odaberi gradiliste i otvori modul za rad na jednom mjestu.</p>
+          </div>
+          <div class="home-hero-meta">
+            <div class="home-hero-pill"><span class="home-hero-pill-label">Aktivno gradiliste</span><strong id="dashboardSiteName">-</strong></div>
+            <div class="home-hero-pill"><span class="home-hero-pill-label">Danas</span><strong id="homeTodayDate">-</strong></div>
+          </div>
+        </div>
+        <div class="home-layout-grid">
+          <section class="home-card home-site-card">
+            <div class="home-card-head"><div><div class="home-card-kicker">Korak 1</div><h3>Odaberi gradiliste</h3></div></div>
+            <div class="home-site-grid" id="homeSiteCards"></div>
+          </section>
+          <section class="home-card home-status-card">
+            <div class="home-card-head"><div><div class="home-card-kicker">Pregled</div><h3>Danasnji status</h3></div></div>
+            <div class="dashboard-stats-grid" id="dashboardStatsGrid"></div>
+          </section>
+        </div>
+        <section class="home-card home-module-card">
+          <div class="home-card-head"><div><div class="home-card-kicker">Korak 2</div><h3>Odaberi modul</h3></div></div>
+          <div class="home-module-grid" id="homeModuleCards"></div>
+        </section>
+        <section class="home-card home-activity-card">
+          <div class="home-card-head"><div><div class="home-card-kicker">Aktivnost</div><h3>Zadnje promjene</h3></div></div>
+          <div class="dashboard-activity-list" id="dashboardRecentActivity"></div>
+        </section>
+      </div>
+
       <div id="planner-section">
-        <!-- Print-only date header -->
+        <div class="summary-grid planner-summary-grid" id="plannerSummaryGrid">
+          <article class="summary-card"><div class="summary-card-main" id="plannerSummaryWorkersTotal">0</div><div class="summary-card-label">Ukupno radnika</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="plannerSummaryWorkersBusy">0</div><div class="summary-card-label">Zauzetih radnika</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="plannerSummaryWorkersFree">0</div><div class="summary-card-label">Slobodnih radnika</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="plannerSummaryWorkersAvailable">0</div><div class="summary-card-label">Dostupnih radnika</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="plannerSummaryLiftsTotal">0</div><div class="summary-card-label">Ukupno liftova</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="plannerSummaryLiftsBusy">0</div><div class="summary-card-label">Zauzetih liftova</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="plannerSummaryLiftsFree">0</div><div class="summary-card-label">Slobodnih liftova</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="plannerSummaryLiftsAvailable">0</div><div class="summary-card-label">Dostupnih liftova</div></article>
+        </div>
         <div
           class="print-header-date"
           id="printHeaderDate"
           style="font-size: 14px; color: #555; margin-bottom: 8px"
         ></div>
-        <!-- ACTION BUTTONS -->
-        <div class="action-buttons">
+        <div class="action-buttons planner-toolbar-card">
           <button class="btn btn-icon" id="btnPrint" data-cmax-action="importExport.printPlanner">
-            🖨️ <span id="btnPrintText">Print</span>
+            <span id="btnPrintText">Print</span>
           </button>
           <button
             class="btn btn-secondary"
             id="btnPlannerExportImport"
             data-cmax-action="importExport.togglePlannerDropdown"
           >
-            📥 Export/Import
+            Export / Import
           </button>
           <div
             id="plannerExportImportDropdown"
@@ -1172,22 +1173,19 @@
             </button>
           </div>
           <button class="btn btn-icon" id="btnExport" data-cmax-action="importExport.exportPlanner">
-            📄 <span id="btnExportText">Export PDF</span>
+            <span id="btnExportText">Export PDF</span>
           </button>
           <button class="btn" id="btnClear" data-cmax-action="planner.clear">
-            <span id="btnClearText">Očisti tablicu</span>
-          </button>
-          <button class="btn" id="btnReport" data-cmax-action="reports.open">
-            <span id="btnReportText">Prijavi lift</span>
+            <span id="btnClearText">Ocisti tablicu</span>
           </button>
           <button class="btn" id="btnTidplan" data-cmax-action="tidplan.show">
             <span id="btnTidplanText">Tidplan</span>
           </button>
-          <button class="btn btn-icon" id="btnBins" data-cmax-action="bins.show">
-            🗑️ <span id="btnBinsText">Kante za smeće</span>
+          <button class="btn btn-icon planner-module-shortcut" id="btnBins" data-cmax-action="bins.show">
+            <span id="btnBinsText">Kante za smece</span>
           </button>
           <button class="btn" id="btnWarehouse" data-cmax-action="warehouse.show">
-            <span id="btnWarehouseText">Skladište</span>
+            <span id="btnWarehouseText">Skladiste</span>
           </button>
           <button
             class="btn"
@@ -1217,7 +1215,7 @@
             data-cmax-action="importExport.saveAll"
             style="display: none"
           >
-            💾 <span id="btnSaveText">Spremi</span>
+            <span id="btnSaveText">Spremi</span>
           </button>
           <button
             class="btn"
@@ -1231,12 +1229,12 @@
             >
           </button>
           <button
-            class="btn"
+            class="btn planner-module-shortcut"
             id="btnChangePassword"
             data-cmax-action="reports.openChangePassword"
             style="display: none"
           >
-            🔑 <span id="btnChangePasswordText">Promijeni lozinku</span>
+            <span id="btnChangePasswordText">Promijeni lozinku</span>
           </button>
           <button class="btn btn-danger" id="btnLogout" data-cmax-action="core.logout">
             <span id="btnLogoutText">Odjava</span>
@@ -1260,7 +1258,7 @@
               data-cmax-args='["workers"]'
             >
               <h3 id="listTitleWorkers">Resursi</h3>
-              <span class="collapse-icon collapsed" id="workers-icon">▼</span>
+              <span class="collapse-icon collapsed" id="workers-icon">v</span>
             </div>
             <div class="list-content collapsed" id="workers-content">
               <div class="list-controls" id="workersControls">
@@ -1277,7 +1275,7 @@
                   <thead>
                     <tr>
                       <th id="colWorkerName">Naziv</th>
-                      <th>✓</th>
+                      <th>Akt</th>
                       <th id="colWorkerStatus">Status</th>
                     </tr>
                   </thead>
@@ -1295,7 +1293,7 @@
               data-cmax-args='["lifts"]'
             >
               <h3 id="listTitleLifts">Liftovi</h3>
-              <span class="collapse-icon collapsed" id="lifts-icon">▼</span>
+              <span class="collapse-icon collapsed" id="lifts-icon">v</span>
             </div>
             <div class="list-content collapsed" id="lifts-content">
               <div class="list-controls" id="liftsControls">
@@ -1312,7 +1310,7 @@
                   <thead>
                     <tr>
                       <th id="colLiftName">Naziv</th>
-                      <th>✓</th>
+                      <th>Akt</th>
                       <th id="colLiftStatus">Status</th>
                       <th id="colLiftPlan">Plan</th>
                     </tr>
@@ -1331,7 +1329,7 @@
               data-cmax-args='["moments"]'
             >
               <h3 id="listTitleMoments">Momenti</h3>
-              <span class="collapse-icon collapsed" id="moments-icon">▼</span>
+              <span class="collapse-icon collapsed" id="moments-icon">v</span>
             </div>
             <div class="list-content collapsed" id="moments-content">
               <div class="list-controls" id="momentsControls">
@@ -1364,7 +1362,7 @@
               data-cmax-args='["plans"]'
             >
               <h3 id="listTitlePlans">Planovi</h3>
-              <span class="collapse-icon collapsed" id="plans-icon">▼</span>
+              <span class="collapse-icon collapsed" id="plans-icon">v</span>
             </div>
             <div class="list-content collapsed" id="plans-content">
               <div class="list-controls" id="plansControls">
@@ -1397,7 +1395,7 @@
               data-cmax-args='["karnas"]'
             >
               <h3 id="listTitleKarnas">Karne/Delovi</h3>
-              <span class="collapse-icon collapsed" id="karnas-icon">▼</span>
+              <span class="collapse-icon collapsed" id="karnas-icon">v</span>
             </div>
             <div class="list-content collapsed" id="karnas-content">
               <div class="list-controls" id="karnasControls">
@@ -1445,6 +1443,14 @@
             <div style="display: flex; gap: 6px">
               <button
                 class="btn btn-small"
+                id="btnUseTidplanScheme"
+                data-cmax-action="planner.useTidplanScheme"
+                style="white-space: nowrap"
+              >
+                Koristi Tidplan
+              </button>
+              <button
+                class="btn btn-small"
                 id="btnAddRow"
                 data-cmax-action="planner.addRow"
                 style="white-space: nowrap"
@@ -1457,7 +1463,7 @@
                 data-cmax-action="planner.removeRow"
                 style="white-space: nowrap"
               >
-                −
+                -
               </button>
             </div>
           </div>
@@ -1494,7 +1500,7 @@
               margin-bottom: 8px;
             "
           >
-            <h2 id="binsTitle" style="margin: 0">Kante za smeće</h2>
+            <h2 id="binsTitle" style="margin: 0">Kante za smece</h2>
             <div
               style="display: flex; gap: 6px"
               id="binsAdminControls"
@@ -1514,7 +1520,7 @@
                 data-cmax-action="bins.removePlan"
                 style="white-space: nowrap"
               >
-                −
+                -
               </button>
             </div>
           </div>
@@ -1537,6 +1543,68 @@
         </div>
       </div>
 
+      <div id="reports-section" style="display: none">
+        <div class="notifications-header reports-center-header">
+          <h1 id="reportsCenterTitle">Report</h1>
+          <div class="notifications-header-actions">
+            <button class="btn btn-icon" id="btnOpenLiftReportCenter" data-cmax-action="reports.open">
+              Prijavi lift
+            </button>
+          </div>
+        </div>
+        <div class="home-layout-grid reports-launch-grid">
+          <section class="home-card" id="reportsLaunchCard">
+            <div class="home-card-head">
+              <div>
+                <div class="home-card-kicker">Workflow</div>
+                <h3>Lift report</h3>
+              </div>
+              
+            </div>
+            <button class="home-module-tile reports-launch-card" type="button" data-cmax-action="reports.open">
+              <span class="home-tile-icon" style="--icon:url('icons/notifications.svg')"><span class="app-nav-icon" style="--icon:url('icons/notifications.svg')"></span></span>
+              <span class="home-tile-title">Prijavi lift</span>
+              <span class="home-tile-desc">Otvori formu za novu prijavu lifta bez trazenja po Planneru.</span>
+            </button>
+          </section>
+        </div>
+        <div class="filter-bar" id="reportFilterBar" style="display: none">
+          <button
+            class="btn active"
+            id="filterAll"
+            data-cmax-action="reports.filter"
+            data-cmax-args='["all"]'
+          >
+            Sve
+          </button>
+          <button
+            class="btn"
+            id="filterPending"
+            data-cmax-action="reports.filter"
+            data-cmax-args='["pending"]'
+          >
+            Na cekanju
+          </button>
+          <button
+            class="btn"
+            id="filterApproved"
+            data-cmax-action="reports.filter"
+            data-cmax-args='["approved"]'
+          >
+            Odobrene
+          </button>
+          <button
+            class="btn"
+            id="filterRejected"
+            data-cmax-action="reports.filter"
+            data-cmax-args='["rejected"]'
+          >
+            Odbijene
+          </button>
+        </div>
+        <div id="reportsList"></div>
+      </div>
+
       <div id="notifications-section" style="display: none">
         <div class="notifications-header">
           <h1 id="notificationsTitle">Obavijesti</h1>
@@ -1548,19 +1616,12 @@
             >
               Print obavijest
             </button>
-            <button
-              class="btn"
-              id="btnBackFromNotifications"
-              data-cmax-action="tidplan.showPlanner"
-            >
-              <span id="btnBackFromNotificationsText">Planner</span>
-            </button>
           </div>
         </div>
         <div class="notifications-filters">
           <div class="form-group">
             <label id="notificationFilterLabel" for="notificationFilterSite"
-              >Gradilište:</label
+              >Gradiliste:</label
             >
             <select id="notificationFilterSite"></select>
           </div>
@@ -1568,7 +1629,7 @@
             <label id="notificationSearchLabel" for="notificationSearch"
               >Pretraga:</label
             >
-            <input type="text" id="notificationSearch" placeholder="Traži..." />
+            <input type="text" id="notificationSearch" placeholder="Trazi..." />
           </div>
           <label class="notification-pin-toggle">
             <input type="checkbox" id="notificationPinnedOnly" />
@@ -1585,11 +1646,11 @@
             <textarea
               id="notificationText"
               rows="4"
-              placeholder="Upiši obavijest..."
+              placeholder="Upisi obavijest..."
             ></textarea>
           </div>
           <div class="form-group">
-            <label id="notificationSitesLabel">Objavi na gradilištima:</label>
+            <label id="notificationSitesLabel">Objavi na gradilistima:</label>
             <div class="notification-sites" id="notificationSites"></div>
           </div>
           <div class="form-group">
@@ -1623,9 +1684,7 @@
         <div class="notifications-header">
           <h1 id="surveysTitle">Ankete/Pitanja</h1>
           <div class="notifications-header-actions">
-            <button class="btn" id="btnBackFromSurveys" data-cmax-action="tidplan.showPlanner">
-              Planner
-            </button>
+            <button class="btn" id="btnBackFromSurveys" data-cmax-action="core.showHome">Home</button>
           </div>
         </div>
 
@@ -1708,11 +1767,94 @@
         <div class="notifications-list" id="surveysList"></div>
       </div>
 
+      <div id="workwear-section" class="store-section" style="display: none">
+        <div class="store-header">
+          <div>
+            <h1>Store</h1>
+            <p id="workwearHeaderSubtitle">Store catalog</p>
+          </div>
+          <div class="store-header-actions">
+            <button id="workwearManagerEditorToggle" class="btn btn-secondary" style="display:none" data-cmax-action="workwear.toggleManagerEditor">Uredi artikle</button>
+            <button id="workwearCartToggleBtn" class="btn btn-secondary store-cart-toggle" data-cmax-action="workwear.toggleCartOverlay">
+              Cart
+              <span id="workwearCartBadge" class="store-cart-badge" style="display:none">0</span>
+            </button>
+            <button class="btn btn-secondary" data-cmax-action="core.showHome">Home</button>
+            <button class="btn" data-cmax-action="workwear.openImport">Import</button>
+            <button class="btn" data-cmax-action="workwear.exportData">Export</button>
+            <input id="workwearImportInput" type="file" accept="application/json" style="display:none" data-cmax-action="workwear.importDataFromEvent" data-cmax-event="change" data-cmax-pass-event />
+          </div>
+        </div>
+
+        <div class="store-layout">
+          <section class="store-catalog-card">
+            <div class="store-search-row">
+              <input id="workwearSearch" class="store-input" placeholder="Search artikala..." data-cmax-action="workwear.applyFilters" data-cmax-event="input" />
+              <select id="workwearCategoryFilter" class="store-input" data-cmax-action="workwear.applyFilters" data-cmax-event="change"></select>
+              <select id="workwearSeasonFilter" class="store-input" data-cmax-action="workwear.applyFilters" data-cmax-event="change"></select>
+              <label class="workwear-check-row"><input type="checkbox" id="workwearNewFilter" data-cmax-action="workwear.applyFilters" data-cmax-event="change" /> New</label>
+            </div>
+            <div id="workwearProductsGrid" class="store-products-grid"></div>
+          </section>
+
+          <aside class="store-side-column">
+            <section class="store-orders-card">
+              <h3>Moje narudzbe</h3>
+              <div id="workwearOrdersList" class="store-orders-list"></div>
+            </section>
+          </aside>
+        </div>
+
+        <div id="workwearCartOverlay" class="store-cart-overlay" style="display:none">
+          <div class="store-cart-drawer">
+            <div class="store-cart-drawer-head">
+              <h3>Cart</h3>
+              <button class="btn btn-small btn-secondary" data-cmax-action="workwear.closeCartOverlay">Close</button>
+            </div>
+            <section id="workwearCartPanel" class="store-cart-card"></section>
+          </div>
+        </div>
+
+        <section id="workwearManagerPanels" class="store-manager-card" style="display:none">
+          <div class="store-manager-tabs">
+            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["products"]'>Artikli</button>
+            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["orders"]'>Narudzbe</button>
+            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["budgets"]'>Budzeti</button>
+            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["rules"]'>Pravila</button>
+            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["users"]'>Korisnici / Role</button>
+            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["export"]'>Export</button>
+            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["audit"]'>Audit</button>
+          </div>
+          <div id="workwearManagerTabProducts" class="store-manager-tab is-active">
+            <div id="workwearBulkEditPanel"></div>
+            <div id="workwearAdminPanel"></div>
+          </div>
+          <div id="workwearManagerTabOrders" class="store-manager-tab">
+            <div id="workwearManagerOrdersList"></div>
+          </div>
+          <div id="workwearManagerTabBudgets" class="store-manager-tab">
+            <div id="workwearBudgetPanel"></div>
+          </div>
+          <div id="workwearManagerTabRules" class="store-manager-tab">
+            <div id="workwearRulesPanel"></div>
+          </div>
+          <div id="workwearManagerTabUsers" class="store-manager-tab">
+            <div id="workwearUsersPanel"></div>
+          </div>
+          <div id="workwearManagerTabExport" class="store-manager-tab">
+            <div id="workwearExportPanel"></div>
+          </div>
+          <div id="workwearManagerTabAudit" class="store-manager-tab">
+            <div id="workwearAuditLog"></div>
+          </div>
+        </section>
+      </div>
+
       <div id="warehouse-section" style="display: none">
         <div class="warehouse-header">
-          <h1 id="warehousePageTitle">Skladište</h1>
+          <h1 id="warehousePageTitle">Skladiste</h1>
           <div class="warehouse-header-actions">
-            <button class="btn" data-cmax-action="tidplan.showPlanner">Planner</button>
+            <button class="btn" data-cmax-action="core.showHome">Home</button>
             <button
               class="btn"
               id="warehouseNavLogsBtn"
@@ -1746,7 +1888,7 @@
               id="btnWarehouseExportImport"
               data-cmax-action="importExport.toggleWarehouseDropdown"
             >
-              📥 Export/Import
+              Export / Import
             </button>
           </div>
           <div
@@ -1824,7 +1966,7 @@
               <label
                 for="warehouseProcurementDetails"
                 id="warehouseProcurementLabel"
-                >Osoba zadužena za nabavku</label
+                >Osoba zaduzena za nabavku</label
               >
               <details
                 class="warehouse-multi-select"
@@ -1877,7 +2019,7 @@
                 <label
                   for="warehouseStockQuantity"
                   id="warehouseStockQuantityLabel"
-                  >Količina</label
+                  >Kolicina</label
                 >
                 <input
                   type="number"
@@ -1899,7 +2041,7 @@
                 <input
                   type="text"
                   id="warehouseStockComment"
-                  placeholder="Upiši komentar..."
+                  placeholder="Upisi komentar..."
                   data-cmax-action="warehouse.updateStockFormFromEvent"
                   data-cmax-args='["comment"]'
                   data-cmax-event="change"
@@ -1918,25 +2060,27 @@
             </div>
           </div>
 
-          <div class="warehouse-card">
+          <div class="warehouse-card is-collapsible" id="warehouseAlertsCard">
             <div class="warehouse-card-header">
               <h3 id="warehouseAlertsTitle">Upozorenja</h3>
               <span id="warehouseAlertsSubtitle"
                 >Materijal koji fali ili uskoro nestaje</span
               >
+              <button class="btn btn-ghost btn-small warehouse-collapse-btn" type="button" data-cmax-action="warehouse.toggleSection" data-cmax-args='["warehouseAlertsCard"]'>Sakrij</button>
             </div>
             <div id="warehouseAlerts"></div>
           </div>
 
           <div
-            class="warehouse-card warehouse-card-wide"
+            class="warehouse-card warehouse-card-wide is-collapsible"
             id="warehouseInventoryCard"
           >
             <div class="warehouse-card-header">
-              <h3 id="warehouseInventoryTitle">Stanje skladišta</h3>
+              <h3 id="warehouseInventoryTitle">Stanje skladista</h3>
               <span id="warehouseInventorySubtitle"
                 >Trenutno, ukupno izdano i ukupno zaprimljeno</span
               >
+              <button class="btn btn-ghost btn-small warehouse-collapse-btn" type="button" data-cmax-action="warehouse.toggleSection" data-cmax-args='["warehouseInventoryCard"]'>Sakrij</button>
             </div>
             <div class="warehouse-table-wrapper">
               <table class="warehouse-table">
@@ -1946,7 +2090,7 @@
                     <th id="warehouseInventoryColUnit">Jedinica</th>
                     <th id="warehouseInventoryColCurrent">Trenutno</th>
                     <th id="warehouseInventoryColIssued">Ukupno dano</th>
-                    <th id="warehouseInventoryColReceived">Ukupno došlo</th>
+                    <th id="warehouseInventoryColReceived">Ukupno doslo</th>
                     <th id="warehouseInventoryColMinimum">Min. limit</th>
                   </tr>
                 </thead>
@@ -1956,12 +2100,20 @@
           </div>
 
           <div
-            class="warehouse-card warehouse-card-wide"
+            class="warehouse-card warehouse-card-wide is-collapsible"
             id="warehouseCatalogCard"
           >
             <div class="warehouse-card-header">
               <h3 id="warehouseCatalogTitle">Popis alata / materijala</h3>
               <div class="warehouse-header-actions">
+                <button
+                  class="btn btn-ghost btn-small warehouse-collapse-btn"
+                  type="button"
+                  data-cmax-action="warehouse.toggleSection"
+                  data-cmax-args='["warehouseCatalogCard"]'
+                >
+                  Sakrij
+                </button>
                 <button
                   id="warehouseCatalogAddBtn"
                   class="btn btn-small"
@@ -1978,14 +2130,14 @@
 
       <div id="warehouse-logs-section" style="display: none">
         <div class="warehouse-header">
-          <h1 id="warehouseLogsTitle">Logovi skladišta</h1>
+          <h1 id="warehouseLogsTitle">Logovi skladista</h1>
           <div class="warehouse-header-actions">
             <button
               class="btn"
               id="warehouseLogsBackBtn"
               data-cmax-action="warehouse.show"
             >
-              Skladište
+              Skladiste
             </button>
             <button
               class="btn"
@@ -1994,7 +2146,6 @@
             >
               Graph
             </button>
-            <button class="btn" data-cmax-action="tidplan.showPlanner">Planner</button>
           </div>
         </div>
         <div class="warehouse-log-toolbar">
@@ -2035,7 +2186,7 @@
               </option>
               <option value="stock" id="warehouseLogTypeStock">Stanje</option>
               <option value="adjustment" id="warehouseLogTypeAdjustment">
-                Ručno
+                Rucno
               </option>
             </select>
           </div>
@@ -2065,7 +2216,7 @@
               </option>
               <option value="type" id="warehouseLogSortType">Vrsti</option>
               <option value="quantity" id="warehouseLogSortQuantity">
-                Količini
+                Kolicini
               </option>
               <option value="balanceAfter" id="warehouseLogSortBalance">
                 Stanju nakon
@@ -2104,7 +2255,7 @@
               data-cmax-action="warehouse.clearLogs"
               style="display: none"
             >
-              Obriši sve logove
+              Obrisi sve logove
             </button>
           </div>
         </div>
@@ -2116,7 +2267,7 @@
                 <th id="warehouseLogsColType">Tip</th>
                 <th id="warehouseLogsColWorker">Radnik</th>
                 <th id="warehouseLogsColItem">Materijal</th>
-                <th id="warehouseLogsColQuantity">Količina</th>
+                <th id="warehouseLogsColQuantity">Kolicina</th>
                 <th id="warehouseLogsColFlow">Smjer</th>
                 <th id="warehouseLogsColComment">Komentar</th>
                 <th id="warehouseLogsColBalance">Stanje nakon</th>
@@ -2133,14 +2284,14 @@
 
       <div id="warehouse-graph-section" style="display: none">
         <div class="warehouse-header">
-          <h1 id="warehouseGraphTitle">Graph skladišta</h1>
+          <h1 id="warehouseGraphTitle">Graf skladista</h1>
           <div class="warehouse-header-actions">
             <button
               class="btn"
               id="warehouseGraphBackBtn"
               data-cmax-action="warehouse.show"
             >
-              Skladište
+              Skladiste
             </button>
             <button
               class="btn"
@@ -2149,19 +2300,19 @@
             >
               Logovi
             </button>
-            <button class="btn" data-cmax-action="tidplan.showPlanner">Planner</button>
+            <button class="btn" data-cmax-action="core.showHome">Home</button>
           </div>
         </div>
         <div class="warehouse-grid">
           <div class="warehouse-card">
             <div class="warehouse-card-header">
-              <h3 id="warehouseGraphWorkersTitle">Tko odskače po materijalu</h3>
+              <h3 id="warehouseGraphWorkersTitle">Tko odskace po materijalu</h3>
             </div>
             <div id="warehouseGraphWorkers"></div>
           </div>
           <div class="warehouse-card">
             <div class="warehouse-card-header">
-              <h3 id="warehouseGraphItemsTitle">Najtraženiji materijali</h3>
+              <h3 id="warehouseGraphItemsTitle">Najtrazeniji materijali</h3>
             </div>
             <div id="warehouseGraphItems"></div>
           </div>
@@ -2204,14 +2355,20 @@
                 color: var(--primary-color-start);
               "
             >
-              📊 Dostupni radnici: <span id="totalPresentWorkers">0</span> /
+              Dostupni radnici: <span id="totalPresentWorkers">0</span> /
               <span id="totalWorkers">0</span>
             </span>
             <div id="tidplanLastEditedInfo" class="last-edited-info"></div>
           </div>
         </div>
+        <div class="summary-grid tidplan-summary-grid" id="tidplanSummaryGrid">
+          <article class="summary-card"><div class="summary-card-main" id="tidplanSummaryActivitiesCurrent">0</div><div class="summary-card-label">Trenutno aktivnosti</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="tidplanSummaryActivitiesTotal">0</div><div class="summary-card-label">Ukupno aktivnosti</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="tidplanSummaryWorkersAvailable">0</div><div class="summary-card-label">Dostupnih radnika</div></article>
+          <article class="summary-card"><div class="summary-card-main" id="tidplanSummaryCapacityDay">0</div><div class="summary-card-label">Kapacitet danas</div></article>
+        </div>
         <!-- TIDPLAN CONTROLS -->
-        <div class="tidplan-controls">
+        <div class="tidplan-controls tidplan-toolbar-card">
           <button
             class="btn"
             id="btnAddTidplanActivity"
@@ -2224,7 +2381,7 @@
             id="btnTidplanExportImport"
             data-cmax-action="importExport.toggleTidplanDropdown"
           >
-            📥 Export/Import
+            Export / Import
           </button>
           <div
             id="tidplanExportImportDropdown"
@@ -2266,16 +2423,13 @@
           <button class="btn" id="btnPrintTidplan" data-cmax-action="tidplan.print">
             Print Tidplan
           </button>
-          <button class="btn" id="btnBackToPlanner" data-cmax-action="tidplan.showPlanner">
-            Planner
-          </button>
           <button
             class="btn"
             id="btnClearTidplan"
             data-cmax-action="tidplan.clear"
             style="margin-left: auto"
           >
-            🗑️ Očisti plan
+            Ocisti plan
           </button>
           <button
             class="btn"
@@ -2284,7 +2438,7 @@
             disabled
             style="opacity: 0.6; cursor: not-allowed"
           >
-            💾 Spremi
+            Spremi
           </button>
           <div class="filters">
             <div class="sort-group">
@@ -2293,7 +2447,7 @@
                 data-cmax-action="tidplan.toggleSortMenu"
                 id="btnSortTidplan"
               >
-                ⬇️ Sortiraj
+                Sortiraj
               </button>
               <div id="tidplanSortOptions" class="sort-options">
                 <div class="sort-filter-block">
@@ -2361,7 +2515,7 @@
                     data-cmax-action="tidplan.applySort"
                     style="width: 100%"
                   >
-                    ✓ Primijeni sortiraj
+                    Primijeni sortiranje
                   </button>
                 </div>
               </div>
@@ -2375,7 +2529,7 @@
           style="display: none"
         >
           <div>
-            <strong>⚙️ Upravljanje zonama</strong>
+            <strong>Upravljanje zonama</strong>
             <button class="btn btn-small" data-cmax-action="tidplan.toggleZoneManager">
               Zatvori
             </button>
@@ -2385,13 +2539,13 @@
             <input id="newZoneName" type="text" placeholder="Naziv zone" />
             <input id="newZoneColor" type="color" value="#FF0000" />
             <button class="btn btn-small" data-cmax-action="tidplan.addZoneFromInputs">
-              ➕ Dodaj zonu
+              Dodaj zonu
             </button>
             <button
               class="btn btn-small btn-danger"
               data-cmax-action="tidplan.clearZones"
             >
-              🗑️ Obriši sve
+              Obrisi sve
             </button>
           </div>
         </div>
@@ -2403,14 +2557,14 @@
             id="tidplanPanelToggle"
             title="Panel Mode"
           >
-            <span id="panelToggleIcon">◐</span>
+            <span id="panelToggleIcon">o</span>
           </button>
           <button
             class="tidplan-fullscreen-toggle"
             id="tidplanFullscreenToggle"
             title="Fullscreen Gantt"
           >
-            ⛶
+            [ ]
           </button>
         </div>
 
@@ -2483,9 +2637,13 @@
         </div>
       </div>
 
+      </div>
+
       <!-- FOOTER -->
       <div class="footer">
         <p>Script and idea made by Josip Ivandic</p>
+      </div>
+      </main>
       </div>
     </div>
 
@@ -2546,6 +2704,7 @@
     <script src="js/core/init.js"></script>
     <script src="js/admin/adminStorage.js"></script>
     <script src="js/notifications/notifications.js"></script>
+    <script src="js/core/accountNotifications.js"></script>
     <script src="js/core/auth.js"></script>
     <script src="js/core/events.js"></script>
     <script src="js/core/presence.js"></script>
@@ -2566,9 +2725,27 @@
     <script src="js/sites/sites.js"></script>
     <script src="js/tidplan/tidplanState.js"></script>
     <script src="js/tidplan/tidplanRender.js"></script>
+    <script src="js/tidplan/tidplanActions.js"></script>
     <script src="js/tidplan/tidplanEvents.js"></script>
     <script src="js/surveys/surveys.js"></script>
+    <script src="js/dashboard/dashboard.js"></script>
+    <script src="js/workwear/workwearPermissions.js"></script>
+    <script src="js/workwear/workwearState.js"></script>
+    <script src="js/workwear/workwearSelectors.js"></script>
+    <script src="js/workwear/workwearSupplierAdapters.js"></script>
+    <script src="js/workwear/workwearApi.js"></script>
+    <script src="js/workwear/workwearRender.js"></script>
+    <script src="js/workwear/workwearEvents.js"></script>
+    <script src="js/workwear/workwear.js"></script>
     <script src="js/core/namespace.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
+
+
+
+
+
+
+
+

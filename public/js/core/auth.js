@@ -90,11 +90,12 @@ function showLogin() {
 
 function showMainApp() {
   if (window.location.pathname === "/login") {
-    pushRouteForView("main", { path: "/home", replace: true });
+    pushRouteForView("home", { path: "/home", replace: true });
   }
   document.getElementById("loginOverlay").style.display = "none";
   document.getElementById("mainContainer").style.display = "block";
   updateLangButtons();
+  if (typeof initializeAppShell === "function") initializeAppShell();
   startPresenceTracking();
   startReportsPolling();
   startNotificationsPolling();
@@ -127,6 +128,79 @@ function showMainApp() {
   document.getElementById("datePicker").value = appState.currentDate;
   reinitFlatpickr();
   updateNotifBadge();
+  updateTopbarUser();
+  if (typeof initAccountNotifications === "function") initAccountNotifications();
+  if (typeof syncAccountNotifications === "function") syncAccountNotifications();
+  updateShellForView(currentView);
+}
+
+function updateTopbarUser() {
+  const topbarUser = document.getElementById("topbarUser");
+  if (!topbarUser) return;
+  const name = (appState.currentUserName || appState.currentUser || "-").toString().trim();
+  topbarUser.textContent = name || "-";
+  if (canOpenAdminPanelAccess()) {
+    topbarUser.setAttribute("data-cmax-action", "admin.open");
+    topbarUser.style.cursor = "pointer";
+    topbarUser.title = "Otvori postavke";
+  } else {
+    topbarUser.removeAttribute("data-cmax-action");
+    topbarUser.style.cursor = "default";
+    topbarUser.title = "";
+  }
+}
+
+function getModuleLabelForView(view) {
+  const labels = {
+    home: "Home",
+    main: "Planner",
+    planner: "Planner",
+    tidplan: "Tidplan",
+    bins: "Kante za smece",
+    warehouse: "Skladiste",
+    warehouseLogs: "Skladiste",
+    warehouseGraph: "Skladiste",
+    workwear: "Store",
+    reports: "Report",
+    notifications: "Obavijesti",
+    surveys: "Ankete / Pitanja",
+    admin: "Postavke",
+  };
+  return labels[view] || "Home";
+}
+
+function getModuleIconForView(view) {
+  const icons = {
+    home: 'url("icons/home.svg")',
+    main: 'url("icons/planner.svg")',
+    planner: 'url("icons/planner.svg")',
+    tidplan: 'url("icons/tidplan.svg")',
+    bins: 'url("icons/bins.svg")',
+    warehouse: 'url("icons/warehouse.svg")',
+    warehouseLogs: 'url("icons/warehouse.svg")',
+    warehouseGraph: 'url("icons/warehouse.svg")',
+    workwear: 'url("icons/warehouse.svg")',
+    reports: 'url("icons/planner.svg")',
+    notifications: 'url("icons/notifications.svg")',
+    surveys: 'url("icons/surveys.svg")',
+    admin: 'url("icons/admin.svg")',
+  };
+  return icons[view] || icons.home;
+}
+
+function updateShellForView(view = currentView) {
+  document.body.dataset.currentView = view;
+  const workwearSection = document.getElementById("workwear-section");
+  if (workwearSection && view !== "workwear") {
+    workwearSection.style.display = "none";
+    if (typeof workwearCartOverlayOpen !== "undefined") workwearCartOverlayOpen = false;
+    if (typeof renderWorkwearCartOverlay === "function") renderWorkwearCartOverlay();
+  }
+  const moduleLabel = document.getElementById("currentModuleLabel");
+  if (moduleLabel) moduleLabel.textContent = getModuleLabelForView(view);
+  const moduleIcon = document.querySelector(".module-context-icon");
+  if (moduleIcon) moduleIcon.style.setProperty("--icon", getModuleIconForView(view));
+  if (typeof updateShellNavigationState === "function") updateShellNavigationState();
 }
 
 function hide(id) {
@@ -202,9 +276,10 @@ function applyPermissionVisibility() {
   const canTidplan = canAccessTidplanModule();
   const canBins = canAccessBinsModule();
   const canWarehouse = canAccessWarehouseModule();
+  const canWorkwear = canAccessWorkwearModule();
   const canWarehouseLogs = canViewWarehouseLogsSection();
   const canWarehouseGraph = canViewWarehouseAnalyticsSection();
-  const canReports = canCreateReportsAccess();
+  const canReports = canAccessReportsModule();
   const canExportWarehouseAccess = canExportWarehouse();
   const canImportWarehouseAccess = canImportWarehouse();
   const canExportTidplanAccess = canExportTidplan();
@@ -215,7 +290,7 @@ function applyPermissionVisibility() {
   setVisibility("btnPrint", hasPermission("canPrint"));
   setVisibility("btnExport", hasPermission("canExport"));
   setVisibility("btnClear", !appState.isReadonly && hasPermission("canClear") && canEditDate(appState.currentDate));
-  setVisibility("btnReport", canReports);
+  setVisibility("btnReport", false);
 
   setVisibility("btnWarehouseExportExcel", canExportWarehouseAccess);
   setVisibility("btnWarehouseImportExcel", canImportWarehouseAccess);
@@ -227,12 +302,15 @@ function applyPermissionVisibility() {
   setVisibility("btnBins", canBins);
   setVisibility("btnWarehouse", canWarehouse);
   setVisibility("btnNotifications", canAccessNotificationsModule());
+  setVisibility("topbarNotificationsBtn", Boolean(appState.currentUser));
   setVisibility("btnPrintNotification", canAccessNotificationsModule() && hasPermission("canPrint"));
   setVisibility("btnSurveys", hasPermission("canViewSurveys"));
   setVisibility("adminBtn", canAdminPanel);
   setVisibility("btnLogout", !appState.isReadonly);
+  setVisibility("topbarLogoutBtn", !appState.isReadonly);
   setVisibility("btnAddRow", canManagePlannerRows);
   setVisibility("btnRemoveRow", canManagePlannerRows);
+  setVisibility("btnUseTidplanScheme", canManagePlannerRows);
   hide("btnSave");
 
   setElVisibility("workersControls", !appState.isReadonly && hasPermission("canManageWorkers"));
@@ -250,10 +328,13 @@ function applyPermissionVisibility() {
   const binsSection = document.getElementById("binsSection");
   const tidplanSection = document.getElementById("tidplan-section");
   const notificationsSection = document.getElementById("notifications-section");
+  const reportsSection = document.getElementById("reports-section");
+  const settingsSection = document.getElementById("settings-section");
   const surveysSection = document.getElementById("surveys-section");
   const warehouseSection = document.getElementById("warehouse-section");
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
+  const workwearSection = document.getElementById("workwear-section");
   const accessNotice = document.getElementById("accessNotice");
   const canNotifications = canAccessNotificationsModule();
 
@@ -267,6 +348,11 @@ function applyPermissionVisibility() {
   if (currentView === "notifications" && !canNotifications) {
     currentView = "main";
     if (notificationsSection) notificationsSection.style.display = "none";
+  }
+
+  if (currentView === "reports" && !canReports) {
+    currentView = "main";
+    if (reportsSection) reportsSection.style.display = "none";
   }
 
   if (currentView === "warehouse" && !canWarehouse) {
@@ -286,6 +372,11 @@ function applyPermissionVisibility() {
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
   }
 
+  if (currentView === "workwear" && !canWorkwear) {
+    currentView = "main";
+    if (workwearSection) workwearSection.style.display = "none";
+  }
+
   if (tidplanSection && tidplanSection.style.display === "block" && !canTidplan) {
     CMAX.tidplan.showPlanner();
   }
@@ -295,33 +386,78 @@ function applyPermissionVisibility() {
     if (listsContainer) listsContainer.classList.toggle("hidden", !canPlanner);
     if (binsSection) binsSection.classList.remove("active");
     if (notificationsSection) notificationsSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (workwearSection) workwearSection.style.display = "none";
   } else if (currentView === "bins") {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
     if (binsSection) binsSection.classList.add("active");
     if (notificationsSection) notificationsSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (workwearSection) workwearSection.style.display = "none";
   } else if (currentView === "notifications") {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
     if (binsSection) binsSection.classList.remove("active");
     if (notificationsSection) notificationsSection.style.display = "block";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (workwearSection) workwearSection.style.display = "none";
+  } else if (currentView === "reports") {
+    if (planningSection) planningSection.classList.add("hidden");
+    if (listsContainer) listsContainer.classList.add("hidden");
+    if (binsSection) binsSection.classList.remove("active");
+    if (notificationsSection) notificationsSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "block";
+    if (settingsSection) settingsSection.style.display = "none";
+    if (warehouseSection) warehouseSection.style.display = "none";
+    if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
+    if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (workwearSection) workwearSection.style.display = "none";
   } else if (["warehouse", "warehouseLogs", "warehouseGraph"].includes(currentView)) {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
     if (binsSection) binsSection.classList.remove("active");
     if (notificationsSection) notificationsSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
     if (warehouseSection) warehouseSection.style.display = currentView === "warehouse" ? "block" : "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = currentView === "warehouseLogs" ? "block" : "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = currentView === "warehouseGraph" ? "block" : "none";
+    if (workwearSection) workwearSection.style.display = "none";
+  } else if (currentView === "workwear") {
+    if (planningSection) planningSection.classList.add("hidden");
+    if (listsContainer) listsContainer.classList.add("hidden");
+    if (binsSection) binsSection.classList.remove("active");
+    if (notificationsSection) notificationsSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
+    if (warehouseSection) warehouseSection.style.display = "none";
+    if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
+    if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (workwearSection) workwearSection.style.display = "block";
+  } else if (currentView === "admin") {
+    if (planningSection) planningSection.classList.add("hidden");
+    if (listsContainer) listsContainer.classList.add("hidden");
+    if (binsSection) binsSection.classList.remove("active");
+    if (notificationsSection) notificationsSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "block";
+    if (warehouseSection) warehouseSection.style.display = "none";
+    if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
+    if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (workwearSection) workwearSection.style.display = "none";
   }
 
   if (!canPlanner && currentView === "main") {
@@ -341,10 +477,14 @@ function applyPermissionVisibility() {
       CMAX.warehouse.show();
       return;
     }
+    if (canWorkwear) {
+      CMAX.workwear.show();
+      return;
+    }
   }
 
   if (accessNotice) {
-    const hasAnyPrimaryModule = canPlanner || canTidplan || canBins || canNotifications || canWarehouse;
+    const hasAnyPrimaryModule = canPlanner || canTidplan || canBins || canNotifications || canWarehouse || canWorkwear;
     accessNotice.style.display = hasAnyPrimaryModule ? "none" : "block";
   }
 
@@ -352,6 +492,10 @@ function applyPermissionVisibility() {
   setElVisibility("warehouseNavGraphBtn", canWarehouseGraph);
   setElVisibility("warehouseLogsGraphBtn", canWarehouseGraph);
   setElVisibility("warehouseGraphLogsBtn", canWarehouseLogs);
+  setElVisibility("navWorkwearBtn", canWorkwear);
+  if (typeof syncSidebarAccessState === "function") syncSidebarAccessState();
+  if (typeof syncAccountNotifications === "function") syncAccountNotifications();
+  updateShellForView(currentView);
 }
 
 /* ==================== FLATPICKR INIT ==================== */

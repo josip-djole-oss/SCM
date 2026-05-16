@@ -47,6 +47,9 @@
     switchToLogin(...args) {
       return callLegacy("switchToLogin", args);
     },
+    showHome(...args) {
+      return callLegacy("showHome", args);
+    },
     logout(...args) {
       return callLegacy("logout", args);
     },
@@ -91,6 +94,15 @@
     },
   });
 
+  assignNamespace("dashboard", {
+    toggleSidebarCollapse(...args) {
+      return callLegacy("toggleSidebarCollapse", args);
+    },
+    toggleSidebarOverlay(...args) {
+      return callLegacy("toggleSidebarOverlay", args);
+    },
+  });
+
   assignNamespace("planner", {
     init(...args) {
       return callLegacy("renderAll", args);
@@ -103,6 +115,9 @@
     },
     addRow(...args) {
       return callLegacy("addPlanningRow", args);
+    },
+    useTidplanScheme(...args) {
+      return callLegacy("useTidplanSchemeForToday", args);
     },
     removeRow(...args) {
       return callLegacy("removePlanningRow", args);
@@ -245,6 +260,9 @@
     updateIssueDraftComment(...args) {
       return callLegacy("updateWarehouseIssueDraftComment", args);
     },
+    toggleSection(...args) {
+      return callLegacy("toggleWarehouseSection", args);
+    },
     toggleProcurementUser(...args) {
       return callLegacy("toggleWarehouseProcurementUser", args);
     },
@@ -256,6 +274,12 @@
     },
     setCatalogItemLimit(...args) {
       return callLegacy("setWarehouseCatalogItemLimit", args);
+    },
+    updateCatalogSearch(...args) {
+      return callLegacy("updateWarehouseCatalogSearch", args);
+    },
+    toggleCatalogExpand(...args) {
+      return callLegacy("toggleWarehouseCatalogExpand", args);
     },
     applyLogFilters(...args) {
       return callLegacy("applyWarehouseLogFilters", args);
@@ -277,6 +301,198 @@
     },
     handleImportExcel(...args) {
       return callLegacy("handleWarehouseImportExcel", args);
+    },
+  });
+
+  assignNamespace("workwear", {
+    show(...args) {
+      return callLegacy("showWorkwear", args);
+    },
+    hide(...args) {
+      return callLegacy("hideWorkwearSection", args);
+    },
+    render(...args) {
+      return callLegacy("renderWorkwearModule", args);
+    },
+    applyFilters(...args) {
+      return callLegacy("workwearApplyFilters", args);
+    },
+    selectSizeForProduct(...args) {
+      return callLegacy("workwearSelectSizeForProduct", args);
+    },
+    selectVariantForProduct(...args) {
+      return callLegacy("workwearSelectVariantForProduct", args);
+    },
+    setQuantityForProduct(...args) {
+      return callLegacy("workwearSetQuantityForProduct", args);
+    },
+    setCommentForProduct(...args) {
+      return callLegacy("workwearSetCommentForProduct", args);
+    },
+    addToCart(...args) {
+      return callLegacy("workwearAddToCart", args);
+    },
+    toggleCartOverlay(...args) {
+      return callLegacy("workwearToggleCartOverlay", args);
+    },
+    closeCartOverlay(...args) {
+      return callLegacy("workwearCloseCartOverlay", args);
+    },
+    removeCartItem(...args) {
+      return callLegacy("workwearRemoveCartItem", args);
+    },
+    saveDraft(...args) {
+      return callLegacy("workwearSaveDraft", args);
+    },
+    submitOrder(...args) {
+      return callLegacy("workwearSubmitOrder", args);
+    },
+    cancelOrder(...args) {
+      return callLegacy("workwearCancelOrder", args);
+    },
+    approveOrder(...args) {
+      return callLegacy("workwearApproveOrder", args);
+    },
+    rejectOrder(...args) {
+      return callLegacy("workwearRejectOrder", args);
+    },
+    markDelivered(...args) {
+      return callLegacy("workwearMarkDelivered", args);
+    },
+    saveProduct(...args) {
+      return callLegacy("workwearSaveProduct", args);
+    },
+    toggleManagerEditor(...args) {
+      return callLegacy("workwearToggleManagerEditor", args);
+    },
+    startNewProductWizard(...args) {
+      return callLegacy("workwearStartNewProductWizard", args);
+    },
+    editProductWizard(...args) {
+      return callLegacy("workwearEditProductWizard", args);
+    },
+    removeOrArchiveProduct(...args) {
+      return callLegacy("workwearRemoveOrArchiveProduct", args);
+    },
+    setProductWizardStep(...args) {
+      return callLegacy("workwearSetProductWizardStep", args);
+    },
+    prevProductWizardStep(...args) {
+      return callLegacy("workwearPrevProductWizardStep", args);
+    },
+    nextProductWizardStep(...args) {
+      return callLegacy("workwearNextProductWizardStep", args);
+    },
+    updateWizardCategory(...args) {
+      return callLegacy("workwearUpdateWizardCategory", args);
+    },
+    toggleWizardSize(...args) {
+      return callLegacy("workwearToggleWizardSize", args);
+    },
+    addWizardCustomSize(...args) {
+      return callLegacy("workwearAddWizardCustomSize", args);
+    },
+    addWizardVariant(...args) {
+      return callLegacy("workwearAddWizardVariant", args);
+    },
+    updateWizardVariantField(...args) {
+      return callLegacy("workwearUpdateWizardVariantField", args);
+    },
+    removeWizardVariant(...args) {
+      return callLegacy("workwearRemoveWizardVariant", args);
+    },
+    removeWizardSize(...args) {
+      return callLegacy("workwearRemoveWizardSize", args);
+    },
+    toggleWizardSite(...args) {
+      return callLegacy("workwearToggleWizardSite", args);
+    },
+    toggleWizardRole(...args) {
+      return callLegacy("workwearToggleWizardRole", args);
+    },
+    toggleWizardApprovalRole(...args) {
+      return callLegacy("workwearToggleWizardApprovalRole", args);
+    },
+    toggleWizardAllSites(...args) {
+      return callLegacy("workwearToggleWizardAllSites", args);
+    },
+    toggleWizardAllRoles(...args) {
+      return callLegacy("workwearToggleWizardAllRoles", args);
+    },
+    refreshWizardFlags(...args) {
+      return callLegacy("workwearRefreshWizardFlags", args);
+    },
+    uploadWizardImage(...args) {
+      return callLegacy("workwearUploadWizardImage", args);
+    },
+    toggleProductSection(...args) {
+      return callLegacy("workwearToggleProductSection", args);
+    },
+    switchManagerTab(...args) {
+      return callLegacy("workwearSwitchManagerTab", args);
+    },
+    applyBulkEdit(...args) {
+      return callLegacy("workwearApplyBulkEdit", args);
+    },
+    setBulkSelection(...args) {
+      return callLegacy("workwearSetBulkSelection", args);
+    },
+    toggleBulkSite(...args) {
+      return callLegacy("workwearToggleBulkSite", args);
+    },
+    toggleBulkRole(...args) {
+      return callLegacy("workwearToggleBulkRole", args);
+    },
+    toggleBulkAllSites(...args) {
+      return callLegacy("workwearToggleBulkAllSites", args);
+    },
+    toggleBulkAllRoles(...args) {
+      return callLegacy("workwearToggleBulkAllRoles", args);
+    },
+    adjustBudget(...args) {
+      return callLegacy("workwearAdjustBudget", args);
+    },
+    saveGlobalRules(...args) {
+      return callLegacy("workwearSaveGlobalRules", args);
+    },
+    saveStoreUser(...args) {
+      return callLegacy("workwearSaveStoreUser", args);
+    },
+    editStoreUser(...args) {
+      return callLegacy("workwearEditStoreUser", args);
+    },
+    cancelStoreUserEdit(...args) {
+      return callLegacy("workwearCancelStoreUserEdit", args);
+    },
+    requestPasswordReset(...args) {
+      return callLegacy("workwearRequestPasswordReset", args);
+    },
+    approvePasswordReset(...args) {
+      return callLegacy("workwearApprovePasswordReset", args);
+    },
+    rejectPasswordReset(...args) {
+      return callLegacy("workwearRejectPasswordReset", args);
+    },
+    exportData(...args) {
+      return callLegacy("workwearExportData", args);
+    },
+    openImport(...args) {
+      return callLegacy("workwearOpenImport", args);
+    },
+    importDataFromEvent(...args) {
+      return callLegacy("workwearImportDataFromEvent", args);
+    },
+    runExportWizard(...args) {
+      return callLegacy("workwearRunExportWizard", args);
+    },
+    setOrderFilter(...args) {
+      return callLegacy("workwearSetOrderFilter", args);
+    },
+  });
+
+  assignNamespace("store", {
+    show(...args) {
+      return CMAX.workwear.show(...args);
     },
   });
 
@@ -349,6 +565,9 @@
   });
 
   assignNamespace("reports", {
+    showCenter(...args) {
+      return callLegacy("showReportsCenter", args);
+    },
     open(...args) {
       return callLegacy("openReportModal", args);
     },
@@ -579,6 +798,24 @@
     },
     nextImage(...args) {
       return callLegacy("nextNotificationImage", args);
+    },
+  });
+
+  assignNamespace("accountNotifications", {
+    togglePanel(...args) {
+      return callLegacy("toggleAccountNotificationsPanel", args);
+    },
+    markAllRead(...args) {
+      return callLegacy("markAllAccountNotificationsRead", args);
+    },
+    openItem(...args) {
+      return callLegacy("openAccountNotificationItem", args);
+    },
+    deleteItem(...args) {
+      return callLegacy("deleteAccountNotificationItem", args);
+    },
+    closePanel(...args) {
+      return callLegacy("closeAccountNotificationsPanel", args);
     },
   });
 
