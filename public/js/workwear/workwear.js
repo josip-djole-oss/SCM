@@ -21,6 +21,8 @@ function hideWorkwearSection() {
   if (workwearSection) workwearSection.style.display = "none";
   if (typeof workwearCartOverlayOpen !== "undefined") workwearCartOverlayOpen = false;
   if (typeof renderWorkwearCartOverlay === "function") renderWorkwearCartOverlay();
+  if (typeof workwearImageViewerState !== "undefined") workwearImageViewerState.open = false;
+  if (typeof renderWorkwearImageViewer === "function") renderWorkwearImageViewer();
 }
 
 function showWorkwear() {
@@ -58,6 +60,7 @@ function showWorkwear() {
     if (settingsSection) settingsSection.style.display = "none";
     if (workwearSection) workwearSection.style.display = "block";
     if (typeof workwearCartOverlayOpen !== "undefined") workwearCartOverlayOpen = false;
+    if (typeof workwearImageViewerState !== "undefined") workwearImageViewerState.open = false;
 
     currentView = "workwear";
     saveCurrentView("workwear");
@@ -66,7 +69,15 @@ function showWorkwear() {
 
     loadWorkwearState(currentSite);
     ensureWorkerWorkwearProfile(appState.currentUser || "guest");
-    renderWorkwearModule();
+    if (typeof workwearApiListOrders === "function") {
+      workwearApiListOrders()
+        .catch(() => [])
+        .finally(() => {
+          renderWorkwearModule();
+        });
+    } else {
+      renderWorkwearModule();
+    }
     fillWorkwearSavedSizesForm();
 
     if (typeof syncSidebarAccessState === "function") syncSidebarAccessState();

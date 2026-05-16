@@ -1835,6 +1835,24 @@
           </div>
         </div>
 
+        <div id="workwearImageViewer" class="store-image-viewer" style="display:none">
+          <div class="store-image-viewer-dialog">
+            <div class="store-image-viewer-head">
+              <strong id="workwearImageViewerTitle">Pregled slike</strong>
+              <div class="store-image-viewer-head-actions">
+                <span id="workwearImageViewerCounter" class="store-image-viewer-counter">1 / 1</span>
+                <button class="btn btn-small btn-secondary" data-cmax-action="workwear.closeProductImageViewer">Close</button>
+              </div>
+            </div>
+            <div class="store-image-viewer-stage">
+              <button id="workwearImageViewerPrev" class="store-image-viewer-nav" data-cmax-action="workwear.prevProductImage" aria-label="Previous image">&lt;</button>
+              <img id="workwearImageViewerImage" alt="Store product image" />
+              <button id="workwearImageViewerNext" class="store-image-viewer-nav" data-cmax-action="workwear.nextProductImage" aria-label="Next image">&gt;</button>
+            </div>
+            <div id="workwearImageViewerThumbs" class="store-image-viewer-thumbs"></div>
+          </div>
+        </div>
+
         <section id="workwearManagerPanels" class="store-manager-card" style="display:none">
           <div class="store-manager-tabs">
             <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["products"]'>Artikli</button>

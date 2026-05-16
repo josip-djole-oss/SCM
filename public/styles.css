@@ -5768,6 +5768,14 @@ textarea:focus {
   padding: 12px;
 }
 
+.store-catalog-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: relative;
+  overflow: visible;
+}
+
 .store-side-column {
   display: grid;
   gap: 16px;
@@ -5778,7 +5786,12 @@ textarea:focus {
   display: grid;
   grid-template-columns: 1.5fr 1fr 1fr auto;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
+  min-height: 36px;
+  align-items: center;
+  position: static;
+  z-index: auto;
+  background: var(--bg-card);
 }
 
 .store-input {
@@ -5790,6 +5803,10 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
   gap: 14px;
+  margin-top: 4px;
+  padding-top: 2px;
+  position: relative;
+  z-index: 1;
 }
 
 .workwear-product-card {
@@ -5801,17 +5818,45 @@ textarea:focus {
 }
 
 .workwear-product-image-wrap {
-  min-height: 148px;
+  min-height: 172px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-panel);
+  position: relative;
+  padding: 8px;
 }
 
 .workwear-product-image {
   width: 100%;
-  height: 148px;
-  object-fit: cover;
+  height: 100%;
+  max-height: 168px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.workwear-product-image-trigger {
+  width: 100%;
+  min-height: 156px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: zoom-in;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workwear-product-image-count {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(15, 23, 42, 0.74);
 }
 
 .workwear-product-body {
@@ -5917,6 +5962,115 @@ textarea:focus {
 
 #workwearCartPanel {
   overflow: auto;
+}
+
+.store-image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  background: rgba(2, 8, 23, 0.82);
+  backdrop-filter: blur(2px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.store-image-viewer-dialog {
+  width: min(1100px, 96vw);
+  max-height: 94vh;
+  background: #0b1326;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 22px 54px rgba(2, 6, 23, 0.52);
+  color: #e2e8f0;
+  padding: 12px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+}
+
+.store-image-viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.store-image-viewer-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.store-image-viewer-counter {
+  padding: 3px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.store-image-viewer-stage {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
+}
+
+#workwearImageViewerImage {
+  width: 100%;
+  max-height: min(74vh, 820px);
+  object-fit: contain;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.88);
+}
+
+.store-image-viewer-nav {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  background: rgba(15, 23, 42, 0.78);
+  color: #e2e8f0;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.store-image-viewer-nav:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.store-image-viewer-thumbs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.store-image-viewer-thumb {
+  width: 72px;
+  height: 72px;
+  border: 1px solid rgba(148, 163, 184, 0.38);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 0;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.store-image-viewer-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 7px;
+}
+
+.store-image-viewer-thumb.is-active {
+  border-color: #5fa7ff;
+  box-shadow: 0 0 0 1px rgba(95, 167, 255, 0.4) inset;
 }
 
 .workwear-cart-list {
@@ -6161,6 +6315,23 @@ textarea:focus {
   .workwear-manager-products-layout {
     grid-template-columns: 1fr;
   }
+}
+
+/* Workwear catalog overlap guard:
+   keep filters in normal flow and force cards to start clearly below filters. */
+#workwear-section .store-catalog-card > .store-search-row {
+  position: relative !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  margin-bottom: 0 !important;
+  z-index: 2 !important;
+}
+
+#workwear-section .store-catalog-card > #workwearProductsGrid.store-products-grid {
+  margin-top: 18px !important;
+  padding-top: 6px !important;
 }
 
 

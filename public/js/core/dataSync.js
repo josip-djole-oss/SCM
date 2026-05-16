@@ -444,6 +444,42 @@ function protectCurrentAdminRecordForSync(admins, serverState, options = {}) {
   return protectedAdmins;
 }
 
+function getCurrentUserAccountNotificationKey() {
+  return String(appState.currentUser || "").trim().toLowerCase();
+}
+
+function getCurrentUserAccountNotificationBundle() {
+  const userKey = getCurrentUserAccountNotificationKey();
+  if (!userKey) return null;
+  return {
+    notifications: safeParseStoredJson(localStorage.getItem(`cmax_account_notifications_${userKey}`), []) || [],
+    siteTracker: safeParseStoredJson(localStorage.getItem(`cmax_account_notification_site_tracker_${userKey}`), {}) || {},
+    permissionSignature: String(localStorage.getItem(`cmax_account_notification_perm_${userKey}`) || ""),
+    workwearTracker: safeParseStoredJson(localStorage.getItem(`cmax_workwear_account_notification_tracker_${userKey}`), {}) || {},
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function applyCurrentUserAccountNotificationBundle(bundle) {
+  const userKey = getCurrentUserAccountNotificationKey();
+  if (!userKey || !bundle || typeof bundle !== "object") return;
+  localStorage.setItem(
+    `cmax_account_notifications_${userKey}`,
+    JSON.stringify(Array.isArray(bundle.notifications) ? bundle.notifications : []),
+  );
+  localStorage.setItem(
+    `cmax_account_notification_site_tracker_${userKey}`,
+    JSON.stringify(bundle.siteTracker && typeof bundle.siteTracker === "object" ? bundle.siteTracker : {}),
+  );
+  localStorage.setItem(
+    `cmax_workwear_account_notification_tracker_${userKey}`,
+    JSON.stringify(bundle.workwearTracker && typeof bundle.workwearTracker === "object" ? bundle.workwearTracker : {}),
+  );
+  if (typeof bundle.permissionSignature === "string" && bundle.permissionSignature) {
+    localStorage.setItem(`cmax_account_notification_perm_${userKey}`, bundle.permissionSignature);
+  }
+}
+
 function buildServerStateSnapshot(baseState = null, options = {}) {
   persistCurrentStateToLocalStorage();
   const serverState = baseState && typeof baseState === "object" ? baseState : {};
@@ -470,6 +506,16 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
         : siteList;
   const adminsForSnapshot = protectCurrentAdminRecordForSync(localAdmins, serverState, options);
   const currentSnapshotSite = siteList.includes(currentSite) ? currentSite : siteList[0];
+  const currentUserKey = getCurrentUserAccountNotificationKey();
+  const localAccountBundle = getCurrentUserAccountNotificationBundle();
+  const serverAccountNotifications =
+    serverState.accountNotifications && typeof serverState.accountNotifications === "object"
+      ? serverState.accountNotifications
+      : {};
+  const nextAccountNotifications = { ...serverAccountNotifications };
+  if (currentUserKey && localAccountBundle) {
+    nextAccountNotifications[currentUserKey] = localAccountBundle;
+  }
   const siteSnapshotList = options.includeSites === true
     ? siteList
     : currentSnapshotSite
@@ -569,6 +615,7 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
       options.includeBinPermissions === true
         ? localBinPermissions
         : serverState.binPermissions || localBinPermissions,
+    accountNotifications: nextAccountNotifications,
     siteData,
   };
 }
@@ -615,6 +662,13 @@ function applyServerStateSnapshot(snapshot) {
   }
 
   const snapshotSiteData = snapshot.siteData || {};
+  const accountNotifications = snapshot.accountNotifications && typeof snapshot.accountNotifications === "object"
+    ? snapshot.accountNotifications
+    : {};
+  const currentUserKey = getCurrentUserAccountNotificationKey();
+  if (currentUserKey && accountNotifications[currentUserKey]) {
+    applyCurrentUserAccountNotificationBundle(accountNotifications[currentUserKey]);
+  }
   sites.forEach((site) => {
     const siteEntry = snapshotSiteData[site] || {};
     const planner = siteEntry.planner && typeof siteEntry.planner === "object"

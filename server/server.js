@@ -1475,6 +1475,17 @@ async function buildPublicStatePayload(document, session) {
     if (!sessionHasPermission(session, 'canManageGuestAccess')) {
       delete responseState.guestPermissions;
     }
+
+    if (responseState.accountNotifications && typeof responseState.accountNotifications === 'object') {
+      const currentEmail = sanitizeString(session?.email || '', 160).toLowerCase();
+      if (currentEmail && responseState.accountNotifications[currentEmail]) {
+        responseState.accountNotifications = {
+          [currentEmail]: responseState.accountNotifications[currentEmail],
+        };
+      } else {
+        responseState.accountNotifications = {};
+      }
+    }
   }
 
   return {
@@ -1696,6 +1707,97 @@ function requireAnyPermission(permissionKeys = []) {
       return next();
     }
     return res.status(403).json({ error: 'Forbidden' });
+  };
+}
+
+function canAccessStoreModule(session) {
+  return sessionHasPermission(session, 'canAccessStore') || sessionHasPermission(session, 'canAccessWorkwear');
+}
+
+function canManageStoreOrders(session) {
+  return session?.isSuperAdmin ||
+    sessionHasPermission(session, 'canManageStore') ||
+    sessionHasPermission(session, 'canManageWorkwear');
+}
+
+function canViewStoreTeamOrdersPermission(session) {
+  return canManageStoreOrders(session) || sessionHasPermission(session, 'canViewStoreTeamOrders');
+}
+
+function getRequestedStoreSite(req) {
+  const raw = req.query?.site || req.body?.site || req.params?.site || req.session?.currentSite || 'default';
+  return sanitizeString(raw, 80) || 'default';
+}
+
+function sanitizeStoreOrderItem(rawItem) {
+  const item = rawItem && typeof rawItem === 'object' ? rawItem : {};
+  const quantity = Math.max(1, Number(item.quantity) || 1);
+  const unitCost = Math.max(0, Number(item.unitCost) || 0);
+  const lineCost = Math.max(0, Number(item.lineCost) || (unitCost * quantity));
+  return {
+    productId: sanitizeString(item.productId || '', 120),
+    productName: sanitizeString(item.productName || '', 240),
+    variantId: sanitizeString(item.variantId || '', 120),
+    variantName: sanitizeString(item.variantName || '', 200),
+    variantImage: sanitizeString(item.variantImage || '', 1000),
+    size: sanitizeString(item.size || '', 80),
+    quantity,
+    unitCost,
+    lineCost,
+    freeApplied: item.freeApplied === true,
+    differenceCost: Math.max(0, Number(item.differenceCost) || 0),
+    comment: sanitizeString(item.comment || '', 800),
+  };
+}
+
+function sanitizeStoreOrderPayload(rawOrder, fallbackWorkerId, site) {
+  const order = rawOrder && typeof rawOrder === 'object' ? rawOrder : {};
+  const now = new Date().toISOString();
+  const status = ['Pending', 'Approved', 'Delivered', 'Rejected', 'Cancelled'].includes(order.status)
+    ? order.status
+    : 'Pending';
+  const items = Array.isArray(order.items)
+    ? order.items.map((item) => sanitizeStoreOrderItem(item)).filter((item) => item.productId)
+    : [];
+  const subtotal = items.reduce((sum, item) => sum + Math.max(0, Number(item.lineCost) || 0), 0);
+  const differenceTotal = items.reduce((sum, item) => sum + Math.max(0, Number(item.differenceCost) || 0), 0);
+  const workerId = sanitizeString(order.workerId || fallbackWorkerId || '', 160).toLowerCase();
+  return {
+    id: sanitizeString(order.id || `SO-${Date.now().toString().slice(-8)}`, 80),
+    workerId,
+    workerName: sanitizeString(order.workerName || order.worker || workerId, 200),
+    site: sanitizeString(site || order.site || 'default', 80),
+    siteId: sanitizeString(order.siteId || site || 'default', 80),
+    siteName: sanitizeString(order.siteName || site || 'default', 120),
+    status,
+    urgent: order.urgent === true,
+    workerComment: sanitizeString(order.workerComment || '', 1200),
+    internalNote: sanitizeString(order.internalNote || '', 1200),
+    externalNote: sanitizeString(order.externalNote || '', 1200),
+    items,
+    budgetImpact: Math.max(0, Number(order.budgetImpact) || subtotal),
+    totals: {
+      items,
+      subtotal,
+      freeAppliedCount: Math.max(0, Number(order?.totals?.freeAppliedCount) || 0),
+      differenceTotal,
+    },
+    statusHistory: Array.isArray(order.statusHistory) && order.statusHistory.length
+      ? order.statusHistory.map((entry) => ({
+        status: ['Pending', 'Approved', 'Delivered', 'Rejected', 'Cancelled'].includes(entry?.status)
+          ? entry.status
+          : status,
+        at: sanitizeString(entry?.at || now, 80),
+        by: sanitizeString(entry?.by || workerId, 200),
+      }))
+      : [{ status, at: now, by: workerId }],
+    createdAt: sanitizeString(order.createdAt || now, 80),
+    updatedAt: sanitizeString(order.updatedAt || now, 80),
+    cancelledAt: sanitizeString(order.cancelledAt || '', 80),
+    cancelledBy: sanitizeString(order.cancelledBy || '', 200),
+    cancelReason: sanitizeString(order.cancelReason || '', 1000),
+    passwordConfirmedAt: sanitizeString(order.passwordConfirmedAt || now, 80),
+    creditReserved: Math.max(0, Number(order.creditReserved) || 0),
   };
 }
 
@@ -2002,6 +2104,26 @@ function mergeStateForSession(previousState, submittedState, session) {
     merged.binPermissions = submitted.binPermissions;
   }
 
+  const sessionEmail = sanitizeString(session?.email || '', 160).toLowerCase();
+  const previousAccountNotifications = previous.accountNotifications && typeof previous.accountNotifications === 'object'
+    ? previous.accountNotifications
+    : {};
+  const submittedAccountNotifications = submitted.accountNotifications && typeof submitted.accountNotifications === 'object'
+    ? submitted.accountNotifications
+    : {};
+  const nextAccountNotifications = { ...previousAccountNotifications };
+  if (sessionEmail && submittedAccountNotifications[sessionEmail]) {
+    nextAccountNotifications[sessionEmail] = sanitizeObject(submittedAccountNotifications[sessionEmail]);
+  }
+  if (canWriteStateField(session, 'canManageAdmins')) {
+    Object.entries(submittedAccountNotifications).forEach(([email, bundle]) => {
+      const key = sanitizeString(email, 160).toLowerCase();
+      if (!key) return;
+      nextAccountNotifications[key] = sanitizeObject(bundle);
+    });
+  }
+  merged.accountNotifications = nextAccountNotifications;
+
   const previousSiteData = previous.siteData && typeof previous.siteData === 'object' ? previous.siteData : {};
   const submittedSiteData = submitted.siteData && typeof submitted.siteData === 'object' ? submitted.siteData : {};
   const nextSiteData = { ...previousSiteData };
@@ -2126,6 +2248,7 @@ async function initializeData() {
     karnas: [],
     dailyData: {},
     guestPermissions: { ...DEFAULT_GUEST_PERMISSIONS },
+    accountNotifications: {},
     siteData: {},
     sites: ['default'],
     currentSite: 'default',
@@ -2448,6 +2571,189 @@ apiRouter.post('/store/confirm-password', async (req, res, next) => {
     await logActivity(email, 'store_password_confirm', { success: true });
     return res.json({ ok: true, confirmedAt: new Date().toISOString() });
   } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get('/store/orders', requireAnyPermission(['canAccessStore', 'canAccessWorkwear']), async (req, res, next) => {
+  try {
+    const site = getRequestedStoreSite(req);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+    const email = String(req.session?.email || '').trim().toLowerCase();
+    const document = await getStateDocument();
+    const state = document?.data && typeof document.data === 'object' ? document.data : {};
+    const siteEntry = state?.siteData?.[site] && typeof state.siteData[site] === 'object' ? state.siteData[site] : {};
+    const store = siteEntry?.store && typeof siteEntry.store === 'object' ? siteEntry.store : {};
+    const sourceOrders = Array.isArray(store.orders) ? store.orders : [];
+    const canManageAll = canManageStoreOrders(req.session);
+    const canSeeTeam = canViewStoreTeamOrdersPermission(req.session);
+    const visibleOrders = sourceOrders.filter((order) => {
+      if (canManageAll) return true;
+      if (canSeeTeam) return sanitizeString(order?.site || '', 80) === site;
+      return sanitizeString(order?.workerId || '', 160).toLowerCase() === email;
+    });
+    return res.json({
+      ok: true,
+      site,
+      orders: visibleOrders,
+      count: visibleOrders.length,
+      version: Number(document?.version) || 1,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAccessWorkwear']), async (req, res, next) => {
+  try {
+    if (req.session?.isReadonly) {
+      return res.status(403).json({ error: 'READONLY_FORBIDDEN' });
+    }
+    const site = getRequestedStoreSite(req);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+    const sessionEmail = String(req.session?.email || '').trim().toLowerCase();
+    const submitted = sanitizeStoreOrderPayload(req.body?.order, sessionEmail, site);
+    if (!submitted.workerId || !submitted.items.length) {
+      return res.status(400).json({ error: 'INVALID_ORDER_PAYLOAD' });
+    }
+    if (!canManageStoreOrders(req.session) && submitted.workerId !== sessionEmail) {
+      return res.status(403).json({ error: 'FORBIDDEN_WORKER_ORDER' });
+    }
+    const nowIso = new Date().toISOString();
+    submitted.createdAt = submitted.createdAt || nowIso;
+    submitted.updatedAt = nowIso;
+    submitted.site = site;
+    submitted.siteId = site;
+    submitted.siteName = site;
+
+    let savedOrder = null;
+    await mutateVersionedJsonFile(stateFile, {
+      version: 2,
+      savedAt: new Date().toISOString(),
+      sites: ['default'],
+      currentSite: 'default',
+      siteData: {},
+    }, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      const siteEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object'
+        ? { ...nextState.siteData[site] }
+        : {};
+      const store = siteEntry.store && typeof siteEntry.store === 'object' ? { ...siteEntry.store } : {};
+      const orders = Array.isArray(store.orders) ? [...store.orders] : [];
+      if (orders.some((entry) => sanitizeString(entry?.id || '', 80) === submitted.id)) {
+        const conflict = new Error('STORE_ORDER_EXISTS');
+        conflict.statusCode = 409;
+        throw conflict;
+      }
+      orders.push(submitted);
+      store.orders = orders;
+      siteEntry.store = store;
+      nextState.siteData[site] = siteEntry;
+      savedOrder = submitted;
+      return nextState;
+    });
+
+    await logActivity(sessionEmail, 'store_order_submitted_server', {
+      site,
+      orderId: savedOrder?.id || '',
+      workerId: savedOrder?.workerId || '',
+      status: savedOrder?.status || '',
+      itemsCount: Array.isArray(savedOrder?.items) ? savedOrder.items.length : 0,
+      budgetImpact: Number(savedOrder?.budgetImpact || 0),
+    });
+    return res.status(201).json({ ok: true, site, order: savedOrder });
+  } catch (error) {
+    if (error?.message === 'STORE_ORDER_EXISTS') {
+      return res.status(409).json({ error: 'STORE_ORDER_EXISTS' });
+    }
+    next(error);
+  }
+});
+
+apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canManageStore', 'canManageWorkwear', 'canViewStoreTeamOrders']), async (req, res, next) => {
+  try {
+    if (req.session?.isReadonly) {
+      return res.status(403).json({ error: 'READONLY_FORBIDDEN' });
+    }
+    const site = getRequestedStoreSite(req);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+    const orderId = sanitizeString(req.params?.orderId || '', 80);
+    const nextStatus = sanitizeString(req.body?.status || '', 40);
+    if (!orderId || !['Pending', 'Approved', 'Delivered', 'Rejected', 'Cancelled'].includes(nextStatus)) {
+      return res.status(400).json({ error: 'INVALID_STATUS_UPDATE' });
+    }
+    const actor = String(req.session?.email || '').trim().toLowerCase();
+    const canManageAll = canManageStoreOrders(req.session);
+    const canSeeTeam = canViewStoreTeamOrdersPermission(req.session);
+    if (!canManageAll && !canSeeTeam) {
+      return res.status(403).json({ error: 'FORBIDDEN' });
+    }
+
+    let updatedOrder = null;
+    await mutateVersionedJsonFile(stateFile, {
+      version: 2,
+      savedAt: new Date().toISOString(),
+      sites: ['default'],
+      currentSite: 'default',
+      siteData: {},
+    }, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      const siteEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object'
+        ? { ...nextState.siteData[site] }
+        : {};
+      const store = siteEntry.store && typeof siteEntry.store === 'object' ? { ...siteEntry.store } : {};
+      const orders = Array.isArray(store.orders) ? [...store.orders] : [];
+      const index = orders.findIndex((entry) => sanitizeString(entry?.id || '', 80) === orderId);
+      if (index < 0) {
+        const notFound = new Error('STORE_ORDER_NOT_FOUND');
+        notFound.statusCode = 404;
+        throw notFound;
+      }
+      const current = orders[index] && typeof orders[index] === 'object' ? { ...orders[index] } : null;
+      if (!current) {
+        const broken = new Error('STORE_ORDER_NOT_FOUND');
+        broken.statusCode = 404;
+        throw broken;
+      }
+      const nowIso = new Date().toISOString();
+      current.status = nextStatus;
+      current.updatedAt = nowIso;
+      current.internalNote = sanitizeString(req.body?.internalNote || current.internalNote || '', 1200);
+      current.externalNote = sanitizeString(req.body?.externalNote || current.externalNote || '', 1200);
+      const history = Array.isArray(current.statusHistory) ? current.statusHistory.slice() : [];
+      history.push({ status: nextStatus, at: nowIso, by: actor });
+      current.statusHistory = history;
+      if (nextStatus === 'Rejected' || nextStatus === 'Cancelled') {
+        current.cancelReason = sanitizeString(req.body?.reason || current.cancelReason || '', 1000);
+        current.cancelledAt = nowIso;
+        current.cancelledBy = actor;
+      }
+      orders[index] = current;
+      store.orders = orders;
+      siteEntry.store = store;
+      nextState.siteData[site] = siteEntry;
+      updatedOrder = current;
+      return nextState;
+    });
+
+    await logActivity(actor, 'store_order_status_updated_server', {
+      site,
+      orderId,
+      status: nextStatus,
+    });
+    return res.json({ ok: true, site, order: updatedOrder });
+  } catch (error) {
+    if (error?.message === 'STORE_ORDER_NOT_FOUND') {
+      return res.status(404).json({ error: 'STORE_ORDER_NOT_FOUND' });
+    }
     next(error);
   }
 });

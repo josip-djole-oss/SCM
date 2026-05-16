@@ -18,6 +18,13 @@ var workwearBulkAllRoles = true;
 var workwearEditingStoreUserEmail = "";
 var workwearManagerEditorOpen = false;
 var workwearCartOverlayOpen = false;
+var workwearImageViewerState = {
+  open: false,
+  productId: "",
+  images: [],
+  index: 0,
+  title: "",
+};
 var WORKWEAR_SIZE_PRESETS = {
   odjeca: ["XS", "S", "M", "L", "XL", "XXL", "3XL"],
   obuca: ["38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48"],
@@ -183,6 +190,22 @@ function getStoreCardBadges(product) {
   return badges;
 }
 
+function getStoreProductGalleryImages(product) {
+  const images = [];
+  const pushIfValid = (value) => {
+    const clean = String(value || "").trim();
+    if (!clean) return;
+    if (!images.includes(clean)) images.push(clean);
+  };
+  (Array.isArray(product?.images) ? product.images : []).forEach(pushIfValid);
+  (Array.isArray(product?.imageUrls) ? product.imageUrls : []).forEach(pushIfValid);
+  (Array.isArray(product?.variants) ? product.variants : []).forEach((variant) => {
+    pushIfValid(variant?.image);
+    pushIfValid(variant?.imageUrl);
+  });
+  return images;
+}
+
 function renderWorkwearProducts() {
   const root = getWorkwearProductsGrid();
   if (!root) return;
@@ -215,13 +238,27 @@ function renderWorkwearProducts() {
       const hasVariants = activeVariants.length > 0;
       const defaultQty = Number(workwearSelectedQuantityByProduct[product.id] || 1);
       const selectedVariantId = String(workwearSelectedVariantByProduct[product.id] || "");
-      const image = (Array.isArray(product.images) && product.images[0]) || (Array.isArray(product.imageUrls) && product.imageUrls[0]) || "";
+      const galleryImages = getStoreProductGalleryImages(product);
+      const image = galleryImages[0] || "";
       const badges = getStoreCardBadges(product);
       const statusLabel = product.active === false ? "Unavailable" : "Available";
       return `
         <article class="workwear-product-card">
           <div class="workwear-product-image-wrap">
-            ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" class="workwear-product-image">` : `<div class="workwear-product-fallback">Store</div>`}
+            ${image
+              ? `
+                <button
+                  type="button"
+                  class="workwear-product-image-trigger"
+                  data-cmax-action="workwear.openProductImageViewer"
+                  data-cmax-args='${escapeHtml(JSON.stringify([product.id, 0]))}'
+                  title="Otvori sliku preko cijelog ekrana"
+                >
+                  <img src="${escapeHtml(image)}" alt="${escapeHtml(product.name)}" class="workwear-product-image">
+                </button>
+                ${galleryImages.length > 1 ? `<span class="workwear-product-image-count">${galleryImages.length} slika</span>` : ""}
+              `
+              : `<div class="workwear-product-fallback">Store</div>`}
           </div>
           <div class="workwear-product-body">
             <h4>${escapeHtml(product.name || "Unnamed item")}</h4>
@@ -360,6 +397,48 @@ function renderWorkwearCartOverlay() {
   if (!overlay) return;
   const shouldShow = currentView === "workwear" && workwearCartOverlayOpen === true;
   overlay.style.display = shouldShow ? "flex" : "none";
+}
+
+function renderWorkwearImageViewer() {
+  const overlay = document.getElementById("workwearImageViewer");
+  const img = document.getElementById("workwearImageViewerImage");
+  const titleEl = document.getElementById("workwearImageViewerTitle");
+  const counterEl = document.getElementById("workwearImageViewerCounter");
+  const prevBtn = document.getElementById("workwearImageViewerPrev");
+  const nextBtn = document.getElementById("workwearImageViewerNext");
+  const thumbs = document.getElementById("workwearImageViewerThumbs");
+  if (!overlay || !img || !titleEl || !counterEl || !prevBtn || !nextBtn || !thumbs) return;
+
+  const shouldShow = currentView === "workwear" && workwearImageViewerState.open === true && workwearImageViewerState.images.length > 0;
+  overlay.style.display = shouldShow ? "flex" : "none";
+  if (!shouldShow) {
+    thumbs.innerHTML = "";
+    return;
+  }
+
+  const total = workwearImageViewerState.images.length;
+  const index = Math.max(0, Math.min(total - 1, Number(workwearImageViewerState.index) || 0));
+  workwearImageViewerState.index = index;
+  const currentImage = workwearImageViewerState.images[index] || "";
+  img.src = currentImage;
+  img.alt = workwearImageViewerState.title || "Store product image";
+  titleEl.textContent = workwearImageViewerState.title || "Pregled slike";
+  counterEl.textContent = `${index + 1} / ${total}`;
+  prevBtn.disabled = total <= 1;
+  nextBtn.disabled = total <= 1;
+
+  thumbs.innerHTML = workwearImageViewerState.images
+    .map((thumbSrc, thumbIndex) => `
+      <button
+        class="store-image-viewer-thumb ${thumbIndex === index ? "is-active" : ""}"
+        data-cmax-action="workwear.openProductImageViewer"
+        data-cmax-args='${escapeHtml(JSON.stringify([workwearImageViewerState.productId, thumbIndex]))}'
+        title="Prikazi sliku ${thumbIndex + 1}"
+      >
+        <img src="${escapeHtml(thumbSrc)}" alt="Thumbnail ${thumbIndex + 1}" />
+      </button>
+    `)
+    .join("");
 }
 
 function renderWorkwearOrders() {
@@ -1149,6 +1228,7 @@ function renderWorkwearModule() {
   renderWorkwearCart();
   renderWorkwearCartBadge();
   renderWorkwearCartOverlay();
+  renderWorkwearImageViewer();
   renderWorkwearOrders();
   renderWorkwearSidebarBadge();
   renderWorkwearManagerTabs();
