@@ -125,9 +125,7 @@ function initTidplanPanelControls() {
 function bindTidplanViewportFullscreen() {
   const fullscreenToggle = document.getElementById("tidplanFullscreenToggle");
   const timeline = document.getElementById("tidplanTimeline");
-  const container = timeline?.closest(".tidplan-container");
-
-  if (!fullscreenToggle || !timeline || !container) return;
+  if (!fullscreenToggle || !timeline) return;
   if (fullscreenToggle.dataset.cmaxFullscreenBound === "true") return;
   fullscreenToggle.dataset.cmaxFullscreenBound = "true";
 
@@ -140,19 +138,13 @@ function bindTidplanViewportFullscreen() {
   }
 
   function exitFullscreen() {
-    container.classList.remove("tidplan-container-fullscreen");
     timeline.classList.remove("tidplan-timeline-fullscreen");
-    document.body.classList.remove("tidplan-fullscreen-open");
-    document.documentElement.classList.remove("tidplan-fullscreen-open");
     isFullscreen = false;
     syncToggleLabel();
   }
 
   function enterFullscreen() {
-    container.classList.add("tidplan-container-fullscreen");
     timeline.classList.add("tidplan-timeline-fullscreen");
-    document.body.classList.add("tidplan-fullscreen-open");
-    document.documentElement.classList.add("tidplan-fullscreen-open");
     isFullscreen = true;
     syncToggleLabel();
   }

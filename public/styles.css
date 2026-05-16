@@ -1497,50 +1497,6 @@ body {
   box-shadow: 0 6px 16px var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
 }
 
-.tidplan-fullscreen-open {
-  overflow: hidden !important;
-}
-
-.tidplan-container-fullscreen {
-  position: relative !important;
-  z-index: auto !important;
-}
-
-.tidplan-container-fullscreen .tidplan-timeline {
-  overflow: visible;
-}
-
-.tidplan-timeline-fullscreen .timeline-header,
-.tidplan-timeline-fullscreen .timeline-body {
-  min-width: max-content;
-}
-
-.tidplan-fullscreen-close {
-  position: fixed;
-  top: max(12px, env(safe-area-inset-top, 0px) + 12px);
-  right: max(12px, env(safe-area-inset-right, 0px) + 12px);
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.4);
-  background: rgba(15, 23, 42, 0.68);
-  color: #fff;
-  cursor: pointer;
-  z-index: 10002;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.22);
-}
-
-.tidplan-timeline-fullscreen .timeline-body,
-.tidplan-timeline-fullscreen {
-  overscroll-behavior: contain;
-}
-
-.tidplan-timeline-fullscreen .timeline-header {
-  position: sticky;
-  top: 0;
-  z-index: 10001;
-}
-
 /* Panel modes */
 .tidplan-left-panel-hidden {
   width: 0 !important;
