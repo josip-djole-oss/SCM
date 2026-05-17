@@ -3,3 +3,4 @@ node_modules/
 uploads/
 data/
 *.log
+tmp/mobile-tablet-ux-*/
