@@ -8611,4 +8611,228 @@ body {
   }
 }
 
+/* Mobile/tablet Tidplan mode fixes must come after the scrollable work-surface
+   overrides above, otherwise the generic mobile timeline widths win. */
+@media (max-width: 1024px) {
+  #tidplan-section > .tidplan-container.tidplan-container-timeline-only,
+  #tidplan-section > .tidplan-container:has(.tidplan-left-panel-hidden) {
+    display: flex !important;
+    overflow: auto !important;
+  }
+
+  #tidplan-section > .tidplan-container.tidplan-container-timeline-only .tidplan-left-panel,
+  #tidplan-section > .tidplan-container:has(.tidplan-left-panel-hidden) .tidplan-left-panel {
+    flex: 0 0 0 !important;
+    width: 0 !important;
+    min-width: 0 !important;
+    max-width: 0 !important;
+    border: 0 !important;
+    overflow: hidden !important;
+  }
+
+  #tidplan-section > .tidplan-container.tidplan-container-timeline-only .tidplan-resizer,
+  #tidplan-section > .tidplan-container:has(.tidplan-left-panel-hidden) .tidplan-resizer {
+    display: none !important;
+  }
+
+  #tidplan-section > .tidplan-container.tidplan-container-timeline-only .tidplan-timeline,
+  #tidplan-section > .tidplan-container:has(.tidplan-left-panel-hidden) .tidplan-timeline {
+    display: block !important;
+    flex: 1 0 760px !important;
+    min-width: 760px !important;
+    overflow: auto !important;
+  }
+
+  #tidplan-section > .tidplan-container.tidplan-container-expanded {
+    display: block !important;
+    overflow: auto !important;
+  }
+
+  #tidplan-section > .tidplan-container.tidplan-container-expanded .tidplan-left-panel {
+    display: block !important;
+    width: 100% !important;
+    min-width: 760px !important;
+    max-width: none !important;
+    border-right: 0 !important;
+    overflow: auto !important;
+  }
+
+  #tidplan-section > .tidplan-container.tidplan-container-expanded .tidplan-timeline,
+  #tidplan-section > .tidplan-container.tidplan-container-expanded .tidplan-resizer {
+    display: none !important;
+  }
+
+  .tidplan-timeline-fullscreen {
+    position: fixed !important;
+    inset: 0 !important;
+    flex: none !important;
+    width: 100vw !important;
+    min-width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    max-width: 100vw !important;
+    max-height: 100dvh !important;
+    transform: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    z-index: 10000 !important;
+  }
+
+  .tidplan-fullscreen-close {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+  }
+}
+
+/* Overlay scroll safety: long Store/Admin panels keep header/tabs visible and
+   scroll only their content area on mobile and tablet. */
+@media (max-width: 1024px) {
+  .store-modal-shell,
+  .store-orders-shell,
+  .store-manager-overlay .store-modal-shell {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .store-manager-card.store-modal-shell {
+    height: min(100dvh, calc(100dvh - 24px)) !important;
+  }
+
+  .store-modal-head,
+  .store-manager-card.store-modal-shell .store-manager-tabs {
+    flex: 0 0 auto !important;
+  }
+
+  .store-modal-body,
+  .store-orders-list.store-modal-body {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .store-manager-card.store-modal-shell .store-manager-tab {
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .store-manager-card.store-modal-shell .store-manager-tab.is-active {
+    display: block !important;
+  }
+
+  .store-manager-card.store-modal-shell .store-orders-list,
+  .store-manager-card.store-modal-shell #workwearManagerOrdersList,
+  .store-manager-card.store-modal-shell #workwearAuditLog {
+    min-height: 0 !important;
+  }
+
+  #settings-section .modal-box {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    max-height: calc(100dvh - 20px) !important;
+    overflow: hidden !important;
+  }
+
+  #settings-section .modal-header,
+  #settings-section .tab-bar {
+    flex: 0 0 auto !important;
+  }
+
+  #settings-section .tab-content.active {
+    display: block !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .store-modal-head,
+  .store-cart-drawer-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+    border-bottom: 1px solid #e6edf8;
+  }
+
+  .store-manager-card.store-modal-shell {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
+
+  .store-manager-card.store-modal-shell .store-manager-tabs {
+    position: sticky;
+    top: 64px;
+    z-index: 2;
+    background: #ffffff;
+    border-bottom: 1px solid #e6edf8;
+  }
+
+  .store-modal-body,
+  .store-orders-list.store-modal-body {
+    padding-bottom: calc(42px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  #settings-section .modal-box {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  #settings-section {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 1550 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #f4f7fb !important;
+  }
+
+  #settings-section .modal-box {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    padding: 12px !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* Backdrop-filter on the app shell can make fixed children use the large app
+   container as their containing block. Give Store overlays an explicit viewport
+   size so drawers/modals cannot be pushed below long product grids. */
+.store-modal-overlay,
+.store-cart-overlay,
+.store-image-viewer {
+  top: 0 !important;
+  left: 0 !important;
+  right: auto !important;
+  bottom: auto !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+}
+
 

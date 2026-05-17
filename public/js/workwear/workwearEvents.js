@@ -132,8 +132,13 @@ function workwearToggleManagerEditor() {
 
 function workwearToggleCartOverlay() {
   workwearCartOverlayOpen = !workwearCartOverlayOpen;
-  if (workwearCartOverlayOpen) workwearOrdersOverlayOpen = false;
+  if (workwearCartOverlayOpen) {
+    workwearOrdersOverlayOpen = false;
+    workwearManagerEditorOpen = false;
+  }
   renderWorkwearCartOverlay();
+  renderWorkwearOrdersOverlay();
+  renderWorkwearManagerOverlay();
   renderWorkwearHeaderControls();
 }
 
@@ -145,8 +150,13 @@ function workwearCloseCartOverlay() {
 
 function workwearToggleOrdersOverlay() {
   workwearOrdersOverlayOpen = !workwearOrdersOverlayOpen;
-  if (workwearOrdersOverlayOpen) workwearCartOverlayOpen = false;
+  if (workwearOrdersOverlayOpen) {
+    workwearCartOverlayOpen = false;
+    workwearManagerEditorOpen = false;
+  }
   renderWorkwearOrdersOverlay();
+  renderWorkwearCartOverlay();
+  renderWorkwearManagerOverlay();
   renderWorkwearHeaderControls();
 }
 

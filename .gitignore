@@ -5,3 +5,4 @@ data/
 *.log
 tmp/mobile-tablet-ux-*/
 tmp/mobile-tablet-proof-*/
+tmp/mobile-tablet-overlay-proof-*/

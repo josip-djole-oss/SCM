@@ -76,12 +76,13 @@ function initTidplanPanelControls() {
   function updatePanelMode() {
     // Reset classes
     leftPanel.classList.remove("tidplan-left-panel-hidden", "tidplan-left-panel-expanded");
-    container.classList.remove("tidplan-container-expanded");
+    container.classList.remove("tidplan-container-expanded", "tidplan-container-timeline-only");
     resizer.style.display = "flex";
 
     switch (panelMode) {
       case "hidden":
         leftPanel.classList.add("tidplan-left-panel-hidden");
+        container.classList.add("tidplan-container-timeline-only");
         resizer.style.display = "none";
         panelToggleIcon.textContent = "◑";
         panelToggle.title = "Show Panel";
@@ -133,6 +134,9 @@ function bindTidplanViewportFullscreen() {
 
   let isFullscreen = false;
   let fullscreenCloseButton = null;
+  let timelinePlaceholder = null;
+  let originalTimelineParent = null;
+  let originalTimelineNextSibling = null;
 
   function syncToggleLabel() {
     fullscreenToggle.classList.toggle("fullscreen-active", isFullscreen);
@@ -145,6 +149,28 @@ function bindTidplanViewportFullscreen() {
       fullscreenCloseButton.remove();
       fullscreenCloseButton = null;
     }
+  }
+
+  function portalTimelineToViewport() {
+    if (timelinePlaceholder) return;
+    originalTimelineParent = timeline.parentElement;
+    originalTimelineNextSibling = timeline.nextSibling;
+    timelinePlaceholder = document.createComment("tidplan-timeline-fullscreen-placeholder");
+    originalTimelineParent?.insertBefore(timelinePlaceholder, timeline);
+    document.body.appendChild(timeline);
+  }
+
+  function restoreTimelineFromViewport() {
+    if (!timelinePlaceholder || !originalTimelineParent) return;
+    if (originalTimelineNextSibling && originalTimelineNextSibling.parentNode === originalTimelineParent) {
+      originalTimelineParent.insertBefore(timeline, originalTimelineNextSibling);
+    } else {
+      originalTimelineParent.insertBefore(timeline, timelinePlaceholder);
+    }
+    timelinePlaceholder.remove();
+    timelinePlaceholder = null;
+    originalTimelineParent = null;
+    originalTimelineNextSibling = null;
   }
 
   function ensureCloseButton() {
@@ -165,10 +191,12 @@ function bindTidplanViewportFullscreen() {
     document.documentElement.classList.remove("tidplan-fullscreen-open");
     isFullscreen = false;
     removeCloseButton();
+    restoreTimelineFromViewport();
     syncToggleLabel();
   }
 
   function enterFullscreen() {
+    portalTimelineToViewport();
     container.classList.add("tidplan-container-fullscreen");
     timeline.classList.add("tidplan-timeline-fullscreen");
     document.body.classList.add("tidplan-fullscreen-open");
