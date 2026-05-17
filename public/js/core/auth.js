@@ -188,36 +188,6 @@ function getModuleIconForView(view) {
   return icons[view] || icons.home;
 }
 
-function syncHeaderLayoutMetrics() {
-  const header = document.querySelector(".app-main > .header") || document.querySelector(".header");
-  if (!header) return;
-  const height = Math.max(72, Math.ceil(header.getBoundingClientRect().height || header.offsetHeight || 0));
-  document.documentElement.style.setProperty("--cmax-header-height", `${height}px`);
-}
-
-function scheduleHeaderLayoutMetricsSync() {
-  if (typeof window === "undefined" || typeof requestAnimationFrame !== "function") {
-    syncHeaderLayoutMetrics();
-    return;
-  }
-  if (window.__cmaxHeaderMetricsRaf) cancelAnimationFrame(window.__cmaxHeaderMetricsRaf);
-  window.__cmaxHeaderMetricsRaf = requestAnimationFrame(() => {
-    window.__cmaxHeaderMetricsRaf = null;
-    syncHeaderLayoutMetrics();
-  });
-}
-
-if (typeof window !== "undefined" && !window.__cmaxHeaderMetricsBound) {
-  window.__cmaxHeaderMetricsBound = true;
-  window.addEventListener("resize", scheduleHeaderLayoutMetricsSync);
-  window.addEventListener("orientationchange", scheduleHeaderLayoutMetricsSync);
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", scheduleHeaderLayoutMetricsSync, { once: true });
-  } else {
-    scheduleHeaderLayoutMetricsSync();
-  }
-}
-
 function updateShellForView(view = currentView) {
   document.body.dataset.currentView = view;
   if (typeof closeSidebarOnMobile === "function") closeSidebarOnMobile();
@@ -237,7 +207,6 @@ function updateShellForView(view = currentView) {
   const moduleIcon = document.querySelector(".module-context-icon");
   if (moduleIcon) moduleIcon.style.setProperty("--icon", getModuleIconForView(view));
   if (typeof updateShellNavigationState === "function") updateShellNavigationState();
-  scheduleHeaderLayoutMetricsSync();
 }
 
 function hide(id) {

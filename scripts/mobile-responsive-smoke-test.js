@@ -25,13 +25,17 @@ try {
   mustContain(styles, "#workwear-section .store-side-column", "store side column removal rule");
   mustContain(styles, ".store-pagination", "store pagination styles");
   mustContain(styles, ".store-search-row", "store search row mobile stack");
+  mustContain(styles, "HEADER + STORE MODAL STABILITY PASS", "header and modal stability pass");
+  mustContain(styles, "height: 100dvh !important;", "mobile full-height store modal");
+  mustContain(styles, "overflow-y: auto !important;", "store modal body scroll");
+  mustContain(styles, "flex-wrap: wrap !important;", "header resize wrapping");
   mustContain(html, 'id="accountNotificationsBackdrop"', "account notifications backdrop markup");
   mustContain(html, 'id="workwearManagerOverlay"', "store manager overlay markup");
   mustContain(html, 'id="workwearOrdersOverlay"', "store orders overlay markup");
   mustContain(render, "document.body.classList.toggle(\"workwear-orders-open\", shouldShow);", "orders overlay body lock");
   mustContain(accountNotifications, "document.body.classList.add(\"account-notifications-open\")", "account notifications open body class");
 
-  console.log(JSON.stringify({ ok: true, checks: 15 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 19 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);
