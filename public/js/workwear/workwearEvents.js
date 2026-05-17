@@ -75,8 +75,13 @@ function workwearSetOrderFilter(key, el) {
   renderWorkwearManagerOrders();
 }
 
-function workwearLoadMoreProducts() {
-  workwearProductRenderLimit += 24;
+function workwearPrevProductPage() {
+  workwearProductPage = Math.max(1, Number(workwearProductPage || 1) - 1);
+  renderWorkwearProducts();
+}
+
+function workwearNextProductPage() {
+  workwearProductPage = Math.max(1, Number(workwearProductPage || 1) + 1);
   renderWorkwearProducts();
 }
 
@@ -1723,7 +1728,7 @@ function workwearRejectPasswordReset(requestId) {
 }
 
 function workwearApplyFilters() {
-  workwearProductRenderLimit = 24;
+  workwearProductPage = 1;
   renderWorkwearProducts();
 }
 

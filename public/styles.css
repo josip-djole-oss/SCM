@@ -7388,4 +7388,246 @@ textarea {
   }
 }
 
+/* ==== STORE / HEADER COMPACT CLEANUP PASS ==== */
+#workwear-section .store-layout {
+  display: block;
+}
+
+#workwear-section .store-side-column {
+  display: none !important;
+}
+
+#workwear-section .store-header-actions {
+  gap: 10px;
+}
+
+#workwear-section .store-products-grid {
+  grid-template-columns: repeat(auto-fill, minmax(208px, 1fr));
+  gap: 12px;
+}
+
+#workwear-section .workwear-product-card {
+  border-radius: 12px;
+}
+
+#workwear-section .workwear-product-image-wrap {
+  min-height: 150px;
+  padding: 6px;
+}
+
+#workwear-section .workwear-product-image {
+  max-height: 144px;
+}
+
+#workwear-section .workwear-product-body {
+  padding: 9px;
+  gap: 7px;
+}
+
+#workwear-section .workwear-product-body h4 {
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+#workwear-section .workwear-product-meta,
+#workwear-section .workwear-product-body p,
+#workwear-section .workwear-product-price-row {
+  font-size: 12px;
+}
+
+.store-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 18px 0 6px;
+  flex-wrap: wrap;
+}
+
+.store-pagination-meta {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 92px;
+  color: var(--text-light);
+  font-size: 12px;
+}
+
+.store-pagination-meta strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.header {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.logo-section {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  margin-top: 0;
+}
+
+.logo img {
+  width: 34px;
+  height: 34px;
+}
+
+.title-section {
+  display: grid;
+  grid-template-columns: max-content max-content max-content;
+  gap: 8px 10px;
+  align-items: center;
+  justify-content: start;
+}
+
+.title-section .site-switcher {
+  grid-column: 1 / -1;
+  width: min(320px, 100%);
+}
+
+#mainTitle {
+  font-size: 28px;
+  line-height: 1;
+  padding: 8px 12px;
+}
+
+.module-context,
+.date-display {
+  align-self: center;
+}
+
+.header-right {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  gap: 8px;
+  align-items: center;
+  justify-content: end;
+}
+
+.topbar-meta-stack {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  gap: 8px;
+  align-items: center;
+  justify-content: end;
+}
+
+.topbar-user,
+#topbarLogoutBtn,
+.topbar-bell,
+.lang-btn,
+.site-switcher-btn,
+.date-picker-section {
+  min-height: 42px;
+}
+
+.topbar-bell-wrap .account-notifications-panel {
+  z-index: 80;
+}
+
+@media (min-width: 641px) {
+  .topbar-bell-wrap .account-notifications-panel {
+    position: fixed !important;
+    top: clamp(82px, 10dvh, 98px) !important;
+    max-height: calc(100dvh - clamp(102px, 12dvh, 124px)) !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .topbar-bell-wrap .account-notifications-panel {
+    right: 18px !important;
+    left: auto !important;
+    transform: none !important;
+    width: min(420px, calc(100vw - 28px)) !important;
+    max-width: calc(100vw - 28px) !important;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .header {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .logo-section,
+  .header-right {
+    grid-column: 1 / -1;
+  }
+
+  .header-right {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, max-content));
+    justify-content: end;
+  }
+
+  .topbar-meta-stack {
+    grid-column: 1 / -1;
+    grid-template-columns: max-content max-content;
+    justify-content: end;
+  }
+
+  .topbar-bell-wrap .account-notifications-panel {
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    width: min(460px, calc(100vw - 24px)) !important;
+    max-width: calc(100vw - 24px) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .logo-section {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .logo {
+    width: 44px;
+    height: 44px;
+  }
+
+  .logo img {
+    width: 28px;
+    height: 28px;
+  }
+
+  .title-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .title-section .site-switcher {
+    width: 100%;
+  }
+
+  #workwear-section .store-products-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header-right {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .topbar-meta-stack {
+    grid-template-columns: 1fr;
+  }
+
+  .store-pagination {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 

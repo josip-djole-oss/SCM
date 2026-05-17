@@ -79,10 +79,12 @@ try {
   mustContain(html, 'id="workwearOrdersToggleBtn"', "orders overlay toggle");
   mustContain(html, 'id="workwearOrdersOverlay"', "orders overlay");
   mustContain(html, 'id="workwearManagerOverlay"', "manager editor overlay");
+  if (html.includes('class="store-side-column"')) throw new Error("Legacy store side column should not remain in Store layout");
   mustContain(events, "workwearToggleCartOverlay", "cart overlay toggle handler");
   mustContain(events, "workwearToggleManagerEditor", "manager editor toggle handler");
   mustContain(events, "workwearToggleOrdersOverlay", "orders overlay toggle handler");
   mustContain(events, "workwearCloseManagerEditor", "manager editor close handler");
+  mustContain(events, "workwearNextProductPage", "product pagination next handler");
   mustContain(events, "initWorkwearOverlayInteractions", "store overlay interaction bootstrap");
   mustContain(events, "workwearSetCheckoutBusy", "checkout busy state helper");
   mustContain(events, "showLoading(\"loadingStoreCheckout\")", "checkout loading overlay");

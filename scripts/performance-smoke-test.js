@@ -44,11 +44,11 @@ try {
   mustContain(dataSync, "CMAX_PERF?.begin?.(\"sync-server-state\"", "sync performance measurement");
   mustContain(sync, "renderActiveSharedModule", "sync render dedupe");
 
-  mustContain(workwearRender, "workwearProductRenderLimit", "store product lazy render limit");
+  mustContain(workwearRender, "WORKWEAR_PRODUCTS_PER_PAGE = 20", "store product page size");
   mustContain(workwearRender, "workwearOrderRenderLimit", "store order lazy render limit");
   mustContain(workwearRender, "data-cmax-debounce=\"160\"", "debounced quantity input");
   mustContain(workwearRender, "loading=\"lazy\"", "lazy-loaded store images");
-  mustContain(workwearEvents, "function workwearLoadMoreProducts()", "store load more products");
+  mustContain(workwearEvents, "function workwearNextProductPage()", "store product next page");
   mustContain(workwearEvents, "function workwearLoadMoreOrders()", "store load more orders");
   mustContain(workwearApi, "AbortController", "store order request cancellation");
 

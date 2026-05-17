@@ -22,7 +22,8 @@ try {
   mustContain(styles, "grid-template-columns: repeat(2, minmax(0, 1fr)) !important;", "compact summary grid layout");
   mustContain(styles, "min-height: 44px;", "touch target minimum size");
   mustContain(styles, ".store-manager-overlay .store-modal-shell", "manager editor mobile overlay styles");
-  mustContain(styles, ".store-orders-launcher-card", "orders launcher card styles");
+  mustContain(styles, "#workwear-section .store-side-column", "store side column removal rule");
+  mustContain(styles, ".store-pagination", "store pagination styles");
   mustContain(styles, ".store-search-row", "store search row mobile stack");
   mustContain(html, 'id="accountNotificationsBackdrop"', "account notifications backdrop markup");
   mustContain(html, 'id="workwearManagerOverlay"', "store manager overlay markup");
@@ -30,7 +31,7 @@ try {
   mustContain(render, "document.body.classList.toggle(\"workwear-orders-open\", shouldShow);", "orders overlay body lock");
   mustContain(accountNotifications, "document.body.classList.add(\"account-notifications-open\")", "account notifications open body class");
 
-  console.log(JSON.stringify({ ok: true, checks: 14 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 15 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

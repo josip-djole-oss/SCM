@@ -20,6 +20,8 @@ var workwearManagerEditorOpen = false;
 var workwearCartOverlayOpen = false;
 var workwearOrdersOverlayOpen = false;
 var workwearCheckoutInFlight = false;
+var workwearProductPage = 1;
+var WORKWEAR_PRODUCTS_PER_PAGE = 20;
 var workwearImageViewerState = {
   open: false,
   productId: "",
@@ -27,7 +29,6 @@ var workwearImageViewerState = {
   index: 0,
   title: "",
 };
-var workwearProductRenderLimit = 24;
 var workwearOrderRenderLimit = 20;
 var WORKWEAR_SIZE_PRESETS = {
   odjeca: ["XS", "S", "M", "L", "XL", "XXL", "3XL"],
@@ -230,7 +231,11 @@ function renderWorkwearProducts() {
       const text = `${product.name || ""} ${product.description || ""} ${product.subcategory || ""} ${variantsText}`.toLowerCase();
       return text.includes(query);
     });
-  const visibleProducts = products.slice(0, workwearProductRenderLimit);
+  const totalPages = Math.max(1, Math.ceil(products.length / WORKWEAR_PRODUCTS_PER_PAGE));
+  const currentPage = Math.min(totalPages, Math.max(1, Number(workwearProductPage) || 1));
+  workwearProductPage = currentPage;
+  const pageStart = (currentPage - 1) * WORKWEAR_PRODUCTS_PER_PAGE;
+  const visibleProducts = products.slice(pageStart, pageStart + WORKWEAR_PRODUCTS_PER_PAGE);
 
   if (!visibleProducts.length) {
     root.innerHTML = `<div class="module-empty-state">Nema dostupnih artikala za ovo gradiliste.</div>`;
@@ -298,20 +303,27 @@ function renderWorkwearProducts() {
       `;
     })
     .join("");
-  if (products.length > visibleProducts.length) {
+  if (products.length > WORKWEAR_PRODUCTS_PER_PAGE) {
     root.insertAdjacentHTML(
       "beforeend",
       `
-        <div class="store-list-load-more">
-          <button class="btn btn-secondary" data-cmax-action="workwear.loadMoreProducts">
-            ${escapeHtml(t("loadMore") || "Ucitaj jos")} (${visibleProducts.length}/${products.length})
+        <div class="store-pagination">
+          <button class="btn btn-secondary" data-cmax-action="workwear.prevProductPage" ${currentPage <= 1 ? "disabled" : ""}>
+            ‹ ${escapeHtml(t("previous") || "Prethodna")}
+          </button>
+          <div class="store-pagination-meta">
+            <strong>${escapeHtml(String(currentPage))} / ${escapeHtml(String(totalPages))}</strong>
+            <span>${escapeHtml(String(products.length))} artikala</span>
+          </div>
+          <button class="btn btn-secondary" data-cmax-action="workwear.nextProductPage" ${currentPage >= totalPages ? "disabled" : ""}>
+            ${escapeHtml(t("next") || "Sljedeca")} ›
           </button>
         </div>
       `,
     );
   }
   CMAX_PERF?.count?.("renderWorkwearProducts");
-  if (token) CMAX_PERF.end(token, { count: visibleProducts.length, total: products.length });
+  if (token) CMAX_PERF.end(token, { count: visibleProducts.length, total: products.length, page: currentPage, totalPages });
 }
 
 function renderWorkwearHeaderControls() {
@@ -327,7 +339,7 @@ function renderWorkwearHeaderControls() {
     managerBtn.textContent = workwearManagerEditorOpen ? (t("storeCloseEditor") || "Zatvori editor") : (t("storeOpenEditor") || "Uredi artikle");
   }
   if (ordersBtn) {
-    ordersBtn.textContent = workwearOrdersOverlayOpen ? "Zatvori moje narudzbe" : "Otvori moje narudzbe";
+    ordersBtn.textContent = workwearOrdersOverlayOpen ? "Zatvori narudzbe" : "Moje narudzbe";
   }
   if (cartBtn) {
     cartBtn.style.display = currentView === "workwear" ? "inline-flex" : "none";

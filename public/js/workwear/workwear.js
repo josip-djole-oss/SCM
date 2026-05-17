@@ -20,7 +20,11 @@ function hideWorkwearSection() {
   const workwearSection = document.getElementById("workwear-section");
   if (workwearSection) workwearSection.style.display = "none";
   if (typeof workwearCartOverlayOpen !== "undefined") workwearCartOverlayOpen = false;
+  if (typeof workwearOrdersOverlayOpen !== "undefined") workwearOrdersOverlayOpen = false;
+  if (typeof workwearManagerEditorOpen !== "undefined") workwearManagerEditorOpen = false;
   if (typeof renderWorkwearCartOverlay === "function") renderWorkwearCartOverlay();
+  if (typeof renderWorkwearOrdersOverlay === "function") renderWorkwearOrdersOverlay();
+  if (typeof renderWorkwearManagerOverlay === "function") renderWorkwearManagerOverlay();
   if (typeof workwearImageViewerState !== "undefined") workwearImageViewerState.open = false;
   if (typeof renderWorkwearImageViewer === "function") renderWorkwearImageViewer();
 }
@@ -60,13 +64,15 @@ function showWorkwear() {
     if (settingsSection) settingsSection.style.display = "none";
     if (workwearSection) workwearSection.style.display = "block";
     if (typeof workwearCartOverlayOpen !== "undefined") workwearCartOverlayOpen = false;
+    if (typeof workwearOrdersOverlayOpen !== "undefined") workwearOrdersOverlayOpen = false;
+    if (typeof workwearManagerEditorOpen !== "undefined") workwearManagerEditorOpen = false;
     if (typeof workwearImageViewerState !== "undefined") workwearImageViewerState.open = false;
 
     currentView = "workwear";
     saveCurrentView("workwear");
     pushRouteForView("workwear");
     if (typeof updateShellForView === "function") updateShellForView("workwear");
-    if (typeof workwearProductRenderLimit !== "undefined") workwearProductRenderLimit = 24;
+    if (typeof workwearProductPage !== "undefined") workwearProductPage = 1;
     if (typeof workwearOrderRenderLimit !== "undefined") workwearOrderRenderLimit = 20;
 
     loadWorkwearState(currentSite);

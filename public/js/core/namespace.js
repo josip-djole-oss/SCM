@@ -320,8 +320,14 @@
     applyFilters(...args) {
       return callLegacy("workwearApplyFilters", args);
     },
+    prevProductPage(...args) {
+      return callLegacy("workwearPrevProductPage", args);
+    },
+    nextProductPage(...args) {
+      return callLegacy("workwearNextProductPage", args);
+    },
     loadMoreProducts(...args) {
-      return callLegacy("workwearLoadMoreProducts", args);
+      return callLegacy("workwearNextProductPage", args);
     },
     loadMoreOrders(...args) {
       return callLegacy("workwearLoadMoreOrders", args);
