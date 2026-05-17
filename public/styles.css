@@ -8449,4 +8449,166 @@ body {
   }
 }
 
+/* ==== MOBILE PLANNER/TIDPLAN SCROLLABLE WORK SURFACES ==== */
+@media (max-width: 640px) {
+  .planning-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(72dvh, 720px);
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #dce4f2;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .planning-table {
+    display: table !important;
+    width: max-content !important;
+    min-width: 1120px !important;
+    border-collapse: collapse !important;
+  }
+
+  .planning-table thead {
+    display: table-header-group !important;
+  }
+
+  .planning-table tbody {
+    display: table-row-group !important;
+  }
+
+  .planning-table tr {
+    display: table-row !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .planning-table th,
+  .planning-table td {
+    display: table-cell !important;
+    width: auto !important;
+    min-width: 104px !important;
+    padding: 8px !important;
+    border: 1px solid #dce4f2 !important;
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .planning-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .planning-table td::before {
+    content: none !important;
+    display: none !important;
+  }
+
+  .planning-table select,
+  .planning-table input[type="text"] {
+    min-width: 96px !important;
+    width: 100% !important;
+    min-height: 46px !important;
+  }
+
+  #tidplan-section > .tidplan-container {
+    display: flex !important;
+    width: 100%;
+    max-width: 100%;
+    height: min(72dvh, 760px) !important;
+    min-height: 480px !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #dce4f2;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .tidplan-left-panel {
+    flex: 0 0 560px !important;
+    width: 560px !important;
+    min-width: 560px !important;
+    max-width: none !important;
+    overflow: hidden !important;
+    border-right: 1px solid #dce4f2 !important;
+    border-radius: 0 !important;
+  }
+
+  .tidplan-resizer {
+    display: flex !important;
+    flex: 0 0 8px;
+  }
+
+  .tidplan-timeline {
+    display: block !important;
+    flex: 0 0 760px !important;
+    min-width: 760px !important;
+    overflow: auto !important;
+  }
+
+  .tidplan-table-container {
+    height: 100% !important;
+    max-height: none !important;
+    overflow: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .tidplan-table {
+    display: table !important;
+    width: max-content !important;
+    min-width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .tidplan-table thead {
+    display: table-header-group !important;
+  }
+
+  .tidplan-table tbody {
+    display: table-row-group !important;
+  }
+
+  .tidplan-table tr {
+    display: table-row !important;
+    padding: 0 !important;
+  }
+
+  .tidplan-table th,
+  .tidplan-table td {
+    display: table-cell !important;
+    width: auto !important;
+    min-width: 112px !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: none !important;
+    padding: 6px !important;
+    border: 1px solid #dce4f2 !important;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  .tidplan-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .tidplan-table td::before {
+    content: none !important;
+    display: none !important;
+  }
+
+  .tidplan-select,
+  .tidplan-table input,
+  .tidplan-comment-input {
+    min-width: 96px !important;
+    min-height: 42px !important;
+  }
+}
+
 

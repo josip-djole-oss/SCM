@@ -132,11 +132,30 @@ function bindTidplanViewportFullscreen() {
   fullscreenToggle.dataset.cmaxFullscreenBound = "true";
 
   let isFullscreen = false;
+  let fullscreenCloseButton = null;
 
   function syncToggleLabel() {
     fullscreenToggle.classList.toggle("fullscreen-active", isFullscreen);
-    fullscreenToggle.textContent = isFullscreen ? "✕" : "⛶";
+    fullscreenToggle.textContent = isFullscreen ? "X" : "[ ]";
     fullscreenToggle.title = isFullscreen ? "Exit Fullscreen" : "Fullscreen Gantt";
+  }
+
+  function removeCloseButton() {
+    if (fullscreenCloseButton) {
+      fullscreenCloseButton.remove();
+      fullscreenCloseButton = null;
+    }
+  }
+
+  function ensureCloseButton() {
+    removeCloseButton();
+    fullscreenCloseButton = document.createElement("button");
+    fullscreenCloseButton.type = "button";
+    fullscreenCloseButton.className = "tidplan-fullscreen-close";
+    fullscreenCloseButton.setAttribute("aria-label", "Exit Fullscreen");
+    fullscreenCloseButton.textContent = "X";
+    fullscreenCloseButton.addEventListener("click", exitFullscreen);
+    document.body.appendChild(fullscreenCloseButton);
   }
 
   function exitFullscreen() {
@@ -145,6 +164,7 @@ function bindTidplanViewportFullscreen() {
     document.body.classList.remove("tidplan-fullscreen-open");
     document.documentElement.classList.remove("tidplan-fullscreen-open");
     isFullscreen = false;
+    removeCloseButton();
     syncToggleLabel();
   }
 
@@ -154,6 +174,7 @@ function bindTidplanViewportFullscreen() {
     document.body.classList.add("tidplan-fullscreen-open");
     document.documentElement.classList.add("tidplan-fullscreen-open");
     isFullscreen = true;
+    ensureCloseButton();
     syncToggleLabel();
   }
 

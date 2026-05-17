@@ -113,8 +113,10 @@ async function exerciseSidebar(page, viewport) {
   await page.evaluate(() => {
     document.getElementById("mainContainer")?.classList.add("sidebar-overlay-open");
     document.body.classList.add("sidebar-overlay-open");
+    const sidebar = document.querySelector(".app-sidebar");
+    if (sidebar) sidebar.style.transition = "none";
   });
-  await delay(250);
+  await delay(60);
   const openIssue = await page.evaluate(({ viewport }) => {
     const container = document.getElementById("mainContainer");
     const sidebar = document.querySelector(".app-sidebar");
@@ -174,7 +176,8 @@ async function seedVisibleRows(page, view) {
           active: true,
         });
       }
-      if (typeof renderTidplan === "function") renderTidplan();
+      if (typeof updateTidplan === "function") updateTidplan();
+      else if (window.CMAX?.tidplan?.update) CMAX.tidplan.update();
     });
   }
   if (view === "store") {
@@ -336,16 +339,25 @@ async function collectLayoutIssues(page, viewport, view) {
     if (tiny.length) issues.push(`${view}@${viewport}: small touch targets ${tiny.slice(0, 8).join(", ")}`);
 
     if (width <= 640 && view === "planner") {
-      const tableDisplay = getComputedStyle(document.querySelector(".planning-table") || document.body).display;
+      const wrapper = document.querySelector(".planning-table-wrapper");
+      const table = document.querySelector(".planning-table");
+      const tableDisplay = getComputedStyle(table || document.body).display;
       const headDisplay = getComputedStyle(document.querySelector(".planning-table thead") || document.body).display;
-      if (tableDisplay !== "block" || headDisplay !== "none") {
-        issues.push(`${view}@${viewport}: planner is not in mobile card mode`);
+      if (!wrapper || !table || tableDisplay !== "table" || headDisplay === "none") {
+        issues.push(`${view}@${viewport}: planner is not in scrollable table mode`);
+      } else if (wrapper.scrollWidth <= wrapper.clientWidth + 2) {
+        issues.push(`${view}@${viewport}: planner table does not provide local horizontal scroll`);
       }
     }
 
     if (width <= 640 && view === "tidplan") {
+      const container = document.querySelector(".tidplan-container");
       const timeline = document.querySelector(".tidplan-timeline");
-      if (timeline && visible(timeline)) issues.push(`${view}@${viewport}: mobile timeline should not be primary visible surface`);
+      if (!container || !timeline || !visible(timeline)) {
+        issues.push(`${view}@${viewport}: mobile tidplan should keep desktop gantt/timeline visible`);
+      } else if (container.scrollWidth <= container.clientWidth + 2) {
+        issues.push(`${view}@${viewport}: tidplan container does not provide local horizontal scroll`);
+      }
     }
 
     return issues;
