@@ -118,17 +118,43 @@ function getStoreOrderManagerTargetRoles() {
 function workwearToggleManagerEditor() {
   if (!canManageWorkwearModule()) return;
   workwearManagerEditorOpen = !workwearManagerEditorOpen;
+  if (workwearManagerEditorOpen) {
+    workwearOrdersOverlayOpen = false;
+    workwearCartOverlayOpen = false;
+  }
   renderWorkwearModule();
 }
 
 function workwearToggleCartOverlay() {
   workwearCartOverlayOpen = !workwearCartOverlayOpen;
+  if (workwearCartOverlayOpen) workwearOrdersOverlayOpen = false;
   renderWorkwearCartOverlay();
+  renderWorkwearHeaderControls();
 }
 
 function workwearCloseCartOverlay() {
   workwearCartOverlayOpen = false;
   renderWorkwearCartOverlay();
+  renderWorkwearHeaderControls();
+}
+
+function workwearToggleOrdersOverlay() {
+  workwearOrdersOverlayOpen = !workwearOrdersOverlayOpen;
+  if (workwearOrdersOverlayOpen) workwearCartOverlayOpen = false;
+  renderWorkwearOrdersOverlay();
+  renderWorkwearHeaderControls();
+}
+
+function workwearCloseOrdersOverlay() {
+  workwearOrdersOverlayOpen = false;
+  renderWorkwearOrdersOverlay();
+  renderWorkwearHeaderControls();
+}
+
+function workwearCloseManagerEditor() {
+  workwearManagerEditorOpen = false;
+  renderWorkwearManagerOverlay();
+  renderWorkwearHeaderControls();
 }
 
 function workwearOpenProductImageViewer(productId, startIndex) {
@@ -1908,6 +1934,35 @@ function workwearImportDataFromEvent(event) {
     }
   };
   reader.readAsText(file);
+}
+
+function initWorkwearOverlayInteractions() {
+  if (document.body?.dataset.workwearOverlayBound === "true") return;
+  if (document.body) document.body.dataset.workwearOverlayBound = "true";
+
+  document.addEventListener("click", (event) => {
+    const managerOverlay = document.getElementById("workwearManagerOverlay");
+    if (managerOverlay && event.target === managerOverlay) {
+      workwearCloseManagerEditor();
+      return;
+    }
+    const ordersOverlay = document.getElementById("workwearOrdersOverlay");
+    if (ordersOverlay && event.target === ordersOverlay) {
+      workwearCloseOrdersOverlay();
+      return;
+    }
+    const cartOverlay = document.getElementById("workwearCartOverlay");
+    if (cartOverlay && event.target === cartOverlay) {
+      workwearCloseCartOverlay();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (workwearManagerEditorOpen) workwearCloseManagerEditor();
+    if (workwearOrdersOverlayOpen) workwearCloseOrdersOverlay();
+    if (workwearCartOverlayOpen) workwearCloseCartOverlay();
+  });
 }
 
 

@@ -344,6 +344,9 @@
     toggleCartOverlay(...args) {
       return callLegacy("workwearToggleCartOverlay", args);
     },
+    toggleOrdersOverlay(...args) {
+      return callLegacy("workwearToggleOrdersOverlay", args);
+    },
     openProductImageViewer(...args) {
       return callLegacy("workwearOpenProductImageViewer", args);
     },
@@ -358,6 +361,12 @@
     },
     closeCartOverlay(...args) {
       return callLegacy("workwearCloseCartOverlay", args);
+    },
+    closeOrdersOverlay(...args) {
+      return callLegacy("workwearCloseOrdersOverlay", args);
+    },
+    closeManagerEditor(...args) {
+      return callLegacy("workwearCloseManagerEditor", args);
     },
     removeCartItem(...args) {
       return callLegacy("workwearRemoveCartItem", args);

@@ -18,6 +18,7 @@ var workwearBulkAllRoles = true;
 var workwearEditingStoreUserEmail = "";
 var workwearManagerEditorOpen = false;
 var workwearCartOverlayOpen = false;
+var workwearOrdersOverlayOpen = false;
 var workwearCheckoutInFlight = false;
 var workwearImageViewerState = {
   open: false,
@@ -317,12 +318,16 @@ function renderWorkwearHeaderControls() {
   const managerBtn = document.getElementById("workwearManagerEditorToggle");
   const cartBtn = document.getElementById("workwearCartToggleBtn");
   const cartBadge = document.getElementById("workwearCartBadge");
+  const ordersBtn = document.getElementById("workwearOrdersToggleBtn");
   const subtitle = document.getElementById("workwearHeaderSubtitle");
   if (subtitle) subtitle.textContent = t("storeHeaderSubtitle") || "Store catalog";
   if (managerBtn) {
     const canManage = canManageWorkwearModule();
     managerBtn.style.display = canManage ? "inline-flex" : "none";
     managerBtn.textContent = workwearManagerEditorOpen ? (t("storeCloseEditor") || "Zatvori editor") : (t("storeOpenEditor") || "Uredi artikle");
+  }
+  if (ordersBtn) {
+    ordersBtn.textContent = workwearOrdersOverlayOpen ? "Zatvori moje narudzbe" : "Otvori moje narudzbe";
   }
   if (cartBtn) {
     cartBtn.style.display = currentView === "workwear" ? "inline-flex" : "none";
@@ -421,6 +426,23 @@ function renderWorkwearCartOverlay() {
   if (!overlay) return;
   const shouldShow = currentView === "workwear" && workwearCartOverlayOpen === true;
   overlay.style.display = shouldShow ? "flex" : "none";
+  document.body.classList.toggle("workwear-cart-open", shouldShow);
+}
+
+function renderWorkwearOrdersOverlay() {
+  const overlay = document.getElementById("workwearOrdersOverlay");
+  if (!overlay) return;
+  const shouldShow = currentView === "workwear" && workwearOrdersOverlayOpen === true;
+  overlay.style.display = shouldShow ? "flex" : "none";
+  document.body.classList.toggle("workwear-orders-open", shouldShow);
+}
+
+function renderWorkwearManagerOverlay() {
+  const overlay = document.getElementById("workwearManagerOverlay");
+  if (!overlay) return;
+  const shouldShow = currentView === "workwear" && workwearManagerEditorOpen === true && canManageWorkwearModule();
+  overlay.style.display = shouldShow ? "flex" : "none";
+  document.body.classList.toggle("workwear-manager-open", shouldShow);
 }
 
 function renderWorkwearImageViewer() {
@@ -1260,6 +1282,7 @@ function renderWorkwearSidebarBadge() {
 }
 
 function renderWorkwearModule() {
+  if (typeof initWorkwearOverlayInteractions === "function") initWorkwearOverlayInteractions();
   if (typeof syncWorkwearAccountNotifications === "function") {
     syncWorkwearAccountNotifications();
     if (typeof updateAccountNotificationsBadge === "function") updateAccountNotificationsBadge();
@@ -1270,9 +1293,11 @@ function renderWorkwearModule() {
   renderWorkwearCart();
   renderWorkwearCartBadge();
   renderWorkwearCartOverlay();
+  renderWorkwearOrdersOverlay();
   renderWorkwearImageViewer();
   renderWorkwearOrders();
   renderWorkwearSidebarBadge();
+  renderWorkwearManagerOverlay();
   renderWorkwearManagerTabs();
   renderWorkwearBulkEditPanel();
   renderWorkwearAdminPanel();

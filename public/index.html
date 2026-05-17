@@ -1137,6 +1137,7 @@
           </div>
           <div class="topbar-bell-wrap">
             <button class="btn btn-ghost topbar-bell" id="topbarNotificationsBtn" data-cmax-action="accountNotifications.togglePanel" type="button"><span class="topbar-bell-icon"></span><span id="topbarNotificationsBadge" class="notif-badge" style="display:none">0</span></button>
+            <button class="account-notifications-backdrop" id="accountNotificationsBackdrop" type="button" aria-label="Zatvori account obavijesti"></button>
             <div class="account-notifications-panel" id="accountNotificationsPanel" style="display:none">
               <div class="account-notifications-head">
                 <strong>Account obavijesti</strong>
@@ -1872,11 +1873,14 @@
           </section>
 
           <aside class="store-side-column">
-            <section class="store-orders-card">
-              <details id="workwearOrdersDisclosure" class="store-disclosure">
-                <summary>Moje narudzbe</summary>
-                <div id="workwearOrdersList" class="store-orders-list"></div>
-              </details>
+            <section class="store-orders-card store-orders-launcher-card">
+              <div class="store-orders-launcher">
+                <div>
+                  <strong>Moje narudzbe</strong>
+                  <div class="workwear-product-meta">Pregled statusa, timeline i otkazivanje gdje je dozvoljeno.</div>
+                </div>
+                <button class="btn btn-secondary" id="workwearOrdersToggleBtn" data-cmax-action="workwear.toggleOrdersOverlay">Otvori moje narudzbe</button>
+              </div>
             </section>
           </aside>
         </div>
@@ -1888,6 +1892,19 @@
               <button class="btn btn-small btn-secondary" data-cmax-action="workwear.closeCartOverlay">Close</button>
             </div>
             <section id="workwearCartPanel" class="store-cart-card"></section>
+          </div>
+        </div>
+
+        <div id="workwearOrdersOverlay" class="store-modal-overlay" style="display:none">
+          <div class="store-modal-shell store-orders-shell">
+            <div class="store-modal-head">
+              <div>
+                <h3>Moje narudzbe</h3>
+                <div class="workwear-product-meta">Status, timeline i dostupne akcije za vase narudzbe.</div>
+              </div>
+              <button class="btn btn-small btn-secondary store-modal-close" data-cmax-action="workwear.closeOrdersOverlay" aria-label="Zatvori moje narudzbe">✕</button>
+            </div>
+            <div id="workwearOrdersList" class="store-orders-list store-modal-body"></div>
           </div>
         </div>
 
@@ -1909,39 +1926,50 @@
           </div>
         </div>
 
-        <section id="workwearManagerPanels" class="store-manager-card" style="display:none">
-          <div class="store-manager-tabs">
-            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["products"]'>Artikli</button>
-            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["categories"]'>Kategorije</button>
-            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["orders"]'>Narudzbe</button>
-            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["budgets"]'>Budzeti</button>
-            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["rules"]'>Pravila</button>
-            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["export"]'>Export</button>
-            <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["audit"]'>Audit</button>
-          </div>
-          <div id="workwearManagerTabProducts" class="store-manager-tab is-active">
-            <div id="workwearBulkEditPanel"></div>
-            <div id="workwearAdminPanel"></div>
-          </div>
-          <div id="workwearManagerTabCategories" class="store-manager-tab">
-            <div id="workwearCategoriesPanel"></div>
-          </div>
-          <div id="workwearManagerTabOrders" class="store-manager-tab">
-            <div id="workwearManagerOrdersList"></div>
-          </div>
-          <div id="workwearManagerTabBudgets" class="store-manager-tab">
-            <div id="workwearBudgetPanel"></div>
-          </div>
-          <div id="workwearManagerTabRules" class="store-manager-tab">
-            <div id="workwearRulesPanel"></div>
-          </div>
-          <div id="workwearManagerTabExport" class="store-manager-tab">
-            <div id="workwearExportPanel"></div>
-          </div>
-          <div id="workwearManagerTabAudit" class="store-manager-tab">
-            <div id="workwearAuditLog"></div>
-          </div>
-        </section>
+        <div id="workwearManagerOverlay" class="store-modal-overlay store-manager-overlay" style="display:none">
+          <section id="workwearManagerPanels" class="store-manager-card store-modal-shell" style="display:none">
+            <div class="store-modal-head">
+              <div>
+                <h3>Store editor</h3>
+                <div class="workwear-product-meta">Upravljanje artiklima, pravilima, budzetima i exportom.</div>
+              </div>
+              <button class="btn btn-small btn-secondary store-modal-close" data-cmax-action="workwear.closeManagerEditor" aria-label="Zatvori Store editor">✕</button>
+            </div>
+            <div class="store-manager-tabs">
+              <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["products"]'>Artikli</button>
+              <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["categories"]'>Kategorije</button>
+              <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["orders"]'>Narudzbe</button>
+              <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["budgets"]'>Budzeti</button>
+              <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["rules"]'>Pravila</button>
+              <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["export"]'>Export</button>
+              <button class="btn btn-small" data-cmax-action="workwear.switchManagerTab" data-cmax-args='["audit"]'>Audit</button>
+            </div>
+            <div class="store-modal-body">
+              <div id="workwearManagerTabProducts" class="store-manager-tab is-active">
+                <div id="workwearBulkEditPanel"></div>
+                <div id="workwearAdminPanel"></div>
+              </div>
+              <div id="workwearManagerTabCategories" class="store-manager-tab">
+                <div id="workwearCategoriesPanel"></div>
+              </div>
+              <div id="workwearManagerTabOrders" class="store-manager-tab">
+                <div id="workwearManagerOrdersList"></div>
+              </div>
+              <div id="workwearManagerTabBudgets" class="store-manager-tab">
+                <div id="workwearBudgetPanel"></div>
+              </div>
+              <div id="workwearManagerTabRules" class="store-manager-tab">
+                <div id="workwearRulesPanel"></div>
+              </div>
+              <div id="workwearManagerTabExport" class="store-manager-tab">
+                <div id="workwearExportPanel"></div>
+              </div>
+              <div id="workwearManagerTabAudit" class="store-manager-tab">
+                <div id="workwearAuditLog"></div>
+              </div>
+            </div>
+          </section>
+        </div>
       </div>
 
       <div id="warehouse-section" style="display: none">
@@ -2154,19 +2182,19 @@
             </div>
           </div>
 
-          <div class="warehouse-card is-collapsible" id="warehouseAlertsCard">
+          <div class="warehouse-card is-collapsible is-collapsed" id="warehouseAlertsCard">
             <div class="warehouse-card-header">
               <h3 id="warehouseAlertsTitle">Upozorenja</h3>
               <span id="warehouseAlertsSubtitle"
                 >Materijal koji fali ili uskoro nestaje</span
               >
-              <button class="btn btn-ghost btn-small warehouse-collapse-btn" type="button" data-cmax-action="warehouse.toggleSection" data-cmax-args='["warehouseAlertsCard"]'>Sakrij</button>
+              <button class="btn btn-ghost btn-small warehouse-collapse-btn" type="button" data-cmax-action="warehouse.toggleSection" data-cmax-args='["warehouseAlertsCard"]'>Prikazi</button>
             </div>
             <div id="warehouseAlerts"></div>
           </div>
 
           <div
-            class="warehouse-card warehouse-card-wide is-collapsible"
+            class="warehouse-card warehouse-card-wide is-collapsible is-collapsed"
             id="warehouseInventoryCard"
           >
             <div class="warehouse-card-header">
@@ -2174,7 +2202,7 @@
               <span id="warehouseInventorySubtitle"
                 >Trenutno, ukupno izdano i ukupno zaprimljeno</span
               >
-              <button class="btn btn-ghost btn-small warehouse-collapse-btn" type="button" data-cmax-action="warehouse.toggleSection" data-cmax-args='["warehouseInventoryCard"]'>Sakrij</button>
+              <button class="btn btn-ghost btn-small warehouse-collapse-btn" type="button" data-cmax-action="warehouse.toggleSection" data-cmax-args='["warehouseInventoryCard"]'>Prikazi</button>
             </div>
             <div class="warehouse-table-wrapper">
               <table class="warehouse-table">
@@ -2194,7 +2222,7 @@
           </div>
 
           <div
-            class="warehouse-card warehouse-card-wide is-collapsible"
+            class="warehouse-card warehouse-card-wide is-collapsible is-collapsed"
             id="warehouseCatalogCard"
           >
             <div class="warehouse-card-header">
@@ -2206,7 +2234,7 @@
                   data-cmax-action="warehouse.toggleSection"
                   data-cmax-args='["warehouseCatalogCard"]'
                 >
-                  Sakrij
+                  Prikazi
                 </button>
                 <button
                   id="warehouseCatalogAddBtn"

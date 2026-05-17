@@ -12,13 +12,16 @@ function mustContain(src, token, label) {
 try {
   const render = read("public/js/workwear/workwearRender.js");
   const html = read("public/index.html");
+  const events = read("public/js/workwear/workwearEvents.js");
 
   mustContain(html, 'id="workwearManagerEditorToggle"', "editor toggle button");
+  mustContain(html, 'id="workwearManagerOverlay"', "editor overlay markup");
   mustContain(render, "canManageWorkwearModule()", "manager permission gating");
   mustContain(render, "workwearManagerEditorOpen", "editor open/close state");
-  mustContain(render, "manager.style.display = visible ? \"block\" : \"none\";", "manager panels hidden when closed");
+  mustContain(render, "overlay.style.display = shouldShow ? \"flex\" : \"none\";", "editor overlay visibility");
+  mustContain(events, "workwearCloseManagerEditor", "editor close action");
 
-  console.log(JSON.stringify({ ok: true, checks: 4 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 5 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

@@ -191,11 +191,16 @@ function getModuleIconForView(view) {
 function updateShellForView(view = currentView) {
   document.body.dataset.currentView = view;
   if (typeof closeSidebarOnMobile === "function") closeSidebarOnMobile();
+  if (typeof closeAccountNotificationsPanel === "function") closeAccountNotificationsPanel();
   const workwearSection = document.getElementById("workwear-section");
   if (workwearSection && view !== "workwear") {
     workwearSection.style.display = "none";
+    if (typeof workwearOrdersOverlayOpen !== "undefined") workwearOrdersOverlayOpen = false;
+    if (typeof workwearManagerEditorOpen !== "undefined") workwearManagerEditorOpen = false;
     if (typeof workwearCartOverlayOpen !== "undefined") workwearCartOverlayOpen = false;
     if (typeof renderWorkwearCartOverlay === "function") renderWorkwearCartOverlay();
+    if (typeof renderWorkwearOrdersOverlay === "function") renderWorkwearOrdersOverlay();
+    if (typeof renderWorkwearManagerOverlay === "function") renderWorkwearManagerOverlay();
   }
   const moduleLabel = document.getElementById("currentModuleLabel");
   if (moduleLabel) moduleLabel.textContent = getModuleLabelForView(view);

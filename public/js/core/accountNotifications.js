@@ -172,14 +172,20 @@
   function closeAccountNotificationsPanel() {
     const panel = document.getElementById("accountNotificationsPanel");
     if (panel) panel.style.display = "none";
+    document.body.classList.remove("account-notifications-open");
   }
 
   function toggleAccountNotificationsPanel() {
     const panel = document.getElementById("accountNotificationsPanel");
     if (!panel) return;
     const shouldOpen = panel.style.display !== "block";
-    panel.style.display = shouldOpen ? "block" : "none";
-    if (shouldOpen) renderAccountNotificationsPanel();
+    if (shouldOpen) {
+      panel.style.display = "block";
+      document.body.classList.add("account-notifications-open");
+      renderAccountNotificationsPanel();
+    } else {
+      closeAccountNotificationsPanel();
+    }
   }
 
   function openAccountNotificationItem(itemId) {
@@ -279,11 +285,19 @@
   function initAccountNotifications() {
     if (document.body?.dataset.accountNotificationsBound === "true") return;
     if (document.body) document.body.dataset.accountNotificationsBound = "true";
+    const backdrop = document.getElementById("accountNotificationsBackdrop");
+    if (backdrop && !backdrop.dataset.cmaxBound) {
+      backdrop.dataset.cmaxBound = "true";
+      backdrop.addEventListener("click", closeAccountNotificationsPanel);
+    }
     document.addEventListener("click", (event) => {
       const panel = document.getElementById("accountNotificationsPanel");
       const bellWrap = event.target.closest(".topbar-bell-wrap");
       if (!panel || bellWrap) return;
       if (panel.style.display === "block") closeAccountNotificationsPanel();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeAccountNotificationsPanel();
     });
   }
 

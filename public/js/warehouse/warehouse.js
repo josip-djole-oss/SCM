@@ -367,6 +367,11 @@ function renderWarehouseAlerts() {
 
 function renderWarehousePage() {
   if (!warehouseData) loadWarehouseData();
+  ["warehouseAlertsCard", "warehouseInventoryCard", "warehouseCatalogCard"].forEach((sectionId) => {
+    const card = document.getElementById(sectionId);
+    const button = card?.querySelector(".warehouse-collapse-btn");
+    if (button) button.textContent = card.classList.contains("is-collapsed") ? "Prikazi" : "Sakrij";
+  });
   renderWarehouseIssueTable();
   renderWarehouseInventorySummary();
   renderWarehouseCatalogManager();

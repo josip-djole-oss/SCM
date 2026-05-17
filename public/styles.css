@@ -6868,6 +6868,490 @@ body {
   }
 }
 
+/* ==== TOUCH / MOBILE-TABLET UX FIX PACK ==== */
+.account-notifications-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(11, 18, 32, 0.44);
+  z-index: 54;
+}
+
+.account-notifications-open .account-notifications-backdrop {
+  display: block;
+}
+
+body.account-notifications-open,
+body.workwear-cart-open,
+body.workwear-orders-open,
+body.workwear-manager-open {
+  overflow: hidden;
+}
+
+.store-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1300;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(11, 18, 32, 0.48);
+  backdrop-filter: blur(6px);
+}
+
+.store-modal-shell {
+  width: min(1180px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid #d9e2f1;
+  background: linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(247,250,255,0.98) 100%);
+  box-shadow: 0 28px 68px rgba(15, 23, 42, 0.2);
+}
+
+.store-manager-overlay .store-modal-shell {
+  width: min(1280px, calc(100vw - 40px));
+}
+
+.store-orders-shell {
+  width: min(820px, calc(100vw - 40px));
+}
+
+.store-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 20px 22px 0;
+}
+
+.store-modal-head h3 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  color: #172640;
+}
+
+.store-modal-close {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  flex: 0 0 44px;
+}
+
+.store-modal-body {
+  overflow: auto;
+  min-height: 0;
+  padding: 0 22px 22px;
+}
+
+.store-manager-card.store-modal-shell {
+  padding: 0;
+}
+
+.store-manager-card.store-modal-shell .store-manager-tabs {
+  padding-inline: 22px;
+}
+
+.store-manager-card.store-modal-shell .store-manager-tab {
+  padding-inline: 22px;
+  padding-bottom: 20px;
+}
+
+.store-orders-launcher {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.store-orders-launcher-card {
+  position: sticky;
+  top: 16px;
+}
+
+.store-side-column {
+  align-content: start;
+}
+
+.store-orders-list.store-modal-body {
+  padding-top: 0;
+}
+
+.header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 18px;
+  row-gap: 12px;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.title-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.title-section .site-switcher {
+  margin-top: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.topbar-meta-stack {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: 0;
+}
+
+.topbar-bell-wrap {
+  position: relative;
+}
+
+.account-notifications-panel {
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: min(520px, calc(100dvh - 92px));
+  overflow-y: auto;
+}
+
+.summary-grid {
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.summary-card {
+  min-width: 0;
+}
+
+.home-card,
+.summary-card {
+  min-width: 0;
+}
+
+.warehouse-card.is-collapsible.is-collapsed > :not(.warehouse-card-header) {
+  display: none !important;
+}
+
+.warehouse-collapse-btn,
+.store-modal-close,
+.topbar-bell,
+.site-switcher-btn,
+.lang-btn,
+#topbarLogoutBtn,
+.btn,
+select,
+input,
+textarea {
+  min-height: 44px;
+}
+
+@media (max-width: 1024px) {
+  .header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+  }
+
+  .logo {
+    width: 88px;
+    height: 88px;
+    margin-top: -8px;
+  }
+
+  #mainTitle {
+    font-size: 32px;
+    padding: 10px 14px;
+  }
+
+  .title-section {
+    align-items: flex-start;
+  }
+
+  .module-context,
+  .date-display {
+    order: 3;
+  }
+
+  .topbar-meta-stack {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .account-notifications-panel {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(540px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    max-height: calc(100dvh - 110px);
+    z-index: 56;
+  }
+
+  .store-modal-overlay {
+    padding: 16px;
+  }
+
+  .store-modal-shell {
+    width: min(100%, calc(100vw - 32px));
+    max-height: calc(100dvh - 32px);
+  }
+
+  .store-orders-shell,
+  .store-manager-overlay .store-modal-shell {
+    width: min(100%, calc(100vw - 32px));
+  }
+
+  .store-orders-launcher {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .store-orders-launcher .btn {
+    width: 100%;
+  }
+
+  .store-manager-tabs {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .store-manager-tabs .btn {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .header-right {
+    gap: 8px;
+  }
+
+  .summary-grid,
+  .planner-summary-grid,
+  .tidplan-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .summary-card {
+    padding: 12px 12px 10px;
+    border-radius: 18px;
+  }
+
+  .summary-card-value,
+  .summary-card-main {
+    font-size: 24px !important;
+  }
+
+  .summary-card-label {
+    font-size: 12px;
+  }
+
+  .home-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .home-card-head {
+    margin-bottom: 12px;
+    gap: 10px;
+  }
+
+  .home-card-head h3 {
+    font-size: 19px;
+  }
+
+  .home-card-head p,
+  .workwear-product-meta {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  .header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    row-gap: 10px;
+  }
+
+  .logo {
+    width: 72px;
+    height: 72px;
+    margin-top: -4px;
+  }
+
+  .logo img {
+    width: 24px;
+    height: 24px;
+  }
+
+  #mainTitle {
+    font-size: 24px;
+    line-height: 1;
+    padding: 8px 12px;
+  }
+
+  .title-section {
+    gap: 8px;
+  }
+
+  .module-context,
+  .date-display {
+    display: none;
+  }
+
+  .site-switcher {
+    width: 100%;
+  }
+
+  .site-switcher-btn {
+    width: 100%;
+  }
+
+  .header-right {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .topbar-meta-stack {
+    grid-column: 1 / -1;
+    order: 4;
+    justify-content: stretch;
+  }
+
+  .topbar-meta-stack .lang-selector,
+  .topbar-meta-stack .date-picker-section {
+    width: 100%;
+  }
+
+  .lang-selector {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .topbar-user {
+    display: none !important;
+  }
+
+  .account-notifications-panel {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    transform: none;
+    width: 100vw;
+    max-width: 100vw;
+    max-height: min(88dvh, 760px);
+    border-radius: 22px 22px 0 0;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .account-notifications-head {
+    position: sticky;
+    top: 0;
+    background: inherit;
+    z-index: 1;
+  }
+
+  .summary-grid,
+  .planner-summary-grid,
+  .tidplan-summary-grid,
+  .home-site-grid,
+  .home-module-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px;
+  }
+
+  .summary-card {
+    padding: 10px 10px 8px;
+  }
+
+  .summary-card-value,
+  .summary-card-main {
+    font-size: 20px !important;
+  }
+
+  .home-card {
+    padding: 14px;
+  }
+
+  .home-card-head h3 {
+    font-size: 17px;
+  }
+
+  .home-module-tile,
+  .home-site-tile,
+  .home-site-button {
+    min-height: 96px;
+    padding: 12px;
+  }
+
+  .store-modal-overlay {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .store-modal-shell,
+  .store-orders-shell,
+  .store-manager-overlay .store-modal-shell {
+    width: 100vw;
+    max-width: 100vw;
+    max-height: 100dvh;
+    border-radius: 22px 22px 0 0;
+  }
+
+  .store-manager-overlay .store-modal-shell {
+    height: 100dvh;
+    border-radius: 0;
+  }
+
+  .store-modal-head {
+    padding: 18px 16px 0;
+  }
+
+  .store-modal-body,
+  .store-manager-card.store-modal-shell .store-manager-tab,
+  .store-manager-card.store-modal-shell .store-manager-tabs {
+    padding-inline: 16px;
+  }
+
+  .store-manager-card.store-modal-shell .store-manager-tab {
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .store-search-row {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 @media (min-width: 641px) and (max-width: 1024px) {
   .header {
     flex-wrap: wrap;
