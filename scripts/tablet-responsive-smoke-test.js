@@ -22,7 +22,7 @@ try {
   mustContain(styles, "grid-template-columns: repeat(2, minmax(0, 1fr));", "tablet store grid");
   mustContain(styles, "width: min(560px, 94vw);", "tablet cart drawer width");
   mustContain(styles, "justify-content: flex-end;", "tablet header wrapping");
-  mustContain(styles, "grid-template-columns: minmax(0, 1fr);", "tablet stacked header layout");
+  mustContain(styles, "flex-wrap: wrap;", "legacy tablet header wrapping");
   mustContain(html, 'id="topbarNotificationsBtn"', "notifications trigger markup");
   mustContain(accountNotifications, "backdrop.addEventListener(\"click\", closeAccountNotificationsPanel);", "notifications backdrop close");
   mustContain(auth, "if (typeof closeSidebarOnMobile === \"function\") closeSidebarOnMobile();", "route change closes mobile sidebar");
