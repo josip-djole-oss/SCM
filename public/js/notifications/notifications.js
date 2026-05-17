@@ -345,7 +345,9 @@ function renderNotificationsList() {
       if (canManageNotificationsAccess()) {
         const pinBtn = document.createElement("button");
         pinBtn.className = "btn btn-small";
-        pinBtn.textContent = note.pinned ? "Unpin" : "Pin";
+        pinBtn.textContent = note.pinned
+          ? (t("notificationUnpin") || "Unpin")
+          : (t("notificationPin") || "Pin");
         pinBtn.addEventListener("click", () => {
           toggleNotificationPin(note.id, note.site, !note.pinned);
         });

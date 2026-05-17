@@ -256,7 +256,7 @@ function renderWorkwearProducts() {
       const statusLabel = product.active === false ? "Unavailable" : "Available";
       return `
         <article class="workwear-product-card">
-          <div class="workwear-product-image-wrap">
+          <div class="workwear-product-image-wrap${image ? "" : " is-placeholder"}">
             ${image
               ? `
                 <button
@@ -433,8 +433,15 @@ function renderWorkwearCartBadge() {
   badge.style.display = count > 0 ? "inline-flex" : "none";
 }
 
+function workwearEnsureOverlayInBody(overlay) {
+  if (overlay && overlay.parentElement !== document.body) {
+    document.body.appendChild(overlay);
+  }
+  return overlay;
+}
+
 function renderWorkwearCartOverlay() {
-  const overlay = getWorkwearCartOverlay();
+  const overlay = workwearEnsureOverlayInBody(getWorkwearCartOverlay());
   if (!overlay) return;
   const shouldShow = currentView === "workwear" && workwearCartOverlayOpen === true;
   overlay.style.display = shouldShow ? "flex" : "none";
@@ -442,7 +449,7 @@ function renderWorkwearCartOverlay() {
 }
 
 function renderWorkwearOrdersOverlay() {
-  const overlay = document.getElementById("workwearOrdersOverlay");
+  const overlay = workwearEnsureOverlayInBody(document.getElementById("workwearOrdersOverlay"));
   if (!overlay) return;
   const shouldShow = currentView === "workwear" && workwearOrdersOverlayOpen === true;
   overlay.style.display = shouldShow ? "flex" : "none";
@@ -450,7 +457,7 @@ function renderWorkwearOrdersOverlay() {
 }
 
 function renderWorkwearManagerOverlay() {
-  const overlay = document.getElementById("workwearManagerOverlay");
+  const overlay = workwearEnsureOverlayInBody(document.getElementById("workwearManagerOverlay"));
   if (!overlay) return;
   const shouldShow = currentView === "workwear" && workwearManagerEditorOpen === true && canManageWorkwearModule();
   overlay.style.display = shouldShow ? "flex" : "none";
@@ -458,7 +465,7 @@ function renderWorkwearManagerOverlay() {
 }
 
 function renderWorkwearImageViewer() {
-  const overlay = document.getElementById("workwearImageViewer");
+  const overlay = workwearEnsureOverlayInBody(document.getElementById("workwearImageViewer"));
   const img = document.getElementById("workwearImageViewerImage");
   const titleEl = document.getElementById("workwearImageViewerTitle");
   const counterEl = document.getElementById("workwearImageViewerCounter");

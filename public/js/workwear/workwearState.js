@@ -716,11 +716,18 @@ function computeWorkwearOrderTotals(items, workerId) {
     const qty = Math.max(1, Number(item.quantity) || 1);
     const variantCredit = Number(variant?.creditCostOverride);
     const variantPrice = Number(variant?.priceOverride);
-    let unitCost = Number.isFinite(variantCredit) && variantCredit >= 0
+    const productPrice = Number(product.price);
+    const productCreditCost = Number(product.creditCost);
+    const baseProductCost = Number.isFinite(productCreditCost) && productCreditCost > 0
+      ? productCreditCost
+      : Number.isFinite(productPrice) && productPrice >= 0
+        ? productPrice
+        : 0;
+    let unitCost = Number.isFinite(variantCredit) && variantCredit > 0
       ? variantCredit
       : Number.isFinite(variantPrice) && variantPrice >= 0
         ? variantPrice
-        : Number(product.creditCost ?? product.price ?? 0);
+        : baseProductCost;
     if (!Number.isFinite(unitCost) || unitCost < 0) unitCost = 0;
     const canUpgrade = product.enableUpgradeDifference === true || product.upgradeRule?.enabled === true;
     if (canUpgrade && item.useUpgrade === true) {

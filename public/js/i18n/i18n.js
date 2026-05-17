@@ -425,7 +425,9 @@ var TRANSLATIONS = {
     importFileLabel: "Odaberi file",
     accessImportDenied: "Nemate dozvolu za import.",
     notificationSearchLabel: "Pretraga:",
-    notificationPinnedOnlyLabel: "Samo pinned",
+    notificationPinnedOnlyLabel: "Samo pinovane",
+    notificationPin: "Pinuj",
+    notificationUnpin: "Ukloni pin",
     // Warehouse translations
     btnWarehouse: "Skladište",
     warehouseTitle: "Upravljanje Skladištem",
@@ -870,6 +872,8 @@ var TRANSLATIONS = {
     accessImportDenied: "You do not have permission to import.",
     notificationSearchLabel: "Search:",
     notificationPinnedOnlyLabel: "Pinned only",
+    notificationPin: "Pin",
+    notificationUnpin: "Unpin",
     btnWarehouse: "Warehouse",
     warehouseTitle: "Warehouse Management",
     warehouseTabItems: "Items",
@@ -1317,7 +1321,9 @@ var TRANSLATIONS = {
     importFileLabel: "Valj fil",
     accessImportDenied: "Du har inte behorighet att importera.",
     notificationSearchLabel: "Sök:",
-    notificationPinnedOnlyLabel: "Endast pinned",
+    notificationPinnedOnlyLabel: "Endast fastnålade",
+    notificationPin: "Fäst",
+    notificationUnpin: "Ta bort fästning",
   },
 };
 

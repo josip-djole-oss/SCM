@@ -23,6 +23,8 @@ try {
   mustContain(server, "sanitizeStoreOrderDraft", "minimal order payload sanitizer");
   mustContain(server, "priceAtOrder", "order item price snapshot");
   mustContain(server, "creditCostAtOrder", "order item credit snapshot");
+  mustContain(server, "creditCostAtOrder <= 0", "server credit cost falls back to product price");
+  mustContain(server, "Number.isFinite(variantCredit) && variantCredit > 0", "server variant credit zero cannot force free price");
   mustContain(server, "upgradeApplied", "upgrade snapshot");
   mustContain(server, "differenceAmount", "difference snapshot");
   mustContain(server, "ruleSnapshot", "rule snapshot");
@@ -54,7 +56,7 @@ try {
   mustContain(events, "quantity: Math.max(1, Number(item.quantity) || 1)", "order draft quantity");
   mustContain(events, "Narudzba nije spremljena na server", "server save error feedback");
 
-  console.log(JSON.stringify({ ok: true, checks: 36 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 38 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

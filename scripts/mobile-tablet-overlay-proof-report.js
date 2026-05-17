@@ -549,10 +549,45 @@ async function proveSettings(page, items, viewport) {
       why: "Backup/log/admin akcije na dnu moraju ostati dostupne.",
       compromise: "Na mobitelu settings radi kao full-screen panel.",
     }, { allowOutside: allowDesktopPageFlow });
+    if (tabId === "tabAdmins") {
+      await page.evaluate(() => {
+        const actionBar = document.getElementById("adminComposeActionBar");
+        actionBar?.scrollIntoView({ block: "center", inline: "nearest" });
+      });
+      await delay(120);
+      const actionBarMetrics = await measure(page, "#adminComposeActionBar");
+      if (!actionBarMetrics.exists) throw new Error(`adminComposeActionBar missing on ${viewport.key}`);
+      if (actionBarMetrics.position !== "static") {
+        throw new Error(`adminComposeActionBar should be static on ${viewport.key}: ${JSON.stringify(actionBarMetrics)}`);
+      }
+      await capture(page, items, viewport, "06-shell-fixes", "Admin action bar static", "#settings-section .modal-box", {
+        before: "adminComposeActionBar je bio sticky i pratio scroll pa je smetao preko admin forme.",
+        changed: "Action bar je vracen u normalan tok forme i vise ne lebdi preko inputa.",
+        why: "Admin forma mora imati predvidljiv scroll bez plutajuceg bara koji zaklanja polja.",
+        compromise: "Gumb za dodavanje ostaje na svojoj poziciji u formi, nije stalno vidljiv tokom scrolla.",
+      }, { allowOutside: allowDesktopPageFlow });
+    }
   }
 }
 
 async function proveAccountNotifications(page, items, viewport) {
+  await capture(page, items, viewport, "06-shell-fixes", "Compact language selector", "#headerLangSelector", {
+    before: "Language buttons su na mobile/tablet zauzimali previse sirine i visine.",
+    changed: "Header lang-selector koristi compact inline buttons umjesto tri velika full-width gumba.",
+    why: "Header mora ostati laksi i manje zbijen na touch uredjajima.",
+    compromise: "Language buttons su manji od ostalih primarnih akcija, ali i dalje dovoljno jasni.",
+  }, { allowOutside: viewport.width > 1024 });
+  if (viewport.width <= 1024) {
+    const langMetrics = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll("#headerLangSelector .lang-btn")).map((button) => {
+        const rect = button.getBoundingClientRect();
+        return { text: button.textContent.trim(), width: Math.round(rect.width), height: Math.round(rect.height) };
+      });
+    });
+    const tooLarge = langMetrics.find((entry) => entry.width > 72 || entry.height > 44);
+    if (tooLarge) throw new Error(`Language button is still too large: ${JSON.stringify(langMetrics)}`);
+  }
+
   await page.evaluate(() => {
     if (typeof pushAccountNotification === "function") {
       for (let i = 0; i < 8; i += 1) {
@@ -568,13 +603,23 @@ async function proveAccountNotifications(page, items, viewport) {
     if (typeof toggleAccountNotificationsPanel === "function") toggleAccountNotificationsPanel();
   });
   await delay(180);
+  const closeMetrics = await measure(page, ".account-notifications-close");
+  if (!closeMetrics.exists || !closeMetrics.insideViewport) {
+    throw new Error(`Account notification close button is not visible on ${viewport.key}: ${JSON.stringify(closeMetrics)}`);
+  }
   await capture(page, items, viewport, "05-account-notifications", "Account notifications panel", ".account-notifications-panel", {
     before: "Account notifications panel je mogao pobjeci van ekrana na mobile/tablet.",
-    changed: "Panel je mjeren kao fixed viewport panel sa max visinom i unutrasnjim scrollom.",
+    changed: "Panel je mjeren kao fixed viewport panel sa max visinom, unutrasnjim scrollom i jasnim X close gumbom.",
     why: "Privatne obavijesti moraju biti citljive i zatvorive.",
     compromise: "Na uskim uredjajima zauzima veci dio ekrana.",
   });
-  await page.evaluate(() => { if (typeof closeAccountNotificationsPanel === "function") closeAccountNotificationsPanel(); });
+  await page.click(".account-notifications-close");
+  await delay(120);
+  const stillOpen = await page.evaluate(() => {
+    const panel = document.getElementById("accountNotificationsPanel");
+    return panel?.style.display === "block";
+  });
+  if (stillOpen) throw new Error(`Account notification close button did not close panel on ${viewport.key}`);
 }
 
 async function main() {

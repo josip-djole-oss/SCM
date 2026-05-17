@@ -51,7 +51,7 @@ try {
       name: "Jakna 500",
       category: "Odjeca",
       price: 500,
-      creditCost: 500,
+      creditCost: 0,
       usesBudget: true,
       freeRule: { enabled: false, mode: "none", periodDays: 180 },
       upgradeRule: { enabled: false, companyCoveredAmount: 0, differenceAmount: 0 },
@@ -93,6 +93,40 @@ try {
   ], "worker@demo.test");
   assertEq(Math.round(totalsTwo.subtotal), 1000, "usesBudget price x2");
 
+  const fakePanel = { innerHTML: "" };
+  context.document = {
+    getElementById(id) {
+      if (id === "workwearCartPanel") return fakePanel;
+      return null;
+    },
+    querySelector() { return null; },
+  };
+  context.CMAX_PERF = null;
+  context.escapeHtml = (value) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+  context.t = (key) => ({
+    cart: "Cart",
+    emptyCart: "Cart is empty.",
+    budget: "Budget",
+    checkout: "Checkout",
+  }[key] || key);
+  context.getWorkwearCartPanel = () => fakePanel;
+  vm.runInContext(loadSource("public/js/workwear/workwearRender.js"), context);
+  const cart = context.getWorkwearCartForCurrentUser();
+  cart.items = [{ productId: "P-500", size: "M", quantity: 1 }];
+  context.renderWorkwearCart();
+  if (!fakePanel.innerHTML.includes("500 SEK")) {
+    throw new Error(`UI cart total did not render 500 SEK for qty 1: ${fakePanel.innerHTML}`);
+  }
+  cart.items = [{ productId: "P-500", size: "M", quantity: 2 }];
+  context.renderWorkwearCart();
+  if (!fakePanel.innerHTML.includes("1000 SEK")) {
+    throw new Error(`UI cart total did not render 1000 SEK for qty 2: ${fakePanel.innerHTML}`);
+  }
+
   const totalsFree = context.computeWorkwearOrderTotals([
     { productId: "P-FREE", size: "M", quantity: 1 },
   ], "worker@demo.test");
@@ -114,6 +148,8 @@ try {
     checks: [
       "usesBudget_x1_500",
       "usesBudget_x2_1000",
+      "ui_cart_total_500",
+      "ui_cart_total_1000",
       "free_rule_zero",
       "upgrade_difference",
       "insufficient_budget_guard_present",

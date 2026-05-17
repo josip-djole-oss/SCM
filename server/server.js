@@ -2226,9 +2226,9 @@ function buildServerPricedStoreOrder({
     let priceAtOrder = Number(product.price);
     if (!Number.isFinite(priceAtOrder) || priceAtOrder < 0) priceAtOrder = 0;
     let creditCostAtOrder = Number(product.creditCost);
-    if (!Number.isFinite(creditCostAtOrder) || creditCostAtOrder < 0) creditCostAtOrder = priceAtOrder;
+    if (!Number.isFinite(creditCostAtOrder) || creditCostAtOrder <= 0) creditCostAtOrder = priceAtOrder;
     if (Number.isFinite(variantPrice) && variantPrice >= 0) priceAtOrder = variantPrice;
-    if (Number.isFinite(variantCredit) && variantCredit >= 0) creditCostAtOrder = variantCredit;
+    if (Number.isFinite(variantCredit) && variantCredit > 0) creditCostAtOrder = variantCredit;
 
     const canUpgrade = product?.upgradeRule?.enabled === true || product?.enableUpgradeDifference === true;
     let upgradeApplied = false;

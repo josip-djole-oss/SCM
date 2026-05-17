@@ -1140,8 +1140,11 @@
             <button class="account-notifications-backdrop" id="accountNotificationsBackdrop" type="button" aria-label="Zatvori account obavijesti"></button>
             <div class="account-notifications-panel" id="accountNotificationsPanel" style="display:none">
               <div class="account-notifications-head">
-                <strong>Account obavijesti</strong>
-                <button class="btn btn-ghost btn-small" type="button" data-cmax-action="accountNotifications.markAllRead">Oznaci procitano</button>
+                <strong>Notifikacije</strong>
+                <div class="account-notifications-head-actions">
+                  <button class="btn btn-ghost btn-small" type="button" data-cmax-action="accountNotifications.markAllRead">Oznaci procitano</button>
+                  <button class="btn btn-ghost btn-small account-notifications-close" type="button" data-cmax-action="accountNotifications.closePanel" aria-label="Zatvori notifikacije">X</button>
+                </div>
               </div>
               <div class="account-notifications-list" id="accountNotificationsList"></div>
             </div>
