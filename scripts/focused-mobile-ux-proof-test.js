@@ -315,7 +315,7 @@ async function proveAdmin(page, items) {
   });
   await delay(120);
   const actionTop = await metric(page, "#adminComposeActionBar");
-  if (!actionTop.exists || !["static", "sticky"].includes(actionTop.position)) {
+  if (!actionTop.exists || !["static", "relative"].includes(actionTop.position)) {
     throw new Error(`adminComposeActionBar unstable at top: ${JSON.stringify(actionTop)}`);
   }
   await capture(page, items, "390x844", "admin-action-bar-top", "#settings-section .modal-box", {

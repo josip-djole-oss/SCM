@@ -37,7 +37,11 @@ async function initApp() {
     renderAll();
     updateNotifBadge();
     showMainApp();
-    restoreLastView();
+    if (typeof showHomeDashboard === "function") {
+      showHomeDashboard({ fresh: false, replaceRoute: true });
+    } else {
+      restoreLastView();
+    }
     startAutoSave();
     CMAX_PERF?.count?.("initApp");
   } catch (error) {

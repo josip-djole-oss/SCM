@@ -444,7 +444,8 @@ function notifyDashboardViewChanged() {
   updateShellNavigationState();
 }
 
-function showHomeDashboard() {
+function showHomeDashboard(options = {}) {
+  const opts = (options && typeof options === "object") ? options : {};
   const runView = () => {
     const plannerSection = document.getElementById("planner-section");
     const tidplanSection = document.getElementById("tidplan-section");
@@ -475,7 +476,7 @@ function showHomeDashboard() {
 
     currentView = "home";
     saveCurrentView("home");
-    pushRouteForView("home");
+    pushRouteForView("home", opts.replaceRoute ? { path: "/home", replace: true } : {});
 
     syncSidebarAccessState();
     notifyDashboardViewChanged();
@@ -487,6 +488,10 @@ function showHomeDashboard() {
     refreshPresence().catch(() => {});
   };
 
+  if (opts.fresh === false) {
+    runView();
+    return true;
+  }
   return loadFreshDataForView("loadingDefault", runView);
 }
 

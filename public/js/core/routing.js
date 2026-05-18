@@ -18,7 +18,7 @@ function routeForView(view = currentView) {
     bins: "/bins",
     admin: "/settings",
   };
-  return routes[view] || "/planner";
+  return routes[view] || "/home";
 }
 
 function viewFromPath(pathname = window.location.pathname) {

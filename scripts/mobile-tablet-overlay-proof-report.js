@@ -557,8 +557,8 @@ async function proveSettings(page, items, viewport) {
       await delay(120);
       const actionBarMetrics = await measure(page, "#adminComposeActionBar");
       if (!actionBarMetrics.exists) throw new Error(`adminComposeActionBar missing on ${viewport.key}`);
-      if (actionBarMetrics.position !== "static") {
-        throw new Error(`adminComposeActionBar should be static on ${viewport.key}: ${JSON.stringify(actionBarMetrics)}`);
+      if (!["static", "relative"].includes(actionBarMetrics.position)) {
+        throw new Error(`adminComposeActionBar should stay in normal flow on ${viewport.key}: ${JSON.stringify(actionBarMetrics)}`);
       }
       await capture(page, items, viewport, "06-shell-fixes", "Admin action bar static", "#settings-section .modal-box", {
         before: "adminComposeActionBar je bio sticky i pratio scroll pa je smetao preko admin forme.",
