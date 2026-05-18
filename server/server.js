@@ -62,6 +62,7 @@ const adminsFile = dataStorage.files?.admins || path.join(dataDir, 'admins.json'
 const logsFile = dataStorage.files?.logs || path.join(dataDir, 'logs.json');
 const warehouseFile = dataStorage.files?.warehouse || path.join(dataDir, 'warehouse.json');
 const warehouseLogsFile = dataStorage.files?.warehouseLogs || path.join(dataDir, 'warehouse-logs.json');
+const siteChatFile = dataStorage.files?.siteChat || path.join(dataDir, 'site-chat.json');
 const sessions = new Map();
 const activePresence = new Map();
 const pendingRestoreApprovals = new Map();
@@ -84,6 +85,8 @@ const DEFAULT_PERMISSIONS = {
   canViewNotifications: true,
   canManageNotifications: false,
   canDeleteNotifications: false,
+  canAccessSiteChat: true,
+  canModerateSiteChat: false,
   canCreateReports: true,
   canOpenAdminPanel: true,
   canManageAdmins: false,
@@ -158,6 +161,8 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canAccessBins: false,
   canViewNotifications: false,
   canDeleteNotifications: false,
+  canAccessSiteChat: false,
+  canModerateSiteChat: false,
   canCreateReports: true,
   canPrint: false,
   canExport: false,
@@ -1083,6 +1088,8 @@ function buildBackupModuleSummary(snapshot) {
   const warehouseItems = Array.isArray(warehouse.items) ? warehouse.items : [];
   const reports = payload.reports && typeof payload.reports === 'object' ? payload.reports : {};
   const notifications = payload.notifications && typeof payload.notifications === 'object' ? payload.notifications : {};
+  const siteChat = payload.siteChat && typeof payload.siteChat === 'object' ? payload.siteChat : {};
+  const siteChatSites = siteChat.sites && typeof siteChat.sites === 'object' ? siteChat.sites : {};
   const stateSites = Array.isArray(state.sites) ? state.sites : [];
   const accountNotifications = state.accountNotifications && typeof state.accountNotifications === 'object'
     ? state.accountNotifications
@@ -1108,6 +1115,15 @@ function buildBackupModuleSummary(snapshot) {
     storeLedger: countStoreRecords(state, 'creditLedger'),
     storeAudit: countStoreRecords(state, 'auditLog'),
     storeSupplier: countRecordsBySite(state, (siteEntry) => siteEntry?.store?.supplierConnections || []),
+    siteChatSites: Object.keys(siteChatSites).length,
+    siteChatMessages: Object.values(siteChatSites).reduce((sum, entry) => {
+      const messages = Array.isArray(entry?.messages) ? entry.messages : [];
+      return sum + messages.length;
+    }, 0),
+    siteChatReadStates: Object.values(siteChatSites).reduce((sum, entry) => {
+      const readState = entry?.readState && typeof entry.readState === 'object' ? entry.readState : {};
+      return sum + Object.keys(readState).length;
+    }, 0),
   };
 }
 
@@ -1229,6 +1245,11 @@ async function restoreBackupSnapshot(identifier, userEmail) {
       { fallbackValue: [] },
     );
   }
+  await writeVersionedJsonFile(
+    siteChatFile,
+    snapshot.siteChat && typeof snapshot.siteChat === 'object' ? snapshot.siteChat : createEmptySiteChatDocument(),
+    { fallbackValue: createEmptySiteChatDocument() },
+  );
 
   const reports = snapshot.reports && typeof snapshot.reports === 'object' ? snapshot.reports : {};
   for (const [site, list] of Object.entries(reports)) {
@@ -1772,6 +1793,7 @@ function buildPublicAuthPayload(session) {
     isReadonly: session.isReadonly,
     permissions: session.permissions,
     level: session.level,
+    storeRoles: Array.isArray(session.storeRoles) ? session.storeRoles : [],
   };
 }
 
@@ -2560,6 +2582,460 @@ function getUploadUrl(filePath) {
   return `/uploads/${relative}`;
 }
 
+function createEmptySiteChatDocument() {
+  return {
+    version: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    sites: {},
+  };
+}
+
+const SITE_CHAT_MAX_MESSAGE_LENGTH = Number(process.env.SITE_CHAT_MAX_MESSAGE_LENGTH) || 4000;
+const SITE_CHAT_MAX_ATTACHMENTS = Number(process.env.SITE_CHAT_MAX_ATTACHMENTS) || 5;
+const SITE_CHAT_EDIT_WINDOW_MS = Number(process.env.SITE_CHAT_EDIT_WINDOW_MS) || (15 * 60 * 1000);
+const SITE_CHAT_DELETE_OWN_WINDOW_MS = Number(process.env.SITE_CHAT_DELETE_OWN_WINDOW_MS) || (30 * 60 * 1000);
+const SITE_CHAT_MAX_MESSAGES_PER_SITE = Number(process.env.SITE_CHAT_MAX_MESSAGES_PER_SITE) || 5000;
+const SITE_CHAT_ATTACHMENT_MAX_SIZE = Number(process.env.SITE_CHAT_ATTACHMENT_MAX_SIZE) || (10 * 1024 * 1024);
+const SITE_CHAT_ALLOWED_REACTIONS = ['👍', '✅', '👀', '⚠️'];
+const SITE_CHAT_ALLOWED_MIME_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+  'application/pdf',
+  'text/plain',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+const siteChatMessageLimiter = rateLimit({
+  windowMs: Number(process.env.SITE_CHAT_RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  max: Number(process.env.SITE_CHAT_RATE_LIMIT_MAX) || 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many chat messages. Try again shortly.' },
+});
+const siteChatUploadLimiter = rateLimit({
+  windowMs: Number(process.env.SITE_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  max: Number(process.env.SITE_CHAT_UPLOAD_RATE_LIMIT_MAX) || 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many chat uploads. Try again shortly.' },
+});
+
+function canAccessSiteChat(session) {
+  return !session?.isReadonly && sessionHasPermission(session, 'canAccessSiteChat');
+}
+
+function canModerateSiteChat(session) {
+  return Boolean(
+    session?.isSuperAdmin ||
+      getSessionLevel(session) >= 5 ||
+      sessionHasPermission(session, 'canModerateSiteChat'),
+  );
+}
+
+function normalizeSiteChatMessage(message, siteId = '') {
+  const raw = message && typeof message === 'object' ? message : {};
+  const id = sanitizeString(raw.id || '', 120);
+  const createdAt = sanitizeString(raw.createdAt || raw.timestamp || new Date().toISOString(), 80);
+  const authorEmail = sanitizeString(raw.authorEmail || raw.email || '', 160).toLowerCase();
+  return {
+    id,
+    siteId: sanitizeString(raw.siteId || siteId || '', 80),
+    authorEmail,
+    authorName: sanitizeString(raw.authorName || authorEmail || 'Unknown', 180),
+    authorFunctions: normalizeStoreRoleListServer(raw.authorFunctions || raw.storeRoles || []),
+    text: sanitizeString(raw.text || '', SITE_CHAT_MAX_MESSAGE_LENGTH),
+    attachments: sanitizeSiteChatAttachments(raw.attachments || []),
+    replyToMessageId: sanitizeString(raw.replyToMessageId || '', 120),
+    mentions: Array.isArray(raw.mentions)
+      ? Array.from(new Set(raw.mentions.map((entry) => sanitizeString(entry, 160).toLowerCase()).filter(Boolean)))
+      : [],
+    reactions: normalizeSiteChatReactions(raw.reactions || {}),
+    pinned: raw.pinned === true,
+    pinnedAt: sanitizeString(raw.pinnedAt || '', 80),
+    pinnedBy: sanitizeString(raw.pinnedBy || '', 160).toLowerCase(),
+    editedAt: sanitizeString(raw.editedAt || '', 80),
+    deletedAt: sanitizeString(raw.deletedAt || '', 80),
+    deletedBy: sanitizeString(raw.deletedBy || '', 160).toLowerCase(),
+    deleteReason: sanitizeString(raw.deleteReason || '', 240),
+    createdAt,
+    updatedAt: sanitizeString(raw.updatedAt || createdAt, 80),
+  };
+}
+
+function normalizeSiteChatReactions(reactions) {
+  const source = reactions && typeof reactions === 'object' && !Array.isArray(reactions) ? reactions : {};
+  const next = {};
+  SITE_CHAT_ALLOWED_REACTIONS.forEach((reaction) => {
+    const users = Array.isArray(source[reaction]) ? source[reaction] : [];
+    next[reaction] = Array.from(new Set(
+      users.map((entry) => sanitizeString(entry, 160).toLowerCase()).filter(Boolean),
+    ));
+  });
+  return next;
+}
+
+function sanitizeSiteChatAttachments(attachments) {
+  const source = Array.isArray(attachments) ? attachments.slice(0, SITE_CHAT_MAX_ATTACHMENTS) : [];
+  return source
+    .map((entry) => {
+      const raw = entry && typeof entry === 'object' ? entry : {};
+      const mimeType = sanitizeString(raw.mimeType || raw.mimetype || '', 160).toLowerCase();
+      const size = Math.max(0, Number(raw.size) || 0);
+      const url = sanitizeString(raw.url || '', 600);
+      if (!SITE_CHAT_ALLOWED_MIME_TYPES.has(mimeType)) return null;
+      if (size > SITE_CHAT_ATTACHMENT_MAX_SIZE) return null;
+      if (url && !url.startsWith('/uploads/')) return null;
+      const kind = mimeType.startsWith('image/') ? 'image' : mimeType === 'application/pdf' ? 'pdf' : 'document';
+      return {
+        id: sanitizeString(raw.id || `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, 120),
+        type: kind,
+        fileName: sanitizeString(raw.fileName || raw.originalName || raw.name || 'attachment', 240),
+        mimeType,
+        size,
+        url,
+        uploadedAt: sanitizeString(raw.uploadedAt || new Date().toISOString(), 80),
+      };
+    })
+    .filter(Boolean);
+}
+
+function normalizeSiteChatSite(siteEntry, siteId) {
+  const raw = siteEntry && typeof siteEntry === 'object' ? siteEntry : {};
+  const readState = raw.readState && typeof raw.readState === 'object' ? raw.readState : {};
+  const auditLog = Array.isArray(raw.auditLog) ? raw.auditLog : [];
+  const settings = raw.settings && typeof raw.settings === 'object' ? raw.settings : {};
+  const messages = Array.isArray(raw.messages)
+    ? raw.messages.map((message) => normalizeSiteChatMessage(message, siteId)).filter((message) => message.id)
+    : [];
+  messages.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  return {
+    settings: {
+      locked: settings.locked === true,
+      readOnly: settings.readOnly === true,
+      announcementMode: settings.announcementMode === true,
+    },
+    readState: Object.fromEntries(Object.entries(readState).map(([email, value]) => {
+      const entry = value && typeof value === 'object' ? value : {};
+      return [sanitizeString(email, 160).toLowerCase(), {
+        lastReadAt: sanitizeString(entry.lastReadAt || '', 80),
+        lastReadMessageId: sanitizeString(entry.lastReadMessageId || '', 120),
+      }];
+    }).filter(([email]) => Boolean(email))),
+    auditLog: auditLog.slice(-500).map((entry) => ({
+      id: sanitizeString(entry?.id || `chat_audit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, 120),
+      at: sanitizeString(entry?.at || entry?.timestamp || new Date().toISOString(), 80),
+      actor: sanitizeString(entry?.actor || '', 160).toLowerCase(),
+      action: sanitizeString(entry?.action || 'unknown', 120),
+      messageId: sanitizeString(entry?.messageId || '', 120),
+      details: redactSensitiveObject(sanitizeObject(entry?.details || {})),
+    })),
+    messages: messages.slice(-SITE_CHAT_MAX_MESSAGES_PER_SITE),
+  };
+}
+
+function normalizeSiteChatDocument(doc) {
+  const raw = doc && typeof doc === 'object' ? doc : createEmptySiteChatDocument();
+  const sitesSource = raw.sites && typeof raw.sites === 'object' ? raw.sites : {};
+  const normalizedSites = {};
+  Object.entries(sitesSource).forEach(([siteId, entry]) => {
+    const safeSite = sanitizeString(siteId, 80);
+    if (safeSite) normalizedSites[safeSite] = normalizeSiteChatSite(entry, safeSite);
+  });
+  return {
+    version: 1,
+    createdAt: sanitizeString(raw.createdAt || new Date().toISOString(), 80),
+    updatedAt: sanitizeString(raw.updatedAt || new Date().toISOString(), 80),
+    sites: normalizedSites,
+  };
+}
+
+function ensureSiteChatSite(doc, siteId) {
+  const safeSite = sanitizeString(siteId || 'default', 80);
+  if (!doc.sites[safeSite]) {
+    doc.sites[safeSite] = normalizeSiteChatSite({}, safeSite);
+  }
+  return doc.sites[safeSite];
+}
+
+function isSiteChatLockedForWrites(siteEntry, session) {
+  if (canModerateSiteChat(session)) return false;
+  const settings = siteEntry?.settings || {};
+  return settings.locked === true || settings.readOnly === true || settings.announcementMode === true;
+}
+
+function isSiteChatMessageOwner(message, session) {
+  const author = sanitizeString(message?.authorEmail || '', 160).toLowerCase();
+  const current = sanitizeString(session?.email || '', 160).toLowerCase();
+  return Boolean(author && current && author === current);
+}
+
+function canEditSiteChatMessage(message, session) {
+  if (!isSiteChatMessageOwner(message, session)) return false;
+  if (message?.deletedAt) return false;
+  const created = new Date(message.createdAt || 0).getTime();
+  return Number.isFinite(created) && Date.now() - created <= SITE_CHAT_EDIT_WINDOW_MS;
+}
+
+function canDeleteOwnSiteChatMessage(message, session) {
+  if (!isSiteChatMessageOwner(message, session)) return false;
+  if (message?.deletedAt) return false;
+  const created = new Date(message.createdAt || 0).getTime();
+  return Number.isFinite(created) && Date.now() - created <= SITE_CHAT_DELETE_OWN_WINDOW_MS;
+}
+
+function getAccessibleSiteListFromState(state, session) {
+  const stateSites = Array.isArray(state?.sites) && state.sites.length ? state.sites : ['default'];
+  return stateSites
+    .map((site) => sanitizeString(site, 80))
+    .filter(Boolean)
+    .filter((site) => canAccessSite(session, site));
+}
+
+function getSiteChatUnreadForSite(siteEntry, session) {
+  const email = sanitizeString(session?.email || '', 160).toLowerCase();
+  const readEntry = siteEntry?.readState?.[email] || {};
+  const lastRead = new Date(readEntry.lastReadAt || 0).getTime();
+  const messages = Array.isArray(siteEntry?.messages) ? siteEntry.messages : [];
+  return messages.filter((message) => {
+    if (message.deletedAt) return false;
+    if (sanitizeString(message.authorEmail || '', 160).toLowerCase() === email) return false;
+    return new Date(message.createdAt || 0).getTime() > lastRead;
+  }).length;
+}
+
+function getSiteChatLastMessage(siteEntry) {
+  const messages = Array.isArray(siteEntry?.messages) ? siteEntry.messages : [];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message?.deletedAt) return message;
+  }
+  return null;
+}
+
+function buildSiteChatListEntry(site, siteEntry, session) {
+  const lastMessage = getSiteChatLastMessage(siteEntry);
+  return {
+    siteId: site,
+    siteName: site,
+    unreadCount: getSiteChatUnreadForSite(siteEntry, session),
+    lastMessage: lastMessage ? {
+      id: lastMessage.id,
+      text: lastMessage.text || (lastMessage.attachments?.length ? 'Attachment' : ''),
+      authorName: lastMessage.authorName,
+      createdAt: lastMessage.createdAt,
+    } : null,
+    onlineCount: getOnlineCountForSite(site),
+  };
+}
+
+function getOnlineCountForSite(site) {
+  cleanupPresence();
+  let count = 0;
+  for (const entry of activePresence.values()) {
+    if (entry?.currentSite === site) count += 1;
+  }
+  return count;
+}
+
+async function getSiteChatDocument() {
+  return normalizeSiteChatDocument(await readJsonFile(siteChatFile, createEmptySiteChatDocument()));
+}
+
+async function mutateSiteChatDocument(mutator) {
+  const envelope = await mutateVersionedJsonFile(siteChatFile, createEmptySiteChatDocument(), async (doc) => {
+    const normalized = normalizeSiteChatDocument(doc);
+    const next = await mutator(normalized);
+    const output = normalizeSiteChatDocument(next || normalized);
+    output.updatedAt = new Date().toISOString();
+    return output;
+  });
+  return normalizeSiteChatDocument(envelope.data || envelope);
+}
+
+function paginateSiteChatMessages(messages, limitRaw, beforeRaw) {
+  const limit = Math.max(1, Math.min(100, Number(limitRaw) || 50));
+  const sorted = Array.isArray(messages) ? [...messages] : [];
+  sorted.sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  let endIndex = sorted.length;
+  const before = sanitizeString(beforeRaw || '', 120);
+  if (before) {
+    const byId = sorted.findIndex((message) => message.id === before);
+    if (byId >= 0) {
+      endIndex = byId;
+    } else {
+      const beforeTime = new Date(before).getTime();
+      if (Number.isFinite(beforeTime)) {
+        const byTime = sorted.findIndex((message) => new Date(message.createdAt || 0).getTime() >= beforeTime);
+        if (byTime >= 0) endIndex = byTime;
+      }
+    }
+  }
+  const startIndex = Math.max(0, endIndex - limit);
+  const page = sorted.slice(startIndex, endIndex);
+  return {
+    messages: page,
+    hasMore: startIndex > 0,
+    nextBefore: page[0]?.id || '',
+  };
+}
+
+function buildSafeSiteChatMessage(message) {
+  if (!message) return null;
+  const isDeleted = Boolean(message.deletedAt);
+  return {
+    ...message,
+    text: isDeleted ? '' : message.text,
+    attachments: isDeleted ? [] : (message.attachments || []),
+  };
+}
+
+function normalizeSiteChatDraft(body = {}) {
+  const raw = body && typeof body === 'object' ? body : {};
+  const text = sanitizeString(raw.text || raw.message || '', SITE_CHAT_MAX_MESSAGE_LENGTH);
+  const attachments = sanitizeSiteChatAttachments(raw.attachments || []);
+  if (!text && attachments.length === 0) {
+    const error = new Error('CHAT_MESSAGE_EMPTY');
+    error.statusCode = 400;
+    throw error;
+  }
+  return {
+    text,
+    attachments,
+    replyToMessageId: sanitizeString(raw.replyToMessageId || '', 120),
+    clientId: sanitizeString(raw.clientId || '', 120),
+  };
+}
+
+function adminHasSiteAccess(admin, site) {
+  const normalized = normalizeAdminRecord(admin);
+  if (normalized.active === false) return false;
+  if (normalized.isSuperAdmin) return true;
+  if (Array.isArray(normalized.allowedSites)) return normalized.allowedSites.includes(site);
+  return true;
+}
+
+function getAdminFunctionBadges(admin) {
+  const normalized = normalizeAdminRecord(admin);
+  if (normalized.storeRoles.length) return normalized.storeRoles;
+  if (normalized.isSuperAdmin) return ['superadmin'];
+  if (sessionHasPermission({ permissions: normalized.permissions, isSuperAdmin: normalized.isSuperAdmin }, 'canOpenAdminPanel')) return ['admin'];
+  return ['radnik'];
+}
+
+function extractSiteChatMentionEmails(text, site, admins) {
+  const tokens = Array.from(String(text || '').matchAll(/@([^\s,.;:!?()[\]{}<>]+)/g))
+    .map((match) => String(match[1] || '').trim().toLowerCase())
+    .filter(Boolean);
+  if (!tokens.length) return [];
+  const tokenSet = new Set(tokens);
+  const mentioned = [];
+  admins.forEach((admin) => {
+    const normalized = normalizeAdminRecord(admin);
+    if (!normalized.email || !adminHasSiteAccess(normalized, site)) return;
+    const local = normalized.email.split('@')[0].toLowerCase();
+    const compactName = String(normalized.fullName || '').toLowerCase().replace(/\s+/g, '');
+    const firstName = String(normalized.firstName || '').toLowerCase();
+    const lastName = String(normalized.lastName || '').toLowerCase();
+    if (
+      tokenSet.has(normalized.email) ||
+      tokenSet.has(local) ||
+      (compactName && tokenSet.has(compactName)) ||
+      (firstName && tokenSet.has(firstName)) ||
+      (lastName && tokenSet.has(lastName))
+    ) {
+      mentioned.push(normalized.email);
+    }
+  });
+  return Array.from(new Set(mentioned));
+}
+
+function buildSiteChatAccountNotification(message, site, kind = 'message') {
+  const title = kind === 'mention'
+    ? `${message.authorName} vas je spomenuo u chatu`
+    : kind === 'reply'
+      ? `${message.authorName} je odgovorio u chatu`
+      : `Nova chat poruka: ${site}`;
+  const preview = sanitizeString(message.text || (message.attachments?.length ? 'Attachment' : 'Nova poruka'), 140);
+  return {
+    id: `site_chat_${message.id}`,
+    uniqueKey: `site-chat:${kind}:${site}:${message.id}`,
+    type: 'site-chat',
+    title,
+    description: `${site}: ${preview}`,
+    site,
+    targetId: message.id,
+    targetView: 'siteChat',
+    createdAt: message.createdAt,
+    readAt: null,
+  };
+}
+
+function isUserActivelyViewingSiteChat(email, site) {
+  const normalizedEmail = sanitizeString(email || '', 160).toLowerCase();
+  cleanupPresence();
+  for (const entry of activePresence.values()) {
+    if (
+      sanitizeString(entry?.email || '', 160).toLowerCase() === normalizedEmail &&
+      entry?.currentSite === site &&
+      entry?.currentView === 'siteChat'
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function appendAccountNotificationForUsers(userEmails, entry) {
+  const recipients = Array.from(new Set(
+    (Array.isArray(userEmails) ? userEmails : [])
+      .map((email) => sanitizeString(email, 160).toLowerCase())
+      .filter(Boolean),
+  ));
+  if (!recipients.length) return;
+  await mutateVersionedJsonFile(stateFile, {}, async (state) => {
+    const nextState = state && typeof state === 'object' ? { ...state } : {};
+    const accountNotifications = nextState.accountNotifications && typeof nextState.accountNotifications === 'object'
+      ? { ...nextState.accountNotifications }
+      : {};
+    recipients.forEach((email) => {
+      const bundle = accountNotifications[email] && typeof accountNotifications[email] === 'object'
+        ? { ...accountNotifications[email] }
+        : {};
+      const list = Array.isArray(bundle.notifications) ? [...bundle.notifications] : [];
+      if (entry.uniqueKey && list.some((item) => item?.uniqueKey === entry.uniqueKey)) return;
+      list.unshift({ ...entry, id: `${entry.id || 'acct'}_${email}` });
+      bundle.notifications = list.slice(0, 120);
+      bundle.updatedAt = new Date().toISOString();
+      accountNotifications[email] = bundle;
+    });
+    nextState.accountNotifications = accountNotifications;
+    return nextState;
+  });
+}
+
+async function notifySiteChatRecipients({ site, message, admins, replyTo }) {
+  const sender = sanitizeString(message.authorEmail || '', 160).toLowerCase();
+  const baseRecipients = admins
+    .map((admin) => normalizeAdminRecord(admin))
+    .filter((admin) => admin.email && admin.email !== sender)
+    .filter((admin) => admin.active !== false)
+    .filter((admin) => sessionHasPermission({ permissions: admin.permissions, isSuperAdmin: admin.isSuperAdmin }, 'canAccessSiteChat'))
+    .filter((admin) => adminHasSiteAccess(admin, site));
+  const mentioned = message.mentions || [];
+  const replyRecipient = replyTo?.authorEmail && replyTo.authorEmail !== sender ? [replyTo.authorEmail] : [];
+  const messageRecipients = baseRecipients
+    .map((admin) => admin.email)
+    .filter((email) => !isUserActivelyViewingSiteChat(email, site));
+  await appendAccountNotificationForUsers(messageRecipients, buildSiteChatAccountNotification(message, site, 'message'));
+  await appendAccountNotificationForUsers(mentioned.filter((email) => email !== sender), buildSiteChatAccountNotification(message, site, 'mention'));
+  await appendAccountNotificationForUsers(replyRecipient, buildSiteChatAccountNotification(message, site, 'reply'));
+}
+
 async function createBackupSnapshot(label = 'manual') {
   try {
     const safeLabel = sanitizeString(label, 60).replace(/[^a-zA-Z0-9_-]/g, '_') || 'manual';
@@ -3271,6 +3747,7 @@ async function initializeData() {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
+  await dataStorage.ensureJsonFile(siteChatFile, createEmptySiteChatDocument());
 
   const reportsFile = getReportsFilePath('default');
   await dataStorage.ensureJsonFile(reportsFile, []);
@@ -3476,6 +3953,7 @@ app.post('/api/login', loginLimiter, async (req, res, next) => {
       permissions: normalizePermissions(admin.permissions),
       allowedSites: admin.allowedSites,
       level: admin.level,
+      storeRoles: admin.storeRoles,
     });
 
     await logActivity(email, 'login', { success: true });
@@ -3564,6 +4042,396 @@ app.get('/api/health', (req, res) => {
 const apiRouter = express.Router();
 apiRouter.use(requireAuth);
 apiRouter.use(requireCsrf);
+
+apiRouter.get('/site-chat/sites', async (req, res, next) => {
+  try {
+    if (!canAccessSiteChat(req.session)) return res.status(403).json({ error: 'Forbidden' });
+    const state = await getState();
+    const accessibleSites = getAccessibleSiteListFromState(state, req.session);
+    const doc = await getSiteChatDocument();
+    const sitesPayload = accessibleSites.map((site) => buildSiteChatListEntry(site, ensureSiteChatSite(doc, site), req.session));
+    return res.json({
+      sites: sitesPayload,
+      canModerate: canModerateSiteChat(req.session),
+      messageLimit: SITE_CHAT_MAX_MESSAGE_LENGTH,
+      attachmentMaxBytes: SITE_CHAT_ATTACHMENT_MAX_SIZE,
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+apiRouter.get('/site-chat/unread', async (req, res, next) => {
+  try {
+    if (!canAccessSiteChat(req.session)) return res.status(403).json({ error: 'Forbidden' });
+    const state = await getState();
+    const accessibleSites = getAccessibleSiteListFromState(state, req.session);
+    const doc = await getSiteChatDocument();
+    const unread = {};
+    accessibleSites.forEach((site) => {
+      unread[site] = getSiteChatUnreadForSite(ensureSiteChatSite(doc, site), req.session);
+    });
+    return res.json({ unread, total: Object.values(unread).reduce((sum, count) => sum + (Number(count) || 0), 0) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+apiRouter.get('/site-chat/:siteId/messages', async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) return res.status(403).json({ error: 'Forbidden' });
+    const state = await getState();
+    if (!getAccessibleSiteListFromState(state, req.session).includes(site)) return res.status(404).json({ error: 'Site chat not found' });
+    const doc = await getSiteChatDocument();
+    const siteEntry = ensureSiteChatSite(doc, site);
+    const page = paginateSiteChatMessages(siteEntry.messages, req.query.limit, req.query.before);
+    return res.json({
+      site,
+      messages: page.messages.map(buildSafeSiteChatMessage),
+      hasMore: page.hasMore,
+      nextBefore: page.nextBefore,
+      unreadCount: getSiteChatUnreadForSite(siteEntry, req.session),
+      settings: siteEntry.settings,
+      canModerate: canModerateSiteChat(req.session),
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+apiRouter.post('/site-chat/:siteId/upload', siteChatUploadLimiter, upload.single('file'), async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) {
+      if (req.file?.path) fs.unlinkSync(req.file.path);
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const mimeType = sanitizeString(req.file.mimetype || '', 160).toLowerCase();
+    if (!SITE_CHAT_ALLOWED_MIME_TYPES.has(mimeType) || Number(req.file.size) > SITE_CHAT_ATTACHMENT_MAX_SIZE) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+      await logActivity(req.session.email, 'site_chat_upload_rejected', {
+        site,
+        mimeType,
+        size: req.file.size,
+      });
+      return res.status(400).json({ error: 'CHAT_UPLOAD_REJECTED' });
+    }
+    const kind = mimeType.startsWith('image/') ? 'image' : mimeType === 'application/pdf' ? 'pdf' : 'document';
+    return res.json({
+      attachment: {
+        id: `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: kind,
+        fileName: sanitizeString(req.file.originalname || req.file.filename || 'attachment', 240),
+        mimeType,
+        size: req.file.size,
+        url: getUploadUrl(req.file.path),
+        uploadedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error) {
+    if (req.file?.path) {
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+    }
+    return next(error);
+  }
+});
+
+apiRouter.post('/site-chat/:siteId/messages', siteChatMessageLimiter, async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) return res.status(403).json({ error: 'Forbidden' });
+    const state = await getState();
+    if (!getAccessibleSiteListFromState(state, req.session).includes(site)) return res.status(404).json({ error: 'Site chat not found' });
+    const admins = await readAdmins();
+    const currentAdmin = admins.find((admin) => admin.email === sanitizeString(req.session.email || '', 160).toLowerCase());
+    const draft = normalizeSiteChatDraft(req.body || {});
+    let savedMessage = null;
+    let replyTo = null;
+    await mutateSiteChatDocument((doc) => {
+      const siteEntry = ensureSiteChatSite(doc, site);
+      if (isSiteChatLockedForWrites(siteEntry, req.session)) {
+        const error = new Error('CHAT_LOCKED');
+        error.statusCode = 403;
+        throw error;
+      }
+      if (draft.replyToMessageId) {
+        replyTo = siteEntry.messages.find((message) => message.id === draft.replyToMessageId && !message.deletedAt) || null;
+        if (!replyTo) {
+          const error = new Error('CHAT_REPLY_NOT_FOUND');
+          error.statusCode = 400;
+          throw error;
+        }
+      }
+      const now = new Date().toISOString();
+      const message = normalizeSiteChatMessage({
+        id: `chat_${Date.now()}_${crypto.randomBytes(5).toString('hex')}`,
+        siteId: site,
+        authorEmail: sanitizeString(req.session.email || '', 160).toLowerCase(),
+        authorName: sanitizeString(req.session.fullName || currentAdmin?.fullName || req.session.email || 'Unknown', 180),
+        authorFunctions: normalizeStoreRoleListServer(req.session.storeRoles || currentAdmin?.storeRoles || getAdminFunctionBadges(currentAdmin || {})),
+        text: draft.text,
+        attachments: draft.attachments,
+        replyToMessageId: draft.replyToMessageId,
+        mentions: extractSiteChatMentionEmails(draft.text, site, admins),
+        createdAt: now,
+        updatedAt: now,
+      }, site);
+      siteEntry.messages.push(message);
+      siteEntry.messages = siteEntry.messages.slice(-SITE_CHAT_MAX_MESSAGES_PER_SITE);
+      siteEntry.readState[message.authorEmail] = {
+        lastReadAt: message.createdAt,
+        lastReadMessageId: message.id,
+      };
+      savedMessage = message;
+      return doc;
+    });
+    if (savedMessage) {
+      await notifySiteChatRecipients({ site, message: savedMessage, admins, replyTo });
+    }
+    return res.status(201).json({ message: buildSafeSiteChatMessage(savedMessage) });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    return next(error);
+  }
+});
+
+apiRouter.patch('/site-chat/:siteId/messages/:messageId', async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    const messageId = sanitizeString(req.params.messageId || '', 120);
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) return res.status(403).json({ error: 'Forbidden' });
+    const text = sanitizeString(req.body?.text || '', SITE_CHAT_MAX_MESSAGE_LENGTH);
+    if (!text) return res.status(400).json({ error: 'CHAT_MESSAGE_EMPTY' });
+    const admins = await readAdmins();
+    let savedMessage = null;
+    await mutateSiteChatDocument((doc) => {
+      const siteEntry = ensureSiteChatSite(doc, site);
+      const message = siteEntry.messages.find((entry) => entry.id === messageId);
+      if (!message) {
+        const error = new Error('CHAT_MESSAGE_NOT_FOUND');
+        error.statusCode = 404;
+        throw error;
+      }
+      if (!canEditSiteChatMessage(message, req.session)) {
+        const error = new Error('CHAT_EDIT_FORBIDDEN');
+        error.statusCode = 403;
+        throw error;
+      }
+      message.text = text;
+      message.mentions = extractSiteChatMentionEmails(text, site, admins);
+      message.editedAt = new Date().toISOString();
+      message.updatedAt = message.editedAt;
+      savedMessage = message;
+      return doc;
+    });
+    return res.json({ message: buildSafeSiteChatMessage(savedMessage) });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    return next(error);
+  }
+});
+
+apiRouter.delete('/site-chat/:siteId/messages/:messageId', async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    const messageId = sanitizeString(req.params.messageId || '', 120);
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) return res.status(403).json({ error: 'Forbidden' });
+    let savedMessage = null;
+    let moderation = false;
+    await mutateSiteChatDocument((doc) => {
+      const siteEntry = ensureSiteChatSite(doc, site);
+      const message = siteEntry.messages.find((entry) => entry.id === messageId);
+      if (!message) {
+        const error = new Error('CHAT_MESSAGE_NOT_FOUND');
+        error.statusCode = 404;
+        throw error;
+      }
+      const canModerate = canModerateSiteChat(req.session);
+      if (!canModerate && !canDeleteOwnSiteChatMessage(message, req.session)) {
+        siteEntry.auditLog.push({
+          id: `chat_audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+          at: new Date().toISOString(),
+          actor: sanitizeString(req.session.email || '', 160).toLowerCase(),
+          action: 'permission_denied_delete',
+          messageId,
+          details: { site },
+        });
+        const error = new Error('CHAT_DELETE_FORBIDDEN');
+        error.statusCode = 403;
+        throw error;
+      }
+      moderation = canModerate && !isSiteChatMessageOwner(message, req.session);
+      message.deletedAt = message.deletedAt || new Date().toISOString();
+      message.deletedBy = sanitizeString(req.session.email || '', 160).toLowerCase();
+      message.deleteReason = moderation ? 'admin_delete' : 'owner_delete';
+      message.updatedAt = message.deletedAt;
+      savedMessage = message;
+      if (moderation) {
+        siteEntry.auditLog.push({
+          id: `chat_audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+          at: new Date().toISOString(),
+          actor: message.deletedBy,
+          action: 'admin_delete_message',
+          messageId,
+          details: { site, author: message.authorEmail },
+        });
+      }
+      return doc;
+    });
+    if (moderation) {
+      await logActivity(req.session.email, 'site_chat_admin_delete', { site, messageId });
+    }
+    return res.json({ message: buildSafeSiteChatMessage(savedMessage) });
+  } catch (error) {
+    if (error.statusCode) {
+      if (error.message === 'CHAT_DELETE_FORBIDDEN') {
+        await logActivity(req.session?.email, 'site_chat_permission_denied_delete', {
+          site: req.params.siteId,
+          messageId: req.params.messageId,
+        });
+      }
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    return next(error);
+  }
+});
+
+apiRouter.post('/site-chat/:siteId/messages/:messageId/reactions', async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    const messageId = sanitizeString(req.params.messageId || '', 120);
+    const reaction = sanitizeString(req.body?.reaction || '', 20);
+    if (!SITE_CHAT_ALLOWED_REACTIONS.includes(reaction)) return res.status(400).json({ error: 'CHAT_REACTION_INVALID' });
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) return res.status(403).json({ error: 'Forbidden' });
+    let savedMessage = null;
+    await mutateSiteChatDocument((doc) => {
+      const siteEntry = ensureSiteChatSite(doc, site);
+      const message = siteEntry.messages.find((entry) => entry.id === messageId && !entry.deletedAt);
+      if (!message) {
+        const error = new Error('CHAT_MESSAGE_NOT_FOUND');
+        error.statusCode = 404;
+        throw error;
+      }
+      const user = sanitizeString(req.session.email || '', 160).toLowerCase();
+      message.reactions = normalizeSiteChatReactions(message.reactions);
+      const users = new Set(message.reactions[reaction] || []);
+      if (users.has(user)) users.delete(user);
+      else users.add(user);
+      message.reactions[reaction] = Array.from(users);
+      message.updatedAt = new Date().toISOString();
+      savedMessage = message;
+      return doc;
+    });
+    return res.json({ message: buildSafeSiteChatMessage(savedMessage) });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    return next(error);
+  }
+});
+
+apiRouter.post('/site-chat/:siteId/messages/:messageId/pin', async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    const messageId = sanitizeString(req.params.messageId || '', 120);
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) return res.status(403).json({ error: 'Forbidden' });
+    if (!canModerateSiteChat(req.session)) return res.status(403).json({ error: 'CHAT_MODERATION_FORBIDDEN' });
+    let savedMessage = null;
+    await mutateSiteChatDocument((doc) => {
+      const siteEntry = ensureSiteChatSite(doc, site);
+      const message = siteEntry.messages.find((entry) => entry.id === messageId && !entry.deletedAt);
+      if (!message) {
+        const error = new Error('CHAT_MESSAGE_NOT_FOUND');
+        error.statusCode = 404;
+        throw error;
+      }
+      message.pinned = true;
+      message.pinnedAt = new Date().toISOString();
+      message.pinnedBy = sanitizeString(req.session.email || '', 160).toLowerCase();
+      message.updatedAt = message.pinnedAt;
+      siteEntry.auditLog.push({
+        id: `chat_audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        at: message.pinnedAt,
+        actor: message.pinnedBy,
+        action: 'pin_message',
+        messageId,
+        details: { site },
+      });
+      savedMessage = message;
+      return doc;
+    });
+    await logActivity(req.session.email, 'site_chat_pin', { site, messageId });
+    return res.json({ message: buildSafeSiteChatMessage(savedMessage) });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    return next(error);
+  }
+});
+
+apiRouter.delete('/site-chat/:siteId/messages/:messageId/pin', async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    const messageId = sanitizeString(req.params.messageId || '', 120);
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) return res.status(403).json({ error: 'Forbidden' });
+    if (!canModerateSiteChat(req.session)) return res.status(403).json({ error: 'CHAT_MODERATION_FORBIDDEN' });
+    let savedMessage = null;
+    await mutateSiteChatDocument((doc) => {
+      const siteEntry = ensureSiteChatSite(doc, site);
+      const message = siteEntry.messages.find((entry) => entry.id === messageId);
+      if (!message) {
+        const error = new Error('CHAT_MESSAGE_NOT_FOUND');
+        error.statusCode = 404;
+        throw error;
+      }
+      message.pinned = false;
+      message.pinnedAt = '';
+      message.pinnedBy = '';
+      message.updatedAt = new Date().toISOString();
+      siteEntry.auditLog.push({
+        id: `chat_audit_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+        at: message.updatedAt,
+        actor: sanitizeString(req.session.email || '', 160).toLowerCase(),
+        action: 'unpin_message',
+        messageId,
+        details: { site },
+      });
+      savedMessage = message;
+      return doc;
+    });
+    await logActivity(req.session.email, 'site_chat_unpin', { site, messageId });
+    return res.json({ message: buildSafeSiteChatMessage(savedMessage) });
+  } catch (error) {
+    if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    return next(error);
+  }
+});
+
+apiRouter.post('/site-chat/:siteId/read', async (req, res, next) => {
+  try {
+    const site = sanitizeString(req.params.siteId || '', 80);
+    if (!canAccessSiteChat(req.session) || !canAccessSite(req.session, site)) return res.status(403).json({ error: 'Forbidden' });
+    const email = sanitizeString(req.session.email || '', 160).toLowerCase();
+    const messageId = sanitizeString(req.body?.messageId || '', 120);
+    let unreadCount = 0;
+    await mutateSiteChatDocument((doc) => {
+      const siteEntry = ensureSiteChatSite(doc, site);
+      const message = messageId
+        ? siteEntry.messages.find((entry) => entry.id === messageId)
+        : siteEntry.messages[siteEntry.messages.length - 1];
+      const readAt = message?.createdAt || new Date().toISOString();
+      siteEntry.readState[email] = {
+        lastReadAt: readAt,
+        lastReadMessageId: message?.id || '',
+      };
+      unreadCount = getSiteChatUnreadForSite(siteEntry, req.session);
+      return doc;
+    });
+    return res.json({ ok: true, unreadCount });
+  } catch (error) {
+    return next(error);
+  }
+});
 
 apiRouter.post('/store/confirm-password', storePasswordLimiter, async (req, res, next) => {
   try {
@@ -5976,7 +6844,7 @@ apiRouter.get('/backup/info', requirePermission('canViewBackups'), async (req, r
 
 app.use('/api', apiRouter);
 
-app.get(['/', '/login', '/home', '/planner', '/tidplan', '/bins', '/kante', '/warehouse', '/store', '/workwear', '/reports', '/notifications', '/surveys', '/settings'], (req, res) => {
+app.get(['/', '/login', '/home', '/planner', '/tidplan', '/bins', '/kante', '/warehouse', '/store', '/workwear', '/chat', '/reports', '/notifications', '/surveys', '/settings'], (req, res) => {
   res.sendFile(path.join(STATIC_DIR, 'index.html'));
 });
 

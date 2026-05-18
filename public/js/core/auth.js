@@ -38,6 +38,9 @@ function checkAuth(options = {}) {
   appState.adminLevel = resolvedLevel;
   appState.currentUserName =
     auth.fullName || matchedAdmin.fullName || "";
+  appState.currentUserFunctions = Array.isArray(auth.storeRoles) && auth.storeRoles.length
+    ? auth.storeRoles
+    : (Array.isArray(matchedAdmin.storeRoles) ? matchedAdmin.storeRoles : []);
   appState.permissions = auth.isSuperAdmin
     ? { ...DEFAULT_PERMISSIONS }
     : clampPermissionsToLevel(auth.permissions || {}, resolvedLevel);
@@ -56,6 +59,7 @@ function checkAuth(options = {}) {
             ...data.auth,
             permissions: data.auth.permissions || auth.permissions || {},
             level: data.auth.level || auth.level || resolvedLevel,
+            storeRoles: data.auth.storeRoles || auth.storeRoles || [],
             timestamp: new Date().getTime(),
           };
           applyAuthData(nextAuth);
@@ -161,6 +165,7 @@ function getModuleLabelForView(view) {
     warehouseLogs: "Skladiste",
     warehouseGraph: "Skladiste",
     workwear: "Store",
+    siteChat: "Chat",
     reports: "Report",
     notifications: "Obavijesti",
     surveys: "Ankete / Pitanja",
@@ -180,6 +185,7 @@ function getModuleIconForView(view) {
     warehouseLogs: 'url("icons/warehouse.svg")',
     warehouseGraph: 'url("icons/warehouse.svg")',
     workwear: 'url("icons/warehouse.svg")',
+    siteChat: 'url("icons/notifications.svg")',
     reports: 'url("icons/planner.svg")',
     notifications: 'url("icons/notifications.svg")',
     surveys: 'url("icons/surveys.svg")',
@@ -193,6 +199,7 @@ function updateShellForView(view = currentView) {
   if (typeof closeSidebarOnMobile === "function") closeSidebarOnMobile();
   if (typeof closeAccountNotificationsPanel === "function") closeAccountNotificationsPanel();
   const workwearSection = document.getElementById("workwear-section");
+  const siteChatSection = document.getElementById("site-chat-section");
   if (workwearSection && view !== "workwear") {
     workwearSection.style.display = "none";
     if (typeof workwearOrdersOverlayOpen !== "undefined") workwearOrdersOverlayOpen = false;
@@ -201,6 +208,10 @@ function updateShellForView(view = currentView) {
     if (typeof renderWorkwearCartOverlay === "function") renderWorkwearCartOverlay();
     if (typeof renderWorkwearOrdersOverlay === "function") renderWorkwearOrdersOverlay();
     if (typeof renderWorkwearManagerOverlay === "function") renderWorkwearManagerOverlay();
+  }
+  if (siteChatSection && view !== "siteChat") {
+    siteChatSection.style.display = "none";
+    if (typeof siteChatStopPolling === "function") siteChatStopPolling();
   }
   const moduleLabel = document.getElementById("currentModuleLabel");
   if (moduleLabel) moduleLabel.textContent = getModuleLabelForView(view);
@@ -283,6 +294,7 @@ function applyPermissionVisibility() {
   const canBins = canAccessBinsModule();
   const canWarehouse = canAccessWarehouseModule();
   const canWorkwear = canAccessWorkwearModule();
+  const canSiteChat = canAccessSiteChatModule();
   const canWarehouseLogs = canViewWarehouseLogsSection();
   const canWarehouseGraph = canViewWarehouseAnalyticsSection();
   const canReports = canAccessReportsModule();
@@ -341,6 +353,7 @@ function applyPermissionVisibility() {
   const warehouseLogsSection = document.getElementById("warehouse-logs-section");
   const warehouseGraphSection = document.getElementById("warehouse-graph-section");
   const workwearSection = document.getElementById("workwear-section");
+  const siteChatSection = document.getElementById("site-chat-section");
   const accessNotice = document.getElementById("accessNotice");
   const canNotifications = canAccessNotificationsModule();
 
@@ -383,6 +396,11 @@ function applyPermissionVisibility() {
     if (workwearSection) workwearSection.style.display = "none";
   }
 
+  if (currentView === "siteChat" && !canSiteChat) {
+    currentView = "main";
+    if (siteChatSection) siteChatSection.style.display = "none";
+  }
+
   if (tidplanSection && tidplanSection.style.display === "block" && !canTidplan) {
     CMAX.tidplan.showPlanner();
   }
@@ -398,6 +416,7 @@ function applyPermissionVisibility() {
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
     if (workwearSection) workwearSection.style.display = "none";
+    if (siteChatSection) siteChatSection.style.display = "none";
   } else if (currentView === "bins") {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
@@ -409,6 +428,7 @@ function applyPermissionVisibility() {
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
     if (workwearSection) workwearSection.style.display = "none";
+    if (siteChatSection) siteChatSection.style.display = "none";
   } else if (currentView === "notifications") {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
@@ -420,6 +440,7 @@ function applyPermissionVisibility() {
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
     if (workwearSection) workwearSection.style.display = "none";
+    if (siteChatSection) siteChatSection.style.display = "none";
   } else if (currentView === "reports") {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
@@ -431,6 +452,7 @@ function applyPermissionVisibility() {
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
     if (workwearSection) workwearSection.style.display = "none";
+    if (siteChatSection) siteChatSection.style.display = "none";
   } else if (["warehouse", "warehouseLogs", "warehouseGraph"].includes(currentView)) {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
@@ -442,6 +464,7 @@ function applyPermissionVisibility() {
     if (warehouseLogsSection) warehouseLogsSection.style.display = currentView === "warehouseLogs" ? "block" : "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = currentView === "warehouseGraph" ? "block" : "none";
     if (workwearSection) workwearSection.style.display = "none";
+    if (siteChatSection) siteChatSection.style.display = "none";
   } else if (currentView === "workwear") {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
@@ -453,6 +476,19 @@ function applyPermissionVisibility() {
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
     if (workwearSection) workwearSection.style.display = "block";
+    if (siteChatSection) siteChatSection.style.display = "none";
+  } else if (currentView === "siteChat") {
+    if (planningSection) planningSection.classList.add("hidden");
+    if (listsContainer) listsContainer.classList.add("hidden");
+    if (binsSection) binsSection.classList.remove("active");
+    if (notificationsSection) notificationsSection.style.display = "none";
+    if (reportsSection) reportsSection.style.display = "none";
+    if (settingsSection) settingsSection.style.display = "none";
+    if (warehouseSection) warehouseSection.style.display = "none";
+    if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
+    if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
+    if (workwearSection) workwearSection.style.display = "none";
+    if (siteChatSection) siteChatSection.style.display = "block";
   } else if (currentView === "admin") {
     if (planningSection) planningSection.classList.add("hidden");
     if (listsContainer) listsContainer.classList.add("hidden");
@@ -464,6 +500,7 @@ function applyPermissionVisibility() {
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
     if (workwearSection) workwearSection.style.display = "none";
+    if (siteChatSection) siteChatSection.style.display = "none";
   }
 
   if (!canPlanner && currentView === "main") {
@@ -487,10 +524,14 @@ function applyPermissionVisibility() {
       CMAX.workwear.show();
       return;
     }
+    if (canSiteChat) {
+      CMAX.siteChat.show();
+      return;
+    }
   }
 
   if (accessNotice) {
-    const hasAnyPrimaryModule = canPlanner || canTidplan || canBins || canNotifications || canWarehouse || canWorkwear;
+    const hasAnyPrimaryModule = canPlanner || canTidplan || canBins || canNotifications || canWarehouse || canWorkwear || canSiteChat;
     accessNotice.style.display = hasAnyPrimaryModule ? "none" : "block";
   }
 
@@ -499,6 +540,7 @@ function applyPermissionVisibility() {
   setElVisibility("warehouseLogsGraphBtn", canWarehouseGraph);
   setElVisibility("warehouseGraphLogsBtn", canWarehouseLogs);
   setElVisibility("navWorkwearBtn", canWorkwear);
+  setElVisibility("navSiteChatBtn", canSiteChat);
   if (typeof syncSidebarAccessState === "function") syncSidebarAccessState();
   if (typeof syncAccountNotifications === "function") syncAccountNotifications();
   updateShellForView(currentView);

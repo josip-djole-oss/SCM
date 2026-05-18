@@ -117,6 +117,7 @@ var appState = {
   adminLevel: 1,
   currentUser: null,
   currentUserName: "",
+  currentUserFunctions: [],
   permissions: { ...DEFAULT_PERMISSIONS },
   guestPermissions: { ...DEFAULT_GUEST_PERMISSIONS },
   hasUnsavedChanges: false, // Track changes for Save button

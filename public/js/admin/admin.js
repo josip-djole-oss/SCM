@@ -435,6 +435,7 @@ function getAdminSummaryLabels(permissions) {
   if (permissions.canAccessTidplan !== false) labels.push("Tidplan");
   if (permissions.canAccessBins !== false) labels.push("Bins");
   if (permissions.canAccessWarehouse !== false) labels.push(t("btnWarehouse"));
+  if (permissions.canAccessSiteChat !== false) labels.push("Chat");
   if (permissions.canViewNotifications !== false) labels.push("Obavijesti");
   if (permissions.canCreateReports !== false) labels.push("Prijave");
   return labels;

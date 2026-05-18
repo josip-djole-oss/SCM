@@ -556,6 +556,60 @@
     },
   });
 
+  assignNamespace("siteChat", {
+    show(...args) {
+      return callLegacy("showSiteChat", args);
+    },
+    openSite(...args) {
+      return callLegacy("siteChatOpenSite", args);
+    },
+    backToList(...args) {
+      return callLegacy("siteChatBackToList", args);
+    },
+    send(...args) {
+      return callLegacy("siteChatSendMessage", args);
+    },
+    retry(...args) {
+      return callLegacy("siteChatRetryMessage", args);
+    },
+    loadOlder(...args) {
+      return callLegacy("siteChatLoadOlder", args);
+    },
+    jumpLatest(...args) {
+      return callLegacy("siteChatJumpLatest", args);
+    },
+    setDraft(...args) {
+      return callLegacy("siteChatSetDraft", args);
+    },
+    attachFile(...args) {
+      return callLegacy("siteChatAttachFile", args);
+    },
+    removeAttachment(...args) {
+      return callLegacy("siteChatRemoveAttachment", args);
+    },
+    reply(...args) {
+      return callLegacy("siteChatReplyToMessage", args);
+    },
+    cancelReply(...args) {
+      return callLegacy("siteChatCancelReply", args);
+    },
+    edit(...args) {
+      return callLegacy("siteChatEditMessage", args);
+    },
+    delete(...args) {
+      return callLegacy("siteChatDeleteMessage", args);
+    },
+    react(...args) {
+      return callLegacy("siteChatToggleReaction", args);
+    },
+    pin(...args) {
+      return callLegacy("siteChatPinMessage", args);
+    },
+    unpin(...args) {
+      return callLegacy("siteChatUnpinMessage", args);
+    },
+  });
+
   assignNamespace("surveys", {
     init(...args) {
       return callLegacy("setupSurveyTargetHandlers", args);

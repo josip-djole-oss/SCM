@@ -1041,6 +1041,7 @@
             <button class="app-nav-item" id="navBinsBtn" data-view="bins" data-cmax-action="bins.show"><span class="app-nav-icon app-nav-icon-bins"></span><span class="app-nav-label">Kante za smece</span></button>
             <button class="app-nav-item" id="navWarehouseBtn" data-view="warehouse" data-cmax-action="warehouse.show"><span class="app-nav-icon app-nav-icon-warehouse"></span><span class="app-nav-label">Skladiste</span></button>
             <button class="app-nav-item" id="navWorkwearBtn" data-view="workwear" data-cmax-action="workwear.show"><span class="app-nav-icon app-nav-icon-store"></span><span class="app-nav-label">Store</span><span id="storeSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
+            <button class="app-nav-item" id="navSiteChatBtn" data-view="siteChat" data-cmax-action="siteChat.show"><span class="app-nav-icon app-nav-icon-notifications"></span><span class="app-nav-label">Chat</span><span id="siteChatSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
             <button class="app-nav-item" id="navNotificationsBtn" data-view="notifications" data-cmax-action="notifications.show"><span class="app-nav-icon app-nav-icon-notifications"></span><span class="app-nav-label">Obavijesti</span><span id="notificationsSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
             <button class="app-nav-item" id="navReportsBtn" data-view="reports" data-cmax-action="reports.showCenter" style="display:none"><span class="app-nav-icon app-nav-icon-planner"></span><span class="app-nav-label">Report</span><span id="reportSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
             <button class="app-nav-item" id="navSurveysBtn" data-view="surveys" data-cmax-action="surveys.show"><span class="app-nav-icon app-nav-icon-surveys"></span><span class="app-nav-label">Ankete / Pitanja</span><span id="surveysSidebarBadge" class="app-nav-badge" style="display:none">0</span></button>
@@ -1842,6 +1843,10 @@
         </div>
 
         <div class="notifications-list" id="surveysList"></div>
+      </div>
+
+      <div id="site-chat-section" class="site-chat-section" style="display: none">
+        <div id="siteChatRoot" class="site-chat-root"></div>
       </div>
 
       <div id="workwear-section" class="store-section" style="display: none">
@@ -2851,6 +2856,11 @@
     <script src="js/workwear/workwearRender.js"></script>
     <script src="js/workwear/workwearEvents.js"></script>
     <script src="js/workwear/workwear.js"></script>
+    <script src="js/siteChat/siteChatState.js"></script>
+    <script src="js/siteChat/siteChatApi.js"></script>
+    <script src="js/siteChat/siteChatRender.js"></script>
+    <script src="js/siteChat/siteChatEvents.js"></script>
+    <script src="js/siteChat/siteChat.js"></script>
     <script src="js/core/namespace.js"></script>
     <script src="script.js"></script>
   </body>

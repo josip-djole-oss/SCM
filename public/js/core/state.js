@@ -1,4 +1,4 @@
-var currentView = "home";
+﻿var currentView = "home";
 var suppressRoutePush = false;
 var autoSaveInterval = null;
 var presenceHeartbeatInterval = null;
@@ -84,6 +84,8 @@ var DEFAULT_PERMISSIONS = {
   canViewNotifications: true,
   canManageNotifications: false,
   canDeleteNotifications: false,
+  canAccessSiteChat: true,
+  canModerateSiteChat: false,
   canCreateReports: true,
   canOpenAdminPanel: true,
   canManageAdmins: false,
@@ -145,6 +147,7 @@ var ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessWarehouse",
     "canAccessStore",
     "canAccessWorkwear",
+    "canAccessSiteChat",
     "canViewNotifications",
     "canViewSurveys",
     "canCreateReports",
@@ -156,6 +159,7 @@ var ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessWarehouse",
     "canAccessStore",
     "canAccessWorkwear",
+    "canAccessSiteChat",
     "canViewNotifications",
     "canViewSurveys",
     "canCreateReports",
@@ -172,6 +176,7 @@ var ADMIN_LEVEL_PERMISSION_KEYS = {
     "canAccessStore",
     "canAccessWorkwear",
     "canManageWorkwear",
+    "canAccessSiteChat",
     "canViewWorkwearAnalytics",
     "canViewStoreTeamOrders",
     "canManageWarehouse",
@@ -442,6 +447,8 @@ var DEFAULT_GUEST_PERMISSIONS = {
   canViewWarehouseAnalytics: false,
   canViewNotifications: false,
   canDeleteNotifications: false,
+  canAccessSiteChat: false,
+  canModerateSiteChat: false,
   canCreateReports: true,
   canPrint: false,
   canExport: false,
@@ -547,6 +554,14 @@ var ADMIN_PERMISSION_SECTIONS = [
     ],
   },
   {
+    titleKey: "permSectionSiteChatTitle",
+    noteKey: "permSectionSiteChatNote",
+    keys: [
+      "canAccessSiteChat",
+      "canModerateSiteChat",
+    ],
+  },
+  {
     titleKey: "permSectionSurveysTitle",
     noteKey: "permSectionSurveysNote",
     keys: [
@@ -630,4 +645,6 @@ var GUEST_PERMISSION_SECTIONS = [
     ],
   },
 ];
+
+
 

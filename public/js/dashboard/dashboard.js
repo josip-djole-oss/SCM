@@ -252,6 +252,7 @@ function getHomeModuleDefinitions() {
     { key: "bins", title: "Kante za smece", desc: "Status i operacije za kontejnere i odvoz.", icon: "bins", visible: canAccessBinsModule(), action: () => CMAX.bins.show() },
     { key: "warehouse", title: "Skladiste", desc: "Ulaz, izlaz i stanje materijala.", icon: "warehouse", visible: canAccessWarehouseModule(), action: () => CMAX.warehouse.show() },
     { key: "workwear", title: "Store", desc: "Interna trgovina odjece, PPE i alata.", icon: "warehouse", visible: canAccessWorkwearModule(), action: () => CMAX.workwear.show() },
+    { key: "siteChat", title: "Chat", desc: "Brza komunikacija po gradilistu.", icon: "notifications", visible: canAccessSiteChatModule(), action: () => CMAX.siteChat.show() },
     { key: "notifications", title: "Obavijesti", desc: "Objave, pinovi i timska komunikacija.", icon: "notifications", visible: canAccessNotificationsModule(), action: () => CMAX.notifications.show() },
     { key: "reports", title: "Report", desc: "Prijave i pregled reporta za korisnike s pristupom.", icon: "planner", visible: canAccessReportsModule(), action: () => CMAX.reports.showCenter() },
     { key: "surveys", title: "Ankete / Pitanja", desc: "Brza pitanja, odgovori i rezultati.", icon: "surveys", visible: hasPermission("canViewSurveys"), action: () => CMAX.surveys.show() },
@@ -362,6 +363,7 @@ function updateShellNavigationState() {
   if (document.getElementById("tidplan-section")?.style.display === "block") activeView = "tidplan";
   if (currentView === "warehouseLogs" || currentView === "warehouseGraph") activeView = "warehouse";
   if (currentView === "workwear") activeView = "workwear";
+  if (currentView === "siteChat") activeView = "siteChat";
   items.forEach((item) => {
     item.classList.toggle("is-active", item.getAttribute("data-view") === activeView);
   });
@@ -377,6 +379,7 @@ function syncSidebarAccessState() {
   const navPlanner = document.getElementById("navPlannerBtn");
   const navBins = document.getElementById("navBinsBtn");
   const navWorkwear = document.getElementById("navWorkwearBtn");
+  const navSiteChat = document.getElementById("navSiteChatBtn");
 
   if (navAdmin) navAdmin.style.display = canOpenAdminPanelAccess() ? "flex" : "none";
   if (navSurveys) navSurveys.style.display = hasPermission("canViewSurveys") ? "flex" : "none";
@@ -387,6 +390,7 @@ function syncSidebarAccessState() {
   if (navPlanner) navPlanner.style.display = canAccessPlannerModule() ? "flex" : "none";
   if (navBins) navBins.style.display = canAccessBinsModule() ? "flex" : "none";
   if (navWorkwear) navWorkwear.style.display = canAccessWorkwearModule() ? "flex" : "none";
+  if (navSiteChat) navSiteChat.style.display = canAccessSiteChatModule() ? "flex" : "none";
 }
 
 function setSidebarCollapsed(collapsed) {
@@ -456,6 +460,7 @@ function showHomeDashboard(options = {}) {
     const warehouseGraphSection = document.getElementById("warehouse-graph-section");
     const reportsSection = document.getElementById("reports-section");
     const settingsSection = document.getElementById("settings-section");
+    const siteChatSection = document.getElementById("site-chat-section");
     const homeSection = document.getElementById("home-section");
     if (typeof hideWorkwearSection === "function") hideWorkwearSection();
     const binsSection = document.getElementById("binsSection");
@@ -471,6 +476,7 @@ function showHomeDashboard(options = {}) {
     if (warehouseGraphSection) warehouseGraphSection.style.display = "none";
     if (reportsSection) reportsSection.style.display = "none";
     if (settingsSection) settingsSection.style.display = "none";
+    if (siteChatSection) siteChatSection.style.display = "none";
     if (binsSection) binsSection.classList.remove("active");
     if (listsContainer) listsContainer.classList.add("hidden");
 

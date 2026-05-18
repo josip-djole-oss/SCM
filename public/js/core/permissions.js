@@ -59,6 +59,14 @@ function canAccessNotificationsModule() {
   return hasPermission("canViewNotifications");
 }
 
+function canAccessSiteChatModule() {
+  return hasPermission("canAccessSiteChat");
+}
+
+function canModerateSiteChatAccess() {
+  return !appState.isReadonly && (appState.isSuperAdmin || Number(appState.adminLevel || 0) >= 5 || hasPermission("canModerateSiteChat"));
+}
+
 function canManageNotificationsAccess() {
   return !appState.isReadonly && hasPermission("canManageNotifications");
 }

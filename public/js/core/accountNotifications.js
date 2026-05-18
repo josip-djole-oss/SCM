@@ -2,6 +2,9 @@
   const ACCOUNT_NOTIFICATIONS_PREFIX = "cmax_account_notifications_";
   const ACCOUNT_NOTIFICATION_SITE_TRACKER_PREFIX = "cmax_account_notification_site_tracker_";
   const ACCOUNT_NOTIFICATION_PERM_PREFIX = "cmax_account_notification_perm_";
+  const ACCOUNT_NOTIFICATION_CHAT_TRACKER_PREFIX = "cmax_account_notification_chat_tracker_";
+  let chatNotificationSyncInFlight = false;
+  let chatNotificationLastSyncAt = 0;
 
   function getAccountNotificationUserKey() {
     return String(appState.currentUser || "guest").trim().toLowerCase();
@@ -19,6 +22,10 @@
     return `${ACCOUNT_NOTIFICATION_PERM_PREFIX}${getAccountNotificationUserKey()}`;
   }
 
+  function getAccountNotificationChatTrackerKey() {
+    return `${ACCOUNT_NOTIFICATION_CHAT_TRACKER_PREFIX}${getAccountNotificationUserKey()}`;
+  }
+
   function getAccountNotifications() {
     return safeParseStoredJson(localStorage.getItem(getAccountNotificationsStorageKey()), []) || [];
   }
@@ -33,6 +40,14 @@
 
   function saveAccountNotificationSiteTracker(value) {
     localStorage.setItem(getAccountNotificationSiteTrackerKey(), JSON.stringify(value || {}));
+  }
+
+  function getAccountNotificationChatTracker() {
+    return safeParseStoredJson(localStorage.getItem(getAccountNotificationChatTrackerKey()), {}) || {};
+  }
+
+  function saveAccountNotificationChatTracker(value) {
+    localStorage.setItem(getAccountNotificationChatTrackerKey(), JSON.stringify(value || {}));
   }
 
   function getAccountNotificationPermissionSignature() {
@@ -215,6 +230,12 @@
       CMAX.workwear.show();
       return;
     }
+    if (item.type === "site-chat" || item.targetView === "siteChat") {
+      if (window.siteChatPendingFocus) window.siteChatPendingFocus = null;
+      window.siteChatPendingFocus = { siteId: item.site || "", messageId: item.targetId || "" };
+      CMAX.siteChat.show(item.site || "", item.targetId || "");
+      return;
+    }
     CMAX.core.showHome();
   }
 
@@ -278,8 +299,47 @@
     if (typeof syncWorkwearAccountNotifications === "function") {
       syncWorkwearAccountNotifications();
     }
+    syncSiteChatAccountNotifications();
     renderAccountNotificationsPanel();
     updateAccountNotificationsBadge();
+  }
+
+  function syncSiteChatAccountNotifications() {
+    if (!BACKEND_ENABLED || chatNotificationSyncInFlight || !appState.currentUser) return;
+    if (typeof canAccessSiteChatModule === "function" && !canAccessSiteChatModule()) return;
+    const now = Date.now();
+    if (now - chatNotificationLastSyncAt < 15000) return;
+    chatNotificationLastSyncAt = now;
+    chatNotificationSyncInFlight = true;
+    fetch("/api/site-chat/unread", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => {
+        const unread = payload?.unread && typeof payload.unread === "object" ? payload.unread : {};
+        const tracker = getAccountNotificationChatTracker();
+        const nextTracker = { ...tracker };
+        Object.entries(unread).forEach(([site, countRaw]) => {
+          const count = Number(countRaw) || 0;
+          const previous = Number(tracker[site]) || 0;
+          nextTracker[site] = count;
+          if (count <= 0 || count <= previous) return;
+          if (currentView === "siteChat" && window.siteChatState?.activeSiteId === site) return;
+          appendAccountNotification({
+            uniqueKey: `site-chat-unread:${site}:${count}:${Date.now()}`,
+            type: "site-chat",
+            title: count === 1 ? "Nova chat poruka" : `${count} novih chat poruka`,
+            description: `${site}: imate neprocitane poruke u gradilisnom chatu.`,
+            site,
+            targetView: "siteChat",
+            createdAt: new Date().toISOString(),
+          });
+        });
+        saveAccountNotificationChatTracker(nextTracker);
+        updateAccountNotificationsBadge();
+      })
+      .catch(() => {})
+      .finally(() => {
+        chatNotificationSyncInFlight = false;
+      });
   }
 
   function initAccountNotifications() {

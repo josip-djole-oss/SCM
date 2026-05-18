@@ -35,6 +35,7 @@ function resetAuthStateLocal() {
   appState.isReadonly = false;
   appState.currentUser = null;
   appState.currentUserName = "";
+  appState.currentUserFunctions = [];
   appState.adminLevel = 1;
   appState.permissions = normalizePermissions({});
   appState.guestPermissions = getGuestPermissions();
@@ -69,6 +70,7 @@ function applyAuthData(authData) {
   appState.isReadonly = authData.isReadonly;
   appState.currentUser = authData.email;
   appState.currentUserName = authData.fullName || "";
+  appState.currentUserFunctions = Array.isArray(authData.storeRoles) ? authData.storeRoles : [];
   appState.adminLevel = authData.level || 1;
   appState.permissions = authData.permissions || normalizePermissions({});
   appState.guestPermissions = getGuestPermissions();

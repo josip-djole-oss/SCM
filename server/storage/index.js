@@ -19,6 +19,7 @@ function createFileMap(dataDir) {
     logs: path.join(dataDir, 'logs.json'),
     warehouse: path.join(dataDir, 'warehouse.json'),
     warehouseLogs: path.join(dataDir, 'warehouse-logs.json'),
+    siteChat: path.join(dataDir, 'site-chat.json'),
   };
 }
 
@@ -244,6 +245,7 @@ function createJsonStorage(options = {}) {
       logs: await readJson(files.logs, []),
       warehouse: await readJson(files.warehouse, null),
       warehouseLogs: await readJson(files.warehouseLogs, []),
+      siteChat: await readJson(files.siteChat, null),
     };
   }
 
@@ -376,6 +378,7 @@ function createPostgresStorage(options = {}) {
     if (normalized === path.normalize(files.logs)) return { table: 'logs', category: 'logs' };
     if (normalized === path.normalize(files.warehouse)) return { table: 'warehouse', key: 'default' };
     if (normalized === path.normalize(files.warehouseLogs)) return { table: 'logs', category: 'warehouse_logs' };
+    if (normalized === path.normalize(files.siteChat)) return { table: 'site_chat', key: 'default' };
 
     const baseName = path.basename(normalized, '.json');
     if (baseName.startsWith('reports_')) {
@@ -392,6 +395,7 @@ function createPostgresStorage(options = {}) {
     if (target.table === 'admins') return 'admins';
     if (target.table === 'state') return `state:${target.key}`;
     if (target.table === 'warehouse') return `warehouse:${target.key}`;
+    if (target.table === 'site_chat') return `site_chat:${target.key}`;
     if (target.table === 'reports') return `reports:${target.site}`;
     if (target.table === 'notifications') return `notifications:${target.site}`;
     if (target.table === 'logs') return `logs:${target.category}`;
@@ -434,6 +438,13 @@ function createPostgresStorage(options = {}) {
     }
     if (target.table === 'warehouse') {
       const result = await client.query('SELECT data FROM warehouse WHERE key = $1', [target.key]);
+      return {
+        exists: result.rowCount > 0,
+        data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
+      };
+    }
+    if (target.table === 'site_chat') {
+      const result = await client.query('SELECT data FROM site_chat WHERE key = $1', [target.key]);
       return {
         exists: result.rowCount > 0,
         data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
@@ -490,6 +501,15 @@ function createPostgresStorage(options = {}) {
     if (target.table === 'warehouse') {
       await client.query(
         `INSERT INTO warehouse (key, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [target.key, JSON.stringify(value)],
+      );
+      return;
+    }
+
+    if (target.table === 'site_chat') {
+      await client.query(
+        `INSERT INTO site_chat (key, data) VALUES ($1, $2::jsonb)
          ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
         [target.key, JSON.stringify(value)],
       );
@@ -641,7 +661,7 @@ function createPostgresStorage(options = {}) {
   }
 
   async function exportAll() {
-    const [adminsDoc, stateDoc, reportsResult, notificationsResult, logsResult, warehouseDoc] =
+    const [adminsDoc, stateDoc, reportsResult, notificationsResult, logsResult, warehouseDoc, siteChatDoc] =
       await Promise.all([
         readDocument(files.admins, []),
         readDocument(files.state, null),
@@ -649,6 +669,7 @@ function createPostgresStorage(options = {}) {
         query('SELECT site, data FROM notifications ORDER BY site ASC'),
         query('SELECT category, data FROM logs ORDER BY category ASC'),
         readDocument(files.warehouse, null),
+        readDocument(files.siteChat, null),
       ]);
 
     const reports = {};
@@ -669,6 +690,7 @@ function createPostgresStorage(options = {}) {
       logs: logGroups.logs || [],
       warehouse: warehouseDoc.data,
       warehouseLogs: logGroups.warehouse_logs || [],
+      siteChat: siteChatDoc.data,
     };
   }
 
@@ -719,6 +741,13 @@ function createPostgresStorage(options = {}) {
       `);
       await query(`
         CREATE TABLE IF NOT EXISTS warehouse (
+          key TEXT PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `);
+      await query(`
+        CREATE TABLE IF NOT EXISTS site_chat (
           key TEXT PRIMARY KEY,
           data JSONB NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

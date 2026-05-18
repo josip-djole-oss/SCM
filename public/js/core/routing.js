@@ -15,6 +15,7 @@ function routeForView(view = currentView) {
     notifications: "/notifications",
     surveys: "/surveys",
     workwear: "/store",
+    siteChat: "/chat",
     bins: "/bins",
     admin: "/settings",
   };
@@ -29,6 +30,7 @@ function viewFromPath(pathname = window.location.pathname) {
   if (path === "/tidplan") return "tidplan";
   if (path === "/warehouse") return "warehouse";
   if (path === "/store" || path === "/workwear") return "workwear";
+  if (path === "/chat") return "siteChat";
   if (path === "/reports") return "reports";
   if (path === "/notifications") return "notifications";
   if (path === "/surveys") return "surveys";
@@ -63,6 +65,8 @@ function applyRouteFromPath(pathname = window.location.pathname) {
       CMAX.warehouse.show();
     } else if (view === "workwear") {
       CMAX.workwear.show();
+    } else if (view === "siteChat") {
+      CMAX.siteChat.show();
     } else if (view === "reports") {
       CMAX.reports.showCenter();
     } else if (view === "notifications") {
@@ -121,6 +125,10 @@ function restoreLastView() {
   }
   if (savedView === "workwear") {
     CMAX.workwear.show();
+    return;
+  }
+  if (savedView === "siteChat") {
+    CMAX.siteChat.show();
     return;
   }
   if (savedView === "admin") {

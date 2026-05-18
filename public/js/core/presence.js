@@ -112,6 +112,9 @@ function getPresenceView() {
   if (currentView === "workwear") {
     return "workwear";
   }
+  if (currentView === "siteChat") {
+    return "siteChat";
+  }
   return "planner";
 }
 
@@ -125,6 +128,7 @@ function getPresenceAreaLabel(view = "") {
     warehouseLogs: "Skladište logovi",
     warehouseGraph: "Skladište graf",
     workwear: "Store",
+    siteChat: "Chat",
     notifications: "Obavijesti",
     surveys: "Ankete",
   };
