@@ -22,16 +22,23 @@ try {
   mustContain(server, "assertStorePreviewUrlSafe", "SSRF URL safety check");
   mustContain(server, "isPrivateStorePreviewIp", "private IP block");
   mustContain(server, "parseStoreProductLinkPreview", "HTML metadata parser");
+  mustContain(server, "extractStorePreviewMetaAll", "multi image metadata extraction");
+  mustContain(server, "extractStorePreviewHtmlImages", "HTML gallery image extraction");
+  mustContain(server, "rankStorePreviewImageCandidates", "product image ranking");
+  mustContain(server, "storePreviewImageLooksBad", "logo/placeholder image penalty");
   mustContain(server, "STORE_LINK_PREVIEW_MAX_BYTES", "link preview response size limit");
   mustContain(server, "storeProductLinkPreviewLimiter", "link preview rate limiter");
 
   mustContain(api, "workwearApiPreviewProductLink", "client link preview API");
   mustContain(render, "workwearProductLinkPreviewState", "link preview UI state");
   mustContain(render, "workwear-link-preview-card", "link preview card UI");
+  mustContain(render, "workwear-link-preview-thumbs", "multiple preview image thumbnails");
+  mustContain(render, "workwear-image-gallery-preview", "applied gallery image preview UI");
   mustContain(render, 'data-cmax-action="workwear.previewProductLink"', "preview button action");
   mustContain(render, 'data-cmax-action="workwear.applyProductLinkPreview"', "apply preview action");
   mustContain(events, "workwearPreviewProductLink", "preview event handler");
   mustContain(events, "workwearApplyProductLinkPreview", "apply preview handler");
+  mustContain(events, "mergedImageUrls", "apply all preview images to wizard");
   mustContain(events, "product_link_preview_applied", "preview apply audit");
   mustContain(namespace, "previewProductLink", "preview action namespace");
 
@@ -45,7 +52,7 @@ try {
   mustContain(namespace, "archiveManagerSizePreset", "size preset namespace archive");
   mustContain(css, ".workwear-link-preview-result", "link preview responsive CSS");
 
-  console.log(JSON.stringify({ ok: true, checks: 24 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 31 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

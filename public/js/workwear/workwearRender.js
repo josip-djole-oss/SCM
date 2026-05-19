@@ -659,6 +659,10 @@ function renderWorkwearAdminPanel() {
   const activeSizePreset = getWorkwearSizePreset(wizard.sizePreset);
   const linkPreview = workwearProductLinkPreviewState?.data || null;
   const linkPreviewImages = Array.isArray(linkPreview?.imageUrls) ? linkPreview.imageUrls : [];
+  const wizardGalleryImages = String(wizard.imageGallery || "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
 
   panel.innerHTML = `
     <div class="workwear-admin-card">
@@ -723,6 +727,11 @@ function renderWorkwearAdminPanel() {
                     <div class="workwear-product-meta">${escapeHtml(linkPreview.description || "Nema opisa")}</div>
                     <div class="workwear-product-meta">${linkPreview.price ? `Cijena: ${escapeHtml(String(linkPreview.price))} ${escapeHtml(linkPreview.currency || "")}` : "Cijena nije pronadjena"}</div>
                     <div class="workwear-product-meta">${escapeHtml(linkPreview.sourceUrl || "")}</div>
+                    ${linkPreviewImages.length > 1 ? `
+                      <div class="workwear-link-preview-thumbs" aria-label="Pronadjene slike proizvoda">
+                        ${linkPreviewImages.slice(0, 8).map((url, index) => `<img src="${escapeHtml(url)}" alt="preview ${index + 1}" loading="lazy" />`).join("")}
+                      </div>
+                    ` : ""}
                   </div>
                   <button class="workwear-mini-link" data-cmax-action="workwear.clearProductLinkPreview">Ocisti</button>
                 </div>
@@ -761,6 +770,11 @@ function renderWorkwearAdminPanel() {
             <div class="workwear-image-preview-box">
               ${wizard.imagePrimary ? `<img src="${escapeHtml(wizard.imagePrimary)}" alt="preview" class="workwear-product-image" />` : `<div class="workwear-product-fallback">Nema preview slike</div>`}
             </div>
+            ${wizardGalleryImages.length ? `
+              <div class="workwear-image-gallery-preview" aria-label="Dodatne slike proizvoda">
+                ${wizardGalleryImages.slice(0, 12).map((url, index) => `<img src="${escapeHtml(url)}" alt="dodatna slika ${index + 1}" loading="lazy" />`).join("")}
+              </div>
+            ` : ""}
           </div>
 
           <div class="workwear-wizard-step ${workwearProductWizardStep === 3 ? "is-active" : ""}">

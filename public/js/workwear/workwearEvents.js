@@ -1029,11 +1029,20 @@ function workwearApplyProductLinkPreview() {
   const preview = workwearProductLinkPreviewState?.data;
   if (!preview) return;
   const wizard = workwearReadWizardFormState();
-  const imageUrls = Array.isArray(preview.imageUrls) ? preview.imageUrls.filter(Boolean) : [];
+  const previewImageUrls = Array.isArray(preview.imageUrls)
+    ? preview.imageUrls.map((url) => String(url || "").trim()).filter(Boolean)
+    : [];
+  const currentImageUrls = [
+    wizard.imagePrimary,
+    ...splitCsv(wizard.imageGallery || ""),
+  ].map((url) => String(url || "").trim()).filter(Boolean);
+  const mergedImageUrls = Array.from(new Set([...previewImageUrls, ...currentImageUrls]));
   wizard.name = preview.name || wizard.name;
   wizard.description = preview.description || wizard.description;
-  wizard.imagePrimary = imageUrls[0] || wizard.imagePrimary;
-  wizard.imageGallery = imageUrls.slice(1).join(", ") || wizard.imageGallery;
+  if (mergedImageUrls.length) {
+    wizard.imagePrimary = mergedImageUrls[0];
+    wizard.imageGallery = mergedImageUrls.slice(1).join(", ");
+  }
   if (Number(preview.price) > 0) {
     wizard.price = Number(preview.price);
     if (!Number(wizard.creditCost || 0)) wizard.creditCost = Number(preview.price);

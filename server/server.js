@@ -2665,6 +2665,132 @@ function normalizeStorePreviewImage(value, baseUrl) {
     .filter(Boolean);
 }
 
+function extractStorePreviewMetaAll(html, key) {
+  const escaped = String(key || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tagRegex = new RegExp(`<meta\\b[^>]*(?:property|name|itemprop)=["']${escaped}["'][^>]*>`, 'ig');
+  const values = [];
+  let match;
+  while ((match = tagRegex.exec(html))) {
+    const content = match[0].match(/\bcontent=["']([^"']*)["']/i)?.[1] || '';
+    const clean = decodeStorePreviewHtml(content);
+    if (clean) values.push(clean);
+  }
+  return values;
+}
+
+function extractStorePreviewAttr(tag, attrName) {
+  const escaped = String(attrName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return tag.match(new RegExp(`\\b${escaped}=["']([^"']+)["']`, 'i'))?.[1] || '';
+}
+
+function expandStorePreviewSrcSet(value) {
+  return String(value || '')
+    .split(',')
+    .map((entry) => entry.trim().split(/\s+/)[0])
+    .filter(Boolean);
+}
+
+function storePreviewImageLooksBad(url) {
+  const lower = decodeURIComponent(String(url || '')).toLowerCase();
+  return /(?:logo|favicon|sprite|icon|placeholder|no-?image|spinner|loading|avatar|payment|klarna|trustpilot|social|flag|badge|banner|newsletter|tracking|pixel|transparent|blank)/i.test(lower) ||
+    /\.(?:svg|ico)(?:[?#].*)?$/i.test(lower);
+}
+
+function scoreStorePreviewImageCandidate(candidate) {
+  const url = decodeURIComponent(String(candidate?.url || '')).toLowerCase();
+  let score = Number(candidate?.weight || 0);
+  if (candidate?.source === 'jsonld') score += 70;
+  if (candidate?.source === 'html-data-zoom') score += 58;
+  if (candidate?.source === 'html-srcset') score += 46;
+  if (candidate?.source === 'html-img') score += 38;
+  if (candidate?.source === 'meta-og') score += 24;
+  if (candidate?.source === 'meta-twitter') score += 18;
+  if (/\.(?:jpe?g|png|webp)(?:[?#].*)?$/i.test(url)) score += 8;
+  if (/(?:product|produkt|artikel|item|sku|variant|gallery|zoom|large|main|packshot|media\/catalog|pim|images\/products|productimages)/i.test(url)) score += 35;
+  if (/(?:thumb|thumbnail|small|mini)/i.test(url)) score -= 8;
+  const dimMatch = url.match(/(?:^|[^\d])(\d{2,4})x(\d{2,4})(?:[^\d]|$)/);
+  if (dimMatch) {
+    const width = Number(dimMatch[1]);
+    const height = Number(dimMatch[2]);
+    if (width >= 500 && height >= 500) score += 22;
+    else if (width >= 300 && height >= 300) score += 12;
+    else if (width < 180 || height < 180) score -= 38;
+  }
+  const widthParam = url.match(/[?&](?:w|width)=([0-9]+)/)?.[1];
+  const heightParam = url.match(/[?&](?:h|height)=([0-9]+)/)?.[1];
+  if (widthParam || heightParam) {
+    const width = Number(widthParam || 0);
+    const height = Number(heightParam || 0);
+    if (width >= 500 || height >= 500) score += 14;
+    if ((width && width < 180) || (height && height < 180)) score -= 30;
+  }
+  if (storePreviewImageLooksBad(url)) score -= 120;
+  return score;
+}
+
+function addStorePreviewImageCandidate(candidates, rawUrl, baseUrl, source, weight = 0) {
+  const raw = sanitizeString(rawUrl || '', 2400);
+  if (!raw || /^data:|^blob:|^javascript:/i.test(raw)) return;
+  try {
+    const resolved = new URL(raw, baseUrl).toString();
+    const parsed = new URL(resolved);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return;
+    candidates.push({
+      url: resolved,
+      source,
+      weight,
+      index: candidates.length,
+    });
+  } catch (_) {}
+}
+
+function extractStorePreviewHtmlImages(html, baseUrl) {
+  const candidates = [];
+  const imgRegex = /<img\b[^>]*>/gi;
+  let match;
+  while ((match = imgRegex.exec(html))) {
+    const tag = match[0];
+    ['data-zoom-image', 'data-large', 'data-full', 'data-original', 'data-src', 'data-lazy-src', 'src'].forEach((attr) => {
+      const value = extractStorePreviewAttr(tag, attr);
+      if (value) addStorePreviewImageCandidate(candidates, value, baseUrl, attr.includes('zoom') || attr.includes('large') || attr.includes('full') ? 'html-data-zoom' : 'html-img');
+    });
+    ['srcset', 'data-srcset'].forEach((attr) => {
+      expandStorePreviewSrcSet(extractStorePreviewAttr(tag, attr)).forEach((value) => {
+        addStorePreviewImageCandidate(candidates, value, baseUrl, 'html-srcset');
+      });
+    });
+  }
+  const sourceRegex = /<source\b[^>]*>/gi;
+  while ((match = sourceRegex.exec(html))) {
+    expandStorePreviewSrcSet(extractStorePreviewAttr(match[0], 'srcset')).forEach((value) => {
+      addStorePreviewImageCandidate(candidates, value, baseUrl, 'html-srcset');
+    });
+  }
+  const urlRegex = /(?:https?:)?\/\/[^"'<>\s]+\.(?:jpe?g|png|webp)(?:\?[^"'<>\s]*)?/gi;
+  while ((match = urlRegex.exec(html))) {
+    addStorePreviewImageCandidate(candidates, match[0], baseUrl, 'html-img', -12);
+  }
+  return candidates;
+}
+
+function rankStorePreviewImageCandidates(candidates) {
+  const byUrl = new Map();
+  (Array.isArray(candidates) ? candidates : []).forEach((candidate) => {
+    if (!candidate?.url) return;
+    const score = scoreStorePreviewImageCandidate(candidate);
+    if (score <= -50) return;
+    const key = candidate.url;
+    const existing = byUrl.get(key);
+    if (!existing || score > existing.score) {
+      byUrl.set(key, { ...candidate, score });
+    }
+  });
+  return Array.from(byUrl.values())
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .map((candidate) => candidate.url)
+    .slice(0, 12);
+}
+
 function parseStorePreviewJsonLd(html) {
   const products = [];
   const regex = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
@@ -2684,12 +2810,18 @@ function parseStoreProductLinkPreview(html, sourceUrl) {
   const brand = typeof jsonProduct?.brand === 'string'
     ? jsonProduct.brand
     : sanitizeString(jsonProduct?.brand?.name || '', 200);
-  const images = [
-    ...normalizeStorePreviewImage(jsonProduct?.image, sourceUrl),
-    ...normalizeStorePreviewImage(extractStorePreviewMeta(html, 'og:image'), sourceUrl),
-    ...normalizeStorePreviewImage(extractStorePreviewMeta(html, 'twitter:image'), sourceUrl),
-  ];
-  const uniqueImages = Array.from(new Set(images)).slice(0, 6);
+  const imageCandidates = [];
+  normalizeStorePreviewImage(jsonProduct?.image, sourceUrl).forEach((url) => {
+    addStorePreviewImageCandidate(imageCandidates, url, sourceUrl, 'jsonld');
+  });
+  extractStorePreviewMetaAll(html, 'og:image').forEach((url) => {
+    addStorePreviewImageCandidate(imageCandidates, url, sourceUrl, 'meta-og');
+  });
+  extractStorePreviewMetaAll(html, 'twitter:image').forEach((url) => {
+    addStorePreviewImageCandidate(imageCandidates, url, sourceUrl, 'meta-twitter');
+  });
+  extractStorePreviewHtmlImages(html, sourceUrl).forEach((candidate) => imageCandidates.push(candidate));
+  const uniqueImages = rankStorePreviewImageCandidates(imageCandidates);
   const rawPrice = offer?.price || extractStorePreviewMeta(html, 'product:price:amount') || '';
   const price = Number(String(rawPrice).replace(/[^0-9.,-]/g, '').replace(',', '.'));
   const parsed = new URL(sourceUrl);

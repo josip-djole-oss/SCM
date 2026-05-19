@@ -195,6 +195,13 @@ async function capturePlain(page, items, viewport, label, notes = {}) {
 
 async function runScenario(page, items, viewport, width, height) {
   await page.setViewportSize({ width, height });
+  await page.route("https://supplier.example/images/**", async (route) => {
+    const name = path.basename(new URL(route.request().url()).pathname).replace(/[^a-z0-9-]+/gi, " ");
+    const label = name.includes("back") ? "BACK" : name.includes("detail") ? "DETAIL" : "FRONT";
+    const fill = label === "FRONT" ? "#1f6feb" : label === "BACK" ? "#16a34a" : "#f59e0b";
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180"><rect width="180" height="180" rx="18" fill="${fill}"/><path d="M56 42h68l18 30-18 16v50H56V88L38 72z" fill="rgba(255,255,255,.86)"/><text x="90" y="160" text-anchor="middle" font-family="Arial" font-size="22" font-weight="700" fill="#fff">${label}</text></svg>`;
+    await route.fulfill({ status: 200, contentType: "image/svg+xml", body: svg });
+  });
   await page.route("**/api/store/product-link-preview", async (route) => {
     await route.fulfill({
       status: 200,
@@ -206,7 +213,11 @@ async function runScenario(page, items, viewport, width, height) {
           host: "supplier.example",
           name: "Proof jakna iz linka",
           description: "Opis ucitan iz product metadata preview endpointa.",
-          imageUrls: ["https://supplier.example/images/proof-jacket.jpg"],
+          imageUrls: [
+            "https://supplier.example/images/proof-jacket-front-900x900.jpg",
+            "https://supplier.example/images/proof-jacket-back-900x900.jpg",
+            "https://supplier.example/images/proof-jacket-detail-900x900.jpg",
+          ],
           price: 500,
           currency: "SEK",
           sku: "SUP-500",
@@ -256,12 +267,33 @@ async function runScenario(page, items, viewport, width, height) {
   const appliedOk = await page.evaluate(() => ({
     name: document.getElementById("workwearProductName")?.value || "",
     description: document.getElementById("workwearProductDescription")?.value || "",
+    primary: document.getElementById("workwearProductImage")?.value || "",
+    gallery: document.getElementById("workwearProductGallery")?.value || "",
   }));
-  if (appliedOk.name !== "Proof jakna iz linka" || !appliedOk.description.includes("metadata")) {
+  if (
+    appliedOk.name !== "Proof jakna iz linka" ||
+    !appliedOk.description.includes("metadata") ||
+    !appliedOk.primary.includes("proof-jacket-front") ||
+    !appliedOk.gallery.includes("proof-jacket-back") ||
+    !appliedOk.gallery.includes("proof-jacket-detail")
+  ) {
     throw new Error(`Product link preview did not apply on ${viewport}: ${JSON.stringify(appliedOk)}`);
   }
   await capturePlain(page, items, viewport, "product-link-preview-applied", {
-    changed: "Nakon potvrde podaci su uneseni u wizard i ostaju uredljivi prije spremanja.",
+    changed: "Nakon potvrde naziv/opis/cijena i sve slike iz previewa su uneseni u wizard; prva slika je glavna, ostale su galerija.",
+  });
+  await page.evaluate(() => workwearSetProductWizardStep(2));
+  await page.waitForSelector("#workwearProductGallery", { state: "visible" });
+  const galleryVisible = await page.evaluate(() => ({
+    primary: document.getElementById("workwearProductImage")?.value || "",
+    gallery: document.getElementById("workwearProductGallery")?.value || "",
+    thumbs: document.querySelectorAll(".workwear-image-gallery-preview img").length,
+  }));
+  if (!galleryVisible.primary.includes("proof-jacket-front") || galleryVisible.thumbs < 2) {
+    throw new Error(`Applied gallery images are not visible on ${viewport}: ${JSON.stringify(galleryVisible)}`);
+  }
+  await capturePlain(page, items, viewport, "product-link-images-in-wizard", {
+    changed: "Step 2 odmah prikazuje glavnu sliku i dodatne galerijske slike koje je link preview nasao.",
   });
 
   await page.evaluate(() => {
