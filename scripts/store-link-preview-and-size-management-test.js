@@ -34,13 +34,20 @@ try {
   mustContain(render, "workwear-link-preview-card", "link preview card UI");
   mustContain(render, "workwear-link-preview-thumbs", "multiple preview image thumbnails");
   mustContain(render, "workwear-image-gallery-preview", "applied gallery image preview UI");
+  mustContain(render, "workwear-image-remove-btn", "image remove button UI");
+  mustContain(render, 'data-cmax-action="workwear.removeWizardImage"', "wizard image remove action");
+  mustContain(render, 'data-cmax-action="workwear.removeProductLinkPreviewImage"', "preview image remove action");
   mustContain(render, 'data-cmax-action="workwear.previewProductLink"', "preview button action");
   mustContain(render, 'data-cmax-action="workwear.applyProductLinkPreview"', "apply preview action");
   mustContain(events, "workwearPreviewProductLink", "preview event handler");
   mustContain(events, "workwearApplyProductLinkPreview", "apply preview handler");
+  mustContain(events, "workwearRemoveWizardImage", "remove wizard image handler");
+  mustContain(events, "workwearRemoveProductLinkPreviewImage", "remove preview image handler");
   mustContain(events, "mergedImageUrls", "apply all preview images to wizard");
   mustContain(events, "product_link_preview_applied", "preview apply audit");
   mustContain(namespace, "previewProductLink", "preview action namespace");
+  mustContain(namespace, "removeWizardImage", "wizard image remove namespace");
+  mustContain(namespace, "removeProductLinkPreviewImage", "preview image remove namespace");
 
   mustContain(state, "updateStoreSizePreset", "size preset update helper");
   mustContain(state, "archiveStoreSizePreset", "size preset archive/delete helper");
@@ -52,7 +59,7 @@ try {
   mustContain(namespace, "archiveManagerSizePreset", "size preset namespace archive");
   mustContain(css, ".workwear-link-preview-result", "link preview responsive CSS");
 
-  console.log(JSON.stringify({ ok: true, checks: 31 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 38 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

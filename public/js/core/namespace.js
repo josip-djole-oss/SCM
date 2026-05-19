@@ -434,6 +434,12 @@
     applyProductLinkPreview(...args) {
       return callLegacy("workwearApplyProductLinkPreview", args);
     },
+    removeProductLinkPreviewImage(...args) {
+      return callLegacy("workwearRemoveProductLinkPreviewImage", args);
+    },
+    removeWizardImage(...args) {
+      return callLegacy("workwearRemoveWizardImage", args);
+    },
     clearProductLinkPreview(...args) {
       return callLegacy("workwearClearProductLinkPreview", args);
     },

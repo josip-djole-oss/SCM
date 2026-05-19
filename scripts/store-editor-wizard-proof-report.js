@@ -295,6 +295,23 @@ async function runScenario(page, items, viewport, width, height) {
   await capturePlain(page, items, viewport, "product-link-images-in-wizard", {
     changed: "Step 2 odmah prikazuje glavnu sliku i dodatne galerijske slike koje je link preview nasao.",
   });
+  await page.click(".workwear-image-gallery-preview .workwear-image-remove-btn");
+  await page.waitForFunction(() => {
+    const gallery = document.getElementById("workwearProductGallery")?.value || "";
+    return !gallery.includes("proof-jacket-back") && document.querySelectorAll(".workwear-image-gallery-preview img").length === 1;
+  });
+  await capturePlain(page, items, viewport, "product-link-gallery-image-removed", {
+    changed: "Svaka dodatna slika ima X i uklanjanje odmah brise taj URL iz galerije prije spremanja artikla.",
+  });
+  await page.click(".workwear-image-preview-box .workwear-image-remove-btn");
+  await page.waitForFunction(() => {
+    const primary = document.getElementById("workwearProductImage")?.value || "";
+    const gallery = document.getElementById("workwearProductGallery")?.value || "";
+    return primary.includes("proof-jacket-detail") && !gallery.trim();
+  });
+  await capturePlain(page, items, viewport, "product-link-main-image-removed", {
+    changed: "Ako se ukloni glavna slika, sljedeca galerijska slika automatski postaje glavna.",
+  });
 
   await page.evaluate(() => {
     workwearSwitchManagerTab("categories");

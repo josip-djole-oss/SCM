@@ -727,9 +727,14 @@ function renderWorkwearAdminPanel() {
                     <div class="workwear-product-meta">${escapeHtml(linkPreview.description || "Nema opisa")}</div>
                     <div class="workwear-product-meta">${linkPreview.price ? `Cijena: ${escapeHtml(String(linkPreview.price))} ${escapeHtml(linkPreview.currency || "")}` : "Cijena nije pronadjena"}</div>
                     <div class="workwear-product-meta">${escapeHtml(linkPreview.sourceUrl || "")}</div>
-                    ${linkPreviewImages.length > 1 ? `
+                    ${linkPreviewImages.length ? `
                       <div class="workwear-link-preview-thumbs" aria-label="Pronadjene slike proizvoda">
-                        ${linkPreviewImages.slice(0, 8).map((url, index) => `<img src="${escapeHtml(url)}" alt="preview ${index + 1}" loading="lazy" />`).join("")}
+                        ${linkPreviewImages.slice(0, 8).map((url, index) => `
+                          <span class="workwear-removable-image">
+                            <img src="${escapeHtml(url)}" alt="preview ${index + 1}" loading="lazy" />
+                            <button type="button" class="workwear-image-remove-btn" aria-label="Ukloni sliku ${index + 1}" data-cmax-action="workwear.removeProductLinkPreviewImage" data-cmax-args='${escapeHtml(JSON.stringify([index]))}'>x</button>
+                          </span>
+                        `).join("")}
                       </div>
                     ` : ""}
                   </div>
@@ -768,11 +773,21 @@ function renderWorkwearAdminPanel() {
               <input id="workwearProductGallery" class="store-input" placeholder="Dodatni URL-ovi (zarez)" value="${escapeHtml(wizard.imageGallery)}" />
             </div>
             <div class="workwear-image-preview-box">
-              ${wizard.imagePrimary ? `<img src="${escapeHtml(wizard.imagePrimary)}" alt="preview" class="workwear-product-image" />` : `<div class="workwear-product-fallback">Nema preview slike</div>`}
+              ${wizard.imagePrimary ? `
+                <div class="workwear-removable-image workwear-main-image-tile">
+                  <img src="${escapeHtml(wizard.imagePrimary)}" alt="preview" class="workwear-product-image" />
+                  <button type="button" class="workwear-image-remove-btn" aria-label="Ukloni glavnu sliku" data-cmax-action="workwear.removeWizardImage" data-cmax-args='${escapeHtml(JSON.stringify([0]))}'>x</button>
+                </div>
+              ` : `<div class="workwear-product-fallback">Nema preview slike</div>`}
             </div>
             ${wizardGalleryImages.length ? `
               <div class="workwear-image-gallery-preview" aria-label="Dodatne slike proizvoda">
-                ${wizardGalleryImages.slice(0, 12).map((url, index) => `<img src="${escapeHtml(url)}" alt="dodatna slika ${index + 1}" loading="lazy" />`).join("")}
+                ${wizardGalleryImages.slice(0, 12).map((url, index) => `
+                  <div class="workwear-removable-image">
+                    <img src="${escapeHtml(url)}" alt="dodatna slika ${index + 1}" loading="lazy" />
+                    <button type="button" class="workwear-image-remove-btn" aria-label="Ukloni dodatnu sliku ${index + 1}" data-cmax-action="workwear.removeWizardImage" data-cmax-args='${escapeHtml(JSON.stringify([index + 1]))}'>x</button>
+                  </div>
+                `).join("")}
               </div>
             ` : ""}
           </div>

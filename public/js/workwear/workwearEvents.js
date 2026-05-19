@@ -784,6 +784,22 @@ function splitCsv(input) {
     .filter(Boolean);
 }
 
+function workwearCollectWizardImages(wizard) {
+  return [
+    wizard?.imagePrimary || "",
+    ...splitCsv(wizard?.imageGallery || ""),
+  ].map((url) => String(url || "").trim()).filter(Boolean);
+}
+
+function workwearApplyWizardImages(wizard, images) {
+  const uniqueImages = Array.from(new Set((Array.isArray(images) ? images : [])
+    .map((url) => String(url || "").trim())
+    .filter(Boolean)));
+  wizard.imagePrimary = uniqueImages[0] || "";
+  wizard.imageGallery = uniqueImages.slice(1).join(", ");
+  return wizard;
+}
+
 function workwearReadWizardFormState() {
   const wizard = getWorkwearWizardState();
   const inputValue = (id, fallback = "") => {
@@ -1032,17 +1048,11 @@ function workwearApplyProductLinkPreview() {
   const previewImageUrls = Array.isArray(preview.imageUrls)
     ? preview.imageUrls.map((url) => String(url || "").trim()).filter(Boolean)
     : [];
-  const currentImageUrls = [
-    wizard.imagePrimary,
-    ...splitCsv(wizard.imageGallery || ""),
-  ].map((url) => String(url || "").trim()).filter(Boolean);
+  const currentImageUrls = workwearCollectWizardImages(wizard);
   const mergedImageUrls = Array.from(new Set([...previewImageUrls, ...currentImageUrls]));
   wizard.name = preview.name || wizard.name;
   wizard.description = preview.description || wizard.description;
-  if (mergedImageUrls.length) {
-    wizard.imagePrimary = mergedImageUrls[0];
-    wizard.imageGallery = mergedImageUrls.slice(1).join(", ");
-  }
+  if (mergedImageUrls.length) workwearApplyWizardImages(wizard, mergedImageUrls);
   if (Number(preview.price) > 0) {
     wizard.price = Number(preview.price);
     if (!Number(wizard.creditCost || 0)) wizard.creditCost = Number(preview.price);
@@ -1060,6 +1070,30 @@ function workwearApplyProductLinkPreview() {
   });
   renderWorkwearModule();
   showToast("Preview je primijenjen. Jos ga mozes urediti prije spremanja.", "success");
+}
+
+function workwearRemoveProductLinkPreviewImage(index) {
+  if (!canManageWorkwearModule()) return;
+  const preview = workwearProductLinkPreviewState?.data;
+  if (!preview || !Array.isArray(preview.imageUrls)) return;
+  const removeIndex = Number(index);
+  if (!Number.isInteger(removeIndex) || removeIndex < 0) return;
+  preview.imageUrls = preview.imageUrls.filter((_, currentIndex) => currentIndex !== removeIndex);
+  workwearProductLinkPreviewState = {
+    ...(workwearProductLinkPreviewState || {}),
+    data: { ...preview },
+  };
+  renderWorkwearModule();
+}
+
+function workwearRemoveWizardImage(index) {
+  if (!canManageWorkwearModule()) return;
+  const wizard = workwearReadWizardFormState();
+  const removeIndex = Number(index);
+  if (!Number.isInteger(removeIndex) || removeIndex < 0) return;
+  const images = workwearCollectWizardImages(wizard).filter((_, currentIndex) => currentIndex !== removeIndex);
+  workwearProductWizardSeed = workwearApplyWizardImages(wizard, images);
+  renderWorkwearModule();
 }
 
 function workwearClearProductLinkPreview() {
