@@ -9053,13 +9053,38 @@ body.account-notifications-open .account-notifications-panel {
 }
 
 .workwear-size-preset-card,
-.workwear-size-preset-builder {
+.workwear-size-preset-builder,
+.workwear-link-preview-card {
   display: grid;
   gap: 8px;
   border: 1px solid #dfe7f3;
   border-radius: 14px;
   padding: 10px;
   background: #f8fbff;
+}
+
+.workwear-link-preview-result {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid #e4ebf6;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.workwear-link-preview-result img,
+.workwear-link-preview-result .workwear-product-fallback {
+  width: 88px;
+  height: 88px;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #edf3fb;
+}
+
+.workwear-cart-item.is-muted {
+  opacity: 0.68;
 }
 
 .workwear-size-checkbox-grid {
@@ -9133,6 +9158,21 @@ body.account-notifications-open .account-notifications-panel {
 
   .workwear-product-wizard > .workwear-cart-actions .btn {
     flex: 1 1 120px;
+  }
+
+  .workwear-link-preview-result {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .workwear-link-preview-result .workwear-mini-link {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .workwear-link-preview-result img,
+  .workwear-link-preview-result .workwear-product-fallback {
+    width: 72px;
+    height: 72px;
   }
 }
 

@@ -970,6 +970,99 @@ function workwearQuickAddWizardSubcategory() {
   renderWorkwearModule();
 }
 
+function workwearPreviewProductLink() {
+  if (!canManageWorkwearModule()) return Promise.resolve(false);
+  const input = document.getElementById("workwearProductLinkInput");
+  const url = String(input?.value || "").trim();
+  if (!url) {
+    showToast("Zalijepi link proizvoda.", "error");
+    return Promise.resolve(false);
+  }
+  workwearProductLinkPreviewState = {
+    loading: true,
+    error: "",
+    data: null,
+    url,
+  };
+  renderWorkwearModule();
+  return workwearApiPreviewProductLink(url)
+    .then((preview) => {
+      workwearProductLinkPreviewState = {
+        loading: false,
+        error: "",
+        data: preview || null,
+        url,
+      };
+      pushWorkwearAudit("product_link_preview_loaded", {
+        entityType: "product_link",
+        entityId: url,
+        metadata: {
+          hasName: Boolean(preview?.name),
+          hasImage: Array.isArray(preview?.imageUrls) && preview.imageUrls.length > 0,
+          hasPrice: Boolean(preview?.price),
+        },
+      });
+      renderWorkwearModule();
+      showToast("Preview je ucitan. Provjeri i primijeni ako izgleda dobro.", "success");
+      return preview;
+    })
+    .catch((error) => {
+      workwearProductLinkPreviewState = {
+        loading: false,
+        error: "Nismo mogli procitati ovaj link. Mozes nastaviti rucno.",
+        data: null,
+        url,
+      };
+      pushWorkwearAudit("product_link_preview_failed", {
+        entityType: "product_link",
+        entityId: url,
+        metadata: { error: error?.message || "STORE_LINK_PREVIEW_FAILED" },
+      });
+      renderWorkwearModule();
+      showToast("Link preview nije uspio.", "error");
+      return null;
+    });
+}
+
+function workwearApplyProductLinkPreview() {
+  if (!canManageWorkwearModule()) return;
+  const preview = workwearProductLinkPreviewState?.data;
+  if (!preview) return;
+  const wizard = workwearReadWizardFormState();
+  const imageUrls = Array.isArray(preview.imageUrls) ? preview.imageUrls.filter(Boolean) : [];
+  wizard.name = preview.name || wizard.name;
+  wizard.description = preview.description || wizard.description;
+  wizard.imagePrimary = imageUrls[0] || wizard.imagePrimary;
+  wizard.imageGallery = imageUrls.slice(1).join(", ") || wizard.imageGallery;
+  if (Number(preview.price) > 0) {
+    wizard.price = Number(preview.price);
+    if (!Number(wizard.creditCost || 0)) wizard.creditCost = Number(preview.price);
+    wizard.supplierPrice = Number(preview.price);
+  }
+  wizard.supplierLink = preview.sourceUrl || workwearProductLinkPreviewState.url || wizard.supplierLink;
+  wizard.supplierId = preview.host || wizard.supplierId || "link-preview";
+  if (preview.sku && !wizard.supplierProductId) wizard.supplierProductId = preview.sku;
+  if (preview.brand && !wizard.brand) wizard.brand = preview.brand;
+  workwearProductWizardSeed = wizard;
+  pushWorkwearAudit("product_link_preview_applied", {
+    entityType: "product_link",
+    entityId: wizard.supplierLink || "",
+    metadata: { productName: wizard.name || "" },
+  });
+  renderWorkwearModule();
+  showToast("Preview je primijenjen. Jos ga mozes urediti prije spremanja.", "success");
+}
+
+function workwearClearProductLinkPreview() {
+  workwearProductLinkPreviewState = {
+    loading: false,
+    error: "",
+    data: null,
+    url: "",
+  };
+  renderWorkwearModule();
+}
+
 function workwearAddCategory() {
   if (!canManageWorkwearModule()) return;
   const input = document.getElementById("workwearNewCategoryName");
@@ -1161,6 +1254,88 @@ function workwearSaveWizardSizePreset() {
   if (sizesInput) sizesInput.value = "";
   renderWorkwearModule();
   showToast("Preset velicina je spremljen.", "success");
+}
+
+function workwearAddManagerSizePreset() {
+  if (!canManageWorkwearModule()) return;
+  const nameInput = document.getElementById("workwearManagerSizePresetName");
+  const sizesInput = document.getElementById("workwearManagerSizePresetSizes");
+  const label = String(nameInput?.value || "").trim();
+  const sizes = typeof normalizeStoreSizePresetSizes === "function"
+    ? normalizeStoreSizePresetSizes(sizesInput?.value || "")
+    : splitCsv(sizesInput?.value || "");
+  if (!label || !sizes.length) {
+    showToast("Naziv preseta i velicine su obavezni.", "error");
+    return;
+  }
+  const key = ensureStoreSizePreset(label, sizes);
+  saveWorkwearState();
+  pushWorkwearAudit("size_preset_saved", { entityType: "size_preset", entityId: key, metadata: { label, sizes, source: "manager_tab" } });
+  renderWorkwearCategoriesPanel();
+  renderWorkwearAdminPanel();
+  showToast("Preset velicina je dodan.", "success");
+}
+
+function workwearUpdateManagerSizePreset(presetKey) {
+  if (!canManageWorkwearModule()) return;
+  const key = String(presetKey || "").trim();
+  if (!key) return;
+  const safeId = sanitizeSiteId(key);
+  const name = String(document.getElementById(`workwearManagerSizePresetName_${safeId}`)?.value || "").trim();
+  const sizes = typeof normalizeStoreSizePresetSizes === "function"
+    ? normalizeStoreSizePresetSizes(document.getElementById(`workwearManagerSizePresetSizes_${safeId}`)?.value || "")
+    : splitCsv(document.getElementById(`workwearManagerSizePresetSizes_${safeId}`)?.value || "");
+  if (!name || !sizes.length) {
+    showToast("Preset mora imati naziv i barem jednu velicinu.", "error");
+    return;
+  }
+  const nextKey = updateStoreSizePreset(key, name, sizes);
+  saveWorkwearState();
+  pushWorkwearAudit("size_preset_updated", { entityType: "size_preset", entityId: nextKey || key, metadata: { previousKey: key, label: name, sizes } });
+  renderWorkwearCategoriesPanel();
+  renderWorkwearAdminPanel();
+  showToast("Preset velicina je spremljen.", "success");
+}
+
+function workwearArchiveManagerSizePreset(presetKey) {
+  if (!canManageWorkwearModule()) return;
+  const key = String(presetKey || "").trim();
+  if (!key) return;
+  const preset = typeof getStoreSizePresetByKey === "function" ? getStoreSizePresetByKey(key) : null;
+  showConfirm(
+    preset?.system
+      ? `Sistemski preset "${preset.label || key}" ce biti sakriven iz dropdowna. Mozes ga kasnije aktivirati.`
+      : `Custom preset "${preset?.label || key}" ce biti obrisan.`,
+    "Potvrda",
+    "⚠️",
+    () => {
+      const result = archiveStoreSizePreset(key);
+      saveWorkwearState();
+      pushWorkwearAudit(result === "archived" ? "size_preset_archived" : "size_preset_deleted", {
+        entityType: "size_preset",
+        entityId: key,
+        metadata: { label: preset?.label || key },
+      });
+      const wizard = getWorkwearWizardState();
+      if (wizard.sizePreset === key) {
+        const options = getWorkwearSizePresetOptions();
+        wizard.sizePreset = options[0]?.key || "odjeca";
+        workwearProductWizardSeed = wizard;
+      }
+      renderWorkwearModule();
+      showToast(result === "archived" ? "Preset je arhiviran." : "Preset je obrisan.", "success");
+    },
+  );
+}
+
+function workwearRestoreManagerSizePreset(presetKey) {
+  if (!canManageWorkwearModule()) return;
+  const key = restoreStoreSizePreset(presetKey);
+  if (!key) return;
+  saveWorkwearState();
+  pushWorkwearAudit("size_preset_restored", { entityType: "size_preset", entityId: key });
+  renderWorkwearModule();
+  showToast("Preset je aktiviran.", "success");
 }
 
 function workwearToggleWizardSize(size, el) {

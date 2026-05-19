@@ -428,6 +428,15 @@
     quickAddWizardSubcategory(...args) {
       return callLegacy("workwearQuickAddWizardSubcategory", args);
     },
+    previewProductLink(...args) {
+      return callLegacy("workwearPreviewProductLink", args);
+    },
+    applyProductLinkPreview(...args) {
+      return callLegacy("workwearApplyProductLinkPreview", args);
+    },
+    clearProductLinkPreview(...args) {
+      return callLegacy("workwearClearProductLinkPreview", args);
+    },
     updateWizardSizePreset(...args) {
       return callLegacy("workwearUpdateWizardSizePreset", args);
     },
@@ -499,6 +508,18 @@
     },
     archiveSubcategory(...args) {
       return callLegacy("workwearArchiveSubcategory", args);
+    },
+    addManagerSizePreset(...args) {
+      return callLegacy("workwearAddManagerSizePreset", args);
+    },
+    updateManagerSizePreset(...args) {
+      return callLegacy("workwearUpdateManagerSizePreset", args);
+    },
+    archiveManagerSizePreset(...args) {
+      return callLegacy("workwearArchiveManagerSizePreset", args);
+    },
+    restoreManagerSizePreset(...args) {
+      return callLegacy("workwearRestoreManagerSizePreset", args);
     },
     setBulkSelection(...args) {
       return callLegacy("workwearSetBulkSelection", args);

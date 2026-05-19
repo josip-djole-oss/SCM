@@ -121,3 +121,17 @@ function workwearApiUpdateOrderStatus(orderId, status, extra = {}) {
       return updated;
     });
 }
+
+function workwearApiPreviewProductLink(url) {
+  if (typeof BACKEND_ENABLED === "undefined" || !BACKEND_ENABLED) {
+    return Promise.reject(new Error("STORE_LINK_PREVIEW_BACKEND_REQUIRED"));
+  }
+  const site = String(currentSite || "default").trim() || "default";
+  return fetch("/api/store/product-link-preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ site, url }),
+  })
+    .then((res) => workwearApiParseResponse(res, "STORE_LINK_PREVIEW_FAILED"))
+    .then((payload) => payload?.preview || null);
+}

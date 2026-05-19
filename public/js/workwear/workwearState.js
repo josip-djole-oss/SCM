@@ -398,6 +398,45 @@ function ensureStoreSizePreset(label, sizes) {
   return key;
 }
 
+function updateStoreSizePreset(presetKey, label, sizes) {
+  const currentKey = normalizeStoreSizePresetKey(presetKey);
+  const presetLabel = String(label || "").trim();
+  const presetSizes = normalizeStoreSizePresetSizes(sizes || []);
+  if (!currentKey || !presetLabel || !presetSizes.length) return "";
+  const catalog = getStoreSizePresetCatalogState();
+  const existing = catalog[currentKey] || {};
+  const nextKey = existing.system === true ? currentKey : normalizeStoreSizePresetKey(presetLabel);
+  catalog[nextKey] = {
+    label: presetLabel,
+    sizes: presetSizes,
+    active: true,
+    system: existing.system === true,
+  };
+  if (nextKey !== currentKey) delete catalog[currentKey];
+  return nextKey;
+}
+
+function archiveStoreSizePreset(presetKey) {
+  const key = normalizeStoreSizePresetKey(presetKey);
+  const catalog = getStoreSizePresetCatalogState();
+  const entry = catalog[key];
+  if (!entry) return "";
+  if (entry.system === true) {
+    entry.active = false;
+    return "archived";
+  }
+  delete catalog[key];
+  return "deleted";
+}
+
+function restoreStoreSizePreset(presetKey) {
+  const key = normalizeStoreSizePresetKey(presetKey);
+  const catalog = getStoreSizePresetCatalogState();
+  if (!catalog[key]) return "";
+  catalog[key].active = true;
+  return key;
+}
+
 function loadWorkwearState(site = currentSite) {
   const key = getWorkwearStorageKey(site);
   const raw = workwearReadCachedJson(key, null);

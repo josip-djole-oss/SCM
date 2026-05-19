@@ -2,6 +2,8 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const dns = require('dns').promises;
+const net = require('net');
 const multer = require('multer');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -2531,6 +2533,242 @@ function canExportStoreData(session) {
     sessionHasPermission(session, 'canExportStore');
 }
 
+const STORE_LINK_PREVIEW_MAX_BYTES = Number(process.env.STORE_LINK_PREVIEW_MAX_BYTES) || (1024 * 1024);
+const STORE_LINK_PREVIEW_TIMEOUT_MS = Number(process.env.STORE_LINK_PREVIEW_TIMEOUT_MS) || 8000;
+const STORE_LINK_PREVIEW_MAX_REDIRECTS = Number(process.env.STORE_LINK_PREVIEW_MAX_REDIRECTS) || 3;
+
+const storeProductLinkPreviewLimiter = rateLimit({
+  windowMs: Number(process.env.STORE_LINK_PREVIEW_RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  max: Number(process.env.STORE_LINK_PREVIEW_RATE_LIMIT_MAX) || 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'STORE_LINK_PREVIEW_RATE_LIMIT' },
+});
+
+function isPrivateStorePreviewIp(address) {
+  const value = sanitizeString(address || '', 80).toLowerCase();
+  if (!value) return true;
+  if (net.isIP(value) === 4) {
+    const parts = value.split('.').map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part))) return true;
+    const [a, b] = parts;
+    return a === 10 ||
+      a === 127 ||
+      a === 0 ||
+      (a === 100 && b >= 64 && b <= 127) ||
+      (a === 169 && b === 254) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 198 && (b === 18 || b === 19)) ||
+      a >= 224;
+  }
+  if (net.isIP(value) === 6) {
+    const mappedV4 = value.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+    if (mappedV4) return isPrivateStorePreviewIp(mappedV4[1]);
+    return value === '::1' ||
+      value === '::' ||
+      value.startsWith('fc') ||
+      value.startsWith('fd') ||
+      value.startsWith('fe80:');
+  }
+  return true;
+}
+
+async function assertStorePreviewUrlSafe(targetUrl) {
+  let parsed;
+  try {
+    parsed = new URL(sanitizeString(targetUrl || '', 2000));
+  } catch (_) {
+    throw createStoreValidationError('STORE_LINK_INVALID_URL', 400);
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw createStoreValidationError('STORE_LINK_INVALID_PROTOCOL', 400);
+  }
+  const host = parsed.hostname.toLowerCase();
+  if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) {
+    throw createStoreValidationError('STORE_LINK_BLOCKED_HOST', 400);
+  }
+  const directIp = net.isIP(host);
+  if (directIp && isPrivateStorePreviewIp(host)) {
+    throw createStoreValidationError('STORE_LINK_BLOCKED_HOST', 400);
+  }
+  let addresses = [];
+  try {
+    addresses = directIp ? [{ address: host }] : await dns.lookup(host, { all: true, verbatim: false });
+  } catch (_) {
+    throw createStoreValidationError('STORE_LINK_DNS_FAILED', 400);
+  }
+  if (!addresses.length || addresses.some((entry) => isPrivateStorePreviewIp(entry.address))) {
+    throw createStoreValidationError('STORE_LINK_BLOCKED_HOST', 400);
+  }
+  parsed.hash = '';
+  return parsed;
+}
+
+function decodeStorePreviewHtml(value) {
+  return sanitizeString(value || '', 5000)
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractStorePreviewMeta(html, key) {
+  const escaped = String(key || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tagRegex = new RegExp(`<meta\\b[^>]*(?:property|name|itemprop)=["']${escaped}["'][^>]*>`, 'i');
+  const tag = html.match(tagRegex)?.[0] || '';
+  if (!tag) return '';
+  const content = tag.match(/\bcontent=["']([^"']*)["']/i)?.[1] || '';
+  return decodeStorePreviewHtml(content);
+}
+
+function extractStorePreviewTitle(html) {
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '';
+  return decodeStorePreviewHtml(title.replace(/<[^>]*>/g, ' '));
+}
+
+function collectStorePreviewJsonLd(node, products = []) {
+  if (!node) return products;
+  if (Array.isArray(node)) {
+    node.forEach((entry) => collectStorePreviewJsonLd(entry, products));
+    return products;
+  }
+  if (typeof node !== 'object') return products;
+  const typeValue = node['@type'];
+  const types = Array.isArray(typeValue) ? typeValue : [typeValue];
+  if (types.some((entry) => String(entry || '').toLowerCase() === 'product')) {
+    products.push(node);
+  }
+  if (node['@graph']) collectStorePreviewJsonLd(node['@graph'], products);
+  return products;
+}
+
+function normalizeStorePreviewImage(value, baseUrl) {
+  const source = Array.isArray(value) ? value : [value];
+  return source
+    .map((entry) => {
+      if (!entry) return '';
+      if (typeof entry === 'string') return entry;
+      if (typeof entry === 'object') return entry.url || entry.contentUrl || '';
+      return '';
+    })
+    .map((entry) => {
+      try {
+        return new URL(sanitizeString(entry, 2000), baseUrl).toString();
+      } catch (_) {
+        return '';
+      }
+    })
+    .filter(Boolean);
+}
+
+function parseStorePreviewJsonLd(html) {
+  const products = [];
+  const regex = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  let match;
+  while ((match = regex.exec(html))) {
+    try {
+      const parsed = JSON.parse(match[1].trim());
+      collectStorePreviewJsonLd(parsed, products);
+    } catch (_) {}
+  }
+  return products[0] || null;
+}
+
+function parseStoreProductLinkPreview(html, sourceUrl) {
+  const jsonProduct = parseStorePreviewJsonLd(html);
+  const offer = Array.isArray(jsonProduct?.offers) ? jsonProduct.offers[0] : jsonProduct?.offers;
+  const brand = typeof jsonProduct?.brand === 'string'
+    ? jsonProduct.brand
+    : sanitizeString(jsonProduct?.brand?.name || '', 200);
+  const images = [
+    ...normalizeStorePreviewImage(jsonProduct?.image, sourceUrl),
+    ...normalizeStorePreviewImage(extractStorePreviewMeta(html, 'og:image'), sourceUrl),
+    ...normalizeStorePreviewImage(extractStorePreviewMeta(html, 'twitter:image'), sourceUrl),
+  ];
+  const uniqueImages = Array.from(new Set(images)).slice(0, 6);
+  const rawPrice = offer?.price || extractStorePreviewMeta(html, 'product:price:amount') || '';
+  const price = Number(String(rawPrice).replace(/[^0-9.,-]/g, '').replace(',', '.'));
+  const parsed = new URL(sourceUrl);
+  return {
+    sourceUrl,
+    host: parsed.hostname,
+    name: sanitizeString(jsonProduct?.name || extractStorePreviewMeta(html, 'og:title') || extractStorePreviewMeta(html, 'twitter:title') || extractStorePreviewTitle(html), 240),
+    description: sanitizeString(jsonProduct?.description || extractStorePreviewMeta(html, 'og:description') || extractStorePreviewMeta(html, 'description') || '', 1200),
+    imageUrls: uniqueImages,
+    price: Number.isFinite(price) && price >= 0 ? price : null,
+    currency: sanitizeString(offer?.priceCurrency || extractStorePreviewMeta(html, 'product:price:currency') || '', 12).toUpperCase(),
+    sku: sanitizeString(jsonProduct?.sku || jsonProduct?.mpn || '', 160),
+    brand,
+    confidence: jsonProduct ? 'product-jsonld' : 'metadata',
+  };
+}
+
+async function readStorePreviewResponseText(response) {
+  const contentLength = Number(response.headers.get('content-length') || 0);
+  if (contentLength > STORE_LINK_PREVIEW_MAX_BYTES) {
+    throw createStoreValidationError('STORE_LINK_TOO_LARGE', 400);
+  }
+  if (!response.body || typeof response.body.getReader !== 'function') {
+    const text = await response.text();
+    return text.slice(0, STORE_LINK_PREVIEW_MAX_BYTES);
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > STORE_LINK_PREVIEW_MAX_BYTES) {
+      try { await reader.cancel(); } catch (_) {}
+      throw createStoreValidationError('STORE_LINK_TOO_LARGE', 400);
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder('utf-8', { fatal: false }).decode(Buffer.concat(chunks.map((chunk) => Buffer.from(chunk))));
+}
+
+async function fetchStoreProductPreviewHtml(rawUrl, redirects = 0) {
+  const safeUrl = await assertStorePreviewUrlSafe(rawUrl);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), STORE_LINK_PREVIEW_TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(safeUrl.toString(), {
+      method: 'GET',
+      redirect: 'manual',
+      signal: controller.signal,
+      headers: {
+        'user-agent': 'CMAX-SCM-StorePreview/1.0',
+        accept: 'text/html,application/xhtml+xml',
+      },
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  if ([301, 302, 303, 307, 308].includes(response.status)) {
+    if (redirects >= STORE_LINK_PREVIEW_MAX_REDIRECTS) {
+      throw createStoreValidationError('STORE_LINK_TOO_MANY_REDIRECTS', 400);
+    }
+    const location = response.headers.get('location') || '';
+    const nextUrl = new URL(location, safeUrl).toString();
+    return fetchStoreProductPreviewHtml(nextUrl, redirects + 1);
+  }
+  if (!response.ok) {
+    throw createStoreValidationError('STORE_LINK_FETCH_FAILED', 400, String(response.status));
+  }
+  const contentType = sanitizeString(response.headers.get('content-type') || '', 200).toLowerCase();
+  if (contentType && !contentType.includes('text/html') && !contentType.includes('application/xhtml')) {
+    throw createStoreValidationError('STORE_LINK_NOT_HTML', 400);
+  }
+  const html = await readStorePreviewResponseText(response);
+  return { html, finalUrl: safeUrl.toString() };
+}
+
 function buildStoreExportRows(orders, filters = {}) {
   const source = Array.isArray(orders) ? orders : [];
   const siteScope = sanitizeString(filters.siteScope || 'all', 20).toLowerCase();
@@ -4456,6 +4694,48 @@ apiRouter.post('/store/confirm-password', storePasswordLimiter, async (req, res,
     await logActivity(email, 'store_password_confirm', { success: true });
     return res.json({ ok: true, confirmedAt: new Date().toISOString() });
   } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/store/product-link-preview', requireAnyPermission(['canManageStore', 'canManageWorkwear']), storeProductLinkPreviewLimiter, async (req, res, next) => {
+  try {
+    if (req.session?.isReadonly) {
+      return res.status(403).json({ error: 'READONLY_FORBIDDEN' });
+    }
+    if (!canManageStoreOrders(req.session)) {
+      return res.status(403).json({ error: 'STORE_MANAGER_REQUIRED' });
+    }
+    const site = getRequestedStoreSite(req);
+    if (!canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+    const url = sanitizeString(req.body?.url || '', 2000);
+    if (!url) return res.status(400).json({ error: 'STORE_LINK_REQUIRED' });
+    const { html, finalUrl } = await fetchStoreProductPreviewHtml(url);
+    const preview = parseStoreProductLinkPreview(html, finalUrl);
+    if (!preview.name && !preview.description && (!preview.imageUrls || !preview.imageUrls.length)) {
+      throw createStoreValidationError('STORE_LINK_NO_PRODUCT_DATA', 400);
+    }
+    await logActivity(req.session.email, 'store_product_link_preview', {
+      site,
+      host: preview.host,
+      hasName: Boolean(preview.name),
+      hasImage: Array.isArray(preview.imageUrls) && preview.imageUrls.length > 0,
+      hasPrice: Boolean(preview.price),
+    });
+    return res.json({ ok: true, site, preview });
+  } catch (error) {
+    if (typeof error?.statusCode === 'number') {
+      await logActivity(req.session?.email, 'store_product_link_preview_failed', {
+        site: req.body?.site || req.session?.currentSite || '',
+        code: error.code || error.message,
+      });
+      return res.status(error.statusCode).json({ error: error.code || error.message || 'STORE_LINK_PREVIEW_FAILED' });
+    }
+    if (error?.name === 'AbortError') {
+      return res.status(408).json({ error: 'STORE_LINK_TIMEOUT' });
+    }
     next(error);
   }
 });

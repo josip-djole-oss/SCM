@@ -110,6 +110,7 @@ async function seedStoreEditor(page, productCount) {
     state.settings.sizePresetCatalog = {};
     saveWorkwearState(currentSite, { track: false });
     workwearManagerEditorOpen = true;
+    workwearManagerTab = "products";
     workwearProductWizardStep = 3;
     workwearResetProductWizard(null);
     workwearProductWizardStep = 3;
@@ -185,8 +186,36 @@ async function capture(page, items, viewport, label, notes = {}) {
   return itemMetrics;
 }
 
+async function capturePlain(page, items, viewport, label, notes = {}) {
+  await delay(160);
+  const file = path.join(shotDir, `${safeName(label)}-${viewport}.png`);
+  await page.screenshot({ path: file, fullPage: false });
+  items.push({ viewport, label, file, notes, metrics: null });
+}
+
 async function runScenario(page, items, viewport, width, height) {
   await page.setViewportSize({ width, height });
+  await page.route("**/api/store/product-link-preview", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        preview: {
+          sourceUrl: "https://supplier.example/products/proof-jacket-500",
+          host: "supplier.example",
+          name: "Proof jakna iz linka",
+          description: "Opis ucitan iz product metadata preview endpointa.",
+          imageUrls: ["https://supplier.example/images/proof-jacket.jpg"],
+          price: 500,
+          currency: "SEK",
+          sku: "SUP-500",
+          brand: "CMAX Proof",
+          confidence: "product-jsonld",
+        },
+      }),
+    });
+  });
   await page.evaluate(() => {
     closeAccountNotificationsPanel?.();
     if (typeof showWorkwear === "function") showWorkwear();
@@ -213,6 +242,46 @@ async function runScenario(page, items, viewport, width, height) {
     changed: "Custom preset je spremljen i dostupan u istom dropdownu za sljedece artikle.",
   });
   assertProof(secondMetrics, viewport);
+
+  await page.evaluate(() => workwearSetProductWizardStep(1));
+  await page.waitForSelector("#workwearProductLinkInput", { state: "visible" });
+  await page.fill("#workwearProductLinkInput", "https://supplier.example/products/proof-jacket-500");
+  await page.click('[data-cmax-action="workwear.previewProductLink"]');
+  await page.waitForFunction(() => window.workwearProductLinkPreviewState?.data?.name === "Proof jakna iz linka");
+  await capturePlain(page, items, viewport, "product-link-preview", {
+    changed: "Link preview prikazuje prijedlog bez automatskog spremanja artikla.",
+  });
+  await page.click('[data-cmax-action="workwear.applyProductLinkPreview"]');
+  await page.waitForFunction(() => document.getElementById("workwearProductName")?.value === "Proof jakna iz linka");
+  const appliedOk = await page.evaluate(() => ({
+    name: document.getElementById("workwearProductName")?.value || "",
+    description: document.getElementById("workwearProductDescription")?.value || "",
+  }));
+  if (appliedOk.name !== "Proof jakna iz linka" || !appliedOk.description.includes("metadata")) {
+    throw new Error(`Product link preview did not apply on ${viewport}: ${JSON.stringify(appliedOk)}`);
+  }
+  await capturePlain(page, items, viewport, "product-link-preview-applied", {
+    changed: "Nakon potvrde podaci su uneseni u wizard i ostaju uredljivi prije spremanja.",
+  });
+
+  await page.evaluate(() => {
+    workwearSwitchManagerTab("categories");
+    renderWorkwearModule();
+  });
+  await page.waitForSelector("#workwearCategoriesPanel", { state: "visible" });
+  await capturePlain(page, items, viewport, "categories-and-size-presets-management", {
+    changed: "Kategorije, podkategorije i preseti velicina imaju edit/delete/archive kontrole u editoru.",
+  });
+  await page.fill("#workwearManagerSizePresetName", "Proof brisanje");
+  await page.fill("#workwearManagerSizePresetSizes", "A,B,C");
+  await page.click('[data-cmax-action="workwear.addManagerSizePreset"]');
+  await page.waitForFunction(() => document.body.innerText.includes("Proof brisanje"));
+  await page.evaluate(() => workwearArchiveManagerSizePreset("proof_brisanje"));
+  await page.click("#dialogButtons .btn:last-child");
+  await page.waitForFunction(() => !Array.from(document.querySelectorAll("#workwearCategoriesPanel strong")).some((el) => el.textContent.includes("Proof brisanje")));
+  await capturePlain(page, items, viewport, "size-preset-deleted", {
+    changed: "Custom size preset se moze obrisati iz editor tab-a.",
+  });
 }
 
 function writeReport(items) {
@@ -226,7 +295,7 @@ function writeReport(items) {
       `- Sta je prije bilo lose: duga lista artikala mogla je razvuci editor i sakriti wizard dugmad; preset velicina nije mijenjao checkboxove.`,
       `- Sta je promijenjeno: ${item.notes.changed}`,
       `- Kompromis: tabela i wizard sada imaju odvojene scroll povrsine, pa na manjim ekranima postoji kontrolisan nested scroll unutar modala.`,
-      `- Metrics: table ${m.table.clientHeight}/${m.table.scrollHeight}, wizard ${m.wizard.height}px, actions inside viewport ${m.actions.insideViewport}.`,
+      m ? `- Metrics: table ${m.table.clientHeight}/${m.table.scrollHeight}, wizard ${m.wizard.height}px, actions inside viewport ${m.actions.insideViewport}.` : "- Metrics: UI proof screenshot, bez layout guard metrika za ovaj ne-wizard scenario.",
       "",
     ].join("\n");
   }).join("\n");

@@ -29,6 +29,12 @@ var workwearImageViewerState = {
   index: 0,
   title: "",
 };
+var workwearProductLinkPreviewState = {
+  loading: false,
+  error: "",
+  data: null,
+  url: "",
+};
 var workwearOrderRenderLimit = 20;
 var WORKWEAR_SIZE_PRESETS = {
   odjeca: ["XS", "S", "M", "L", "XL", "XXL", "3XL"],
@@ -651,6 +657,8 @@ function renderWorkwearAdminPanel() {
     wizard.sizePreset = sizePresetOptions[0]?.key || "odjeca";
   }
   const activeSizePreset = getWorkwearSizePreset(wizard.sizePreset);
+  const linkPreview = workwearProductLinkPreviewState?.data || null;
+  const linkPreviewImages = Array.isArray(linkPreview?.imageUrls) ? linkPreview.imageUrls : [];
 
   panel.innerHTML = `
     <div class="workwear-admin-card">
@@ -698,6 +706,28 @@ function renderWorkwearAdminPanel() {
 
           <div class="workwear-wizard-step ${workwearProductWizardStep === 1 ? "is-active" : ""}">
             <h4>STEP 1 — Osnovno</h4>
+            <div class="workwear-link-preview-card">
+              <label class="workwear-field-label" for="workwearProductLinkInput">Ucitaj podatke iz linka</label>
+              <div class="workwear-admin-grid">
+                <input id="workwearProductLinkInput" class="store-input" placeholder="https://dobavljac.se/proizvod" value="${escapeHtml(workwearProductLinkPreviewState?.url || wizard.supplierLink || "")}" />
+                <button class="btn btn-small" data-cmax-action="workwear.previewProductLink" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreSave">Ucitaj preview</button>
+                ${linkPreview ? `<button class="btn btn-small btn-secondary" data-cmax-action="workwear.applyProductLinkPreview">Primijeni u wizard</button>` : ""}
+              </div>
+              <div class="workwear-product-meta">Aplikacija samo predlozi naziv, opis, sliku i cijenu. Ti potvrdis ili uredis prije spremanja.</div>
+              ${workwearProductLinkPreviewState?.error ? `<div class="workwear-product-meta text-danger">${escapeHtml(workwearProductLinkPreviewState.error)}</div>` : ""}
+              ${linkPreview ? `
+                <div class="workwear-link-preview-result">
+                  ${linkPreviewImages[0] ? `<img src="${escapeHtml(linkPreviewImages[0])}" alt="preview" />` : `<div class="workwear-product-fallback">Nema slike</div>`}
+                  <div>
+                    <strong>${escapeHtml(linkPreview.name || "Bez naziva")}</strong>
+                    <div class="workwear-product-meta">${escapeHtml(linkPreview.description || "Nema opisa")}</div>
+                    <div class="workwear-product-meta">${linkPreview.price ? `Cijena: ${escapeHtml(String(linkPreview.price))} ${escapeHtml(linkPreview.currency || "")}` : "Cijena nije pronadjena"}</div>
+                    <div class="workwear-product-meta">${escapeHtml(linkPreview.sourceUrl || "")}</div>
+                  </div>
+                  <button class="workwear-mini-link" data-cmax-action="workwear.clearProductLinkPreview">Ocisti</button>
+                </div>
+              ` : ""}
+            </div>
             <div class="workwear-admin-grid">
               <input id="workwearProductName" class="store-input" placeholder="Naziv" value="${escapeHtml(wizard.name)}" />
               <input id="workwearProductDescription" class="store-input" placeholder="Opis" value="${escapeHtml(wizard.description)}" />
@@ -1003,9 +1033,13 @@ function renderWorkwearCategoriesPanel() {
   }
   const catalog = getStoreCategoryCatalogState();
   const categories = getStoreCategoryOptions(true);
+  const sizePresets = getWorkwearSizePresetOptions().concat(
+    getStoreSizePresetOptions(true).filter((preset) => !getWorkwearSizePresetOptions().some((active) => active.key === preset.key)),
+  );
   panel.innerHTML = `
     <div class="workwear-admin-card">
       <h3>Kategorije i podkategorije</h3>
+      <div class="workwear-product-meta">Kategorije/podkategorije koje se koriste na artiklima se arhiviraju umjesto trajnog brisanja.</div>
       <div class="workwear-admin-grid">
         <input id="workwearNewCategoryName" class="store-input" placeholder="+ Dodaj kategoriju" />
         <button class="btn" data-cmax-action="workwear.addCategory">Dodaj kategoriju</button>
@@ -1044,6 +1078,36 @@ function renderWorkwearCategoriesPanel() {
             </div>
           `;
         }).join("")}
+      </div>
+    </div>
+    <div class="workwear-admin-card">
+      <h3>Preseti velicina</h3>
+      <div class="workwear-product-meta">Ovdje uredjujes dropdown iz Step 3. Sistemske presete mozes sakriti/arhivirati, a svoje presete mozes obrisati.</div>
+      <div class="workwear-admin-grid">
+        <input id="workwearManagerSizePresetName" class="store-input" placeholder="+ Naziv preseta" />
+        <input id="workwearManagerSizePresetSizes" class="store-input" placeholder="Velicine, npr. 35,36,37,38" />
+        <button class="btn" data-cmax-action="workwear.addManagerSizePreset">Dodaj preset</button>
+      </div>
+      <div class="store-orders-list">
+        ${sizePresets.map((preset) => `
+          <div class="workwear-cart-item ${preset.active === false ? "is-muted" : ""}">
+            <div>
+              <strong>${escapeHtml(preset.label || preset.key)}</strong>
+              <div class="workwear-product-meta">${preset.system ? "Sistemski preset" : "Custom preset"} · ${preset.active === false ? "Arhiviran" : "Aktivan"}</div>
+              <div class="workwear-admin-grid" style="margin-top:8px;">
+                <input id="workwearManagerSizePresetName_${sanitizeSiteId(preset.key)}" class="store-input" value="${escapeHtml(preset.label || preset.key)}" ${preset.system ? "readonly" : ""} />
+                <input id="workwearManagerSizePresetSizes_${sanitizeSiteId(preset.key)}" class="store-input" value="${escapeHtml((preset.sizes || []).join(", "))}" />
+                <button class="btn btn-small" data-cmax-action="workwear.updateManagerSizePreset" data-cmax-args='${escapeHtml(JSON.stringify([preset.key]))}'>Spremi</button>
+                ${preset.active === false
+                  ? `<button class="btn btn-small" data-cmax-action="workwear.restoreManagerSizePreset" data-cmax-args='${escapeHtml(JSON.stringify([preset.key]))}'>Aktiviraj</button>`
+                  : `<button class="btn btn-small btn-danger" data-cmax-action="workwear.archiveManagerSizePreset" data-cmax-args='${escapeHtml(JSON.stringify([preset.key]))}'>Obrisi/Arhiviraj</button>`}
+              </div>
+              <div class="workwear-chip-grid" style="margin-top:8px;">
+                ${(preset.sizes || []).map((size) => `<span class="workwear-chip">${escapeHtml(size)}</span>`).join("")}
+              </div>
+            </div>
+          </div>
+        `).join("")}
       </div>
     </div>
   `;
