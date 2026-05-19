@@ -32,9 +32,15 @@ var workwearImageViewerState = {
 var workwearOrderRenderLimit = 20;
 var WORKWEAR_SIZE_PRESETS = {
   odjeca: ["XS", "S", "M", "L", "XL", "XXL", "3XL"],
-  obuca: ["38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48"],
+  obuca: ["35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50"],
   rukavice: ["7", "8", "9", "10", "11", "12"],
   ppe: ["S/M", "L/XL", "Universal"],
+};
+var WORKWEAR_SIZE_PRESET_LABELS = {
+  odjeca: "Odjeca",
+  obuca: "Obuca",
+  rukavice: "Rukavice",
+  ppe: "Kacige/PPE",
 };
 
 function getWorkwearCategories() {
@@ -136,7 +142,31 @@ function getWorkwearWizardState() {
 }
 
 function getWorkwearSizePreset(sizePreset) {
+  if (typeof getStoreSizePresetByKey === "function") {
+    const preset = getStoreSizePresetByKey(sizePreset);
+    if (preset) return preset.sizes || [];
+  }
   return WORKWEAR_SIZE_PRESETS[sizePreset] || [];
+}
+
+function getWorkwearSizePresetOptions() {
+  if (typeof getStoreSizePresetOptions === "function") {
+    const options = getStoreSizePresetOptions();
+    if (options.length) return options;
+  }
+  return Object.keys(WORKWEAR_SIZE_PRESETS).map((key) => ({
+    key,
+    label: WORKWEAR_SIZE_PRESET_LABELS[key] || key,
+    sizes: WORKWEAR_SIZE_PRESETS[key] || [],
+    system: true,
+    active: true,
+  }));
+}
+
+function workwearFormatSizePresetLabel(preset) {
+  const sizes = Array.isArray(preset?.sizes) ? preset.sizes : [];
+  const suffix = sizes.length > 1 ? `${sizes[0]}-${sizes[sizes.length - 1]}` : (sizes[0] || "");
+  return `${preset?.label || preset?.key || "Preset"}${suffix ? ` (${suffix})` : ""}`;
 }
 
 function workwearFormatCurrency(value) {
@@ -616,6 +646,11 @@ function renderWorkwearAdminPanel() {
   const showBudgetFields = wizard.usesBudget === true;
   const showSiteCards = wizard.allSites !== true;
   const showRoleCards = wizard.allRoles !== true;
+  const sizePresetOptions = getWorkwearSizePresetOptions();
+  if (!sizePresetOptions.some((preset) => preset.key === wizard.sizePreset)) {
+    wizard.sizePreset = sizePresetOptions[0]?.key || "odjeca";
+  }
+  const activeSizePreset = getWorkwearSizePreset(wizard.sizePreset);
 
   panel.innerHTML = `
     <div class="workwear-admin-card">
@@ -659,6 +694,7 @@ function renderWorkwearAdminPanel() {
               <button class="btn btn-small ${step === workwearProductWizardStep ? "" : "btn-secondary"}" data-cmax-action="workwear.setProductWizardStep" data-cmax-args='${escapeHtml(JSON.stringify([step]))}'>${step}</button>
             `).join("")}
           </div>
+          <div class="workwear-product-wizard-scroll">
 
           <div class="workwear-wizard-step ${workwearProductWizardStep === 1 ? "is-active" : ""}">
             <h4>STEP 1 — Osnovno</h4>
@@ -699,23 +735,35 @@ function renderWorkwearAdminPanel() {
 
           <div class="workwear-wizard-step ${workwearProductWizardStep === 3 ? "is-active" : ""}">
             <h4>STEP 3 — Velicine</h4>
-            <div class="workwear-admin-grid">
-              <select id="workwearWizardSizePreset" class="store-input">
-                <option value="odjeca" ${wizard.sizePreset === "odjeca" ? "selected" : ""}>Odjeca (XS-3XL)</option>
-                <option value="obuca" ${wizard.sizePreset === "obuca" ? "selected" : ""}>Obuca (38-48)</option>
-                <option value="rukavice" ${wizard.sizePreset === "rukavice" ? "selected" : ""}>Rukavice (7-12)</option>
-                <option value="ppe" ${wizard.sizePreset === "ppe" ? "selected" : ""}>Kacige/PPE</option>
+            <div class="workwear-size-preset-card">
+              <label class="workwear-field-label" for="workwearWizardSizePreset">Preset velicina</label>
+              <select id="workwearWizardSizePreset" class="store-input" data-cmax-action="workwear.updateWizardSizePreset" data-cmax-event="change" data-cmax-pass-element>
+                ${sizePresetOptions.map((preset) => `<option value="${escapeHtml(preset.key)}" ${wizard.sizePreset === preset.key ? "selected" : ""}>${escapeHtml(workwearFormatSizePresetLabel(preset))}</option>`).join("")}
               </select>
-              <input id="workwearWizardCustomSize" class="store-input" placeholder="Dodaj custom velicinu" />
-              <button class="btn btn-small" data-cmax-action="workwear.addWizardCustomSize">Dodaj velicinu</button>
+              <div class="workwear-product-meta">Odaberi tip artikla, zatim oznaci velicine koje zelis ponuditi radniku.</div>
             </div>
-            <div class="workwear-chip-grid">
-              ${getWorkwearSizePreset(wizard.sizePreset).map((size) => `
+            <div class="workwear-chip-grid workwear-size-checkbox-grid">
+              ${activeSizePreset.map((size) => `
                 <label class="workwear-chip">
                   <input type="checkbox" ${wizard.sizes.includes(size) ? "checked" : ""} data-cmax-action="workwear.toggleWizardSize" data-cmax-event="change" data-cmax-pass-element data-cmax-args='${escapeHtml(JSON.stringify([size]))}' />
                   <span>${escapeHtml(size)}</span>
                 </label>
               `).join("")}
+            </div>
+            <div class="workwear-admin-grid">
+              <input id="workwearWizardCustomSize" class="store-input" placeholder="Dodaj custom velicinu" />
+              <button class="btn btn-small" data-cmax-action="workwear.addWizardCustomSize">Dodaj velicinu</button>
+            </div>
+            <div class="workwear-size-preset-builder">
+              <div>
+                <strong>Spremi svoj preset</strong>
+                <div class="workwear-product-meta">Npr. "Zimske cipele" sa velicinama 35,36,37... Sljedeci put ce biti u dropdownu.</div>
+              </div>
+              <div class="workwear-admin-grid">
+                <input id="workwearWizardCustomPresetName" class="store-input" placeholder="Naziv preseta" />
+                <input id="workwearWizardCustomPresetSizes" class="store-input" placeholder="Velicine odvojene zarezom" />
+                <button class="btn btn-small" data-cmax-action="workwear.saveWizardSizePreset">Spremi preset</button>
+              </div>
             </div>
             <div class="workwear-selected-list">
               ${(wizard.sizes || []).map((size) => `<span class="warehouse-log-badge type-stock">${escapeHtml(size)} <button class="workwear-mini-link" data-cmax-action="workwear.removeWizardSize" data-cmax-args='${escapeHtml(JSON.stringify([size]))}'>x</button></span>`).join(" ")}
@@ -873,6 +921,7 @@ function renderWorkwearAdminPanel() {
               <div><strong>Free:</strong> ${wizard.freeRuleEnabled ? "Da" : "Ne"}</div>
               <div><strong>Upgrade:</strong> ${wizard.upgradeEnabled ? "Da" : "Ne"}</div>
             </div>
+          </div>
           </div>
 
           <div class="workwear-cart-actions">

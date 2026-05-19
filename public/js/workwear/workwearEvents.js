@@ -786,42 +786,61 @@ function splitCsv(input) {
 
 function workwearReadWizardFormState() {
   const wizard = getWorkwearWizardState();
+  const inputValue = (id, fallback = "") => {
+    const el = document.getElementById(id);
+    return el ? el.value : fallback;
+  };
+  const textValue = (id, fallback = "") => String(inputValue(id, fallback) || "").trim();
+  const checkedValue = (id, fallback = false) => {
+    const el = document.getElementById(id);
+    return el ? el.checked === true : fallback === true;
+  };
+  const checkedDefaultTrue = (id, fallback = true) => {
+    const el = document.getElementById(id);
+    return el ? el.checked !== false : fallback !== false;
+  };
+  const numberValue = (id, fallback = 0) => {
+    const el = document.getElementById(id);
+    if (!el) return Number(fallback || 0);
+    return Number(el.value || fallback || 0);
+  };
   const next = {
     ...wizard,
-    name: (document.getElementById("workwearProductName")?.value || wizard.name || "").trim(),
-    description: (document.getElementById("workwearProductDescription")?.value || wizard.description || "").trim(),
-    category: document.getElementById("workwearProductCategory")?.value || wizard.category || getWorkwearCategories()[0],
-    subcategory: (document.getElementById("workwearProductSubcategory")?.value || wizard.subcategory || "").trim(),
-    active: document.getElementById("workwearProductActive")?.checked !== false,
-    isNew: document.getElementById("workwearProductNew")?.checked === true,
-    imagePrimary: (document.getElementById("workwearProductImage")?.value || wizard.imagePrimary || "").trim(),
-    imageGallery: (document.getElementById("workwearProductGallery")?.value || wizard.imageGallery || "").trim(),
-    allSites: document.getElementById("workwearWizardAllSites")?.checked === true,
-    allRoles: document.getElementById("workwearWizardAllRoles")?.checked === true,
+    name: textValue("workwearProductName", wizard.name || ""),
+    description: textValue("workwearProductDescription", wizard.description || ""),
+    category: inputValue("workwearProductCategory", wizard.category || getWorkwearCategories()[0]),
+    subcategory: textValue("workwearProductSubcategory", wizard.subcategory || ""),
+    active: checkedDefaultTrue("workwearProductActive", wizard.active !== false),
+    isNew: checkedValue("workwearProductNew", wizard.isNew === true),
+    imagePrimary: textValue("workwearProductImage", wizard.imagePrimary || ""),
+    imageGallery: textValue("workwearProductGallery", wizard.imageGallery || ""),
+    sizePreset: inputValue("workwearWizardSizePreset", wizard.sizePreset || "odjeca"),
+    allSites: checkedValue("workwearWizardAllSites", wizard.allSites === true),
+    allRoles: checkedValue("workwearWizardAllRoles", wizard.allRoles === true),
     variants: Array.isArray(wizard.variants) ? wizard.variants.map((variant) => ({ ...variant })) : [],
-    price: Number(document.getElementById("workwearProductPrice")?.value || wizard.price || 0),
-    showPriceToWorker: document.getElementById("workwearProductShowPrice")?.checked !== false,
-    usesBudget: document.getElementById("workwearProductUsesBudget")?.checked === true,
-    creditCost: Number(document.getElementById("workwearProductCredit")?.value || wizard.creditCost || 0),
-    budgetGroup: (document.getElementById("workwearProductBudgetGroup")?.value || wizard.budgetGroup || "").trim(),
-    approvalRequired: document.getElementById("workwearProductApproval")?.checked === true,
-    freeRuleEnabled: document.getElementById("workwearProductFree")?.checked === true,
-    periodLimitEnabled: document.getElementById("workwearProductLimitEnabled")?.checked === true,
-    upgradeEnabled: document.getElementById("workwearProductUpgrade")?.checked === true,
-    urgentSafety: document.getElementById("workwearProductUrgent")?.checked === true,
-    freeRuleMode: document.getElementById("workwearProductFreeMode")?.value || wizard.freeRuleMode || "firstItem",
-    freeRulePeriodDays: Number(document.getElementById("workwearProductFreePeriodDays")?.value || wizard.freeRulePeriodDays || 180),
-    periodLimitCycle: document.getElementById("workwearProductLimitCycle")?.value || wizard.periodLimitCycle || "6m",
-    periodLimitQty: Number(document.getElementById("workwearProductLimitQty")?.value || wizard.periodLimitQty || 1),
-    periodLimitDays: Number(document.getElementById("workwearProductLimitDays")?.value || wizard.periodLimitDays || 180),
-    companyCoveredAmount: Number(document.getElementById("workwearProductCovered")?.value || wizard.companyCoveredAmount || 0),
-    differenceAmount: Number(document.getElementById("workwearProductDifference")?.value || wizard.differenceAmount || 0),
-    workerUpgradeWarning: document.getElementById("workwearProductUpgradeWarning")?.checked !== false,
-    supplierId: (document.getElementById("workwearProductSupplier")?.value || wizard.supplierId || "manual").trim() || "manual",
-    supplierProductId: (document.getElementById("workwearProductSupplierProductId")?.value || wizard.supplierProductId || "").trim(),
-    supplierLink: (document.getElementById("workwearProductSupplierLink")?.value || wizard.supplierLink || "").trim(),
-    supplierPrice: Number(document.getElementById("workwearProductSupplierPrice")?.value || wizard.supplierPrice || 0),
-    externalSync: document.getElementById("workwearProductExternalSync")?.checked === true,
+    price: numberValue("workwearProductPrice", wizard.price || 0),
+    showPriceToWorker: checkedDefaultTrue("workwearProductShowPrice", wizard.showPriceToWorker !== false),
+    usesBudget: checkedValue("workwearProductUsesBudget", wizard.usesBudget === true),
+    creditCost: numberValue("workwearProductCredit", wizard.creditCost || 0),
+    budgetGroup: textValue("workwearProductBudgetGroup", wizard.budgetGroup || ""),
+    approvalRequired: checkedValue("workwearProductApproval", wizard.approvalRequired === true),
+    freeRuleEnabled: checkedValue("workwearProductFree", wizard.freeRuleEnabled === true),
+    periodLimitEnabled: checkedValue("workwearProductLimitEnabled", wizard.periodLimitEnabled === true),
+    upgradeEnabled: checkedValue("workwearProductUpgrade", wizard.upgradeEnabled === true),
+    urgentSafety: checkedValue("workwearProductUrgent", wizard.urgentSafety === true),
+    freeRuleMode: inputValue("workwearProductFreeMode", wizard.freeRuleMode || "firstItem"),
+    freeRulePeriodDays: numberValue("workwearProductFreePeriodDays", wizard.freeRulePeriodDays || 180),
+    periodLimitCycle: inputValue("workwearProductLimitCycle", wizard.periodLimitCycle || "6m"),
+    periodLimitQty: numberValue("workwearProductLimitQty", wizard.periodLimitQty || 1),
+    periodLimitDays: numberValue("workwearProductLimitDays", wizard.periodLimitDays || 180),
+    companyCoveredAmount: numberValue("workwearProductCovered", wizard.companyCoveredAmount || 0),
+    differenceAmount: numberValue("workwearProductDifference", wizard.differenceAmount || 0),
+    workerUpgradeWarning: checkedDefaultTrue("workwearProductUpgradeWarning", wizard.workerUpgradeWarning !== false),
+    supplierId: textValue("workwearProductSupplier", wizard.supplierId || "manual") || "manual",
+    supplierProductId: textValue("workwearProductSupplierProductId", wizard.supplierProductId || ""),
+    supplierLink: textValue("workwearProductSupplierLink", wizard.supplierLink || ""),
+    supplierPrice: numberValue("workwearProductSupplierPrice", wizard.supplierPrice || 0),
+    externalSync: checkedValue("workwearProductExternalSync", wizard.externalSync === true),
   };
   workwearProductWizardSeed = next;
   return next;
@@ -1087,6 +1106,61 @@ function workwearArchiveSubcategory(categoryName, subcategoryName) {
       renderWorkwearModule();
     },
   );
+}
+
+function workwearUpdateWizardSizePreset(el) {
+  const nextPreset = String(el?.value || "").trim();
+  if (!nextPreset) return;
+  const previousWizard = getWorkwearWizardState();
+  const previousPresetSizes = getWorkwearSizePreset(previousWizard.sizePreset);
+  const selectedSizes = Array.isArray(previousWizard.sizes) ? previousWizard.sizes.slice() : [];
+  const selectedOnlyFromPreviousPreset = selectedSizes.length > 0 && selectedSizes.every((size) => previousPresetSizes.includes(size));
+  const wizard = workwearReadWizardFormState();
+  wizard.sizePreset = nextPreset;
+  if (selectedOnlyFromPreviousPreset) {
+    wizard.sizes = [];
+  }
+  workwearProductWizardSeed = wizard;
+  renderWorkwearModule();
+}
+
+function workwearSaveWizardSizePreset() {
+  if (!canManageWorkwearModule()) return;
+  const nameInput = document.getElementById("workwearWizardCustomPresetName");
+  const sizesInput = document.getElementById("workwearWizardCustomPresetSizes");
+  const label = String(nameInput?.value || "").trim();
+  const wizard = workwearReadWizardFormState();
+  const typedSizes = typeof normalizeStoreSizePresetSizes === "function"
+    ? normalizeStoreSizePresetSizes(sizesInput?.value || "")
+    : splitCsv(sizesInput?.value || "");
+  const fallbackSizes = Array.isArray(wizard.sizes) ? wizard.sizes.slice() : [];
+  const sizes = typedSizes.length ? typedSizes : fallbackSizes;
+  if (!label) {
+    showToast("Upisi naziv preseta.", "error");
+    return;
+  }
+  if (!sizes.length) {
+    showToast("Dodaj barem jednu velicinu u preset.", "error");
+    return;
+  }
+  const key = typeof ensureStoreSizePreset === "function" ? ensureStoreSizePreset(label, sizes) : "";
+  if (!key) {
+    showToast("Preset nije spremljen.", "error");
+    return;
+  }
+  saveWorkwearState();
+  pushWorkwearAudit("size_preset_saved", {
+    entityType: "size_preset",
+    entityId: key,
+    metadata: { label, sizes },
+  });
+  wizard.sizePreset = key;
+  wizard.sizes = Array.from(new Set([...(wizard.sizes || []), ...sizes]));
+  workwearProductWizardSeed = wizard;
+  if (nameInput) nameInput.value = "";
+  if (sizesInput) sizesInput.value = "";
+  renderWorkwearModule();
+  showToast("Preset velicina je spremljen.", "success");
 }
 
 function workwearToggleWizardSize(size, el) {

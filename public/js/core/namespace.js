@@ -428,6 +428,12 @@
     quickAddWizardSubcategory(...args) {
       return callLegacy("workwearQuickAddWizardSubcategory", args);
     },
+    updateWizardSizePreset(...args) {
+      return callLegacy("workwearUpdateWizardSizePreset", args);
+    },
+    saveWizardSizePreset(...args) {
+      return callLegacy("workwearSaveWizardSizePreset", args);
+    },
     toggleWizardSize(...args) {
       return callLegacy("workwearToggleWizardSize", args);
     },

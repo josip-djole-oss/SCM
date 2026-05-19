@@ -8962,8 +8962,177 @@ body.account-notifications-open .account-notifications-panel {
     flex: 0 0 auto !important;
   }
 
-  #workwear-section .workwear-product-image-wrap.is-placeholder {
+#workwear-section .workwear-product-image-wrap.is-placeholder {
     min-height: 96px !important;
+  }
+}
+
+/* Store editor stability: long product lists scroll independently, while the
+   wizard keeps its stepper and save actions reachable. */
+.store-manager-card.store-modal-shell .store-modal-body,
+#workwearManagerTabProducts,
+#workwearAdminPanel,
+#workwearAdminPanel .workwear-admin-card {
+  min-height: 0;
+}
+
+#workwearAdminPanel .workwear-admin-card {
+  height: auto;
+  overflow: visible;
+}
+
+.workwear-manager-products-layout {
+  align-items: start;
+  min-height: 0;
+}
+
+.workwear-product-table-wrap {
+  max-height: min(58dvh, 640px);
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #dfe7f3;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.workwear-product-wizard {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  max-height: min(62dvh, 680px);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #dfe7f3;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+}
+
+.workwear-product-wizard .workwear-stepper {
+  flex: 0 0 auto;
+  padding: 12px 12px 8px;
+  border-bottom: 1px solid #e5edf8;
+  background: #ffffff;
+  z-index: 2;
+}
+
+.workwear-product-wizard-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px 12px;
+}
+
+.workwear-product-wizard > .workwear-cart-actions {
+  flex: 0 0 auto;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 12px;
+  border-top: 1px solid #e5edf8;
+  background: linear-gradient(180deg, rgba(248, 251, 255, 0.96), #ffffff);
+  box-shadow: 0 -10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.workwear-field-label {
+  display: block;
+  color: #344158;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.workwear-size-preset-card,
+.workwear-size-preset-builder {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #dfe7f3;
+  border-radius: 14px;
+  padding: 10px;
+  background: #f8fbff;
+}
+
+.workwear-size-checkbox-grid {
+  max-height: 220px;
+  overflow: auto;
+  padding: 2px;
+}
+
+.workwear-size-checkbox-grid .workwear-chip {
+  min-height: 42px;
+}
+
+@media (max-width: 1024px) {
+  .workwear-product-table-wrap {
+    max-height: min(34dvh, 360px);
+  }
+
+  .workwear-product-wizard {
+    position: relative;
+    top: auto;
+    max-height: min(68dvh, 680px);
+  }
+
+  .workwear-product-wizard > .workwear-cart-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (min-width: 700px) and (max-width: 1024px) {
+  .workwear-manager-products-layout {
+    grid-template-columns: minmax(0, 0.95fr) minmax(340px, 1fr) !important;
+  }
+
+  .workwear-product-table-wrap {
+    max-height: min(58dvh, 620px);
+  }
+
+  .workwear-product-wizard {
+    position: sticky;
+    top: 0;
+    max-height: min(62dvh, 680px);
+  }
+}
+
+@media (max-width: 640px) {
+  .workwear-product-table-wrap {
+    max-height: min(30dvh, 300px);
+    order: 2;
+  }
+
+  .workwear-product-wizard {
+    order: 1;
+    max-height: min(52dvh, 460px);
+    border-radius: 14px;
+  }
+
+  .workwear-product-wizard .workwear-stepper {
+    gap: 5px;
+    padding: 10px 10px 8px;
+  }
+
+  .workwear-product-wizard .workwear-stepper .btn {
+    min-width: 38px;
+    min-height: 38px;
+    padding: 0 10px;
+  }
+
+  .workwear-product-wizard-scroll {
+    padding: 10px;
+  }
+
+  .workwear-product-wizard > .workwear-cart-actions .btn {
+    flex: 1 1 120px;
   }
 }
 

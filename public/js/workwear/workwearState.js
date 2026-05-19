@@ -8,6 +8,29 @@ var STORE_CATEGORIES = {
   Ostalo: ["Torbe", "Dodaci", "Ostalo"],
 };
 var STORE_CATEGORY_CATALOG_VERSION = 1;
+var STORE_SIZE_PRESET_CATALOG_VERSION = 1;
+var STORE_DEFAULT_SIZE_PRESETS = {
+  odjeca: {
+    label: "Odjeca",
+    sizes: ["XS", "S", "M", "L", "XL", "XXL", "3XL"],
+    system: true,
+  },
+  obuca: {
+    label: "Obuca",
+    sizes: ["35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50"],
+    system: true,
+  },
+  rukavice: {
+    label: "Rukavice",
+    sizes: ["7", "8", "9", "10", "11", "12"],
+    system: true,
+  },
+  ppe: {
+    label: "Kacige/PPE",
+    sizes: ["S/M", "L/XL", "Universal"],
+    system: true,
+  },
+};
 var STORE_ROLE_OPTIONS = [
   { key: "radnik", label: "Radnik", aliases: ["worker"] },
   { key: "grupovodja", label: "Grupovodja", aliases: ["foreman"] },
@@ -146,6 +169,8 @@ function createDefaultWorkwearState() {
       },
       categoryCatalog: {},
       categoryCatalogVersion: STORE_CATEGORY_CATALOG_VERSION,
+      sizePresetCatalog: {},
+      sizePresetCatalogVersion: STORE_SIZE_PRESET_CATALOG_VERSION,
     },
     products: [],
     orders: [],
@@ -189,6 +214,8 @@ function normalizeWorkwearState(raw) {
   };
   next.settings.categoryCatalog = normalizeStoreCategoryCatalog(next.settings.categoryCatalog);
   next.settings.categoryCatalogVersion = STORE_CATEGORY_CATALOG_VERSION;
+  next.settings.sizePresetCatalog = normalizeStoreSizePresetCatalog(next.settings.sizePresetCatalog);
+  next.settings.sizePresetCatalogVersion = STORE_SIZE_PRESET_CATALOG_VERSION;
   next.products = Array.isArray(raw?.products) ? raw.products : [];
   next.orders = Array.isArray(raw?.orders) ? raw.orders : [];
   next.carts = raw?.carts && typeof raw.carts === "object" ? raw.carts : {};
@@ -255,6 +282,64 @@ function normalizeStoreCategoryCatalog(rawCatalog) {
   return next;
 }
 
+function normalizeStoreSizePresetKey(label) {
+  const normalized = String(label || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || `preset_${Date.now().toString(36)}`;
+}
+
+function normalizeStoreSizePresetSizes(value) {
+  const source = Array.isArray(value)
+    ? value
+    : String(value || "").split(/[\n,;]+/);
+  const sizes = source
+    .map((entry) => String(entry || "").trim())
+    .filter(Boolean);
+  return Array.from(new Set(sizes));
+}
+
+function cloneStoreSizePreset(entry) {
+  return {
+    label: String(entry?.label || "").trim(),
+    sizes: normalizeStoreSizePresetSizes(entry?.sizes || []),
+    active: entry?.active !== false,
+    system: entry?.system === true,
+  };
+}
+
+function normalizeStoreSizePresetCatalog(rawCatalog) {
+  const incoming = rawCatalog && typeof rawCatalog === "object" ? rawCatalog : {};
+  const next = {};
+  Object.keys(STORE_DEFAULT_SIZE_PRESETS).forEach((key) => {
+    next[key] = cloneStoreSizePreset(STORE_DEFAULT_SIZE_PRESETS[key]);
+  });
+  Object.keys(incoming).forEach((key) => {
+    const presetKey = normalizeStoreSizePresetKey(key);
+    const rawEntry = incoming[key];
+    const entry = Array.isArray(rawEntry)
+      ? { label: key, sizes: rawEntry }
+      : rawEntry && typeof rawEntry === "object"
+        ? rawEntry
+        : null;
+    if (!entry) return;
+    const label = String(entry.label || key).trim();
+    const sizes = normalizeStoreSizePresetSizes(entry.sizes || []);
+    if (!label || !sizes.length) return;
+    next[presetKey] = {
+      label,
+      sizes,
+      active: entry.active !== false,
+      system: next[presetKey]?.system === true || entry.system === true,
+    };
+  });
+  return next;
+}
+
 function getStoreCategoryCatalogState() {
   const state = getWorkwearState();
   const next = normalizeStoreCategoryCatalog(state.settings?.categoryCatalog || {});
@@ -262,6 +347,55 @@ function getStoreCategoryCatalogState() {
   state.settings.categoryCatalog = next;
   state.settings.categoryCatalogVersion = STORE_CATEGORY_CATALOG_VERSION;
   return next;
+}
+
+function getStoreSizePresetCatalogState() {
+  const state = getWorkwearState();
+  const next = normalizeStoreSizePresetCatalog(state.settings?.sizePresetCatalog || {});
+  state.settings = state.settings || {};
+  state.settings.sizePresetCatalog = next;
+  state.settings.sizePresetCatalogVersion = STORE_SIZE_PRESET_CATALOG_VERSION;
+  return next;
+}
+
+function getStoreSizePresetOptions(includeInactive = false) {
+  const catalog = getStoreSizePresetCatalogState();
+  return Object.keys(catalog)
+    .filter((key) => (includeInactive ? true : catalog[key].active !== false))
+    .map((key) => ({
+      key,
+      label: catalog[key].label || key,
+      sizes: normalizeStoreSizePresetSizes(catalog[key].sizes || []),
+      active: catalog[key].active !== false,
+      system: catalog[key].system === true,
+    }))
+    .sort((a, b) => {
+      const aSystem = a.system ? 0 : 1;
+      const bSystem = b.system ? 0 : 1;
+      if (aSystem !== bSystem) return aSystem - bSystem;
+      return compareNaturally(a.label, b.label);
+    });
+}
+
+function getStoreSizePresetByKey(presetKey) {
+  const key = normalizeStoreSizePresetKey(presetKey);
+  const catalog = getStoreSizePresetCatalogState();
+  return catalog[key] ? { key, ...cloneStoreSizePreset(catalog[key]) } : null;
+}
+
+function ensureStoreSizePreset(label, sizes) {
+  const presetLabel = String(label || "").trim();
+  const presetSizes = normalizeStoreSizePresetSizes(sizes || []);
+  if (!presetLabel || !presetSizes.length) return "";
+  const key = normalizeStoreSizePresetKey(presetLabel);
+  const catalog = getStoreSizePresetCatalogState();
+  catalog[key] = {
+    label: presetLabel,
+    sizes: presetSizes,
+    active: true,
+    system: catalog[key]?.system === true,
+  };
+  return key;
 }
 
 function loadWorkwearState(site = currentSite) {
