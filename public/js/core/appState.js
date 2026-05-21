@@ -170,13 +170,24 @@ function createEmptyPlannerData() {
 
 function normalizePlannerData(planner = {}, site = currentSite) {
   const source = planner && typeof planner === "object" ? planner : {};
+  const sourceDaily = source.dailyData && typeof source.dailyData === "object" ? source.dailyData : {};
+  const dailyData = Object.entries(sourceDaily).reduce((result, [date, day]) => {
+    const entry = day && typeof day === "object" ? { ...day } : {};
+    entry.planningRows = Array.isArray(entry.planningRows)
+      ? entry.planningRows.map((row, index) =>
+          typeof ensurePlannerRowIdentity === "function" ? ensurePlannerRowIdentity(row, date, index) : row,
+        )
+      : [];
+    result[date] = entry;
+    return result;
+  }, {});
   return {
     workers: Array.isArray(source.workers) ? source.workers : [],
     lifts: Array.isArray(source.lifts) ? source.lifts : [],
     moments: Array.isArray(source.moments) ? source.moments : [],
     plans: Array.isArray(source.plans) ? source.plans : [],
     karnas: Array.isArray(source.karnas) ? source.karnas : [],
-    dailyData: source.dailyData && typeof source.dailyData === "object" ? source.dailyData : {},
+    dailyData,
     resourceHistory: normalizeResourceHistory(source.resourceHistory, site),
   };
 }

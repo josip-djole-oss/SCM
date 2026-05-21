@@ -45,6 +45,7 @@ const telemetry = {
   console: [],
 };
 const scenarios = [];
+let activeProofPages = [];
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -255,9 +256,10 @@ function watchPage(page, label) {
   });
   page.on("response", async (response) => {
     const url = response.url();
-    if (!url.includes("/api/state/module") && !url.includes("/api/state")) return;
+    const isEntityPatch = (url.includes("/api/planner/") || url.includes("/api/tidplan/")) && response.request().method() === "PATCH";
+    if (!url.includes("/api/state/module") && !url.includes("/api/state") && !isEntityPatch) return;
     const method = response.request().method();
-    if (method !== "POST") return;
+    if (method !== "POST" && method !== "PATCH") return;
     let body = {};
     try {
       body = JSON.parse(response.request().postData() || "{}");
@@ -266,7 +268,7 @@ function watchPage(page, label) {
       label,
       url: url.replace(host, ""),
       status: response.status(),
-      target: body.target || body.module || "state",
+      target: body.target || body.module || (url.includes("/api/planner/") ? "plannerRow" : url.includes("/api/tidplan/") ? "tidplanActivity" : "state"),
       payloadKeys: body.payload ? Object.keys(body.payload) : Object.keys(body.state || {}),
       time: new Date().toISOString(),
     };
@@ -274,11 +276,11 @@ function watchPage(page, label) {
       entry.errorPayload = await response.json().catch(() => ({}));
     }
     telemetry.responses.push(entry);
-    if (url.includes("/api/state/module")) {
+    if (url.includes("/api/state/module") || isEntityPatch) {
       telemetry.saves += 1;
       if (response.status() === 409) telemetry.conflicts += 1;
       if (response.status() >= 400) telemetry.rejectedSaves += 1;
-      const illegal = detectCrossModulePayload(body.target, body.payload || {});
+      const illegal = body.target ? detectCrossModulePayload(body.target, body.payload || {}) : [];
       if (illegal.length) {
         telemetry.overwriteAttempts += 1;
         if (response.status() >= 400) telemetry.preventedOverwrites += 1;
@@ -305,38 +307,64 @@ async function browserAction(page, action, marker) {
   await page.waitForFunction(() => window.syncModuleState && window.appState && window.currentSite);
   return page.evaluate(async ({ action, marker, site, date }) => {
     const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    if (typeof switchSiteFromLocal === "function") switchSiteFromLocal(site, { syncSites: false });
+    const refreshModuleVersion = async (target) => {
+      const response = await fetch("/api/state", { cache: "no-store" }).catch(() => null);
+      const body = response && response.ok ? await response.json().catch(() => ({})) : {};
+      const versions = body?.state?.moduleVersions;
+      if (!versions || typeof versions !== "object") return;
+      window.moduleStateVersions = window.moduleStateVersions && typeof window.moduleStateVersions === "object" ? window.moduleStateVersions : {};
+      if (target === "adminUsers") {
+        window.moduleStateVersions.adminUsers = versions.adminUsers || window.moduleStateVersions.adminUsers || 1;
+        return;
+      }
+      window.moduleStateVersions[target] = window.moduleStateVersions[target] && typeof window.moduleStateVersions[target] === "object" ? window.moduleStateVersions[target] : {};
+      window.moduleStateVersions[target][site] = versions[target]?.[site] || window.moduleStateVersions[target][site] || 1;
+    };
+    const refreshPlannerFromServer = async () => {
+      const response = await fetch("/api/state", { cache: "no-store" }).catch(() => null);
+      const body = response && response.ok ? await response.json().catch(() => ({})) : {};
+      const planner = body?.state?.siteData?.[site]?.planner;
+      if (planner && typeof planner === "object") {
+        localStorage.setItem(getSiteStorageKey("cmax_planner_data", site), JSON.stringify(planner));
+      }
+    };
     await sleep(20);
-    if (action === "planner") {
+    if (action === "planner" || action === "plannerAlt") {
+      const rowIndex = action === "plannerAlt" ? 1 : 0;
+      await refreshPlannerFromServer();
       const planner = getCachedStorageJson(getSiteStorageKey("cmax_planner_data", site), createEmptyPlannerData()) || createEmptyPlannerData();
       planner.dailyData = planner.dailyData || {};
       planner.dailyData[date] = planner.dailyData[date] || { planningRows: [], workerAttendance: {}, liftAvailability: {}, liftPlans: {} };
       const rows = planner.dailyData[date].planningRows || [];
-      rows[0] = { ...(rows[0] || {}), worker: rows[0]?.worker || "Worker 1", plan: rows[0]?.plan || "Plan 1", komentar: marker };
+      rows[rowIndex] = ensurePlannerRowIdentity({ ...(rows[rowIndex] || {}), worker: rows[rowIndex]?.worker || `Worker ${rowIndex + 1}`, plan: rows[rowIndex]?.plan || `Plan ${rowIndex + 1}`, komentar: marker }, date, rowIndex);
       planner.dailyData[date].planningRows = rows;
       localStorage.setItem(getSiteStorageKey("cmax_planner_data", site), JSON.stringify(planner));
       window.plannerData = planner;
-      return syncModuleState("planner", { planner }, { siteId: site });
+      return patchPlannerRow(date, rows[rowIndex], { komentar: marker }, { siteId: site, baseFieldVersions: rows[rowIndex].fieldVersions || {} });
     }
     if (action === "plannerRowSame") {
+      await refreshPlannerFromServer();
       const planner = getCachedStorageJson(getSiteStorageKey("cmax_planner_data", site), createEmptyPlannerData()) || createEmptyPlannerData();
       planner.dailyData = planner.dailyData || {};
       planner.dailyData[date] = planner.dailyData[date] || { planningRows: [], workerAttendance: {}, liftAvailability: {}, liftPlans: {} };
       const rows = planner.dailyData[date].planningRows || [];
-      rows[0] = { ...(rows[0] || {}), worker: rows[0]?.worker || "Worker 1", plan: rows[0]?.plan || "Plan 1", komentar: marker };
+      rows[0] = ensurePlannerRowIdentity({ ...(rows[0] || {}), worker: rows[0]?.worker || "Worker 1", plan: rows[0]?.plan || "Plan 1", komentar: marker }, date, 0);
       planner.dailyData[date].planningRows = rows;
       localStorage.setItem(getSiteStorageKey("cmax_planner_data", site), JSON.stringify(planner));
-      return syncModuleState("planner", { planner }, { siteId: site });
+      return patchPlannerRow(date, rows[0], { komentar: marker }, { siteId: site, baseFieldVersions: rows[0].fieldVersions || {} });
     }
     if (action === "tidplanA" || action === "tidplanB") {
       const offset = action === "tidplanA" ? 0 : 14;
       window.tidplanData = Array.isArray(window.tidplanData) && window.tidplanData.length ? window.tidplanData : [];
+      const patches = [];
       for (let index = offset; index < Math.min(offset + 5, window.tidplanData.length); index += 1) {
-        window.tidplanData[index] = { ...(window.tidplanData[index] || {}), komentar: `${marker}-row-${index + 1}` };
+        window.tidplanData[index] = ensureTidplanActivityIdentity({ ...(window.tidplanData[index] || {}), komentar: `${marker}-row-${index + 1}` }, index);
+        patches.push(patchTidplanActivity(window.tidplanData[index], { komentar: window.tidplanData[index].komentar }, { siteId: site, baseFieldVersions: window.tidplanData[index].fieldVersions || {} }));
       }
-      return syncModuleState("tidplan", { tidplan: window.tidplanData, tidplanZones: window.tidplanZones || [] }, { siteId: site });
+      return Promise.all(patches).then(() => true);
     }
     if (action === "warehouse") {
+      await refreshModuleVersion("warehouse");
       window.warehouseData = normalizeWarehouseData(window.warehouseData);
       const stock = window.warehouseData.stock["itm-helmet"] || { current: 0, totalIssued: 0, totalReceived: 0 };
       stock.current += 1;
@@ -348,6 +376,7 @@ async function browserAction(page, action, marker) {
       return syncModuleState("warehouse", { warehouse: window.warehouseData }, { siteId: site });
     }
     if (action === "store") {
+      await refreshModuleVersion("storeCatalog");
       const state = getWorkwearState(site);
       state.products = Array.isArray(state.products) ? state.products : [];
       state.products.push(normalizeStoreProduct({
@@ -367,6 +396,7 @@ async function browserAction(page, action, marker) {
       return syncModuleState("storeCatalog", { store: state }, { siteId: site });
     }
     if (action === "adminUsers") {
+      await refreshModuleVersion("adminUsers");
       const admins = getAdmins();
       const email = `admin-${String(marker).toLowerCase().replace(/[^a-z0-9]+/g, "-")}@cmax.test`;
       admins.push({
@@ -415,6 +445,9 @@ function assertStateContains(state, checks) {
 }
 
 async function recordScenario(name, fn) {
+  if (activeProofPages.length) {
+    await Promise.all(activeProofPages.map((page) => page.evaluate(() => true).catch(() => {})));
+  }
   const startConflicts = telemetry.conflicts;
   const startSaves = telemetry.saves;
   const startRejected = telemetry.rejectedSaves;
@@ -437,11 +470,21 @@ async function recordScenario(name, fn) {
   entry.rejectedSaves = telemetry.rejectedSaves - startRejected;
   if (entry.status === "PASS" && entry.conflicts > 0) {
     entry.status = "MINOR";
+    const recentConflicts = telemetry.responses.slice(-Math.max(12, entry.saves + 4)).filter((item) => item.status === 409);
+    const allEntityConflicts = recentConflicts.length > 0 && recentConflicts.every((item) => item.errorPayload?.error === "ENTITY_VERSION_CONFLICT");
     entry.problems.push({
-      problem: `${entry.conflicts} same-module stale conflict(s) occurred during this scenario.`,
-      cause: "Phase 1 uses moduleVersion per module/site; concurrent saves inside the same module can still conflict.",
-      risk: "User may need to refresh/retry when two users edit the same module in parallel, but cross-module overwrite was not observed.",
-      fix: "Phase 2 entity/row-level merge for Planner/Tidplan and entity endpoints for Store/Warehouse.",
+      problem: allEntityConflicts
+        ? `${entry.conflicts} entity-level conflict(s) occurred on the same row/activity/field.`
+        : `${entry.conflicts} same-module stale conflict(s) occurred during this scenario.`,
+      cause: allEntityConflicts
+        ? "Two browser profiles edited the same entity field from the same base value."
+        : "A module-scoped save target still uses moduleVersion instead of entity-level merge.",
+      risk: allEntityConflicts
+        ? "This is expected protection: the server rejected only the conflicting entity, not another module."
+        : "User may need to refresh/retry when two users edit the same module in parallel, but cross-module overwrite was not observed.",
+      fix: allEntityConflicts
+        ? "Add a richer compare UI with Keep mine / Use server / Refresh row."
+        : "Move remaining noisy module save targets to entity endpoints where needed.",
     });
   }
   if (entry.status === "PASS" && entry.rejectedSaves > entry.conflicts) {
@@ -552,6 +595,7 @@ async function main() {
       watchPage(pages[key], key);
       await login(pages[key], key);
     }
+    activeProofPages = Object.values(pages);
 
     await recordScenario("TEST 1 - Planner + Warehouse + Store, real multi-user work", async (entry) => {
       await Promise.all([openModule(pages.A, "planner"), openModule(pages.B, "warehouse"), openModule(pages.C, "store")]);
@@ -602,14 +646,14 @@ async function main() {
       await Promise.all([openModule(pages.A, "store"), openModule(pages.B, "planner"), openModule(pages.C, "admin")]);
       await Promise.all([
         runForDuration(pages.A, "store", "store-test3", DURATIONS.test3, 10000),
-        runForDuration(pages.B, "planner", "planner-test3", DURATIONS.test3, 9000),
+        runForDuration(pages.B, "plannerAlt", "planner-test3", DURATIONS.test3, 9000),
         runForDuration(pages.C, "adminUsers", "admin-test3", DURATIONS.test3, 12000),
       ]);
       entry.screenshots.push(await screenshot(pages.C, "test3-user-c-admin-end"));
       const state = await fetchState(pages.A);
       const failures = assertStateContains(state, [
         { name: "store product", pass: (s) => s.siteData[SITE].store.products.some((product) => String(product.name).includes("store-test3")) },
-        { name: "planner marker", pass: (s) => String(s.siteData[SITE].planner.dailyData[DATE].planningRows[0].komentar).includes("planner-test3") },
+        { name: "planner marker", pass: (s) => String(s.siteData[SITE].planner.dailyData[DATE].planningRows[1]?.komentar || "").includes("planner-test3") },
         { name: "siteData preserved", pass: (s) => Boolean(s.siteData[SITE].warehouse && s.siteData[SITE].tidplan) },
       ]);
       if (failures.length) throw new Error(`Lost data after TEST 3: ${failures.join(", ")}`);
@@ -624,13 +668,17 @@ async function main() {
       ]);
       entry.screenshots.push(await screenshot(pages.A, "test4-same-planner-row"));
       if (telemetry.conflicts > startConflicts) {
-        entry.status = "MAJOR";
-        entry.problems.push({
-          problem: "Same Planner row returns a module-level conflict, not a row-level compare/merge conflict.",
-          cause: "Phase 1 uses moduleVersion for planner/site; entity/row versioning is not implemented yet.",
-          risk: "Two users editing different Planner rows close together can still need a module refresh until Phase 2 row merge is added.",
-          fix: "Phase 2: add stable row IDs, row versions, changed-row payloads, and row-level conflict UI.",
-        });
+        const recent = telemetry.responses.slice(-6).filter((item) => item.status === 409);
+        const entityConflict = recent.some((item) => item.errorPayload?.error === "ENTITY_VERSION_CONFLICT" && item.target === "plannerRow");
+        if (!entityConflict) {
+          entry.status = "MAJOR";
+          entry.problems.push({
+            problem: "Same Planner row did not return an entity-scoped conflict.",
+            cause: "Expected Planner row PATCH to return ENTITY_VERSION_CONFLICT.",
+            risk: "Conflict UI could still be global/module-scoped.",
+            fix: "Ensure Planner row edits use PATCH /api/planner/:site/:date/rows/:rowId.",
+          });
+        }
       }
     });
 

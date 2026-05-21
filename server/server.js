@@ -3669,6 +3669,106 @@ function rejectUnexpectedModulePayloadKeys(target, payload) {
   return keys.filter((key) => !allowed.has(key));
 }
 
+function getEntityConflictError({ entityType, entityId, conflicts, serverEntity }) {
+  const error = new Error('ENTITY_VERSION_CONFLICT');
+  error.statusCode = 409;
+  error.code = 'ENTITY_VERSION_CONFLICT';
+  error.entityType = entityType;
+  error.entityId = entityId;
+  error.conflicts = conflicts;
+  error.serverEntity = serverEntity;
+  return error;
+}
+
+function normalizeVersionedEntity(row, fallbackId, actorEmail = '') {
+  const source = row && typeof row === 'object' ? row : {};
+  const now = new Date().toISOString();
+  const fieldVersions = source.fieldVersions && typeof source.fieldVersions === 'object' && !Array.isArray(source.fieldVersions)
+    ? { ...source.fieldVersions }
+    : {};
+  const version = Math.max(1, Number(source.rowVersion || source.activityVersion || source.version || 1));
+  return {
+    ...source,
+    id: sanitizeString(source.id || fallbackId, 140) || fallbackId,
+    updatedAt: sanitizeString(source.updatedAt || now, 80),
+    updatedBy: sanitizeString(source.updatedBy || actorEmail || '', 160),
+    rowVersion: Math.max(1, Number(source.rowVersion || version)),
+    activityVersion: Math.max(1, Number(source.activityVersion || version)),
+    fieldVersions,
+  };
+}
+
+function normalizePlannerRowsForDate(rows, site, date, actorEmail = '') {
+  return (Array.isArray(rows) ? rows : []).map((row, index) =>
+    normalizeVersionedEntity(row, `planner_row_${String(date || 'date').replace(/[^a-zA-Z0-9]+/g, '_')}_${index + 1}`, actorEmail));
+}
+
+function normalizePlannerDocumentForEntityMerge(planner, site, actorEmail = '') {
+  const source = planner && typeof planner === 'object' ? planner : {};
+  const dailyData = source.dailyData && typeof source.dailyData === 'object' ? source.dailyData : {};
+  const nextDaily = {};
+  Object.entries(dailyData).forEach(([date, day]) => {
+    const entry = day && typeof day === 'object' ? { ...day } : {};
+    entry.planningRows = normalizePlannerRowsForDate(entry.planningRows, site, date, actorEmail);
+    nextDaily[date] = entry;
+  });
+  return { ...source, dailyData: nextDaily };
+}
+
+function normalizeTidplanActivitiesForEntityMerge(tidplan, site, actorEmail = '') {
+  return (Array.isArray(tidplan) ? tidplan : []).map((activity, index) =>
+    normalizeVersionedEntity(activity, `tidplan_activity_${index + 1}`, actorEmail));
+}
+
+function sanitizeChangedFields(fields) {
+  const source = fields && typeof fields === 'object' && !Array.isArray(fields) ? fields : {};
+  const blocked = new Set(['id', 'rowVersion', 'activityVersion', 'version', 'updatedAt', 'updatedBy', 'fieldVersions']);
+  const next = {};
+  Object.entries(source).forEach(([key, value]) => {
+    const cleanKey = sanitizeString(key, 80);
+    if (!cleanKey || blocked.has(cleanKey)) return;
+    next[cleanKey] = value;
+  });
+  return sanitizeObject(next);
+}
+
+function mergeEntityFields(entity, changedFields, baseFieldVersions, actorEmail, versionKey) {
+  const now = new Date().toISOString();
+  const next = { ...entity };
+  const fieldVersions = entity.fieldVersions && typeof entity.fieldVersions === 'object' && !Array.isArray(entity.fieldVersions)
+    ? { ...entity.fieldVersions }
+    : {};
+  const baseVersions = baseFieldVersions && typeof baseFieldVersions === 'object' && !Array.isArray(baseFieldVersions)
+    ? baseFieldVersions
+    : {};
+  const conflicts = [];
+  Object.entries(changedFields).forEach(([field, value]) => {
+    const serverFieldVersion = Math.max(0, Number(fieldVersions[field] || 0));
+    const submittedFieldVersion = Math.max(0, Number(baseVersions[field] || 0));
+    if (serverFieldVersion > submittedFieldVersion) {
+      conflicts.push({
+        field,
+        serverValue: entity[field],
+        clientValue: value,
+        serverFieldVersion,
+        submittedFieldVersion,
+      });
+      return;
+    }
+    next[field] = value;
+    fieldVersions[field] = serverFieldVersion + 1;
+  });
+  if (conflicts.length) return { conflicts, entity };
+  const currentVersion = Math.max(1, Number(entity[versionKey] || entity.rowVersion || entity.activityVersion || 1));
+  next[versionKey] = currentVersion + 1;
+  if (versionKey === 'rowVersion') next.activityVersion = Math.max(1, Number(next.activityVersion || next[versionKey]));
+  if (versionKey === 'activityVersion') next.rowVersion = Math.max(1, Number(next.rowVersion || next[versionKey]));
+  next.updatedAt = now;
+  next.updatedBy = actorEmail;
+  next.fieldVersions = fieldVersions;
+  return { conflicts: [], entity: next };
+}
+
 function canWriteTidplanState(session) {
   return canWriteStateField(session, 'canManageTidplan') ||
     canWriteStateField(session, 'canAddTidplanActivity') ||
@@ -5435,7 +5535,11 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
             error.statusCode = 400;
             throw error;
           }
-          entry.planner = mergePlannerStateForSession(previousEntry.planner, payload.planner, req.session);
+          entry.planner = normalizePlannerDocumentForEntityMerge(
+            mergePlannerStateForSession(previousEntry.planner, payload.planner, req.session),
+            site,
+            req.session.email,
+          );
           mirrorPlannerListsToSiteEntry(entry);
         } else if (target === 'tidplan') {
           if (!canWriteTidplanState(req.session)) {
@@ -5444,7 +5548,7 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
             throw error;
           }
           if (Array.isArray(payload.tidplan) && canWriteStateField(req.session, 'canManageTidplan')) {
-            entry.tidplan = payload.tidplan;
+            entry.tidplan = normalizeTidplanActivitiesForEntityMerge(payload.tidplan, site, req.session.email);
           }
           if (Array.isArray(payload.tidplanZones) && canWriteStateField(req.session, 'canManageTidplanZones')) {
             entry.tidplanZones = payload.tidplanZones;
@@ -5528,6 +5632,131 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
     }
     if (error.statusCode) {
       return res.status(error.statusCode).json({ error: error.message, details: error.details || undefined });
+    }
+    next(error);
+  }
+});
+
+apiRouter.patch('/planner/:siteId/:date/rows/:rowId', requireAdmin, async (req, res, next) => {
+  const site = sanitizeString(req.params.siteId || req.session.currentSite || 'default', 80) || 'default';
+  const date = sanitizeString(req.params.date || '', 40);
+  const rowId = sanitizeString(req.params.rowId || '', 140);
+  try {
+    if (!date || !rowId) return res.status(400).json({ error: 'INVALID_PLANNER_ROW_TARGET' });
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    if (req.session.isReadonly || !canWriteStateField(req.session, 'canAccessPlanner')) {
+      return res.status(403).json({ error: 'FORBIDDEN_PLANNER_ROW_SAVE' });
+    }
+    const changedFields = sanitizeChangedFields(req.body?.changedFields || req.body?.fields || {});
+    if (!Object.keys(changedFields).length) return res.status(400).json({ error: 'NO_PLANNER_ROW_CHANGES' });
+    const baseFieldVersions = req.body?.baseFieldVersions || {};
+    let savedRow = null;
+    const savedDocument = await mutateVersionedJsonFile(stateFile, null, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : { version: 2, sites: [site], siteData: {} };
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      const previousEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
+      const entry = { ...previousEntry };
+      const planner = normalizePlannerDocumentForEntityMerge(entry.planner || {}, site, req.session.email);
+      planner.dailyData = planner.dailyData && typeof planner.dailyData === 'object' ? { ...planner.dailyData } : {};
+      const day = planner.dailyData[date] && typeof planner.dailyData[date] === 'object'
+        ? { ...planner.dailyData[date] }
+        : { planningRows: [], workerAttendance: {}, liftAvailability: {}, liftPlans: {} };
+      const rows = normalizePlannerRowsForDate(day.planningRows, site, date, req.session.email);
+      let rowIndex = rows.findIndex((row) => row.id === rowId);
+      if (rowIndex < 0) {
+        rows.push(normalizeVersionedEntity({ id: rowId }, rowId, req.session.email));
+        rowIndex = rows.length - 1;
+      }
+      const merged = mergeEntityFields(rows[rowIndex], changedFields, baseFieldVersions, req.session.email, 'rowVersion');
+      if (merged.conflicts.length) {
+        throw getEntityConflictError({
+          entityType: 'plannerRow',
+          entityId: rowId,
+          conflicts: merged.conflicts,
+          serverEntity: rows[rowIndex],
+        });
+      }
+      rows[rowIndex] = merged.entity;
+      savedRow = merged.entity;
+      day.planningRows = rows;
+      planner.dailyData[date] = day;
+      entry.planner = planner;
+      mirrorPlannerListsToSiteEntry(entry);
+      nextState.siteData[site] = entry;
+      nextState.version = Number(nextState.version || 1) + 1;
+      nextState.updatedAt = new Date().toISOString();
+      return nextState;
+    });
+    await logActivity(req.session.email, 'planner_row_saved', { site, date, rowId, fields: Object.keys(changedFields) });
+    res.json({ ok: true, version: savedDocument.version, row: savedRow });
+  } catch (error) {
+    if (error?.code === 'ENTITY_VERSION_CONFLICT') {
+      await logActivity(req.session.email, 'planner_row_conflict', { site, date, rowId, conflicts: error.conflicts });
+      return res.status(409).json({
+        error: 'ENTITY_VERSION_CONFLICT',
+        entityType: error.entityType,
+        entityId: error.entityId,
+        conflicts: error.conflicts,
+        serverEntity: error.serverEntity,
+      });
+    }
+    next(error);
+  }
+});
+
+apiRouter.patch('/tidplan/:siteId/activities/:activityId', requireAdmin, async (req, res, next) => {
+  const site = sanitizeString(req.params.siteId || req.session.currentSite || 'default', 80) || 'default';
+  const activityId = sanitizeString(req.params.activityId || '', 140);
+  try {
+    if (!activityId) return res.status(400).json({ error: 'INVALID_TIDPLAN_ACTIVITY_TARGET' });
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    if (req.session.isReadonly || !canWriteTidplanState(req.session)) {
+      return res.status(403).json({ error: 'FORBIDDEN_TIDPLAN_ACTIVITY_SAVE' });
+    }
+    const changedFields = sanitizeChangedFields(req.body?.changedFields || req.body?.fields || {});
+    if (!Object.keys(changedFields).length) return res.status(400).json({ error: 'NO_TIDPLAN_ACTIVITY_CHANGES' });
+    const baseFieldVersions = req.body?.baseFieldVersions || {};
+    let savedActivity = null;
+    const savedDocument = await mutateVersionedJsonFile(stateFile, null, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : { version: 2, sites: [site], siteData: {} };
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      const previousEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
+      const entry = { ...previousEntry };
+      const activities = normalizeTidplanActivitiesForEntityMerge(entry.tidplan || [], site, req.session.email);
+      let activityIndex = activities.findIndex((activity) => activity.id === activityId);
+      if (activityIndex < 0) {
+        activities.push(normalizeVersionedEntity({ id: activityId }, activityId, req.session.email));
+        activityIndex = activities.length - 1;
+      }
+      const merged = mergeEntityFields(activities[activityIndex], changedFields, baseFieldVersions, req.session.email, 'activityVersion');
+      if (merged.conflicts.length) {
+        throw getEntityConflictError({
+          entityType: 'tidplanActivity',
+          entityId: activityId,
+          conflicts: merged.conflicts,
+          serverEntity: activities[activityIndex],
+        });
+      }
+      activities[activityIndex] = merged.entity;
+      savedActivity = merged.entity;
+      entry.tidplan = activities;
+      nextState.siteData[site] = entry;
+      nextState.version = Number(nextState.version || 1) + 1;
+      nextState.updatedAt = new Date().toISOString();
+      return nextState;
+    });
+    await logActivity(req.session.email, 'tidplan_activity_saved', { site, activityId, fields: Object.keys(changedFields) });
+    res.json({ ok: true, version: savedDocument.version, activity: savedActivity });
+  } catch (error) {
+    if (error?.code === 'ENTITY_VERSION_CONFLICT') {
+      await logActivity(req.session.email, 'tidplan_activity_conflict', { site, activityId, conflicts: error.conflicts });
+      return res.status(409).json({
+        error: 'ENTITY_VERSION_CONFLICT',
+        entityType: error.entityType,
+        entityId: error.entityId,
+        conflicts: error.conflicts,
+        serverEntity: error.serverEntity,
+      });
     }
     next(error);
   }

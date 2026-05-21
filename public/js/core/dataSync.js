@@ -315,7 +315,7 @@ function normalizeDailyDataForSave(dailyData = {}) {
     }
     result[date] = {
       ...entry,
-      planningRows,
+      planningRows: planningRows.map((row, index) => ensurePlannerRowIdentity(row, date, index)),
       workerAttendance,
       liftAvailability,
       liftPlans,
@@ -348,6 +348,39 @@ function persistCurrentStateToLocalStorage() {
   );
   setCachedStorageJson(GUEST_PERMISSIONS_KEY, appState.guestPermissions || getGuestPermissions());
   CMAX_PERF?.count?.("persistCurrentStateToLocalStorage");
+}
+
+function makeClientEntityId(prefix = "entity") {
+  const random = Math.random().toString(36).slice(2, 10);
+  return `${prefix}_${Date.now().toString(36)}_${random}`;
+}
+
+function ensurePlannerRowIdentity(row, date = appState.currentDate, index = 0) {
+  const source = row && typeof row === "object" ? row : {};
+  const now = new Date().toISOString();
+  const id = source.id || `planner_row_${String(date || "date").replace(/[^a-zA-Z0-9]+/g, "_")}_${index + 1}`;
+  return {
+    ...source,
+    id,
+    rowVersion: Math.max(1, Number(source.rowVersion || 1)),
+    updatedAt: source.updatedAt || now,
+    updatedBy: source.updatedBy || appState.currentUser || "",
+    fieldVersions: source.fieldVersions && typeof source.fieldVersions === "object" ? source.fieldVersions : {},
+  };
+}
+
+function ensureTidplanActivityIdentity(activity, index = 0) {
+  const source = activity && typeof activity === "object" ? activity : {};
+  const now = new Date().toISOString();
+  const id = source.id || `tidplan_activity_${index + 1}`;
+  return {
+    ...source,
+    id,
+    activityVersion: Math.max(1, Number(source.activityVersion || 1)),
+    updatedAt: source.updatedAt || now,
+    updatedBy: source.updatedBy || appState.currentUser || "",
+    fieldVersions: source.fieldVersions && typeof source.fieldVersions === "object" ? source.fieldVersions : {},
+  };
 }
 
 function mergePlannerSnapshot(localPlanner, serverPlanner, site = currentSite) {
@@ -794,6 +827,96 @@ function syncModuleState(target, payload = null, options = {}) {
       delete moduleSyncInFlight[key];
     });
   return moduleSyncInFlight[key];
+}
+
+function showEntityConflictNotice(errorPayload, fallbackMessage = "Ovaj red je promijenjen na drugom uredjaju.") {
+  const conflicts = Array.isArray(errorPayload?.conflicts) ? errorPayload.conflicts : [];
+  const first = conflicts[0];
+  const detail = first
+    ? `${fallbackMessage} Polje: ${first.field}. Server: "${first.serverValue ?? ""}", moje: "${first.clientValue ?? ""}".`
+    : fallbackMessage;
+  if (typeof showServerConflictNotice === "function") showServerConflictNotice(detail);
+  else if (typeof showToast === "function") showToast(detail, "error");
+}
+
+function patchPlannerRow(date, row, changedFields, options = {}) {
+  if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser || !row?.id) return Promise.resolve(false);
+  const siteId = options.siteId || currentSite || "default";
+  const body = {
+    changedFields,
+    baseRowVersion: row.rowVersion || 1,
+    baseFieldVersions: options.baseFieldVersions || row.fieldVersions || {},
+  };
+  return fetch(`/api/planner/${encodeURIComponent(siteId)}/${encodeURIComponent(date)}/rows/${encodeURIComponent(row.id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+    .then((res) =>
+      res.ok
+        ? res.json().catch(() => ({}))
+        : res.json().catch(() => ({})).then((payload) => {
+            const error = new Error(payload?.error || "PLANNER_ROW_SAVE_FAILED");
+            error.status = res.status;
+            error.payload = payload;
+            throw error;
+          }),
+    )
+    .then((payload) => {
+      if (payload?.row) {
+        Object.assign(row, payload.row);
+        persistCurrentStateToLocalStorage();
+      }
+      return true;
+    })
+    .catch((error) => {
+      if (error?.payload?.error === "ENTITY_VERSION_CONFLICT") {
+        showEntityConflictNotice(error.payload, "Planner red je promijenjen na drugom uredjaju.");
+        return false;
+      }
+      console.error("Planner row save failed:", error);
+      return false;
+    });
+}
+
+function patchTidplanActivity(activity, changedFields, options = {}) {
+  if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser || !activity?.id) return Promise.resolve(false);
+  const siteId = options.siteId || currentSite || "default";
+  const body = {
+    changedFields,
+    baseActivityVersion: activity.activityVersion || 1,
+    baseFieldVersions: options.baseFieldVersions || activity.fieldVersions || {},
+  };
+  return fetch(`/api/tidplan/${encodeURIComponent(siteId)}/activities/${encodeURIComponent(activity.id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+    .then((res) =>
+      res.ok
+        ? res.json().catch(() => ({}))
+        : res.json().catch(() => ({})).then((payload) => {
+            const error = new Error(payload?.error || "TIDPLAN_ACTIVITY_SAVE_FAILED");
+            error.status = res.status;
+            error.payload = payload;
+            throw error;
+          }),
+    )
+    .then((payload) => {
+      if (payload?.activity) {
+        Object.assign(activity, payload.activity);
+        localStorage.setItem(getStorageKey("tidplan"), JSON.stringify((tidplanData || []).map((item, index) => ensureTidplanActivityIdentity(item, index))));
+      }
+      return true;
+    })
+    .catch((error) => {
+      if (error?.payload?.error === "ENTITY_VERSION_CONFLICT") {
+        showEntityConflictNotice(error.payload, "Tidplan aktivnost je promijenjena na drugom uredjaju.");
+        return false;
+      }
+      console.error("Tidplan activity save failed:", error);
+      return false;
+    });
 }
 
 function scheduleModuleSync(target, delay = 600, payload = null, options = {}) {

@@ -228,7 +228,7 @@ function addPlanningRow() {
   if (appState.isReadonly || !appState.isAdmin || !canEditDate(appState.currentDate)) return;
   const dayData = getCurrentDayData();
   trackLocalEditKey(makePlannerEditKey(appState.currentDate, "rows", "count"));
-  dayData.planningRows.push({});
+  dayData.planningRows.push(ensurePlannerRowIdentity({ id: makeClientEntityId("planner_row") }, appState.currentDate, dayData.planningRows.length));
   saveData();
   markDirty();
   renderPlanningTable();
@@ -391,8 +391,11 @@ function handlePlanningCellChange(rowIndex, fieldName, value) {
   }
   const dayData = getCurrentDayData();
   trackLocalEditKey(makePlannerEditKey(appState.currentDate, "row", rowIndex, fieldName));
+  const isNewRow = rowIndex === dayData.planningRows.length;
   if (!dayData.planningRows[rowIndex])
-    dayData.planningRows[rowIndex] = {};
+    dayData.planningRows[rowIndex] = ensurePlannerRowIdentity({ id: makeClientEntityId("planner_row") }, appState.currentDate, rowIndex);
+  else
+    dayData.planningRows[rowIndex] = ensurePlannerRowIdentity(dayData.planningRows[rowIndex], appState.currentDate, rowIndex);
 
   if (
     fieldName === "m2" &&
@@ -419,12 +422,14 @@ function handlePlanningCellChange(rowIndex, fieldName, value) {
     return;
   }
 
-  dayData.planningRows[rowIndex][fieldName] = value;
-  const isNewRow = rowIndex === dayData.planningRows.length;
+  const row = dayData.planningRows[rowIndex];
+  const baseFieldVersions = { ...(row.fieldVersions || {}) };
+  row[fieldName] = value;
   if (isNewRow) {
-    dayData.planningRows.push({});
+    dayData.planningRows[rowIndex] = row;
   }
-  saveData();
+  persistCurrentStateToLocalStorage();
+  patchPlannerRow(appState.currentDate, row, { [fieldName]: value }, { baseFieldVersions }).catch(() => {});
   markDirty();
   if (isNewRow) {
     // Re-render whole planning table so a new empty row appears immediately
