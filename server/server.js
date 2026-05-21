@@ -1306,10 +1306,10 @@ function getSessionLevel(session) {
 
 function canActorManageAdmin(actorSession, targetAdmin) {
   if (!actorSession || !sessionHasPermission(actorSession, 'canManageAdmins')) return false;
-  if (actorSession.isSuperAdmin) return true;
   if (!targetAdmin) return true;
-  if (targetAdmin.isSuperAdmin) return false;
   if (targetAdmin.email === actorSession.email) return false;
+  if (actorSession.isSuperAdmin) return true;
+  if (targetAdmin.isSuperAdmin) return false;
   return (Number(targetAdmin.level) || 1) < getSessionLevel(actorSession);
 }
 
@@ -1328,9 +1328,7 @@ function assertActorCanSubmitAdminList(actorSession, existingAdmins, submittedAd
     const changed = submitted && stableJson(redactAdminRecord(existing)) !== stableJson(redactAdminRecord(submitted));
     if (!removed && !changed) continue;
     if (email === actorEmail) {
-      const error = new Error('Admins cannot modify their own admin record');
-      error.statusCode = 403;
-      throw error;
+      continue;
     }
     if (!canActorManageAdmin(actorSession, existing)) {
       const error = new Error('Cannot modify same-level, higher-level, or root admin');
