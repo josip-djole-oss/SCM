@@ -1275,7 +1275,7 @@ function saveTidplanData() {
     }, 2000);
   }
 
-  syncServerState().catch(() => {});
+  syncModuleState("tidplan", { tidplan: tidplanData || [], tidplanZones: tidplanZones || [] }).catch(() => {});
   showToast("✅ Plan je uspješno spremljen!", "success");
 }
 
@@ -1633,7 +1633,6 @@ function saveAvailablePlans() {
   appState.plans = sortNaturally([...availablePlans]);
   saveData();
   collectPlans();
-  syncServerState().catch(() => {});
 }
 
 
@@ -1684,7 +1683,6 @@ function saveAvailableMoments() {
   appState.moments = sortNaturally([...availableMoments]);
   saveData();
   collectPlans();
-  syncServerState().catch(() => {});
 }
 
 
@@ -1735,6 +1733,5 @@ function saveAvailableKarne() {
   appState.karnas = sortNaturally([...availableKarne]);
   saveData();
   collectPlans();
-  syncServerState().catch(() => {});
 }
 

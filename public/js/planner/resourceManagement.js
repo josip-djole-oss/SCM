@@ -122,7 +122,6 @@ function manageDoAdd() {
   list.push(name);
   recordResourceAdded(currentManageCategory, name, appState.currentDate);
   saveData();
-  syncServerState({ skipLog: true }).catch(() => {});
   markDirty();
   renderAll();
 
@@ -181,7 +180,6 @@ function manageRemoveItem(name) {
   recordResourceRemoved(currentManageCategory, name, appState.currentDate);
   if (idx !== -1) list.splice(idx, 1);
   saveData();
-  syncServerState({ skipLog: true }).catch(() => {});
   markDirty();
   renderAll();
 

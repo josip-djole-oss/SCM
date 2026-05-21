@@ -442,7 +442,7 @@ function saveGuestPermissions(permissions) {
   const normalized = normalizeGuestPermissions(permissions);
   localStorage.setItem(GUEST_PERMISSIONS_KEY, JSON.stringify(normalized));
   appState.guestPermissions = normalized;
-  scheduleServerSync(3000, { includeGuestPermissions: true });
+  scheduleModuleSync("adminUsers", 600, { guestPermissions: normalized });
 }
 
 function getPermissionLabel(key) {

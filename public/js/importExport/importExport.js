@@ -21,7 +21,8 @@ function markClean() {
 function saveAllData() {
   saveData();
   saveBinsData();
-  syncServerState({ showSuccess: true, markAsClean: true }).catch(() => {});
+  if (typeof markClean === "function") markClean();
+  showToast(t("dataSaved"), "success");
 }
 
 function stopAutoSave() {
@@ -36,7 +37,7 @@ function startAutoSave() {
     if (!appState.isReadonly && appState.currentUser && freshServerDataLoaded) {
       saveData();
       saveBinsData();
-      syncServerState({ markAsClean: true, skipLog: true }).catch(() => {});
+      if (typeof markClean === "function") markClean();
       console.log("Auto-saved at", new Date().toLocaleTimeString());
     }
   }, 300000); // 5 minutes

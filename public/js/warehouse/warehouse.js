@@ -48,7 +48,7 @@ function persistWarehouseData(site = currentSite) {
   const changed = setCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), warehouseData);
   if (!changed) return false;
   trackEditActivity();
-  scheduleServerSync();
+  scheduleModuleSync("warehouse", 600, { warehouse: warehouseData }, { siteId: site });
   CMAX_PERF?.count?.("persistWarehouseData");
   return true;
 }

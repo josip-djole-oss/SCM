@@ -589,6 +589,9 @@ function applyServerStateSnapshot(snapshot) {
   rememberAppliedRemoteState(snapshot, serverStateVersion);
   rememberServerStateBaseline(snapshot);
   setLastEditedMeta(snapshot);
+  moduleStateVersions = snapshot.moduleVersions && typeof snapshot.moduleVersions === "object"
+    ? JSON.parse(JSON.stringify(snapshot.moduleVersions))
+    : {};
 
   const snapshotSites =
     Array.isArray(snapshot.sites) && snapshot.sites.length
@@ -678,6 +681,131 @@ function applyServerStateSnapshot(snapshot) {
 var serverSyncTimeout = null;
 var serverStateVersion = 1;
 var serverSyncInFlight = null;
+var moduleSyncTimeouts = {};
+var moduleSyncInFlight = {};
+
+function getModuleStateVersion(target, site = currentSite) {
+  const versions = moduleStateVersions && typeof moduleStateVersions === "object" ? moduleStateVersions : {};
+  if (target === "adminUsers") return Math.max(1, Number(versions.adminUsers || 1));
+  const scoped = versions[target] && typeof versions[target] === "object" ? versions[target] : {};
+  return Math.max(1, Number(scoped[site] || 1));
+}
+
+function setModuleStateVersion(target, version, site = currentSite) {
+  const safeVersion = Math.max(1, Number(version || 1));
+  if (!moduleStateVersions || typeof moduleStateVersions !== "object") moduleStateVersions = {};
+  if (target === "adminUsers") {
+    moduleStateVersions.adminUsers = safeVersion;
+    return safeVersion;
+  }
+  if (!moduleStateVersions[target] || typeof moduleStateVersions[target] !== "object") {
+    moduleStateVersions[target] = {};
+  }
+  moduleStateVersions[target][site] = safeVersion;
+  return safeVersion;
+}
+
+function createModuleStatePayload(target) {
+  if (target === "planner") {
+    persistCurrentStateToLocalStorage();
+    return {
+      planner: getCachedStorageJson(getSiteStorageKey("cmax_planner_data", currentSite), createEmptyPlannerData()) || createEmptyPlannerData(),
+    };
+  }
+  if (target === "tidplan") {
+    return {
+      tidplan: Array.isArray(tidplanData) ? tidplanData : [],
+      tidplanZones: Array.isArray(tidplanZones) ? tidplanZones : [],
+    };
+  }
+  if (target === "warehouse") {
+    return { warehouse: normalizeWarehouseData(warehouseData) };
+  }
+  if (target === "bins") {
+    return { bins: appState.binsData || {} };
+  }
+  if (target === "storeCatalog" || target === "storeSettings") {
+    return { store: typeof getWorkwearState === "function" ? getWorkwearState(currentSite) : {} };
+  }
+  if (target === "adminUsers") {
+    return {
+      admins: getCachedStorageJson(ADMINS_KEY, []) || [],
+      guestPermissions: getCachedStorageJson(GUEST_PERMISSIONS_KEY, appState.guestPermissions || {}),
+      binPermissions: getCachedStorageJson(BIN_PERMS_KEY, appState.binPermissions || {}),
+      adminRemovalNotices: getCachedStorageJson(ADMIN_REMOVAL_NOTICES_KEY, {}),
+    };
+  }
+  return {};
+}
+
+function syncModuleState(target, payload = null, options = {}) {
+  if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser) return Promise.resolve(false);
+  const siteId = options.siteId || currentSite || "default";
+  const requestPayload = payload || createModuleStatePayload(target);
+  const baseVersion = options.baseVersion || getModuleStateVersion(target, siteId);
+  const body = {
+    target,
+    siteId,
+    baseVersion,
+    payload: requestPayload,
+  };
+  const key = target === "adminUsers" ? target : `${target}:${siteId}`;
+  if (moduleSyncInFlight[key]) {
+    return moduleSyncInFlight[key].catch(() => false).then(() => syncModuleState(target, payload, options));
+  }
+  moduleSyncInFlight[key] = fetch("/api/state/module", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+    .then((res) =>
+      res.ok
+        ? res.json().catch(() => ({}))
+        : res.json()
+            .catch(() => ({}))
+            .then((errorPayload) => {
+              const error = new Error(errorPayload?.error || "MODULE_STATE_SAVE_FAILED");
+              error.status = res.status;
+              error.payload = errorPayload;
+              throw error;
+            }),
+    )
+    .then((response) => {
+      if (response?.moduleVersion) setModuleStateVersion(target, response.moduleVersion, siteId);
+      if (response?.version) serverStateVersion = Number(response.version) || serverStateVersion || 1;
+      if (response?.admins && target === "adminUsers") {
+        localStorage.setItem(ADMINS_KEY, JSON.stringify(response.admins));
+      }
+      CMAX_PERF?.count?.("syncModuleState");
+      return true;
+    })
+    .catch((error) => {
+      if (error?.payload?.error === "MODULE_VERSION_CONFLICT") {
+        setModuleStateVersion(target, error.payload.moduleVersion, siteId);
+        if (typeof showServerConflictNotice === "function") {
+          showServerConflictNotice("Ovaj modul je promijenjen na drugom uredjaju. Osvjezi taj modul prije spremanja.");
+        }
+        return false;
+      }
+      console.error("Module sync failed:", target, error);
+      return false;
+    })
+    .finally(() => {
+      delete moduleSyncInFlight[key];
+    });
+  return moduleSyncInFlight[key];
+}
+
+function scheduleModuleSync(target, delay = 600, payload = null, options = {}) {
+  if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser) return;
+  const siteId = options.siteId || currentSite || "default";
+  const key = target === "adminUsers" ? target : `${target}:${siteId}`;
+  if (moduleSyncTimeouts[key]) clearTimeout(moduleSyncTimeouts[key]);
+  moduleSyncTimeouts[key] = setTimeout(() => {
+    delete moduleSyncTimeouts[key];
+    syncModuleState(target, payload, options).catch(() => {});
+  }, delay);
+}
 
 function stopServerSync() {
   if (serverSyncTimeout) clearTimeout(serverSyncTimeout);
@@ -819,6 +947,6 @@ function scheduleServerSync(delay = 3000, options = {}) {
 
 function saveData() {
   persistCurrentStateToLocalStorage();
-  scheduleServerSync();
+  scheduleModuleSync("planner");
 }
 

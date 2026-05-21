@@ -179,7 +179,7 @@ function submitChangePassword() {
   // Update password
   admins[userIndex].password = newPassword;
   localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-  syncServerState({ includeAdmins: true }).catch(() => {});
+  syncModuleState("adminUsers", { admins }).catch(() => {});
 
   // Log password change
   addLog("Changed password", currentUserEmail);

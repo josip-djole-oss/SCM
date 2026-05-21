@@ -33,7 +33,6 @@ function saveNotificationsForSite(site, notifications) {
       return true;
     })
     .catch(() => {
-      scheduleServerSync();
       return false;
     });
 }
@@ -621,7 +620,6 @@ function submitNotification() {
 
       return Promise.all(savePromises).then(() => {
         trackEditActivity();
-        syncServerState().catch(() => {});
         showToast(t("notificationPosted"), "success");
         resetNotificationComposer();
         if (selectedSites.includes(currentSite)) {
@@ -644,7 +642,6 @@ function deleteNotification(notificationId, site = currentSite) {
       trackEditActivity();
       showToast(t("notificationDeleted"), "success");
       renderNotificationsList();
-      syncServerState().catch(() => {});
       addLog("Obrisao obavijest", `Post ${formatNotificationId(notificationId)}`);
     });
   });

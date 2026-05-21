@@ -41,7 +41,7 @@ function saveTidplanZones() {
     getStorageKey("tidplan_zones"),
     JSON.stringify(tidplanZones),
   );
-  syncServerState().catch(() => {});
+  syncModuleState("tidplan", { tidplan: tidplanData || [], tidplanZones: tidplanZones || [] }).catch(() => {});
 }
 
 

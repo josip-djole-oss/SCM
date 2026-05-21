@@ -3595,6 +3595,82 @@ function canWriteStateField(session, permissionKey) {
   return Boolean(session?.isSuperAdmin || sessionHasPermission(session, permissionKey));
 }
 
+const MODULE_STATE_TARGETS = new Set([
+  'planner',
+  'tidplan',
+  'warehouse',
+  'bins',
+  'storeCatalog',
+  'storeSettings',
+  'adminUsers',
+]);
+
+const MODULE_STATE_ALLOWED_PAYLOAD_KEYS = {
+  planner: ['planner'],
+  tidplan: ['tidplan', 'tidplanZones'],
+  warehouse: ['warehouse'],
+  bins: ['bins'],
+  storeCatalog: ['store'],
+  storeSettings: ['store'],
+  adminUsers: ['admins', 'guestPermissions', 'binPermissions', 'adminRemovalNotices'],
+};
+
+function normalizeModuleStateTarget(value) {
+  const target = sanitizeString(value || '', 80);
+  return MODULE_STATE_TARGETS.has(target) ? target : '';
+}
+
+function getModuleVersionContainer(state, target) {
+  if (!state.moduleVersions || typeof state.moduleVersions !== 'object' || Array.isArray(state.moduleVersions)) {
+    state.moduleVersions = {};
+  }
+  if (target === 'adminUsers') {
+    state.moduleVersions.adminUsers = Math.max(1, Number(state.moduleVersions.adminUsers || 1));
+    return state.moduleVersions;
+  }
+  if (!state.moduleVersions[target] || typeof state.moduleVersions[target] !== 'object' || Array.isArray(state.moduleVersions[target])) {
+    state.moduleVersions[target] = {};
+  }
+  return state.moduleVersions[target];
+}
+
+function getModuleStateVersion(state, target, site) {
+  if (!state || typeof state !== 'object') return 1;
+  const versions = state.moduleVersions && typeof state.moduleVersions === 'object' ? state.moduleVersions : {};
+  if (target === 'adminUsers') return Math.max(1, Number(versions.adminUsers || 1));
+  const siteVersions = versions[target] && typeof versions[target] === 'object' ? versions[target] : {};
+  return Math.max(1, Number(siteVersions[site] || 1));
+}
+
+function bumpModuleStateVersion(state, target, site) {
+  const current = getModuleStateVersion(state, target, site);
+  const next = current + 1;
+  const container = getModuleVersionContainer(state, target);
+  if (target === 'adminUsers') {
+    container.adminUsers = next;
+  } else {
+    container[site] = next;
+  }
+  return next;
+}
+
+function createModuleConflictError(target, site, currentVersion, submittedVersion) {
+  const error = new Error('MODULE_VERSION_CONFLICT');
+  error.statusCode = 409;
+  error.code = 'MODULE_VERSION_CONFLICT';
+  error.target = target;
+  error.site = site || null;
+  error.currentVersion = Math.max(1, Number(currentVersion || 1));
+  error.submittedVersion = Math.max(1, Number(submittedVersion || 1));
+  return error;
+}
+
+function rejectUnexpectedModulePayloadKeys(target, payload) {
+  const allowed = new Set(MODULE_STATE_ALLOWED_PAYLOAD_KEYS[target] || []);
+  const keys = Object.keys(payload && typeof payload === 'object' && !Array.isArray(payload) ? payload : {});
+  return keys.filter((key) => !allowed.has(key));
+}
+
 function canWriteTidplanState(session) {
   return canWriteStateField(session, 'canManageTidplan') ||
     canWriteStateField(session, 'canAddTidplanActivity') ||
@@ -5275,6 +5351,186 @@ apiRouter.get('/state', async (req, res, next) => {
     const document = await getStateDocument();
     res.json(await buildPublicStatePayload(document, req.session));
   } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
+  const target = normalizeModuleStateTarget(req.body?.target);
+  const site = sanitizeString(req.body?.siteId || req.body?.site || req.session.currentSite || 'default', 80) || 'default';
+  try {
+    if (!target) return res.status(400).json({ error: 'INVALID_MODULE_TARGET' });
+    if (target !== 'adminUsers' && !canAccessSite(req.session, site)) {
+      return res.status(403).json({ error: 'Access denied to this site' });
+    }
+    if (req.session.isReadonly) {
+      return res.status(403).json({ error: 'Read-only users cannot modify state' });
+    }
+    const payload = sanitizeObject(req.body?.payload || {});
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      return res.status(400).json({ error: 'INVALID_MODULE_PAYLOAD' });
+    }
+    const unexpectedKeys = rejectUnexpectedModulePayloadKeys(target, payload);
+    if (unexpectedKeys.length) {
+      await logActivity(req.session.email, 'module_state_payload_rejected', {
+        target,
+        site: target === 'adminUsers' ? null : site,
+        unexpectedKeys,
+      });
+      return res.status(400).json({ error: 'MODULE_PAYLOAD_SCOPE_ERROR', target, unexpectedKeys });
+    }
+    const baseVersion = Number(req.body?.baseVersion || req.body?.moduleVersion || 1);
+    if (!Number.isFinite(baseVersion) || baseVersion < 1) {
+      return res.status(400).json({ error: 'INVALID_MODULE_BASE_VERSION' });
+    }
+
+    let nextModuleVersion = 1;
+    let updatedAdmins = null;
+    const savedDocument = await mutateVersionedJsonFile(stateFile, null, async (state) => {
+      const nextState = state && typeof state === 'object' ? { ...state } : { version: 2, sites: ['default'], siteData: {} };
+      nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
+      nextState.moduleVersions = nextState.moduleVersions && typeof nextState.moduleVersions === 'object'
+        ? { ...nextState.moduleVersions }
+        : {};
+      const currentModuleVersion = getModuleStateVersion(nextState, target, site);
+      if (Number(baseVersion) !== Number(currentModuleVersion)) {
+        throw createModuleConflictError(target, site, currentModuleVersion, baseVersion);
+      }
+
+      if (target === 'adminUsers') {
+        const canManageAnyAdminUserPayload =
+          canWriteStateField(req.session, 'canManageAdmins') ||
+          canWriteStateField(req.session, 'canManageGuestAccess') ||
+          canWriteStateField(req.session, 'canManageBinsPermissions');
+        if (!canManageAnyAdminUserPayload) {
+          const error = new Error('FORBIDDEN_MODULE_TARGET');
+          error.statusCode = 403;
+          throw error;
+        }
+        if (Array.isArray(payload.admins) && canWriteStateField(req.session, 'canManageAdmins')) {
+          const previousAdmins = await readAdmins();
+          updatedAdmins = await persistAdmins(payload.admins, req.session);
+          await logAdminAuditChanges(req.session.email, previousAdmins, updatedAdmins);
+          nextState.admins = updatedAdmins;
+        } else if (Array.isArray(payload.admins)) {
+          const error = new Error('FORBIDDEN_MODULE_TARGET');
+          error.statusCode = 403;
+          throw error;
+        }
+        if (payload.guestPermissions && canWriteStateField(req.session, 'canManageGuestAccess')) {
+          nextState.guestPermissions = payload.guestPermissions;
+        }
+        if (payload.binPermissions && canWriteStateField(req.session, 'canManageBinsPermissions')) {
+          nextState.binPermissions = payload.binPermissions;
+        }
+        if (payload.adminRemovalNotices && canWriteStateField(req.session, 'canManageAdmins')) {
+          nextState.adminRemovalNotices = payload.adminRemovalNotices;
+        }
+      } else {
+        const previousEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object'
+          ? nextState.siteData[site]
+          : {};
+        const entry = { ...previousEntry };
+        if (target === 'planner') {
+          if (!payload.planner || typeof payload.planner !== 'object') {
+            const error = new Error('INVALID_PLANNER_PAYLOAD');
+            error.statusCode = 400;
+            throw error;
+          }
+          entry.planner = mergePlannerStateForSession(previousEntry.planner, payload.planner, req.session);
+          mirrorPlannerListsToSiteEntry(entry);
+        } else if (target === 'tidplan') {
+          if (!canWriteTidplanState(req.session)) {
+            const error = new Error('FORBIDDEN_MODULE_TARGET');
+            error.statusCode = 403;
+            throw error;
+          }
+          if (Array.isArray(payload.tidplan) && canWriteStateField(req.session, 'canManageTidplan')) {
+            entry.tidplan = payload.tidplan;
+          }
+          if (Array.isArray(payload.tidplanZones) && canWriteStateField(req.session, 'canManageTidplanZones')) {
+            entry.tidplanZones = payload.tidplanZones;
+          }
+        } else if (target === 'warehouse') {
+          if (!canWriteStateField(req.session, 'canManageWarehouse')) {
+            const error = new Error('FORBIDDEN_MODULE_TARGET');
+            error.statusCode = 403;
+            throw error;
+          }
+          if (!payload.warehouse || typeof payload.warehouse !== 'object') {
+            const error = new Error('INVALID_WAREHOUSE_PAYLOAD');
+            error.statusCode = 400;
+            throw error;
+          }
+          entry.warehouse = payload.warehouse;
+        } else if (target === 'bins') {
+          if (!canWriteBinsState(req.session)) {
+            const error = new Error('FORBIDDEN_MODULE_TARGET');
+            error.statusCode = 403;
+            throw error;
+          }
+          if (!payload.bins || typeof payload.bins !== 'object') {
+            const error = new Error('INVALID_BINS_PAYLOAD');
+            error.statusCode = 400;
+            throw error;
+          }
+          entry.bins = payload.bins;
+        } else if (target === 'storeCatalog' || target === 'storeSettings') {
+          if (!payload.store || typeof payload.store !== 'object') {
+            const error = new Error('INVALID_STORE_PAYLOAD');
+            error.statusCode = 400;
+            throw error;
+          }
+          const mergedStoreResult = mergeStoreStateForSession(previousEntry.store, payload.store, req.session, site);
+          if (mergedStoreResult.deniedChangedFields.length > 0) {
+            const error = new Error('FORBIDDEN_STORE_MUTATION');
+            error.statusCode = 403;
+            error.details = mergedStoreResult.deniedChangedFields;
+            throw error;
+          }
+          entry.store = mergedStoreResult.store;
+        }
+        nextState.siteData[site] = entry;
+      }
+
+      nextModuleVersion = bumpModuleStateVersion(nextState, target, site);
+      applyStateEditMetadata(nextState, req.session, target);
+      return nextState;
+    });
+
+    await logActivity(req.session.email, 'module_state_saved', {
+      target,
+      site: target === 'adminUsers' ? null : site,
+      moduleVersion: nextModuleVersion,
+    });
+    res.json({
+      ok: true,
+      target,
+      site: target === 'adminUsers' ? null : site,
+      moduleVersion: nextModuleVersion,
+      version: savedDocument.version || 1,
+      updatedAt: savedDocument.updatedAt || null,
+      admins: updatedAdmins || undefined,
+    });
+  } catch (error) {
+    if (error?.code === 'MODULE_VERSION_CONFLICT' || error?.message === 'MODULE_VERSION_CONFLICT') {
+      await logActivity(req.session.email, 'module_version_conflict', {
+        target,
+        site: target === 'adminUsers' ? null : site,
+        currentVersion: error.currentVersion,
+        submittedVersion: error.submittedVersion,
+      });
+      return res.status(409).json({
+        error: 'MODULE_VERSION_CONFLICT',
+        target,
+        site: target === 'adminUsers' ? null : site,
+        moduleVersion: error.currentVersion,
+        submittedVersion: error.submittedVersion,
+      });
+    }
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message, details: error.details || undefined });
+    }
     next(error);
   }
 });

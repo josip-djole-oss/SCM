@@ -25,12 +25,14 @@ function saveBinPermissions() {
     BIN_PERMS_KEY,
     JSON.stringify(appState.binPermissions),
   );
-  scheduleServerSync(3000, { includeBinPermissions: true });
+  scheduleModuleSync("adminUsers", 600, {
+    binPermissions: appState.binPermissions || {},
+  });
 }
 
 function saveBinsData() {
   localStorage.setItem(BINS_KEY, JSON.stringify(appState.binsData));
-  scheduleServerSync();
+  scheduleModuleSync("bins", 600, { bins: appState.binsData || {} });
 }
 
 function ensureBinsDataForDate(date) {

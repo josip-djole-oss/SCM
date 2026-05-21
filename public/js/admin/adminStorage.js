@@ -65,7 +65,6 @@ function saveReports(reports) {
       })
       .catch(() => {});
   }
-  scheduleServerSync();
 }
 
 function loadReportsData(options = {}) {

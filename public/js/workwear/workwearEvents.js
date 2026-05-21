@@ -1919,7 +1919,9 @@ function workwearSaveStoreUser() {
     metadata: { roles: roleKeys, active },
   });
   workwearEditingStoreUserEmail = "";
-  return syncServerState({ includeAdmins: true, adminEditTargetEmail: email })
+  return syncModuleState("adminUsers", {
+    admins: users,
+  })
     .catch(() => {})
     .finally(() => {
       renderWorkwearUsersPanel();
@@ -2001,7 +2003,9 @@ function workwearApprovePasswordReset(requestId) {
     targetUsers: [request.userEmail],
     metadata: { requestId: request.id, status: "approved" },
   });
-  return syncServerState({ includeAdmins: true, adminEditTargetEmail: request.userEmail })
+  return syncModuleState("adminUsers", {
+    admins: users,
+  })
     .catch(() => {})
     .finally(() => {
       renderWorkwearUsersPanel();

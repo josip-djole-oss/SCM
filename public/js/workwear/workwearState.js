@@ -469,6 +469,10 @@ function saveWorkwearState(site = currentSite, options = {}) {
   if (options.track !== false && typeof trackEditActivity === "function") {
     trackEditActivity();
   }
+  if (options.track !== false && options.sync !== false && typeof scheduleModuleSync === "function") {
+    const target = options.moduleTarget || (options.settingsOnly ? "storeSettings" : "storeCatalog");
+    scheduleModuleSync(target, 600, { store: state }, { siteId: site });
+  }
   return state;
 }
 

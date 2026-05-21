@@ -70,7 +70,6 @@ async function initApp() {
   window.addEventListener("beforeunload", () => {
     if (!appState.isReadonly && freshServerDataLoaded) {
       persistCurrentStateToLocalStorage();
-      syncServerState({ keepalive: true }).catch(() => {});
     }
     sendPresence(false, true).catch(() => {});
   });

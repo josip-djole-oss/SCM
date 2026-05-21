@@ -908,7 +908,9 @@ function saveAdminPerms(email, idx) {
     localStorage.setItem(AUTH_KEY, JSON.stringify(authData));
     applyPermissionVisibility();
   }
-  return syncServerState({ includeAdmins: true, adminEditTargetEmail: email })
+  return syncModuleState("adminUsers", {
+    admins,
+  })
     .catch(() => {})
     .finally(() => {
       addLog("Admin account updated", { email, level: nextLevel, storeRoles: admins[adminIndex].storeRoles || [] });
@@ -986,7 +988,9 @@ function addNewAdmin() {
   });
   localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
   trackEditActivity();
-  return syncServerState({ includeAdmins: true, adminEditTargetEmail: email })
+  return syncModuleState("adminUsers", {
+    admins,
+  })
     .catch(() => {})
     .finally(() => {
       addLog("Admin account created", { email, level, storeRoles: functionRoles });
@@ -1033,10 +1037,9 @@ function removeAdminAction(email) {
           site: currentSite,
           at: new Date().toISOString(),
         });
-        syncServerState({
-          includeAdmins: true,
-          includeAdminRemovalNotices: true,
-          adminEditTargetEmail: email,
+        syncModuleState("adminUsers", {
+          admins,
+          adminRemovalNotices: getCachedStorageJson(ADMIN_REMOVAL_NOTICES_KEY, {}),
         }).catch(() => {});
         trackEditActivity();
         renderAdminList();

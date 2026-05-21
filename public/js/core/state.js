@@ -46,6 +46,7 @@ var sharedDataRefreshRunning = false;
 var pendingAdminLevelSelections = {};
 var reportsStateVersionBySite = {};
 var notificationsStateVersionBySite = {};
+var moduleStateVersions = {};
 var lastEditArea = "";
 var lastAppliedRemoteStateKey = sessionStorage.getItem("cmax_last_remote_state_key") || "";
 var ignoredRemoteStateKey = sessionStorage.getItem("cmax_ignored_remote_state_key") || "";
