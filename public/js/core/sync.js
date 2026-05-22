@@ -453,7 +453,7 @@ function syncSiteMetadata(snapshot) {
   sites = nextSites;
   currentSite = nextCurrentSite;
   localStorage.setItem(SITES_KEY, JSON.stringify(sites));
-  localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+  setStoredCurrentSitePreference(currentSite);
   updateScopedStorageKeysForCurrentSite();
 
   populateSiteSelect();
@@ -732,3 +732,4 @@ function stopNotificationsPolling() {
 }
 
 /* ==================== CUSTOM DIALOG SYSTEM ==================== */
+

@@ -4,7 +4,7 @@ function populateSiteSelect() {
   if (accessibleSites.length && !accessibleSites.includes(currentSite)) {
     persistCurrentStateToLocalStorage();
     currentSite = accessibleSites[0];
-    localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+    setStoredCurrentSitePreference(currentSite);
     updateScopedStorageKeysForCurrentSite();
     loadCurrentSiteRuntimeFromLocalStorage();
   }
@@ -138,9 +138,9 @@ function addSite() {
       markLocalSiteMutation();
       localStorage.setItem(SITES_KEY, JSON.stringify(sites));
       initializeSiteStorage(newSite);
-      populateSiteSelect();
       currentSite = newSite;
-      localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+      setStoredCurrentSitePreference(currentSite);
+      populateSiteSelect();
       document.getElementById("siteSelect").value = newSite;
       updateScopedStorageKeysForCurrentSite();
       loadCurrentSiteRuntimeFromLocalStorage();
@@ -151,7 +151,7 @@ function addSite() {
           sites = previousSites;
           currentSite = previousCurrentSite;
           localStorage.setItem(SITES_KEY, JSON.stringify(sites));
-          localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+          setStoredCurrentSitePreference(currentSite);
           localStorage.removeItem(newSitePlannerKey);
           localStorage.removeItem(newSiteBinsKey);
           localStorage.removeItem(newSiteTidplanKey);
@@ -211,7 +211,7 @@ function removeSite() {
         localStorage.removeItem(getSiteStorageKey("cmax_planner_notifications", siteToRemove));
         localStorage.removeItem(getSiteStorageKey("tidplan_zones", siteToRemove));
         currentSite = sites[0];
-        localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+        setStoredCurrentSitePreference(currentSite);
         populateSiteSelect();
         updateScopedStorageKeysForCurrentSite();
         loadCurrentSiteRuntimeFromLocalStorage();
@@ -228,7 +228,7 @@ function removeSite() {
             sites = previousSites;
             currentSite = previousCurrentSite;
             localStorage.setItem(SITES_KEY, JSON.stringify(sites));
-            localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+            setStoredCurrentSitePreference(currentSite);
             if (removedPlannerData !== null) {
               localStorage.setItem(getSiteStorageKey("cmax_planner_data", siteToRemove), removedPlannerData);
             }
@@ -277,3 +277,4 @@ function updateMainTitle() {
 }
 
 /* ==================== TIDPLAN FUNCTIONS ==================== */
+

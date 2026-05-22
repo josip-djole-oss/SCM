@@ -781,7 +781,7 @@ function getStoreProductVariantById(product, variantId) {
 function normalizeStoreProduct(raw) {
   const product = raw && typeof raw === "object" ? { ...raw } : {};
   const now = new Date().toISOString();
-  const category = product.category || getStoreCategoryOptions()[0];
+  const category = product.category || Object.keys(STORE_CATEGORIES)[0] || "Ostalo";
   return {
     id: product.id || `STP-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     name: String(product.name || "").trim(),
@@ -795,6 +795,7 @@ function normalizeStoreProduct(raw) {
       ? product.variants.map((variant, index) => normalizeStoreProductVariant(variant, index)).filter((variant) => variant.name)
       : [],
     active: product.active !== false,
+    availableForAllSites: product.availableForAllSites === true || product.allSites === true || (Array.isArray(product.availableSites) && product.availableSites.includes("*")),
     availableSites: Array.isArray(product.availableSites) && product.availableSites.length
       ? (product.availableSites.includes("*") ? ["*"] : product.availableSites.filter(Boolean))
       : ["*"],
@@ -839,6 +840,7 @@ function normalizeStoreProduct(raw) {
 }
 
 function isStoreProductSiteAllowed(product, site = currentSite) {
+  if (product?.availableForAllSites === true || product?.allSites === true) return true;
   const availableSites = Array.isArray(product.availableSites) ? product.availableSites : ["*"];
   return availableSites.includes("*") || availableSites.includes(site);
 }

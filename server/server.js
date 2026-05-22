@@ -2017,6 +2017,7 @@ function sanitizeStoreOrderDraft(rawOrder, site) {
 }
 
 function storeProductSiteAllowed(product, site) {
+  if (product?.availableForAllSites === true || product?.allSites === true) return true;
   const availableSites = Array.isArray(product?.availableSites) && product.availableSites.length
     ? product.availableSites.map((entry) => sanitizeString(entry, 80)).filter(Boolean)
     : ['*'];

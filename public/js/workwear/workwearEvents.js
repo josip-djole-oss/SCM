@@ -1,4 +1,4 @@
-﻿var workwearSelectedSizeByProduct = {};
+var workwearSelectedSizeByProduct = {};
 var workwearSelectedVariantByProduct = {};
 var workwearSelectedQuantityByProduct = {};
 var workwearSelectedCommentByProduct = {};
@@ -1633,6 +1633,7 @@ function workwearSaveProduct() {
       .map((variant, index) => normalizeStoreProductVariant(variant, index))
       .filter((variant) => variant.name),
     active: wizard.active !== false,
+    availableForAllSites: wizard.allSites === true,
     availableSites: wizard.allSites ? ["*"] : (wizard.availableSites.length ? wizard.availableSites : [currentSite]),
     visibleToRoles: wizard.allRoles ? [] : normalizeStoreRoleList(wizard.visibleToRoles || []),
     visibleToUsers: [],

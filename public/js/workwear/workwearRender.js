@@ -101,7 +101,7 @@ function workwearCreateWizardState(product) {
     sizes: Array.isArray(normalized.sizes) ? normalized.sizes.slice() : [],
     variants: Array.isArray(normalized.variants) ? normalized.variants.map((variant) => ({ ...variant })) : [],
     sizePreset: "odjeca",
-    allSites: !Array.isArray(normalized.availableSites) || normalized.availableSites.includes("*"),
+    allSites: normalized.availableForAllSites === true || !Array.isArray(normalized.availableSites) || normalized.availableSites.includes("*"),
     availableSites: Array.isArray(normalized.availableSites) ? normalized.availableSites.filter((site) => site !== "*") : [],
     allRoles: !Array.isArray(normalized.visibleToRoles) || !normalized.visibleToRoles.length,
     visibleToRoles: Array.isArray(normalized.visibleToRoles) ? normalized.visibleToRoles.slice() : [],

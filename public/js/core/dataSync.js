@@ -137,7 +137,7 @@ function switchSiteFromLocal(toSite, options = {}) {
   const fromSite = currentSite;
   persistCurrentStateToLocalStorage();
   currentSite = toSite;
-  localStorage.setItem(CURRENT_SITE_KEY, currentSite);
+  setStoredCurrentSitePreference(currentSite);
   updateScopedStorageKeysForCurrentSite();
   loadCurrentSiteRuntimeFromLocalStorage();
   populateSiteSelect();
@@ -633,7 +633,7 @@ function applyServerStateSnapshot(snapshot) {
   sites = [...snapshotSites];
   setCachedStorageJson(SITES_KEY, sites);
 
-  const storedCurrentSite = getCachedStorageValue(CURRENT_SITE_KEY, "");
+  const storedCurrentSite = getStoredCurrentSitePreference();
   const preferredCurrentSite =
     storedCurrentSite && sites.includes(storedCurrentSite)
       ? storedCurrentSite
@@ -641,7 +641,7 @@ function applyServerStateSnapshot(snapshot) {
         ? snapshot.currentSite
         : sites[0];
   currentSite = preferredCurrentSite;
-  setCachedStorageValue(CURRENT_SITE_KEY, currentSite);
+  setStoredCurrentSitePreference(currentSite);
 
   if (Array.isArray(snapshot.admins)) {
     setCachedStorageJson(ADMINS_KEY, snapshot.admins);
@@ -1140,4 +1140,5 @@ function saveData() {
   persistCurrentStateToLocalStorage();
   scheduleModuleSync("planner");
 }
+
 

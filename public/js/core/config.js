@@ -16,6 +16,26 @@ var CSRF_TOKEN_KEY = "cmax_csrf_token";
 var SUPER_ADMIN_EMAIL = "admin@cmax.se";
 var SUPER_ADMIN_PASSWORD = "cmax2026";
 
+function getCurrentSiteUserKey() {
+  const fromAppState = typeof appState !== "undefined" && appState?.currentUser ? appState.currentUser : "";
+  const authData = safeParseStoredJson(localStorage.getItem(AUTH_KEY), null);
+  const email = String(fromAppState || authData?.email || "").trim().toLowerCase();
+  return email ? `${CURRENT_SITE_KEY}_${email}` : CURRENT_SITE_KEY;
+}
+
+function getStoredCurrentSitePreference() {
+  const userKey = getCurrentSiteUserKey();
+  return localStorage.getItem(userKey) || localStorage.getItem(CURRENT_SITE_KEY) || "";
+}
+
+function setStoredCurrentSitePreference(site) {
+  const value = String(site || "").trim();
+  if (!value) return;
+  localStorage.setItem(getCurrentSiteUserKey(), value);
+  // Keep the legacy key as a fallback for older cached clients and pre-login bootstrap.
+  localStorage.setItem(CURRENT_SITE_KEY, value);
+}
+
 function getStorageKey(module) {
   return module + "_" + currentSite;
 }

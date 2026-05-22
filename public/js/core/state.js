@@ -1,4 +1,4 @@
-﻿var currentView = "home";
+var currentView = "home";
 var suppressRoutePush = false;
 var autoSaveInterval = null;
 var presenceHeartbeatInterval = null;
@@ -24,7 +24,7 @@ var presenceSessionId =
   sessionStorage.getItem("cmax_presence_session") ||
   `presence_${Math.random().toString(36).slice(2)}_${Date.now()}`;
 sessionStorage.setItem("cmax_presence_session", presenceSessionId);
-var currentSite = localStorage.getItem(CURRENT_SITE_KEY) || "default";
+var currentSite = (typeof getStoredCurrentSitePreference === "function" ? getStoredCurrentSitePreference() : localStorage.getItem(CURRENT_SITE_KEY)) || "default";
 var sites = safeParseStoredJson(localStorage.getItem(SITES_KEY), ["default"]) || ["default"];
 var tidplanData = [];
 var tidplanZones = [];
