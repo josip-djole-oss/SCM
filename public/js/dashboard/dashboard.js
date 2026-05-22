@@ -246,18 +246,19 @@ function renderDashboardSystemStatus() {
 }
 
 function getHomeModuleDefinitions() {
+  const moduleEnabled = typeof isSiteModuleEnabled === "function" ? isSiteModuleEnabled : () => true;
   return [
-    { key: "planner", title: "Planner", desc: "Dnevni staffing board i raspored rada.", icon: "planner", visible: canAccessPlannerModule(), action: () => CMAX.tidplan.showPlanner() },
-    { key: "tidplan", title: "Tidplan", desc: "Scheduling cockpit i gantt planiranje.", icon: "tidplan", visible: canAccessTidplanModule(), action: () => CMAX.tidplan.show() },
-    { key: "bins", title: "Kante za smece", desc: "Status i operacije za kontejnere i odvoz.", icon: "bins", visible: canAccessBinsModule(), action: () => CMAX.bins.show() },
-    { key: "warehouse", title: "Skladiste", desc: "Ulaz, izlaz i stanje materijala.", icon: "warehouse", visible: canAccessWarehouseModule(), action: () => CMAX.warehouse.show() },
-    { key: "workwear", title: "Store", desc: "Interna trgovina odjece, PPE i alata.", icon: "warehouse", visible: canAccessWorkwearModule(), action: () => CMAX.workwear.show() },
-    { key: "siteChat", title: "Chat", desc: "Brza komunikacija po gradilistu.", icon: "notifications", visible: canAccessSiteChatModule(), action: () => CMAX.siteChat.show() },
-    { key: "notifications", title: "Obavijesti", desc: "Objave, pinovi i timska komunikacija.", icon: "notifications", visible: canAccessNotificationsModule(), action: () => CMAX.notifications.show() },
-    { key: "reports", title: "Report", desc: "Prijave i pregled reporta za korisnike s pristupom.", icon: "planner", visible: canAccessReportsModule(), action: () => CMAX.reports.showCenter() },
-    { key: "surveys", title: "Ankete / Pitanja", desc: "Brza pitanja, odgovori i rezultati.", icon: "surveys", visible: hasPermission("canViewSurveys"), action: () => CMAX.surveys.show() },
+    { key: "planner", moduleKey: "planner", title: "Planner", desc: "Dnevni staffing board i raspored rada.", icon: "planner", visible: canAccessPlannerModule(), action: () => CMAX.tidplan.showPlanner() },
+    { key: "tidplan", moduleKey: "tidplan", title: "Tidplan", desc: "Scheduling cockpit i gantt planiranje.", icon: "tidplan", visible: canAccessTidplanModule(), action: () => CMAX.tidplan.show() },
+    { key: "bins", moduleKey: "bins", title: "Kante za smece", desc: "Status i operacije za kontejnere i odvoz.", icon: "bins", visible: canAccessBinsModule(), action: () => CMAX.bins.show() },
+    { key: "warehouse", moduleKey: "warehouse", title: "Skladiste", desc: "Ulaz, izlaz i stanje materijala.", icon: "warehouse", visible: canAccessWarehouseModule(), action: () => CMAX.warehouse.show() },
+    { key: "workwear", moduleKey: "store", title: "Store", desc: "Interna trgovina odjece, PPE i alata.", icon: "warehouse", visible: canAccessWorkwearModule(), action: () => CMAX.workwear.show() },
+    { key: "siteChat", moduleKey: "siteChat", title: "Chat", desc: "Brza komunikacija po gradilistu.", icon: "notifications", visible: canAccessSiteChatModule(), action: () => CMAX.siteChat.show() },
+    { key: "notifications", moduleKey: "notifications", title: "Obavijesti", desc: "Objave, pinovi i timska komunikacija.", icon: "notifications", visible: canAccessNotificationsModule(), action: () => CMAX.notifications.show() },
+    { key: "reports", moduleKey: "reports", title: "Report", desc: "Prijave i pregled reporta za korisnike s pristupom.", icon: "planner", visible: canAccessReportsModule(), action: () => CMAX.reports.showCenter() },
+    { key: "surveys", moduleKey: "surveys", title: "Ankete / Pitanja", desc: "Brza pitanja, odgovori i rezultati.", icon: "surveys", visible: hasPermission("canViewSurveys"), action: () => CMAX.surveys.show() },
     { key: "admin", title: "Postavke", desc: "Profil, prava i platformske postavke.", icon: "admin", visible: canOpenAdminPanelAccess(), action: () => CMAX.admin.open() },
-  ].filter((item) => item.visible);
+  ].filter((item) => item.visible && (!item.moduleKey || moduleEnabled(item.moduleKey)));
 }
 
 function createHomeTileIcon(iconKey) {
@@ -327,10 +328,71 @@ function renderHomeHeroMeta() {
   if (site) site.textContent = currentSite || "-";
 }
 
+function renderHomeSiteInfo() {
+  const siteCard = document.querySelector(".home-site-card");
+  if (!siteCard) return;
+  let panel = document.getElementById("homeSiteInfoPanel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "homeSiteInfoPanel";
+    panel.className = "home-site-info-panel";
+    siteCard.appendChild(panel);
+  }
+  const info = typeof getSiteInfoStorage === "function" ? getSiteInfoStorage(currentSite) : {};
+  const address = [info.address, info.postalCode, info.city, info.country].filter(Boolean).join(", ");
+  const navQuery = encodeURIComponent(info.latitude && info.longitude ? `${info.latitude},${info.longitude}` : address || currentSite);
+  const statusLabel = info.status === "paused" ? "Pauzirano" : info.status === "finished" ? "Zavrseno" : "Aktivno";
+  const emergency = info.emergency || {};
+  const workHours = info.workHours || {};
+  const safetyRules = Array.isArray(info.safetyRules) ? info.safetyRules : [];
+  panel.innerHTML = `
+    <div class="home-site-info-head">
+      <div>
+        <span class="admin-compose-eyebrow">Baustela - Informacije</span>
+        <h3>${dashboardEscapeHtml(info.projectName || currentSite || "-")}</h3>
+      </div>
+      <span class="home-site-status">${dashboardEscapeHtml(statusLabel)}</span>
+    </div>
+    <div class="home-site-info-priority">
+      <article class="home-site-info-card">
+        <strong>Lokacija</strong>
+        <span>${dashboardEscapeHtml(address || "Adresa nije unesena.")}</span>
+        <div class="home-site-info-actions">
+          <a class="btn btn-small" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${navQuery}">Google Maps</a>
+          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://waze.com/ul?q=${navQuery}&navigate=yes">Waze</a>
+        </div>
+      </article>
+      <article class="home-site-info-card">
+        <strong>Kontakti</strong>
+        <span>${dashboardEscapeHtml(info.contactPerson || "Kontakt osoba nije unesena.")}</span>
+        ${info.phone ? `<a href="tel:${dashboardEscapeHtml(info.phone)}">${dashboardEscapeHtml(info.phone)}</a>` : ""}
+        ${info.email ? `<a href="mailto:${dashboardEscapeHtml(info.email)}">${dashboardEscapeHtml(info.email)}</a>` : ""}
+      </article>
+      <article class="home-site-info-card is-emergency">
+        <strong>Hitni podaci</strong>
+        <span>Hitni broj: ${dashboardEscapeHtml(emergency.emergencyNumber || "112")}</span>
+        <span>Bolnica: ${dashboardEscapeHtml(emergency.hospital || "-")}</span>
+        <span>Okupljanje: ${dashboardEscapeHtml(emergency.meetingPoint || "-")}</span>
+      </article>
+    </div>
+    <details class="home-site-info-details">
+      <summary>Projekt informacije</summary>
+      <p>${dashboardEscapeHtml(info.description || "Nema opisa.")}</p>
+      <p>Pocetak: ${dashboardEscapeHtml(info.startDate || "-")} | Planirani zavrsetak: ${dashboardEscapeHtml(info.plannedEndDate || "-")} | ${dashboardEscapeHtml(String(info.progress || 0))}%</p>
+    </details>
+    <details class="home-site-info-details">
+      <summary>Radno vrijeme i pravila</summary>
+      <p>${dashboardEscapeHtml(workHours.days || "Ponedjeljak-Petak")} ${dashboardEscapeHtml(workHours.hours || "07:00-16:00")}</p>
+      <ul>${safetyRules.map((rule) => `<li>${dashboardEscapeHtml(rule)}</li>`).join("")}</ul>
+    </details>
+  `;
+}
+
 function refreshHomeLaunchpad() {
   renderHomeHeroMeta();
   renderHomeSiteCards();
   renderHomeModuleCards();
+  renderHomeSiteInfo();
 }
 
 function refreshDashboardView() {

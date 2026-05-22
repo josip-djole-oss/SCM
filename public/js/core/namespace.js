@@ -86,6 +86,12 @@
     add(...args) {
       return callLegacy("addSite", args);
     },
+    closeWizard: legacyMethod("closeNewSiteWizard"),
+    wizardNext: legacyMethod("newSiteWizardNext"),
+    wizardBack: legacyMethod("newSiteWizardBack"),
+    wizardGoTo: legacyMethod("newSiteWizardGoTo"),
+    filterWizardUsers: legacyMethod("filterNewSiteWizardUsers"),
+    createFromWizard: legacyMethod("createSiteFromWizard"),
     remove(...args) {
       return callLegacy("removeSite", args);
     },
@@ -707,6 +713,13 @@
     openBackupRestorePanel(...args) {
       return callLegacy("openBackupRestorePanel", args);
     },
+    closeBackupWizard: legacyMethod("closeBackupRestoreWizard"),
+    backupWizardNext: legacyMethod("backupRestoreWizardNext"),
+    backupWizardBack: legacyMethod("backupRestoreWizardBack"),
+    selectBackupWizardBackup: legacyMethod("selectBackupRestoreWizardBackup"),
+    toggleBackupWizardScope: legacyMethod("toggleBackupWizardScope"),
+    runBackupWizardRestore: legacyMethod("runBackupWizardRestore"),
+    openBackupWizardFor: legacyMethod("openBackupRestoreWizardFor"),
     loadBackupRestoreOptions(...args) {
       return callLegacy("loadBackupRestoreOptions", args);
     },

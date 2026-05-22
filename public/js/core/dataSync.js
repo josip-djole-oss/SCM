@@ -572,6 +572,7 @@ function buildServerStateSnapshot(baseState = null, options = {}) {
         getCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), null),
       ),
       store: getCachedStorageJson(getSiteStorageKey("cmax_workwear_data", site), null),
+      siteInfo: getCachedStorageJson(getSiteStorageKey("cmax_site_info", site), serverState.siteData?.[site]?.siteInfo || {}),
       reports: getCachedStorageJson(getSiteStorageKey("cmax_planner_reports", site), []),
       notifications: Array.isArray(localNotifications)
         ? localNotifications
@@ -691,6 +692,10 @@ function applyServerStateSnapshot(snapshot) {
     setCachedStorageJson(
       getSiteStorageKey("cmax_workwear_data", site),
       siteEntry.store && typeof siteEntry.store === "object" ? siteEntry.store : {},
+    );
+    setCachedStorageJson(
+      getSiteStorageKey("cmax_site_info", site),
+      siteEntry.siteInfo && typeof siteEntry.siteInfo === "object" ? siteEntry.siteInfo : {},
     );
     setCachedStorageJson(
       getSiteStorageKey("cmax_planner_reports", site),

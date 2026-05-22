@@ -3601,6 +3601,7 @@ const MODULE_STATE_TARGETS = new Set([
   'bins',
   'storeCatalog',
   'storeSettings',
+  'siteMetadata',
   'adminUsers',
 ]);
 
@@ -3611,6 +3612,7 @@ const MODULE_STATE_ALLOWED_PAYLOAD_KEYS = {
   bins: ['bins'],
   storeCatalog: ['store'],
   storeSettings: ['store'],
+  siteMetadata: ['siteInfo', 'sites'],
   adminUsers: ['admins', 'guestPermissions', 'binPermissions', 'adminRemovalNotices'],
 };
 
@@ -5707,6 +5709,19 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
             throw error;
           }
           entry.store = mergedStoreResult.store;
+        } else if (target === 'siteMetadata') {
+          if (!canWriteStateField(req.session, 'canManageSiteAccess')) {
+            const error = new Error('FORBIDDEN_MODULE_TARGET');
+            error.statusCode = 403;
+            throw error;
+          }
+          if (Array.isArray(payload.sites)) {
+            const nextSites = payload.sites.map((item) => sanitizeString(item, 80)).filter(Boolean);
+            if (nextSites.length) nextState.sites = Array.from(new Set(nextSites));
+          }
+          if (payload.siteInfo && typeof payload.siteInfo === 'object' && !Array.isArray(payload.siteInfo)) {
+            entry.siteInfo = sanitizeObject(payload.siteInfo);
+          }
         }
         nextState.siteData[site] = entry;
       }
