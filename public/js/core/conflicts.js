@@ -57,6 +57,106 @@ function showServerConflictNotice(message = "Podaci su promijenjeni na drugom ur
   showToast(message, "error");
 }
 
+function formatEntityConflictValue(value) {
+  if (value === null || value === undefined) return "-";
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch (_) {
+      return String(value);
+    }
+  }
+  return String(value);
+}
+
+function closeEntityConflictPanel() {
+  document.getElementById("entityConflictOverlay")?.remove();
+}
+
+function getEntityConflictTitle(context = {}) {
+  const moduleLabel = context.moduleLabel || (context.module === "tidplan" ? "Tidplan" : "Planner");
+  const rowLabel = context.rowLabel || context.activityLabel || context.entityId || "-";
+  return `${moduleLabel} conflict - ${rowLabel}`;
+}
+
+function showEntityConflictPanel(context = {}) {
+  closeEntityConflictPanel();
+  const conflict = Array.isArray(context.conflicts) ? context.conflicts[0] : null;
+  const serverEntity = context.serverEntity || {};
+  const field = conflict?.field || Object.keys(context.changedFields || {})[0] || "-";
+  const mine = conflict ? conflict.clientValue : context.changedFields?.[field];
+  const serverValue = conflict ? conflict.serverValue : serverEntity[field];
+  const updatedBy = serverEntity.updatedBy || "-";
+  const updatedAt = serverEntity.updatedAt ? new Date(serverEntity.updatedAt).toLocaleString() : "-";
+
+  const overlay = document.createElement("div");
+  overlay.id = "entityConflictOverlay";
+  overlay.className = "modal-overlay entity-conflict-overlay";
+  overlay.innerHTML = `
+    <div class="modal-box entity-conflict-box" role="dialog" aria-modal="true" aria-labelledby="entityConflictTitle">
+      <div class="modal-header entity-conflict-header">
+        <div>
+          <div class="entity-conflict-eyebrow">ENTITY VERSION CONFLICT</div>
+          <h2 id="entityConflictTitle">${escapeHtml(getEntityConflictTitle(context))}</h2>
+        </div>
+        <button type="button" class="close-btn" id="entityConflictClose" aria-label="Close">&times;</button>
+      </div>
+      <div class="entity-conflict-body">
+        <div class="entity-conflict-summary">
+          <div><strong>Modul:</strong> ${escapeHtml(context.moduleLabel || context.module || "-")}</div>
+          <div><strong>Red / activity:</strong> ${escapeHtml(context.rowLabel || context.activityLabel || context.entityId || "-")}</div>
+          <div><strong>Polje:</strong> ${escapeHtml(field)}</div>
+          <div><strong>Zadnja promjena:</strong> ${escapeHtml(updatedBy)} - ${escapeHtml(updatedAt)}</div>
+        </div>
+        <div class="entity-conflict-values">
+          <section>
+            <h3>Moja vrijednost</h3>
+            <pre>${escapeHtml(formatEntityConflictValue(mine))}</pre>
+          </section>
+          <section>
+            <h3>Server vrijednost</h3>
+            <pre>${escapeHtml(formatEntityConflictValue(serverValue))}</pre>
+          </section>
+        </div>
+      </div>
+      <div class="entity-conflict-actions">
+        <button type="button" class="btn btn-secondary" id="entityConflictUseServer">Use server</button>
+        <button type="button" class="btn" id="entityConflictKeepMine">Keep mine</button>
+        <button type="button" class="btn btn-secondary" id="entityConflictRefresh">Refresh row/activity</button>
+        <button type="button" class="btn btn-ghost" id="entityConflictCancel">Cancel</button>
+      </div>
+    </div>
+  `;
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) closeEntityConflictPanel();
+  });
+  document.body.appendChild(overlay);
+
+  const close = () => closeEntityConflictPanel();
+  document.getElementById("entityConflictClose")?.addEventListener("click", close);
+  document.getElementById("entityConflictCancel")?.addEventListener("click", close);
+  document.getElementById("entityConflictUseServer")?.addEventListener("click", () => {
+    context.onUseServer?.({ field, serverEntity, serverValue });
+    close();
+  });
+  document.getElementById("entityConflictKeepMine")?.addEventListener("click", () => {
+    context.onKeepMine?.({ field, serverEntity, mine });
+    close();
+  });
+  document.getElementById("entityConflictRefresh")?.addEventListener("click", () => {
+    context.onRefresh?.({ serverEntity });
+    close();
+  });
+
+  const onKey = (event) => {
+    if (event.key === "Escape") {
+      close();
+      document.removeEventListener("keydown", onKey);
+    }
+  };
+  document.addEventListener("keydown", onKey);
+}
+
 function removeSyncBanner() {
   document.getElementById("syncUpdateBanner")?.remove();
 }

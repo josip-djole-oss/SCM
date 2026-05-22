@@ -829,12 +829,67 @@ function syncModuleState(target, payload = null, options = {}) {
   return moduleSyncInFlight[key];
 }
 
-function showEntityConflictNotice(errorPayload, fallbackMessage = "Ovaj red je promijenjen na drugom uredjaju.") {
+function renderAfterEntityConflict(moduleName) {
+  if (moduleName === "planner") {
+    persistCurrentStateToLocalStorage();
+    if (typeof renderPlanningTable === "function") renderPlanningTable();
+    return;
+  }
+  if (moduleName === "tidplan") {
+    localStorage.setItem(getStorageKey("tidplan"), JSON.stringify((tidplanData || []).map((item, index) => ensureTidplanActivityIdentity(item, index))));
+    if (typeof updateTidplan === "function") updateTidplan();
+  }
+}
+
+function showEntityConflictNotice(errorPayload, context = {}) {
   const conflicts = Array.isArray(errorPayload?.conflicts) ? errorPayload.conflicts : [];
   const first = conflicts[0];
-  const detail = first
-    ? `${fallbackMessage} Polje: ${first.field}. Server: "${first.serverValue ?? ""}", moje: "${first.clientValue ?? ""}".`
-    : fallbackMessage;
+  const serverEntity = errorPayload?.serverEntity || {};
+  const moduleName = context.module || (errorPayload?.entityType === "tidplanActivity" ? "tidplan" : "planner");
+  const localEntity = context.entity;
+  const changedFields = context.changedFields || {};
+  const baseFieldVersions = context.baseFieldVersions || {};
+  const fallbackMessage = moduleName === "tidplan"
+    ? "Tidplan aktivnost je promijenjena na drugom uredjaju."
+    : "Planner red je promijenjen na drugom uredjaju.";
+  if (typeof showEntityConflictPanel === "function") {
+    showEntityConflictPanel({
+      module: moduleName,
+      moduleLabel: moduleName === "tidplan" ? "Tidplan" : "Planner",
+      entityId: errorPayload?.entityId || localEntity?.id,
+      rowLabel: moduleName === "planner" ? `Row ${localEntity?.id || errorPayload?.entityId || ""}` : "",
+      activityLabel: moduleName === "tidplan" ? (serverEntity.plan || serverEntity.moment || serverEntity.id || errorPayload?.entityId || "") : "",
+      conflicts,
+      serverEntity,
+      changedFields,
+      onUseServer: ({ field, serverValue }) => {
+        if (localEntity && field) localEntity[field] = serverValue;
+        if (localEntity && serverEntity) Object.assign(localEntity, serverEntity);
+        renderAfterEntityConflict(moduleName);
+      },
+      onRefresh: () => {
+        if (localEntity && serverEntity) Object.assign(localEntity, serverEntity);
+        renderAfterEntityConflict(moduleName);
+      },
+      onKeepMine: () => {
+        if (!localEntity || !first?.field) return;
+        const retryVersions = { ...baseFieldVersions, ...(serverEntity.fieldVersions || {}) };
+        if (moduleName === "planner") {
+          patchPlannerRow(context.date || appState.currentDate, localEntity, changedFields, {
+            siteId: context.siteId || currentSite,
+            baseFieldVersions: retryVersions,
+          }).catch(() => {});
+        } else {
+          patchTidplanActivity(localEntity, changedFields, {
+            siteId: context.siteId || currentSite,
+            baseFieldVersions: retryVersions,
+          }).catch(() => {});
+        }
+      },
+    });
+    return;
+  }
+  const detail = first ? `${fallbackMessage} Polje: ${first.field}. Server: "${first.serverValue ?? ""}", moje: "${first.clientValue ?? ""}".` : fallbackMessage;
   if (typeof showServerConflictNotice === "function") showServerConflictNotice(detail);
   else if (typeof showToast === "function") showToast(detail, "error");
 }
@@ -871,7 +926,14 @@ function patchPlannerRow(date, row, changedFields, options = {}) {
     })
     .catch((error) => {
       if (error?.payload?.error === "ENTITY_VERSION_CONFLICT") {
-        showEntityConflictNotice(error.payload, "Planner red je promijenjen na drugom uredjaju.");
+        showEntityConflictNotice(error.payload, {
+          module: "planner",
+          entity: row,
+          changedFields,
+          baseFieldVersions: body.baseFieldVersions,
+          date,
+          siteId,
+        });
         return false;
       }
       console.error("Planner row save failed:", error);
@@ -911,7 +973,13 @@ function patchTidplanActivity(activity, changedFields, options = {}) {
     })
     .catch((error) => {
       if (error?.payload?.error === "ENTITY_VERSION_CONFLICT") {
-        showEntityConflictNotice(error.payload, "Tidplan aktivnost je promijenjena na drugom uredjaju.");
+        showEntityConflictNotice(error.payload, {
+          module: "tidplan",
+          entity: activity,
+          changedFields,
+          baseFieldVersions: body.baseFieldVersions,
+          siteId,
+        });
         return false;
       }
       console.error("Tidplan activity save failed:", error);
