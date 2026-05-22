@@ -1567,12 +1567,12 @@ async function logAdminAuditChanges(actorEmail, beforeAdmins, afterAdmins) {
 
 async function getState() {
   const state = await readJsonFile(stateFile, null);
-  return state && typeof state === 'object' ? state : null;
+  return normalizeRuntimeState(state);
 }
 
 async function getStateDocument() {
   const document = await readVersionedJsonFile(stateFile, null);
-  const state = document.data && typeof document.data === 'object' ? document.data : null;
+  const state = normalizeRuntimeState(document.data);
   return {
     ...document,
     data: state,
@@ -3366,7 +3366,7 @@ async function appendAccountNotificationForUsers(userEmails, entry) {
   ));
   if (!recipients.length) return;
   await mutateVersionedJsonFile(stateFile, {}, async (state) => {
-    const nextState = state && typeof state === 'object' ? { ...state } : {};
+    const nextState = normalizeRuntimeState(state);
     const accountNotifications = nextState.accountNotifications && typeof nextState.accountNotifications === 'object'
       ? { ...nextState.accountNotifications }
       : {};
@@ -3718,6 +3718,132 @@ function normalizePlannerDocumentForEntityMerge(planner, site, actorEmail = '') 
 function normalizeTidplanActivitiesForEntityMerge(tidplan, site, actorEmail = '') {
   return (Array.isArray(tidplan) ? tidplan : []).map((activity, index) =>
     normalizeVersionedEntity(activity, `tidplan_activity_${index + 1}`, actorEmail));
+}
+
+function isPlainObject(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function unwrapStateEnvelope(rawState) {
+  let state = rawState;
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (
+      isPlainObject(state) &&
+      Object.prototype.hasOwnProperty.call(state, 'data') &&
+      isPlainObject(state.data) &&
+      (
+        state.data.version === 2 ||
+        Array.isArray(state.data.sites) ||
+        isPlainObject(state.data.siteData) ||
+        isPlainObject(state.data.data)
+      )
+    ) {
+      state = state.data;
+      continue;
+    }
+    break;
+  }
+  return state;
+}
+
+function buildDefaultRuntimeState() {
+  return {
+    version: 2,
+    savedAt: new Date().toISOString(),
+    workers: [],
+    lifts: [],
+    moments: [],
+    plans: [],
+    karnas: [],
+    dailyData: {},
+    guestPermissions: { ...DEFAULT_GUEST_PERMISSIONS },
+    accountNotifications: {},
+    moduleVersions: {},
+    siteData: {
+      default: {},
+    },
+    sites: ['default'],
+    currentSite: 'default',
+  };
+}
+
+function normalizeRuntimeState(rawState) {
+  const unwrapped = unwrapStateEnvelope(rawState);
+  const source = isPlainObject(unwrapped) ? { ...unwrapped } : {};
+  const next = {
+    ...buildDefaultRuntimeState(),
+    ...source,
+  };
+
+  next.version = 2;
+  next.accountNotifications = isPlainObject(source.accountNotifications) ? source.accountNotifications : {};
+  next.moduleVersions = isPlainObject(source.moduleVersions) ? source.moduleVersions : {};
+  next.guestPermissions = isPlainObject(source.guestPermissions)
+    ? source.guestPermissions
+    : { ...DEFAULT_GUEST_PERMISSIONS };
+
+  const sourceSiteData = isPlainObject(source.siteData) ? { ...source.siteData } : {};
+  const derivedSites = Array.isArray(source.sites)
+    ? source.sites.map((site) => sanitizeString(site, 80)).filter(Boolean)
+    : [];
+  Object.keys(sourceSiteData).forEach((site) => {
+    const safeSite = sanitizeString(site, 80);
+    if (safeSite && !derivedSites.includes(safeSite)) derivedSites.push(safeSite);
+  });
+  const currentSite = sanitizeString(source.currentSite || derivedSites[0] || 'default', 80) || 'default';
+  if (!derivedSites.includes(currentSite)) derivedSites.unshift(currentSite);
+  if (!derivedSites.length) derivedSites.push('default');
+
+  const siteData = {};
+  derivedSites.forEach((site) => {
+    siteData[site] = isPlainObject(sourceSiteData[site]) ? { ...sourceSiteData[site] } : {};
+  });
+
+  const hasLegacyTopLevelData =
+    isPlainObject(source.dailyData) ||
+    ['workers', 'lifts', 'moments', 'plans', 'karnas', 'resourceHistory'].some((key) => Array.isArray(source[key])) ||
+    Array.isArray(source.tidplan) ||
+    Array.isArray(source.tidplanZones) ||
+    isPlainObject(source.binsData) ||
+    isPlainObject(source.bins) ||
+    isPlainObject(source.warehouse) ||
+    isPlainObject(source.warehouseData) ||
+    isPlainObject(source.store) ||
+    Array.isArray(source.reports) ||
+    Array.isArray(source.notifications);
+
+  if (hasLegacyTopLevelData) {
+    const legacySite = currentSite || 'default';
+    const entry = isPlainObject(siteData[legacySite]) ? { ...siteData[legacySite] } : {};
+    if (!entry.planner) {
+      entry.planner = {
+        workers: Array.isArray(source.workers) ? source.workers : [],
+        lifts: Array.isArray(source.lifts) ? source.lifts : [],
+        moments: Array.isArray(source.moments) ? source.moments : [],
+        plans: Array.isArray(source.plans) ? source.plans : [],
+        karnas: Array.isArray(source.karnas) ? source.karnas : [],
+        dailyData: isPlainObject(source.dailyData) ? source.dailyData : {},
+        resourceHistory: Array.isArray(source.resourceHistory) ? source.resourceHistory : [],
+      };
+    }
+    if (!entry.bins && (isPlainObject(source.bins) || isPlainObject(source.binsData))) {
+      entry.bins = isPlainObject(source.bins) ? source.bins : source.binsData;
+    }
+    if (!entry.tidplan && Array.isArray(source.tidplan)) entry.tidplan = source.tidplan;
+    if (!entry.tidplanZones && Array.isArray(source.tidplanZones)) entry.tidplanZones = source.tidplanZones;
+    if (!entry.warehouse && (isPlainObject(source.warehouse) || isPlainObject(source.warehouseData))) {
+      entry.warehouse = isPlainObject(source.warehouse) ? source.warehouse : source.warehouseData;
+    }
+    if (!entry.store && isPlainObject(source.store)) entry.store = source.store;
+    if (!entry.reports && Array.isArray(source.reports)) entry.reports = source.reports;
+    if (!entry.notifications && Array.isArray(source.notifications)) entry.notifications = source.notifications;
+    siteData[legacySite] = entry;
+  }
+
+  next.sites = derivedSites;
+  next.currentSite = derivedSites.includes(currentSite) ? currentSite : derivedSites[0];
+  next.siteData = siteData;
+  return next;
 }
 
 function sanitizeChangedFields(fields) {
@@ -4267,19 +4393,8 @@ async function initializeData() {
   await ensureBootstrapAdmin();
 
   await dataStorage.ensureJsonFile(stateFile, {
-    version: 2,
+    ...buildDefaultRuntimeState(),
     savedAt: new Date().toISOString(),
-    workers: [],
-    lifts: [],
-    moments: [],
-    plans: [],
-    karnas: [],
-    dailyData: {},
-    guestPermissions: { ...DEFAULT_GUEST_PERMISSIONS },
-    accountNotifications: {},
-    siteData: {},
-    sites: ['default'],
-    currentSite: 'default',
   });
 
   await dataStorage.ensureJsonFile(logsFile, []);
@@ -5111,7 +5226,7 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
       currentSite: 'default',
       siteData: {},
     }, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const siteEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object'
         ? { ...nextState.siteData[site] }
@@ -5207,7 +5322,7 @@ apiRouter.patch('/store/orders/:orderId/status', requireAnyPermission(['canAcces
       currentSite: 'default',
       siteData: {},
     }, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const siteEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object'
         ? { ...nextState.siteData[site] }
@@ -5485,7 +5600,7 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
     let nextModuleVersion = 1;
     let updatedAdmins = null;
     const savedDocument = await mutateVersionedJsonFile(stateFile, null, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : { version: 2, sites: ['default'], siteData: {} };
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       nextState.moduleVersions = nextState.moduleVersions && typeof nextState.moduleVersions === 'object'
         ? { ...nextState.moduleVersions }
@@ -5652,7 +5767,7 @@ apiRouter.patch('/planner/:siteId/:date/rows/:rowId', requireAdmin, async (req, 
     const baseFieldVersions = req.body?.baseFieldVersions || {};
     let savedRow = null;
     const savedDocument = await mutateVersionedJsonFile(stateFile, null, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : { version: 2, sites: [site], siteData: {} };
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const previousEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
       const entry = { ...previousEntry };
@@ -5718,7 +5833,7 @@ apiRouter.patch('/tidplan/:siteId/activities/:activityId', requireAdmin, async (
     const baseFieldVersions = req.body?.baseFieldVersions || {};
     let savedActivity = null;
     const savedDocument = await mutateVersionedJsonFile(stateFile, null, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : { version: 2, sites: [site], siteData: {} };
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const previousEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
       const entry = { ...previousEntry };
@@ -6620,7 +6735,7 @@ apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single(
       votes: [],
     };
     const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
       const surveys = getSurveyListFromState(nextState, site).slice();
@@ -6653,7 +6768,7 @@ apiRouter.post('/surveys/:surveyId/vote', requirePermission('canViewSurveys'), a
     const email = sanitizeString(req.session.email || '', 160).toLowerCase();
     let updatedSurvey = null;
     const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
       const surveys = getSurveyListFromState(nextState, site).slice();
@@ -6715,7 +6830,7 @@ apiRouter.delete('/surveys/:surveyId', requirePermission('canDeleteSurveys'), as
     if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
     const surveyId = sanitizeString(req.params.surveyId, 120);
     const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
       const surveys = getSurveyListFromState(nextState, site).slice();
@@ -6748,7 +6863,7 @@ apiRouter.patch('/surveys/:surveyId/pin', requirePermission('canEditSurveys'), a
     const pinned = req.body?.pinned === true || req.body?.pinned === 'true';
     let updatedSurvey = null;
     const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
-      const nextState = state && typeof state === 'object' ? { ...state } : {};
+      const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
       const surveys = getSurveyListFromState(nextState, site).slice();
@@ -7061,7 +7176,7 @@ async function getModulePayload(module, site) {
 
 async function importModulePayload(module, site, payload, session) {
   await mutateVersionedJsonFile(stateFile, null, async (state) => {
-    const nextState = state && typeof state === 'object' ? { ...state } : {};
+    const nextState = normalizeRuntimeState(state);
     nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
     const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
     if (module === 'warehouse') {
@@ -7781,3 +7896,4 @@ app.listen(PORT, () => {
   }
   startStorageInitialization().catch((error) => logServerError(error, 'startup'));
 });
+
