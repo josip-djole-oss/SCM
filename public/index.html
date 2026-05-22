@@ -450,6 +450,87 @@
 
         <!-- Tab: Admins -->
         <div id="tabAdmins" class="tab-content active">
+          <div class="admin-user-wizard-launch">
+            <div>
+              <div class="admin-compose-eyebrow">Account Management</div>
+              <h3>Dodaj ili uredi korisnika/admina</h3>
+              <p>
+                Koristi wizard za osnovne podatke, funkciju osobe, gradilista,
+                permissions i sigurnosni pregled prije spremanja.
+              </p>
+            </div>
+            <button
+              class="btn"
+              data-cmax-action="admin.openUserWizard"
+              data-cmax-args='["create"]'
+              id="adminUserWizardOpenBtn"
+            >
+              Dodaj korisnika/admina
+            </button>
+          </div>
+
+          <div
+            id="adminUserWizardOverlay"
+            class="admin-user-wizard-overlay"
+            aria-hidden="true"
+          >
+            <div class="admin-user-wizard" role="dialog" aria-modal="true" aria-labelledby="adminUserWizardTitle">
+              <div class="admin-user-wizard-head">
+                <div>
+                  <div class="admin-compose-eyebrow">Admin Wizard</div>
+                  <h3 id="adminUserWizardTitle">Dodaj korisnika/admina</h3>
+                </div>
+                <button
+                  class="admin-user-wizard-close"
+                  type="button"
+                  aria-label="Zatvori"
+                  data-cmax-action="admin.closeUserWizard"
+                >
+                  ×
+                </button>
+              </div>
+              <div id="adminUserWizardStepper" class="admin-user-wizard-stepper"></div>
+              <div id="adminUserWizardBody" class="admin-user-wizard-body"></div>
+              <div class="admin-user-wizard-footer">
+                <button
+                  class="btn btn-ghost"
+                  type="button"
+                  data-cmax-action="admin.closeUserWizard"
+                  id="adminUserWizardCancelBtn"
+                >
+                  Odustani
+                </button>
+                <button
+                  class="btn btn-ghost"
+                  type="button"
+                  data-cmax-action="admin.userWizardBack"
+                  id="adminUserWizardBackBtn"
+                >
+                  Nazad
+                </button>
+                <button
+                  class="btn"
+                  type="button"
+                  data-cmax-action="admin.userWizardNext"
+                  id="adminUserWizardNextBtn"
+                >
+                  Dalje
+                </button>
+                <button
+                  class="btn btn-success"
+                  type="button"
+                  data-cmax-action="admin.saveUserWizard"
+                  data-cmax-server-action="true"
+                  data-cmax-loading-key="loadingAdminSave"
+                  id="adminUserWizardSaveBtn"
+                >
+                  Spremi
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="admin-legacy-compose" aria-hidden="true">
           <div class="admin-form-grid">
             <div class="form-group">
               <label id="labelNewFirstName" for="newAdminFirstName">Ime:</label>
@@ -547,6 +628,7 @@
           <button class="btn" data-cmax-action="admin.addNewAdmin" data-cmax-server-action="true" data-cmax-loading-key="loadingAdminSave" id="btnAddAdminEl">
             Dodaj Admina
           </button>
+          </div>
 
           <div style="margin-top: 20px">
             <h3

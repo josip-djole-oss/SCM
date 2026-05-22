@@ -233,6 +233,552 @@ function readFunctionRoleEditor(containerId) {
   );
 }
 
+var ADMIN_USER_WIZARD_STEPS = [
+  { key: "basic", title: "Osnovno" },
+  { key: "function", title: "Funkcija" },
+  { key: "sites", title: "Gradilista" },
+  { key: "permissions", title: "Permissions" },
+  { key: "security", title: "Sigurnost" },
+  { key: "review", title: "Pregled" },
+];
+
+var ADMIN_USER_PERMISSION_GROUPS = [
+  { title: "Planner", view: ["canAccessPlanner"], edit: ["canManageWorkers", "canManagePlans", "canManageMoments", "canManageKarnas", "canManageLifts"], manage: ["canClear", "canUnlockPastDays"], export: ["canExportPlanner", "canImportPlanner"] },
+  { title: "Tidplan", view: ["canAccessTidplan"], edit: ["canManageTidplan", "canAddTidplanActivity", "canManageTidplanZones"], manage: ["canDeleteTidplanActivity", "canClearTidplan"], export: ["canExportTidplan", "canImportTidplan", "canPrintTidplan"] },
+  { title: "Warehouse", view: ["canAccessWarehouse", "canViewWarehouse", "canViewWarehouseLogs", "canViewWarehouseAnalytics"], edit: ["canManageWarehouse"], manage: ["canAssignWarehouseToAdmin"], export: ["canExportWarehouse", "canImportWarehouse"] },
+  { title: "Store", view: ["canAccessStore", "canAccessWorkwear", "canViewStoreTeamOrders", "canViewStoreManagerDashboard"], edit: ["canManageStore", "canManageWorkwear", "canManageStoreBudgets", "canManageWorkwearCredits", "canManageStoreRules", "canManageWorkwearSettings"], manage: ["canViewWorkwearAnalytics"], export: ["canExportStore"] },
+  { title: "Notifications", view: ["canViewNotifications"], edit: ["canManageNotifications"], manage: ["canDeleteNotifications"], export: [] },
+  { title: "Surveys", view: ["canViewSurveys", "canViewSurveyResults", "canViewAnonymousSurveyVoters"], edit: ["canCreateSurveys", "canEditSurveys", "canPublishSurveys"], manage: ["canDeleteSurveys", "canManageSurveyPermissions"], export: [] },
+  { title: "Reports", view: ["canViewReports"], edit: ["canCreateReports", "canApproveReports"], manage: ["canDeleteReports"], export: [] },
+  { title: "Admin", view: ["canOpenAdminPanel", "canViewSettings", "canViewLogs"], edit: ["canManageAdmins", "canManageSiteAccess", "canManageGuestAccess", "canManageBinsPermissions"], manage: ["canClearLogs", "canModifyReadOnly", "canToggleReadOnly"], export: [] },
+  { title: "Backup/Restore", view: ["canViewBackups"], edit: ["canManageBackups"], manage: ["canRestoreBackups"], export: [] },
+  { title: "Chat", view: ["canAccessSiteChat"], edit: [], manage: ["canModerateSiteChat"], export: [] },
+];
+
+var ADMIN_USER_PRESETS = {
+  worker: { label: "Worker preset", level: 1, roles: ["radnik"], enabled: ["canAccessPlanner", "canAccessTidplan", "canAccessBins", "canAccessWarehouse", "canAccessStore", "canAccessWorkwear", "canAccessSiteChat", "canViewNotifications", "canViewSurveys", "canCreateReports"] },
+  grupovodja: { label: "Grupovoda preset", level: 2, roles: ["grupovodja"], enabled: ["canAccessPlanner", "canAccessTidplan", "canAccessBins", "canAccessWarehouse", "canAccessStore", "canAccessWorkwear", "canAccessSiteChat", "canViewNotifications", "canViewSurveys", "canCreateReports", "canPrint", "canExport", "canExportPlanner", "canViewReports"] },
+  poslovodja: { label: "Poslovoda preset", level: 3, roles: ["poslovodja"], enabled: ["canAccessPlanner", "canAccessTidplan", "canAccessBins", "canAccessWarehouse", "canAccessStore", "canAccessWorkwear", "canManageWorkwear", "canAccessSiteChat", "canViewNotifications", "canManageNotifications", "canViewSurveys", "canCreateReports", "canViewReports", "canApproveReports", "canManageWorkers", "canManagePlans", "canManageTidplan", "canAddTidplanActivity", "canManageWarehouse"] },
+  projektledare: { label: "Projektledare preset", level: 4, roles: ["projektledare"], enabled: ["canAccessPlanner", "canAccessTidplan", "canAccessBins", "canAccessWarehouse", "canAccessStore", "canAccessWorkwear", "canAccessSiteChat", "canViewNotifications", "canManageNotifications", "canViewSurveys", "canCreateSurveys", "canEditSurveys", "canPublishSurveys", "canCreateReports", "canViewReports", "canApproveReports", "canManageWorkers", "canManagePlans", "canManageTidplan", "canAddTidplanActivity", "canManageWarehouse", "canExportPlanner", "canExportTidplan", "canExportWarehouse"] },
+  store_manager: { label: "Store Manager preset", level: 4, roles: ["store_manager"], enabled: ["canAccessStore", "canAccessWorkwear", "canManageStore", "canManageWorkwear", "canViewStoreTeamOrders", "canManageStoreBudgets", "canManageWorkwearCredits", "canManageStoreRules", "canManageWorkwearSettings", "canViewStoreManagerDashboard", "canViewWorkwearAnalytics", "canExportStore", "canViewNotifications", "canAccessSiteChat"] },
+  admin: { label: "Admin preset", level: 5, roles: ["admin"], enabled: ["canAccessPlanner", "canAccessTidplan", "canAccessBins", "canAccessWarehouse", "canAccessStore", "canAccessWorkwear", "canAccessSiteChat", "canViewNotifications", "canManageNotifications", "canViewSurveys", "canCreateSurveys", "canEditSurveys", "canPublishSurveys", "canCreateReports", "canViewReports", "canApproveReports", "canOpenAdminPanel", "canViewSettings", "canManageAdmins", "canManageSiteAccess", "canManageGuestAccess", "canViewLogs", "canExportPlanner", "canExportTidplan", "canExportWarehouse", "canImportPlanner", "canImportTidplan", "canImportWarehouse"] },
+  superadmin: { label: "Superadmin preset", level: 6, roles: ["superadmin"], enabled: Object.keys(DEFAULT_PERMISSIONS) },
+};
+
+var ADMIN_USER_DANGEROUS_KEYS = new Set([
+  "canRestoreBackups",
+  "canManageAdmins",
+  "canManageSiteAccess",
+  "canManageGuestAccess",
+  "canDeleteReports",
+  "canDeleteNotifications",
+  "canDeleteSurveys",
+  "canClearLogs",
+  "canModifyReadOnly",
+  "canToggleReadOnly",
+]);
+
+var adminUserWizardState = {
+  isOpen: false,
+  mode: "create",
+  step: 0,
+  editEmail: "",
+  original: null,
+  draft: null,
+};
+
+function createAdminWizardDraft(admin) {
+  const normalized = admin ? normalizeAdminRecord(admin) : null;
+  const fullName = normalized?.fullName || "";
+  const nameParts = fullName.split(" ");
+  const firstName = normalized?.firstName || nameParts.shift() || "";
+  const lastName = normalized?.lastName || nameParts.join(" ") || "";
+  const level = normalized ? getAdminLevel(normalized) : 1;
+  return {
+    firstName,
+    lastName,
+    email: normalized?.email || "",
+    password: "",
+    active: normalized?.active !== false,
+    isReadonly: Boolean(normalized?.isReadonly),
+    level,
+    isSuperAdmin: Boolean(normalized?.isSuperAdmin),
+    storeRoles: normalized?.storeRoles?.length ? normalizeGlobalFunctionKeys(normalized.storeRoles) : ["radnik"],
+    allSites: !Array.isArray(normalized?.allowedSites),
+    allowedSites: Array.isArray(normalized?.allowedSites) ? normalized.allowedSites.slice() : (sites || []).slice(),
+    permissions: normalized?.isSuperAdmin
+      ? { ...DEFAULT_PERMISSIONS }
+      : normalizePermissions(normalized?.permissions || getLevelDefaultPermissions(level)),
+  };
+}
+
+function adminWizardEscape(value) {
+  return typeof escapeHtml === "function" ? escapeHtml(value) : String(value || "");
+}
+
+function getAdminUserWizardDraft() {
+  if (!adminUserWizardState.draft) {
+    adminUserWizardState.draft = createAdminWizardDraft(null);
+  }
+  return adminUserWizardState.draft;
+}
+
+function collectAdminUserWizardStep() {
+  if (!adminUserWizardState.isOpen) return;
+  const draft = getAdminUserWizardDraft();
+  const basicMap = {
+    firstName: "adminWizardFirstName",
+    lastName: "adminWizardLastName",
+    email: "adminWizardEmail",
+    password: "adminWizardPassword",
+  };
+  Object.entries(basicMap).forEach(([key, id]) => {
+    const el = document.getElementById(id);
+    if (el) draft[key] = el.value;
+  });
+  const activeEl = document.getElementById("adminWizardActive");
+  if (activeEl) draft.active = activeEl.checked;
+  const readonlyEl = document.getElementById("adminWizardReadonly");
+  if (readonlyEl) draft.isReadonly = readonlyEl.checked;
+  const levelEl = document.getElementById("adminWizardLevel");
+  if (levelEl) draft.level = Math.max(1, Math.min(6, Number(levelEl.value) || draft.level || 1));
+  const roleInputs = document.querySelectorAll("#adminUserWizardBody input[data-wizard-role]");
+  if (roleInputs.length) {
+    draft.storeRoles = normalizeGlobalFunctionKeys(Array.from(roleInputs).filter((cb) => cb.checked).map((cb) => cb.dataset.wizardRole));
+  }
+  const allSitesEl = document.getElementById("adminWizardAllSites");
+  if (allSitesEl) draft.allSites = allSitesEl.checked;
+  const siteInputs = document.querySelectorAll("#adminUserWizardBody input[data-wizard-site]");
+  if (siteInputs.length) {
+    draft.allowedSites = Array.from(siteInputs).filter((cb) => cb.checked).map((cb) => cb.dataset.wizardSite);
+  }
+  const permInputs = document.querySelectorAll("#adminUserWizardBody input[data-wizard-permission]");
+  if (permInputs.length) {
+    const next = normalizePermissions(draft.permissions || {});
+    permInputs.forEach((cb) => {
+      next[cb.dataset.wizardPermission] = cb.checked;
+    });
+    draft.permissions = next;
+  }
+}
+
+function getAdminUserWizardDangerousItems(draft = getAdminUserWizardDraft()) {
+  const items = [];
+  if (Number(draft.level || 1) >= 5) items.push("Admin level 5+");
+  if (Number(draft.level || 1) >= 6 || draft.isSuperAdmin || (draft.storeRoles || []).includes("superadmin")) {
+    items.push("Superadmin");
+  }
+  Object.keys(draft.permissions || {}).forEach((key) => {
+    if (draft.permissions[key] === true && ADMIN_USER_DANGEROUS_KEYS.has(key)) {
+      items.push(getPermissionLabel(key));
+    }
+  });
+  return Array.from(new Set(items));
+}
+
+function adminWizardCanGrantPermission(key, level) {
+  const template = getLevelTemplate(level || 1);
+  return template[key] === true && (appState.isSuperAdmin || hasAdminPermission(key));
+}
+
+function applyAdminUserWizardPreset(presetKey) {
+  collectAdminUserWizardStep();
+  const preset = ADMIN_USER_PRESETS[presetKey];
+  if (!preset) return;
+  const draft = getAdminUserWizardDraft();
+  const maxLevel = getMaxGrantableLevel();
+  draft.level = appState.isSuperAdmin ? preset.level : Math.min(preset.level, maxLevel);
+  draft.storeRoles = normalizeGlobalFunctionKeys(preset.roles);
+  draft.isSuperAdmin = draft.level >= 6 && presetKey === "superadmin";
+  const allowed = new Set(preset.enabled || []);
+  const template = getLevelTemplate(draft.level);
+  const nextPerms = {};
+  Object.keys(DEFAULT_PERMISSIONS).forEach((key) => {
+    nextPerms[key] = template[key] === true && allowed.has(key) && (appState.isSuperAdmin || hasAdminPermission(key));
+  });
+  draft.permissions = normalizePermissions(nextPerms);
+  renderAdminUserWizard();
+}
+
+function generateAdminWizardPassword() {
+  collectAdminUserWizardStep();
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!?#";
+  let password = "";
+  for (let i = 0; i < 14; i += 1) {
+    password += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  getAdminUserWizardDraft().password = password;
+  renderAdminUserWizard();
+  showToast("Generirana lozinka je upisana u wizard. Nece biti logirana.", "success");
+}
+
+function openAdminUserWizard(mode = "create", email = "") {
+  if (!canManageAdminsByLevel()) {
+    showToast(t("errAdminManageDenied"), "error");
+    return;
+  }
+  const admins = getAdmins();
+  const target = mode === "edit" ? admins.find((admin) => admin.email === email) : null;
+  if (mode === "edit" && (!target || !canManageAdminRecord(target))) {
+    showToast(t("errAdminManageDenied"), "error");
+    return;
+  }
+  adminUserWizardState = {
+    isOpen: true,
+    mode: mode === "edit" ? "edit" : "create",
+    step: 0,
+    editEmail: target?.email || "",
+    original: target ? normalizeAdminRecord(target) : null,
+    draft: createAdminWizardDraft(target || null),
+  };
+  const overlay = document.getElementById("adminUserWizardOverlay");
+  if (overlay) {
+    overlay.classList.add("is-open");
+    overlay.setAttribute("aria-hidden", "false");
+  }
+  document.body.classList.add("modal-open");
+  renderAdminUserWizard();
+}
+
+function closeAdminUserWizard() {
+  const overlay = document.getElementById("adminUserWizardOverlay");
+  if (overlay) {
+    overlay.classList.remove("is-open");
+    overlay.setAttribute("aria-hidden", "true");
+  }
+  document.body.classList.remove("modal-open");
+  adminUserWizardState.isOpen = false;
+}
+
+function adminUserWizardNext() {
+  collectAdminUserWizardStep();
+  if (!validateAdminUserWizardStep()) return;
+  adminUserWizardState.step = Math.min(ADMIN_USER_WIZARD_STEPS.length - 1, adminUserWizardState.step + 1);
+  renderAdminUserWizard();
+}
+
+function adminUserWizardBack() {
+  collectAdminUserWizardStep();
+  adminUserWizardState.step = Math.max(0, adminUserWizardState.step - 1);
+  renderAdminUserWizard();
+}
+
+function validateAdminUserWizardStep() {
+  const draft = getAdminUserWizardDraft();
+  const key = ADMIN_USER_WIZARD_STEPS[adminUserWizardState.step]?.key;
+  if (key === "basic") {
+    if (!String(draft.firstName || "").trim() || !String(draft.email || "").trim()) {
+      showToast("Unesite ime i email.", "error");
+      return false;
+    }
+    if (!String(draft.email || "").includes("@")) {
+      showToast(t("errInvalidEmail"), "error");
+      return false;
+    }
+    if (adminUserWizardState.mode === "create" && !String(draft.password || "").trim()) {
+      showToast("Unesite lozinku ili generirajte novu.", "error");
+      return false;
+    }
+  }
+  if (key === "function" && !draft.storeRoles.length) {
+    showToast("Odaberite barem jednu funkciju osobe.", "error");
+    return false;
+  }
+  if (key === "sites" && !draft.allSites && !draft.allowedSites.length) {
+    showToast("Odaberite barem jedno gradiliste ili ukljucite sva gradilista.", "error");
+    return false;
+  }
+  return true;
+}
+
+function renderAdminUserWizard() {
+  if (!adminUserWizardState.isOpen) return;
+  const draft = getAdminUserWizardDraft();
+  const title = document.getElementById("adminUserWizardTitle");
+  if (title) title.textContent = adminUserWizardState.mode === "edit" ? "Uredi korisnika/admina" : "Dodaj korisnika/admina";
+  renderAdminUserWizardStepper();
+  const body = document.getElementById("adminUserWizardBody");
+  if (!body) return;
+  const stepKey = ADMIN_USER_WIZARD_STEPS[adminUserWizardState.step]?.key || "basic";
+  if (stepKey === "basic") body.innerHTML = renderAdminWizardBasicStep(draft);
+  if (stepKey === "function") body.innerHTML = renderAdminWizardFunctionStep(draft);
+  if (stepKey === "sites") body.innerHTML = renderAdminWizardSitesStep(draft);
+  if (stepKey === "permissions") body.innerHTML = renderAdminWizardPermissionsStep(draft);
+  if (stepKey === "security") body.innerHTML = renderAdminWizardSecurityStep(draft);
+  if (stepKey === "review") body.innerHTML = renderAdminWizardReviewStep(draft);
+  const backBtn = document.getElementById("adminUserWizardBackBtn");
+  const nextBtn = document.getElementById("adminUserWizardNextBtn");
+  const saveBtn = document.getElementById("adminUserWizardSaveBtn");
+  if (backBtn) backBtn.style.display = adminUserWizardState.step === 0 ? "none" : "";
+  if (nextBtn) nextBtn.style.display = adminUserWizardState.step >= ADMIN_USER_WIZARD_STEPS.length - 1 ? "none" : "";
+  if (saveBtn) saveBtn.style.display = adminUserWizardState.step >= ADMIN_USER_WIZARD_STEPS.length - 1 ? "" : "none";
+}
+
+function renderAdminUserWizardStepper() {
+  const stepper = document.getElementById("adminUserWizardStepper");
+  if (!stepper) return;
+  stepper.innerHTML = ADMIN_USER_WIZARD_STEPS.map((step, index) => `
+    <button type="button" class="admin-user-wizard-step ${index === adminUserWizardState.step ? "is-active" : ""} ${index < adminUserWizardState.step ? "is-done" : ""}" data-cmax-action="admin.userWizardGoTo" data-cmax-args='[${index}]'>
+      <span>${index + 1}</span>
+      ${adminWizardEscape(step.title)}
+    </button>
+  `).join("");
+}
+
+function adminUserWizardGoTo(index) {
+  collectAdminUserWizardStep();
+  const next = Number(index);
+  if (!Number.isFinite(next)) return;
+  adminUserWizardState.step = Math.max(0, Math.min(ADMIN_USER_WIZARD_STEPS.length - 1, next));
+  renderAdminUserWizard();
+}
+
+function renderAdminWizardBasicStep(draft) {
+  return `
+    <section class="admin-user-wizard-section">
+      <h4>Step 1 - Osnovni podaci</h4>
+      <p>Unesi podatke accounta. Lozinka se ne prikazuje u audit logu.</p>
+      <div class="admin-user-wizard-grid">
+        <label>Ime<input id="adminWizardFirstName" type="text" value="${adminWizardEscape(draft.firstName)}" autocomplete="given-name"></label>
+        <label>Prezime<input id="adminWizardLastName" type="text" value="${adminWizardEscape(draft.lastName)}" autocomplete="family-name"></label>
+        <label>Email<input id="adminWizardEmail" type="email" value="${adminWizardEscape(draft.email)}" ${adminUserWizardState.mode === "edit" ? "readonly" : ""} autocomplete="off"></label>
+        <label>Lozinka<input id="adminWizardPassword" type="password" value="${adminWizardEscape(draft.password)}" placeholder="${adminUserWizardState.mode === "edit" ? "Ostavi prazno ako se ne mijenja" : "Nova lozinka"}" autocomplete="new-password"></label>
+      </div>
+      <div class="admin-user-wizard-actions-inline">
+        <button type="button" class="btn btn-ghost" data-cmax-action="admin.generateWizardPassword">Generate password</button>
+      </div>
+      <div class="admin-user-card-grid">
+        <label class="admin-user-toggle-card"><input id="adminWizardActive" type="checkbox" ${draft.active ? "checked" : ""}><span><strong>Aktivan account</strong><small>Korisnik se moze prijaviti dok je aktivan.</small></span></label>
+        <label class="admin-user-toggle-card"><input id="adminWizardReadonly" type="checkbox" ${draft.isReadonly ? "checked" : ""}><span><strong>Readonly</strong><small>Korisnik moze gledati, ali ne mijenjati podatke gdje je podrzano.</small></span></label>
+      </div>
+    </section>
+  `;
+}
+
+function renderAdminWizardFunctionStep(draft) {
+  const roleCards = getGlobalFunctionOptions().map((role) => `
+    <label class="admin-user-toggle-card">
+      <input type="checkbox" data-wizard-role="${adminWizardEscape(role.key)}" ${draft.storeRoles.includes(role.key) ? "checked" : ""} ${role.key === "superadmin" && !appState.isSuperAdmin ? "disabled" : ""}>
+      <span><strong>${adminWizardEscape(role.label)}</strong><small>Poslovna funkcija osobe u firmi.</small></span>
+    </label>
+  `).join("");
+  return `
+    <section class="admin-user-wizard-section">
+      <h4>Step 2 - Funkcija osobe</h4>
+      <div class="admin-user-info-box">
+        <strong>Funkcija nije isto sto i permissions.</strong>
+        <span>Funkcija opisuje sta je osoba u firmi. Permissions odreduju sta smije raditi u aplikaciji.</span>
+      </div>
+      <div class="admin-user-card-grid">${roleCards}</div>
+      <label class="admin-user-level-select">Admin level
+        <select id="adminWizardLevel">
+          ${ADMIN_LEVELS.filter((lvl) => lvl <= getMaxGrantableLevel()).map((lvl) => `<option value="${lvl}" ${Number(draft.level) === lvl ? "selected" : ""}>Level ${lvl}</option>`).join("")}
+        </select>
+      </label>
+    </section>
+  `;
+}
+
+function renderAdminWizardSitesStep(draft) {
+  const allowedGrantSites = getCurrentAdminAllowedSites();
+  const siteCards = (sites || []).map((site) => {
+    const canGrant = appState.isSuperAdmin || allowedGrantSites === null || allowedGrantSites.includes(site);
+    return `
+      <label class="admin-user-toggle-card ${draft.allSites ? "is-muted" : ""}">
+        <input type="checkbox" data-wizard-site="${adminWizardEscape(site)}" ${draft.allSites || draft.allowedSites.includes(site) ? "checked" : ""} ${draft.allSites || !canGrant ? "disabled" : ""}>
+        <span><strong>${adminWizardEscape(site)}</strong><small>Pristup podacima ovog gradilista.</small></span>
+      </label>
+    `;
+  }).join("");
+  return `
+    <section class="admin-user-wizard-section">
+      <h4>Step 3 - Gradilista</h4>
+      <p>Ako korisnik nema pristup gradilistu, ne smije vidjeti njegove podatke.</p>
+      <label class="admin-user-toggle-card admin-user-toggle-card-wide">
+        <input id="adminWizardAllSites" type="checkbox" ${draft.allSites ? "checked" : ""} data-cmax-action="admin.toggleWizardAllSites" data-cmax-event="change">
+        <span><strong>Dostupna sva gradilista</strong><small>Vrijedi i za nova gradilista koja se dodaju kasnije.</small></span>
+      </label>
+      <div class="admin-user-card-grid">${siteCards || `<div class="admin-user-empty">Nema gradilista za dodjelu.</div>`}</div>
+    </section>
+  `;
+}
+
+function renderAdminWizardPermissionsStep(draft) {
+  const presets = Object.entries(ADMIN_USER_PRESETS).map(([key, preset]) => `
+    <button type="button" class="btn btn-ghost btn-small" data-cmax-action="admin.applyWizardPreset" data-cmax-args='["${key}"]'>${adminWizardEscape(preset.label)}</button>
+  `).join("");
+  const groups = ADMIN_USER_PERMISSION_GROUPS.map((group) => {
+    const rows = [
+      ["View", group.view],
+      ["Create/Edit", group.edit],
+      ["Delete/Manage", group.manage],
+      ["Export", group.export],
+    ].filter(([, keys]) => keys.length).map(([label, keys]) => `
+      <div class="admin-user-permission-row">
+        <strong>${label}</strong>
+        <div>
+          ${keys.map((key) => `
+            <label class="admin-user-permission-chip">
+              <input type="checkbox" data-wizard-permission="${adminWizardEscape(key)}" ${draft.permissions[key] !== false ? "checked" : ""} ${adminWizardCanGrantPermission(key, draft.level) ? "" : "disabled"}>
+              <span>${adminWizardEscape(getPermissionLabel(key))}</span>
+            </label>
+          `).join("")}
+        </div>
+      </div>
+    `).join("");
+    return `<div class="admin-user-permission-group"><h5>${adminWizardEscape(group.title)}</h5>${rows}</div>`;
+  }).join("");
+  return `
+    <section class="admin-user-wizard-section">
+      <h4>Step 4 - Permissions</h4>
+      <p>Preseti samo predloze prava. Poslije ih mozes rucno promijeniti po grupama.</p>
+      <div class="admin-user-preset-row">${presets}</div>
+      <div class="admin-user-permission-groups">${groups}</div>
+    </section>
+  `;
+}
+
+function renderAdminWizardSecurityStep(draft) {
+  const dangerous = getAdminUserWizardDangerousItems(draft);
+  return `
+    <section class="admin-user-wizard-section">
+      <h4>Step 5 - Sigurnost</h4>
+      <div class="admin-user-security-grid">
+        <div class="admin-user-info-box"><strong>Reset lozinke</strong><span>Zahtjev za reset lozinke ostaje pod Superadmin kontrolom i ne logira plain password.</span></div>
+        <div class="admin-user-info-box"><strong>Restore backup</strong><span>Restore je dozvoljen samo Superadminu ili korisniku kojem Superadmin eksplicitno dodijeli pravo.</span></div>
+        <div class="admin-user-info-box"><strong>Permission edit</strong><span>Mijenjanje permissions je opasna admin akcija i auditira se na backendu.</span></div>
+        <div class="admin-user-info-box"><strong>Store management</strong><span>Store Manager/Admin funkcija i permissions moraju biti dodijeljeni da bi korisnik upravljao Storeom.</span></div>
+      </div>
+      ${dangerous.length ? `<div class="admin-user-danger-box"><strong>Opasna prava:</strong><ul>${dangerous.map((item) => `<li>${adminWizardEscape(item)}</li>`).join("")}</ul></div>` : `<div class="admin-user-safe-box">Nema detektiranih opasnih prava u ovom prijedlogu.</div>`}
+    </section>
+  `;
+}
+
+function renderAdminWizardReviewStep(draft) {
+  const roleLabels = (draft.storeRoles || []).map((role) => {
+    const option = getGlobalFunctionOptions().find((item) => item.key === role);
+    return option?.label || role;
+  });
+  const enabledGroups = ADMIN_USER_PERMISSION_GROUPS.map((group) => {
+    const keys = [...group.view, ...group.edit, ...group.manage, ...group.export];
+    const count = keys.filter((key) => draft.permissions[key] !== false).length;
+    return count ? `${group.title} (${count})` : "";
+  }).filter(Boolean);
+  const dangerous = getAdminUserWizardDangerousItems(draft);
+  return `
+    <section class="admin-user-wizard-section">
+      <h4>Step 6 - Pregled i potvrda</h4>
+      <div class="admin-user-review">
+        <div><strong>Ime/email</strong><span>${adminWizardEscape(`${draft.firstName || ""} ${draft.lastName || ""}`.trim() || "-")} / ${adminWizardEscape(draft.email || "-")}</span></div>
+        <div><strong>Funkcija</strong><span>${roleLabels.map((label) => `<em>${adminWizardEscape(label)}</em>`).join(" ") || "-"}</span></div>
+        <div><strong>Gradilista</strong><span>${draft.allSites ? "Sva gradilista" : adminWizardEscape((draft.allowedSites || []).join(", ") || "-")}</span></div>
+        <div><strong>Permission groups</strong><span>${adminWizardEscape(enabledGroups.join(", ") || "-")}</span></div>
+        <div><strong>Opasna prava</strong><span>${dangerous.length ? adminWizardEscape(dangerous.join(", ")) : "Nema"}</span></div>
+        <div><strong>Status</strong><span>${draft.active ? "Active" : "Inactive"}${draft.isReadonly ? " / Readonly" : ""}</span></div>
+      </div>
+    </section>
+  `;
+}
+
+function toggleAdminWizardAllSites() {
+  collectAdminUserWizardStep();
+  const draft = getAdminUserWizardDraft();
+  draft.allSites = document.getElementById("adminWizardAllSites")?.checked === true;
+  if (draft.allSites) draft.allowedSites = (sites || []).slice();
+  renderAdminUserWizard();
+}
+
+function buildAdminUserFromWizardDraft(draft, existing) {
+  const level = Math.max(1, Math.min(6, Number(draft.level) || 1));
+  let guardedPerms = level >= 6 ? { ...DEFAULT_PERMISSIONS } : clampPermissionsToLevel(draft.permissions || {}, level);
+  if (!appState.isSuperAdmin) {
+    Object.keys(guardedPerms).forEach((key) => {
+      if (!hasAdminPermission(key)) guardedPerms[key] = false;
+    });
+  }
+  const selectedSites = draft.allSites ? null : (draft.allowedSites || []).filter((site) => (sites || []).includes(site));
+  const next = {
+    ...(existing || {}),
+    firstName: String(draft.firstName || "").trim(),
+    lastName: String(draft.lastName || "").trim(),
+    fullName: `${String(draft.firstName || "").trim()} ${String(draft.lastName || "").trim()}`.trim(),
+    email: String(draft.email || "").trim().toLowerCase(),
+    active: draft.active !== false,
+    isReadonly: Boolean(draft.isReadonly),
+    isSuperAdmin: appState.isSuperAdmin && (level >= 6 || (draft.storeRoles || []).includes("superadmin")),
+    level,
+    permissions: normalizePermissions(guardedPerms),
+    storeRoles: normalizeGlobalFunctionKeys(draft.storeRoles || []),
+    allowedSites: selectedSites,
+  };
+  if (String(draft.password || "").trim()) next.password = draft.password;
+  return next;
+}
+
+function adminUserWizardRightsChanged(original, next) {
+  if (!original) return true;
+  const important = ["level", "isSuperAdmin", "isReadonly", "active"];
+  if (important.some((key) => String(original[key]) !== String(next[key]))) return true;
+  if (JSON.stringify(normalizeGlobalFunctionKeys(original.storeRoles || [])) !== JSON.stringify(normalizeGlobalFunctionKeys(next.storeRoles || []))) return true;
+  if (JSON.stringify(original.allowedSites || null) !== JSON.stringify(next.allowedSites || null)) return true;
+  return JSON.stringify(normalizePermissions(original.permissions || {})) !== JSON.stringify(normalizePermissions(next.permissions || {}));
+}
+
+function saveAdminUserWizard() {
+  collectAdminUserWizardStep();
+  if (!validateAdminUserWizardStep()) return;
+  const draft = getAdminUserWizardDraft();
+  const admins = getAdmins();
+  const email = String(draft.email || "").trim().toLowerCase();
+  const existingIndex = admins.findIndex((admin) => admin.email === (adminUserWizardState.editEmail || email));
+  const existing = existingIndex >= 0 ? admins[existingIndex] : null;
+  if (adminUserWizardState.mode === "create" && admins.some((admin) => admin.email === email)) {
+    showToast(t("errAdminExists"), "error");
+    return;
+  }
+  const nextAdmin = buildAdminUserFromWizardDraft(draft, existing);
+  if (email === appState.currentUser) {
+    showToast("Ne mozete mijenjati vlastita opasna prava iz ovog wizarda.", "error");
+    return;
+  }
+  if (!appState.isSuperAdmin && (nextAdmin.isSuperAdmin || (nextAdmin.storeRoles || []).includes("superadmin") || getAdminLevel(nextAdmin) >= getCurrentAdminLevel())) {
+    showToast(t("errAdminManageDenied"), "error");
+    return;
+  }
+  const doSave = () => {
+    const nextAdmins = admins.slice();
+    if (existingIndex >= 0) nextAdmins[existingIndex] = nextAdmin;
+    else nextAdmins.push(nextAdmin);
+    localStorage.setItem(ADMINS_KEY, JSON.stringify(nextAdmins));
+    trackEditActivity();
+    return syncModuleState("adminUsers", { admins: nextAdmins })
+      .catch(() => {})
+      .finally(() => {
+        const dangerous = getAdminUserWizardDangerousItems(draft);
+        addLog(adminUserWizardState.mode === "edit" ? "Admin account updated" : "Admin account created", {
+          email,
+          level: nextAdmin.level,
+          storeRoles: nextAdmin.storeRoles || [],
+          dangerousPermissions: dangerous,
+        });
+        renderAdminList();
+        populateSiteSelect();
+        updateNotificationsBadge();
+        closeAdminUserWizard();
+        showToast(adminUserWizardState.mode === "edit" ? t("successPermsSaved") : t("successAdminAdded"), "success");
+      });
+  };
+  if (adminUserWizardState.mode === "edit" && adminUserWizardRightsChanged(adminUserWizardState.original, nextAdmin)) {
+    return showConfirm(
+      "Mijenjate prava ili pristup postojeceg korisnika. Nastaviti?",
+      null,
+      "!",
+      doSave,
+    );
+  }
+  return doSave();
+}
+
 function renderNewAdminRolePanel() {
   renderFunctionRoleEditor("newAdminRolePanel", "nr_", ["radnik"], {
     disableAll: !canManageAdminsByLevel(),
@@ -269,7 +815,7 @@ function enhanceAdminComposerLayout() {
   const tabAdmins = document.getElementById("tabAdmins");
   if (!tabAdmins) return;
 
-  if (!tabAdmins.querySelector(".admin-compose-intro")) {
+  if (!tabAdmins.querySelector(".admin-user-wizard-launch") && !tabAdmins.querySelector(".admin-compose-intro")) {
     const intro = document.createElement("div");
     intro.className = "admin-compose-intro";
     intro.innerHTML = `
@@ -320,6 +866,22 @@ function enhanceAdminComposerLayout() {
 
   const adminListBlock = document.getElementById("adminList")?.parentElement;
   if (adminListBlock) adminListBlock.classList.add("admin-compose-card", "admin-compose-card-list");
+
+  const overlay = document.getElementById("adminUserWizardOverlay");
+  if (overlay && !overlay.dataset.boundAdminUserWizard) {
+    overlay.dataset.boundAdminUserWizard = "true";
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeAdminUserWizard();
+    });
+  }
+  if (!document.body.dataset.boundAdminUserWizardEscape) {
+    document.body.dataset.boundAdminUserWizardEscape = "true";
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && adminUserWizardState?.isOpen) {
+        closeAdminUserWizard();
+      }
+    });
+  }
 
   renderAdminLevelQuickPicks();
 }
@@ -659,8 +1221,8 @@ function renderAdminList() {
       editBtn.textContent = "Postavke";
       editBtn.title = t("editPermsTitle") + " " + displayName;
       if (canEditThisAdmin) {
-        editBtn.dataset.cmaxAction = "admin.togglePerms";
-        editBtn.dataset.cmaxArgs = JSON.stringify([idx]);
+        editBtn.dataset.cmaxAction = "admin.openUserWizard";
+        editBtn.dataset.cmaxArgs = JSON.stringify(["edit", admin.email]);
         btnGroup.appendChild(editBtn);
       }
 
@@ -922,6 +1484,10 @@ function saveAdminPerms(email, idx) {
 }
 
 function addNewAdmin() {
+  if (adminUserWizardState?.isOpen !== true) {
+    openAdminUserWizard("create");
+    return;
+  }
   if (!canManageAdminsByLevel()) return;
   if (!canManageAdminsByLevel()) {
     showToast(t("errAdminManageDenied"), "error");
