@@ -81,8 +81,11 @@ function renderSiteChatThreadPane(siteId) {
     `;
   }
   const site = siteChatState.sites.find((entry) => entry.siteId === siteId) || { siteName: siteId, onlineCount: 0 };
-  const messages = siteChatGetMessages(siteId);
-  const pinned = messages.filter((message) => message.pinned && !message.deletedAt).slice(-3);
+  const allMessages = siteChatGetMessages(siteId);
+  const renderLimit = Number(siteChatState.renderLimit) || 120;
+  const hiddenCount = Math.max(0, allMessages.length - renderLimit);
+  const messages = hiddenCount ? allMessages.slice(-renderLimit) : allMessages;
+  const pinned = allMessages.filter((message) => message.pinned && !message.deletedAt).slice(-3);
   return `
     <section class="site-chat-thread-pane">
       <header class="site-chat-thread-head">
@@ -98,6 +101,7 @@ function renderSiteChatThreadPane(siteId) {
       ${pinned.length ? `<div class="site-chat-pinned-bar">${pinned.map(renderSiteChatPinnedMessage).join("")}</div>` : ""}
       <div id="siteChatMessages" class="site-chat-messages">
         ${siteChatState.hasMoreBySite[siteId] ? `<button class="site-chat-load-older" type="button" data-cmax-action="siteChat.loadOlder">Ucitaj starije</button>` : ""}
+        ${hiddenCount ? `<div class="site-chat-window-note">Prikazujemo zadnjih ${renderLimit} poruka radi brzine. Starije poruke ucitaj po potrebi.</div>` : ""}
         ${messages.length ? renderSiteChatMessages(messages) : `<div class="site-chat-empty">Nema poruka za ovo gradiliste.</div>`}
       </div>
       ${renderSiteChatComposer(siteId)}

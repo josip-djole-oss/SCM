@@ -1,0 +1,3661 @@
+{
+  "memory": [
+    {
+      "label": "scenarioA-chat-5",
+      "usedJSHeapSize": 7541722,
+      "totalJSHeapSize": 10153250
+    },
+    {
+      "label": "scenarioA-warehouse-5",
+      "usedJSHeapSize": 7961446,
+      "totalJSHeapSize": 13598082
+    },
+    {
+      "label": "scenarioA-planner-5",
+      "usedJSHeapSize": 6643138,
+      "totalJSHeapSize": 11645358
+    },
+    {
+      "label": "scenarioA-tidplan-5",
+      "usedJSHeapSize": 6868084,
+      "totalJSHeapSize": 10337464
+    },
+    {
+      "label": "scenarioA-store-5",
+      "usedJSHeapSize": 9027890,
+      "totalJSHeapSize": 10930830
+    },
+    {
+      "label": "scenarioA-chat-10",
+      "usedJSHeapSize": 7356652,
+      "totalJSHeapSize": 10098348
+    },
+    {
+      "label": "scenarioA-warehouse-10",
+      "usedJSHeapSize": 7140747,
+      "totalJSHeapSize": 9105843
+    },
+    {
+      "label": "scenarioA-planner-10",
+      "usedJSHeapSize": 6855889,
+      "totalJSHeapSize": 9583505
+    },
+    {
+      "label": "scenarioA-chat-15",
+      "usedJSHeapSize": 6604059,
+      "totalJSHeapSize": 9520871
+    },
+    {
+      "label": "scenarioA-tidplan-10",
+      "usedJSHeapSize": 7050088,
+      "totalJSHeapSize": 9822100
+    },
+    {
+      "label": "scenarioA-store-10",
+      "usedJSHeapSize": 7109811,
+      "totalJSHeapSize": 8060719
+    },
+    {
+      "label": "scenarioA-chat-20",
+      "usedJSHeapSize": 6939837,
+      "totalJSHeapSize": 9570745
+    },
+    {
+      "label": "scenarioA-warehouse-15",
+      "usedJSHeapSize": 7413813,
+      "totalJSHeapSize": 9387313
+    },
+    {
+      "label": "scenarioA-planner-15",
+      "usedJSHeapSize": 6505210,
+      "totalJSHeapSize": 11401358
+    },
+    {
+      "label": "scenarioA-tidplan-15",
+      "usedJSHeapSize": 7368144,
+      "totalJSHeapSize": 11405308
+    },
+    {
+      "label": "scenarioA-chat-25",
+      "usedJSHeapSize": 6988400,
+      "totalJSHeapSize": 10374428
+    },
+    {
+      "label": "scenarioA-warehouse-20",
+      "usedJSHeapSize": 7867585,
+      "totalJSHeapSize": 9983653
+    },
+    {
+      "label": "scenarioA-store-15",
+      "usedJSHeapSize": 6616983,
+      "totalJSHeapSize": 9047811
+    },
+    {
+      "label": "scenarioA-planner-20",
+      "usedJSHeapSize": 7357335,
+      "totalJSHeapSize": 11180439
+    },
+    {
+      "label": "scenarioA-chat-30",
+      "usedJSHeapSize": 7890613,
+      "totalJSHeapSize": 10634557
+    },
+    {
+      "label": "scenarioA-tidplan-20",
+      "usedJSHeapSize": 7227756,
+      "totalJSHeapSize": 10890136
+    },
+    {
+      "label": "scenarioA-warehouse-25",
+      "usedJSHeapSize": 8790217,
+      "totalJSHeapSize": 10147713
+    },
+    {
+      "label": "scenarioA-chat-35",
+      "usedJSHeapSize": 8134791,
+      "totalJSHeapSize": 10686775
+    },
+    {
+      "label": "scenarioA-store-20",
+      "usedJSHeapSize": 6711684,
+      "totalJSHeapSize": 8796308
+    },
+    {
+      "label": "scenarioA-planner-25",
+      "usedJSHeapSize": 7065979,
+      "totalJSHeapSize": 10894379
+    },
+    {
+      "label": "scenarioA-tidplan-25",
+      "usedJSHeapSize": 7339910,
+      "totalJSHeapSize": 11166590
+    },
+    {
+      "label": "scenarioA-chat-40",
+      "usedJSHeapSize": 7204756,
+      "totalJSHeapSize": 11432448
+    },
+    {
+      "label": "scenarioA-warehouse-30",
+      "usedJSHeapSize": 7751300,
+      "totalJSHeapSize": 10171300
+    },
+    {
+      "label": "scenarioA-planner-30",
+      "usedJSHeapSize": 7723491,
+      "totalJSHeapSize": 11211035
+    },
+    {
+      "label": "scenarioA-chat-45",
+      "usedJSHeapSize": 7272997,
+      "totalJSHeapSize": 9668209
+    },
+    {
+      "label": "scenarioA-store-25",
+      "usedJSHeapSize": 6961207,
+      "totalJSHeapSize": 9860683
+    },
+    {
+      "label": "scenarioA-warehouse-35",
+      "usedJSHeapSize": 7552348,
+      "totalJSHeapSize": 10245160
+    },
+    {
+      "label": "scenarioA-tidplan-30",
+      "usedJSHeapSize": 7392269,
+      "totalJSHeapSize": 14847393
+    },
+    {
+      "label": "scenarioA-chat-50",
+      "usedJSHeapSize": 7542472,
+      "totalJSHeapSize": 9675140
+    },
+    {
+      "label": "scenarioA-planner-35",
+      "usedJSHeapSize": 6733824,
+      "totalJSHeapSize": 10656636
+    },
+    {
+      "label": "scenarioA-warehouse-40",
+      "usedJSHeapSize": 6598986,
+      "totalJSHeapSize": 9346534
+    },
+    {
+      "label": "scenarioA-chat-55",
+      "usedJSHeapSize": 8226510,
+      "totalJSHeapSize": 12585990
+    },
+    {
+      "label": "scenarioA-store-30",
+      "usedJSHeapSize": 7536740,
+      "totalJSHeapSize": 9577096
+    },
+    {
+      "label": "scenarioA-tidplan-35",
+      "usedJSHeapSize": 7446866,
+      "totalJSHeapSize": 13021622
+    },
+    {
+      "label": "scenarioA-planner-40",
+      "usedJSHeapSize": 6785285,
+      "totalJSHeapSize": 9354833
+    },
+    {
+      "label": "scenarioA-chat-60",
+      "usedJSHeapSize": 7599146,
+      "totalJSHeapSize": 10663210
+    },
+    {
+      "label": "scenarioA-warehouse-45",
+      "usedJSHeapSize": 7288715,
+      "totalJSHeapSize": 10684167
+    },
+    {
+      "label": "scenarioA-tidplan-40",
+      "usedJSHeapSize": 7689721,
+      "totalJSHeapSize": 15492957
+    },
+    {
+      "label": "scenarioA-store-35",
+      "usedJSHeapSize": 8072054,
+      "totalJSHeapSize": 9667218
+    },
+    {
+      "label": "scenarioA-chat-65",
+      "usedJSHeapSize": 6823551,
+      "totalJSHeapSize": 9595679
+    },
+    {
+      "label": "scenarioA-planner-45",
+      "usedJSHeapSize": 6842712,
+      "totalJSHeapSize": 9887972
+    },
+    {
+      "label": "scenarioA-warehouse-50",
+      "usedJSHeapSize": 9195377,
+      "totalJSHeapSize": 11449609
+    },
+    {
+      "label": "scenarioA-chat-70",
+      "usedJSHeapSize": 7512410,
+      "totalJSHeapSize": 10668530
+    },
+    {
+      "label": "scenarioA-tidplan-45",
+      "usedJSHeapSize": 12309736,
+      "totalJSHeapSize": 18134264
+    },
+    {
+      "label": "scenarioA-store-40",
+      "usedJSHeapSize": 7147574,
+      "totalJSHeapSize": 10682698
+    },
+    {
+      "label": "scenarioA-planner-50",
+      "usedJSHeapSize": 6909477,
+      "totalJSHeapSize": 10683321
+    },
+    {
+      "label": "scenarioA-warehouse-55",
+      "usedJSHeapSize": 8152107,
+      "totalJSHeapSize": 10846123
+    },
+    {
+      "label": "scenarioA-chat-75",
+      "usedJSHeapSize": 7217622,
+      "totalJSHeapSize": 9885934
+    },
+    {
+      "label": "scenarioA-chat-80",
+      "usedJSHeapSize": 7282549,
+      "totalJSHeapSize": 10655653
+    },
+    {
+      "label": "scenarioA-tidplan-50",
+      "usedJSHeapSize": 7520266,
+      "totalJSHeapSize": 14622314
+    },
+    {
+      "label": "scenarioA-warehouse-60",
+      "usedJSHeapSize": 8202530,
+      "totalJSHeapSize": 10184490
+    },
+    {
+      "label": "scenarioA-planner-55",
+      "usedJSHeapSize": 6686388,
+      "totalJSHeapSize": 8469588
+    },
+    {
+      "label": "scenarioA-store-45",
+      "usedJSHeapSize": 7201391,
+      "totalJSHeapSize": 11217987
+    },
+    {
+      "label": "scenarioA-chat-85",
+      "usedJSHeapSize": 6833417,
+      "totalJSHeapSize": 12140065
+    },
+    {
+      "label": "scenarioA-tidplan-55",
+      "usedJSHeapSize": 7575271,
+      "totalJSHeapSize": 15680127
+    },
+    {
+      "label": "scenarioA-warehouse-65",
+      "usedJSHeapSize": 8686068,
+      "totalJSHeapSize": 11045008
+    },
+    {
+      "label": "scenarioA-planner-60",
+      "usedJSHeapSize": 7021389,
+      "totalJSHeapSize": 10176765
+    },
+    {
+      "label": "scenarioA-chat-90",
+      "usedJSHeapSize": 7028668,
+      "totalJSHeapSize": 12236628
+    },
+    {
+      "label": "scenarioA-store-50",
+      "usedJSHeapSize": 7314638,
+      "totalJSHeapSize": 11226710
+    },
+    {
+      "label": "scenarioA-chat-95",
+      "usedJSHeapSize": 8072648,
+      "totalJSHeapSize": 10403424
+    },
+    {
+      "label": "scenarioA-warehouse-70",
+      "usedJSHeapSize": 7764506,
+      "totalJSHeapSize": 12684498
+    },
+    {
+      "label": "scenarioA-tidplan-60",
+      "usedJSHeapSize": 7923177,
+      "totalJSHeapSize": 10188497
+    },
+    {
+      "label": "scenarioA-planner-65",
+      "usedJSHeapSize": 7341355,
+      "totalJSHeapSize": 10849363
+    },
+    {
+      "label": "scenarioA-chat-100",
+      "usedJSHeapSize": 8222288,
+      "totalJSHeapSize": 10636268
+    },
+    {
+      "label": "scenarioA-store-55",
+      "usedJSHeapSize": 7368029,
+      "totalJSHeapSize": 8878481
+    },
+    {
+      "label": "scenarioA-warehouse-75",
+      "usedJSHeapSize": 6535315,
+      "totalJSHeapSize": 9780563
+    },
+    {
+      "label": "scenarioA-planner-70",
+      "usedJSHeapSize": 7133339,
+      "totalJSHeapSize": 8881543
+    },
+    {
+      "label": "scenarioA-tidplan-65",
+      "usedJSHeapSize": 8235417,
+      "totalJSHeapSize": 15788913
+    },
+    {
+      "label": "scenarioA-chat-105",
+      "usedJSHeapSize": 7632843,
+      "totalJSHeapSize": 12005927
+    },
+    {
+      "label": "scenarioA-warehouse-80",
+      "usedJSHeapSize": 8492358,
+      "totalJSHeapSize": 10360006
+    },
+    {
+      "label": "scenarioA-chat-110",
+      "usedJSHeapSize": 6946530,
+      "totalJSHeapSize": 10829382
+    },
+    {
+      "label": "scenarioA-store-60",
+      "usedJSHeapSize": 8155657,
+      "totalJSHeapSize": 10531185
+    },
+    {
+      "label": "scenarioA-planner-75",
+      "usedJSHeapSize": 7194026,
+      "totalJSHeapSize": 8890042
+    },
+    {
+      "label": "scenarioA-tidplan-70",
+      "usedJSHeapSize": 9860064,
+      "totalJSHeapSize": 12890792
+    },
+    {
+      "label": "scenarioA-chat-115",
+      "usedJSHeapSize": 8397142,
+      "totalJSHeapSize": 10178086
+    },
+    {
+      "label": "scenarioA-warehouse-85",
+      "usedJSHeapSize": 6993193,
+      "totalJSHeapSize": 9419629
+    },
+    {
+      "label": "scenarioA-planner-80",
+      "usedJSHeapSize": 7558976,
+      "totalJSHeapSize": 12739456
+    },
+    {
+      "label": "scenarioA-chat-120",
+      "usedJSHeapSize": 8060866,
+      "totalJSHeapSize": 10317630
+    },
+    {
+      "label": "scenarioA-tidplan-75",
+      "usedJSHeapSize": 8072330,
+      "totalJSHeapSize": 15332142
+    },
+    {
+      "label": "scenarioA-store-65",
+      "usedJSHeapSize": 9244901,
+      "totalJSHeapSize": 14130281
+    },
+    {
+      "label": "scenarioA-warehouse-90",
+      "usedJSHeapSize": 7627267,
+      "totalJSHeapSize": 11451863
+    },
+    {
+      "label": "scenarioA-chat-125",
+      "usedJSHeapSize": 8646664,
+      "totalJSHeapSize": 11719912
+    },
+    {
+      "label": "scenarioA-planner-85",
+      "usedJSHeapSize": 7634053,
+      "totalJSHeapSize": 13151357
+    },
+    {
+      "label": "scenarioA-tidplan-80",
+      "usedJSHeapSize": 7911090,
+      "totalJSHeapSize": 17182206
+    },
+    {
+      "label": "scenarioA-warehouse-95",
+      "usedJSHeapSize": 9006774,
+      "totalJSHeapSize": 14680006
+    },
+    {
+      "label": "scenarioA-chat-130",
+      "usedJSHeapSize": 7856551,
+      "totalJSHeapSize": 11643639
+    },
+    {
+      "label": "scenarioA-store-70",
+      "usedJSHeapSize": 9493476,
+      "totalJSHeapSize": 12874948
+    },
+    {
+      "label": "scenarioA-planner-90",
+      "usedJSHeapSize": 7311028,
+      "totalJSHeapSize": 12728612
+    },
+    {
+      "label": "scenarioA-chat-135",
+      "usedJSHeapSize": 7040980,
+      "totalJSHeapSize": 9406180
+    },
+    {
+      "label": "scenarioA-warehouse-100",
+      "usedJSHeapSize": 8179027,
+      "totalJSHeapSize": 10732443
+    },
+    {
+      "label": "scenarioA-tidplan-85",
+      "usedJSHeapSize": 8825521,
+      "totalJSHeapSize": 17550569
+    },
+    {
+      "label": "scenarioA-store-75",
+      "usedJSHeapSize": 7644276,
+      "totalJSHeapSize": 14628720
+    },
+    {
+      "label": "scenarioA-chat-140",
+      "usedJSHeapSize": 7040370,
+      "totalJSHeapSize": 8097350
+    },
+    {
+      "label": "scenarioA-planner-95",
+      "usedJSHeapSize": 7353418,
+      "totalJSHeapSize": 8810198
+    },
+    {
+      "label": "scenarioA-warehouse-105",
+      "usedJSHeapSize": 6721820,
+      "totalJSHeapSize": 10988884
+    },
+    {
+      "label": "scenarioA-chat-145",
+      "usedJSHeapSize": 7507398,
+      "totalJSHeapSize": 10616522
+    },
+    {
+      "label": "scenarioA-tidplan-90",
+      "usedJSHeapSize": 8298256,
+      "totalJSHeapSize": 11771248
+    },
+    {
+      "label": "scenarioA-store-80",
+      "usedJSHeapSize": 9145624,
+      "totalJSHeapSize": 11079340
+    },
+    {
+      "label": "scenarioA-planner-100",
+      "usedJSHeapSize": 7425279,
+      "totalJSHeapSize": 11970003
+    },
+    {
+      "label": "scenarioA-chat-150",
+      "usedJSHeapSize": 7095438,
+      "totalJSHeapSize": 10206790
+    },
+    {
+      "label": "scenarioA-warehouse-110",
+      "usedJSHeapSize": 7237562,
+      "totalJSHeapSize": 10661738
+    },
+    {
+      "label": "scenarioA-tidplan-95",
+      "usedJSHeapSize": 8230134,
+      "totalJSHeapSize": 16438970
+    },
+    {
+      "label": "scenarioA-chat-155",
+      "usedJSHeapSize": 7102902,
+      "totalJSHeapSize": 9948706
+    },
+    {
+      "label": "scenarioA-planner-105",
+      "usedJSHeapSize": 7423292,
+      "totalJSHeapSize": 9100172
+    },
+    {
+      "label": "scenarioA-warehouse-115",
+      "usedJSHeapSize": 9565924,
+      "totalJSHeapSize": 13813300
+    },
+    {
+      "label": "scenarioA-store-85",
+      "usedJSHeapSize": 9450870,
+      "totalJSHeapSize": 14017354
+    },
+    {
+      "label": "scenarioA-chat-160",
+      "usedJSHeapSize": 8252461,
+      "totalJSHeapSize": 11437033
+    },
+    {
+      "label": "scenarioA-tidplan-100",
+      "usedJSHeapSize": 9495707,
+      "totalJSHeapSize": 14124147
+    },
+    {
+      "label": "scenarioA-planner-110",
+      "usedJSHeapSize": 7439938,
+      "totalJSHeapSize": 12259650
+    },
+    {
+      "label": "scenarioA-warehouse-120",
+      "usedJSHeapSize": 10029857,
+      "totalJSHeapSize": 11581309
+    },
+    {
+      "label": "scenarioA-chat-165",
+      "usedJSHeapSize": 7269386,
+      "totalJSHeapSize": 9960994
+    },
+    {
+      "label": "scenarioA-store-90",
+      "usedJSHeapSize": 7881780,
+      "totalJSHeapSize": 14684944
+    },
+    {
+      "label": "scenarioA-tidplan-105",
+      "usedJSHeapSize": 8089819,
+      "totalJSHeapSize": 19086035
+    },
+    {
+      "label": "scenarioA-chat-170",
+      "usedJSHeapSize": 8177760,
+      "totalJSHeapSize": 12764460
+    },
+    {
+      "label": "scenarioA-warehouse-125",
+      "usedJSHeapSize": 10470684,
+      "totalJSHeapSize": 12579824
+    },
+    {
+      "label": "scenarioA-planner-115",
+      "usedJSHeapSize": 7510669,
+      "totalJSHeapSize": 9127997
+    },
+    {
+      "label": "scenarioA-chat-175",
+      "usedJSHeapSize": 7169862,
+      "totalJSHeapSize": 11542086
+    },
+    {
+      "label": "scenarioA-store-95",
+      "usedJSHeapSize": 9330351,
+      "totalJSHeapSize": 13778091
+    },
+    {
+      "label": "scenarioA-tidplan-110",
+      "usedJSHeapSize": 8121647,
+      "totalJSHeapSize": 18314659
+    },
+    {
+      "label": "scenarioA-warehouse-130",
+      "usedJSHeapSize": 7396041,
+      "totalJSHeapSize": 11233745
+    },
+    {
+      "label": "scenarioA-planner-120",
+      "usedJSHeapSize": 9379412,
+      "totalJSHeapSize": 16109292
+    },
+    {
+      "label": "scenarioA-chat-180",
+      "usedJSHeapSize": 7617756,
+      "totalJSHeapSize": 11468328
+    },
+    {
+      "label": "scenarioA-chat-185",
+      "usedJSHeapSize": 8523092,
+      "totalJSHeapSize": 12267944
+    },
+    {
+      "label": "scenarioA-warehouse-135",
+      "usedJSHeapSize": 9640714,
+      "totalJSHeapSize": 13904466
+    },
+    {
+      "label": "scenarioA-tidplan-115",
+      "usedJSHeapSize": 8328582,
+      "totalJSHeapSize": 15445150
+    },
+    {
+      "label": "scenarioA-store-100",
+      "usedJSHeapSize": 8006334,
+      "totalJSHeapSize": 14072638
+    },
+    {
+      "label": "scenarioA-planner-125",
+      "usedJSHeapSize": 7552908,
+      "totalJSHeapSize": 14394608
+    },
+    {
+      "label": "scenarioA-chat-190",
+      "usedJSHeapSize": 7287014,
+      "totalJSHeapSize": 12099186
+    },
+    {
+      "label": "scenarioA-warehouse-140",
+      "usedJSHeapSize": 6879164,
+      "totalJSHeapSize": 13393272
+    },
+    {
+      "label": "scenarioA-tidplan-120",
+      "usedJSHeapSize": 8818824,
+      "totalJSHeapSize": 19879524
+    },
+    {
+      "label": "scenarioA-planner-130",
+      "usedJSHeapSize": 7696576,
+      "totalJSHeapSize": 11000528
+    },
+    {
+      "label": "scenarioA-chat-195",
+      "usedJSHeapSize": 8499806,
+      "totalJSHeapSize": 13284094
+    },
+    {
+      "label": "scenarioA-store-105",
+      "usedJSHeapSize": 10809856,
+      "totalJSHeapSize": 16749200
+    },
+    {
+      "label": "scenarioA-warehouse-145",
+      "usedJSHeapSize": 10259681,
+      "totalJSHeapSize": 13097665
+    },
+    {
+      "label": "scenarioA-chat-200",
+      "usedJSHeapSize": 7633235,
+      "totalJSHeapSize": 13861555
+    },
+    {
+      "label": "scenarioA-planner-135",
+      "usedJSHeapSize": 7596937,
+      "totalJSHeapSize": 9178585
+    },
+    {
+      "label": "scenarioA-tidplan-125",
+      "usedJSHeapSize": 8399409,
+      "totalJSHeapSize": 17051261
+    },
+    {
+      "label": "scenarioA-chat-205",
+      "usedJSHeapSize": 7245758,
+      "totalJSHeapSize": 10788386
+    },
+    {
+      "label": "scenarioA-store-110",
+      "usedJSHeapSize": 9064060,
+      "totalJSHeapSize": 14468572
+    },
+    {
+      "label": "scenarioA-warehouse-150",
+      "usedJSHeapSize": 8841592,
+      "totalJSHeapSize": 10036712
+    },
+    {
+      "label": "scenarioA-planner-140",
+      "usedJSHeapSize": 7650259,
+      "totalJSHeapSize": 12081039
+    },
+    {
+      "label": "scenarioA-chat-210",
+      "usedJSHeapSize": 7730735,
+      "totalJSHeapSize": 11261503
+    },
+    {
+      "label": "scenarioA-tidplan-130",
+      "usedJSHeapSize": 8466246,
+      "totalJSHeapSize": 18113918
+    },
+    {
+      "label": "scenarioA-warehouse-155",
+      "usedJSHeapSize": 7805634,
+      "totalJSHeapSize": 10512266
+    },
+    {
+      "label": "scenarioA-chat-215",
+      "usedJSHeapSize": 8074596,
+      "totalJSHeapSize": 12061484
+    },
+    {
+      "label": "scenarioA-store-115",
+      "usedJSHeapSize": 10017080,
+      "totalJSHeapSize": 14156752
+    },
+    {
+      "label": "scenarioA-planner-145",
+      "usedJSHeapSize": 7201086,
+      "totalJSHeapSize": 10013822
+    },
+    {
+      "label": "scenarioA-tidplan-135",
+      "usedJSHeapSize": 9280882,
+      "totalJSHeapSize": 14192202
+    },
+    {
+      "label": "scenarioA-warehouse-160",
+      "usedJSHeapSize": 9214490,
+      "totalJSHeapSize": 16153298
+    },
+    {
+      "label": "scenarioA-chat-220",
+      "usedJSHeapSize": 7385014,
+      "totalJSHeapSize": 13180530
+    },
+    {
+      "label": "scenarioA-planner-150",
+      "usedJSHeapSize": 8068947,
+      "totalJSHeapSize": 11909767
+    },
+    {
+      "label": "scenarioA-store-120",
+      "usedJSHeapSize": 8240108,
+      "totalJSHeapSize": 16882292
+    },
+    {
+      "label": "scenarioA-chat-225",
+      "usedJSHeapSize": 7819954,
+      "totalJSHeapSize": 12334330
+    },
+    {
+      "label": "scenario-a-end-B",
+      "usedJSHeapSize": 7219194,
+      "totalJSHeapSize": 10910086
+    },
+    {
+      "label": "scenario-a-end-C",
+      "usedJSHeapSize": 7742074,
+      "totalJSHeapSize": 11583154
+    },
+    {
+      "label": "scenario-a-end-A",
+      "usedJSHeapSize": 8866506,
+      "totalJSHeapSize": 13513118
+    },
+    {
+      "label": "scenario-a-end-D",
+      "usedJSHeapSize": 10924355,
+      "totalJSHeapSize": 13569491
+    },
+    {
+      "label": "scenario-a-end-E",
+      "usedJSHeapSize": 8506377,
+      "totalJSHeapSize": 20237709
+    },
+    {
+      "label": "scenarioD-chat-5",
+      "usedJSHeapSize": 7687200,
+      "totalJSHeapSize": 10813544
+    },
+    {
+      "label": "scenarioD-chat-10",
+      "usedJSHeapSize": 8359702,
+      "totalJSHeapSize": 12609562
+    },
+    {
+      "label": "scenarioD-chat-15",
+      "usedJSHeapSize": 8796659,
+      "totalJSHeapSize": 13137651
+    },
+    {
+      "label": "scenarioD-planner-5",
+      "usedJSHeapSize": 8249559,
+      "totalJSHeapSize": 16049235
+    },
+    {
+      "label": "scenarioD-chat-20",
+      "usedJSHeapSize": 7404264,
+      "totalJSHeapSize": 9768492
+    },
+    {
+      "label": "scenarioD-store-5",
+      "usedJSHeapSize": 8583036,
+      "totalJSHeapSize": 10604860
+    },
+    {
+      "label": "scenario-d-end-C",
+      "usedJSHeapSize": 10124225,
+      "totalJSHeapSize": 12019657
+    },
+    {
+      "label": "scenario-d-end-D",
+      "usedJSHeapSize": 8679357,
+      "totalJSHeapSize": 13143389
+    },
+    {
+      "label": "scenario-d-end-B",
+      "usedJSHeapSize": 8334199,
+      "totalJSHeapSize": 20254679
+    },
+    {
+      "label": "scenario-d-end-E",
+      "usedJSHeapSize": 8088798,
+      "totalJSHeapSize": 19998482
+    },
+    {
+      "label": "scenario-d-end-A",
+      "usedJSHeapSize": 7693022,
+      "totalJSHeapSize": 15804278
+    }
+  ],
+  "dom": [
+    {
+      "label": "scenarioA-chat-5",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 2777,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7541722,
+        "totalJSHeapSize": 10153250
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-5",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 2807,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7961446,
+        "totalJSHeapSize": 13598082
+      }
+    },
+    {
+      "label": "scenarioA-planner-5",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 2726,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6643138,
+        "totalJSHeapSize": 11645358
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-5",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 4829,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6868084,
+        "totalJSHeapSize": 10337464
+      }
+    },
+    {
+      "label": "scenarioA-store-5",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3066,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9027890,
+        "totalJSHeapSize": 10930830
+      }
+    },
+    {
+      "label": "scenarioA-chat-10",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 2891,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7356652,
+        "totalJSHeapSize": 10098348
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-10",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 2880,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7140747,
+        "totalJSHeapSize": 9105843
+      }
+    },
+    {
+      "label": "scenarioA-planner-10",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 2790,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6855889,
+        "totalJSHeapSize": 9583505
+      }
+    },
+    {
+      "label": "scenarioA-chat-15",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 2987,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 6604059,
+        "totalJSHeapSize": 9520871
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-10",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 4893,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7050088,
+        "totalJSHeapSize": 9822100
+      }
+    },
+    {
+      "label": "scenarioA-store-10",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3233,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7109811,
+        "totalJSHeapSize": 8060719
+      }
+    },
+    {
+      "label": "scenarioA-chat-20",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3062,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 6939837,
+        "totalJSHeapSize": 9570745
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-15",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 2927,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7413813,
+        "totalJSHeapSize": 9387313
+      }
+    },
+    {
+      "label": "scenarioA-planner-15",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 2846,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6505210,
+        "totalJSHeapSize": 11401358
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-15",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 4957,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7368144,
+        "totalJSHeapSize": 11405308
+      }
+    },
+    {
+      "label": "scenarioA-chat-25",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3177,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 6988400,
+        "totalJSHeapSize": 10374428
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-20",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 2967,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7867585,
+        "totalJSHeapSize": 9983653
+      }
+    },
+    {
+      "label": "scenarioA-store-15",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3408,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6616983,
+        "totalJSHeapSize": 9047811
+      }
+    },
+    {
+      "label": "scenarioA-planner-20",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 2910,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7357335,
+        "totalJSHeapSize": 11180439
+      }
+    },
+    {
+      "label": "scenarioA-chat-30",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3272,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7890613,
+        "totalJSHeapSize": 10634557
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-20",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5021,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7227756,
+        "totalJSHeapSize": 10890136
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-25",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3040,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8790217,
+        "totalJSHeapSize": 10147713
+      }
+    },
+    {
+      "label": "scenarioA-chat-35",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3348,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8134791,
+        "totalJSHeapSize": 10686775
+      }
+    },
+    {
+      "label": "scenarioA-store-20",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3575,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6711684,
+        "totalJSHeapSize": 8796308
+      }
+    },
+    {
+      "label": "scenarioA-planner-25",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 2966,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7065979,
+        "totalJSHeapSize": 10894379
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-25",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5085,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7339910,
+        "totalJSHeapSize": 11166590
+      }
+    },
+    {
+      "label": "scenarioA-chat-40",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3462,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7204756,
+        "totalJSHeapSize": 11432448
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-30",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3095,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7751300,
+        "totalJSHeapSize": 10171300
+      }
+    },
+    {
+      "label": "scenarioA-planner-30",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3030,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7723491,
+        "totalJSHeapSize": 11211035
+      }
+    },
+    {
+      "label": "scenarioA-chat-45",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3557,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7272997,
+        "totalJSHeapSize": 9668209
+      }
+    },
+    {
+      "label": "scenarioA-store-25",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3660,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6961207,
+        "totalJSHeapSize": 9860683
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-35",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3135,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7552348,
+        "totalJSHeapSize": 10245160
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-30",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5149,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7392269,
+        "totalJSHeapSize": 14847393
+      }
+    },
+    {
+      "label": "scenarioA-chat-50",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3633,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7542472,
+        "totalJSHeapSize": 9675140
+      }
+    },
+    {
+      "label": "scenarioA-planner-35",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3086,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6733824,
+        "totalJSHeapSize": 10656636
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-40",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3208,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6598986,
+        "totalJSHeapSize": 9346534
+      }
+    },
+    {
+      "label": "scenarioA-chat-55",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3748,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8226510,
+        "totalJSHeapSize": 12585990
+      }
+    },
+    {
+      "label": "scenarioA-store-30",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3733,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7536740,
+        "totalJSHeapSize": 9577096
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-35",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5220,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7446866,
+        "totalJSHeapSize": 13021622
+      }
+    },
+    {
+      "label": "scenarioA-planner-40",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3150,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6785285,
+        "totalJSHeapSize": 9354833
+      }
+    },
+    {
+      "label": "scenarioA-chat-60",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3842,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7599146,
+        "totalJSHeapSize": 10663210
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-45",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3247,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7288715,
+        "totalJSHeapSize": 10684167
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-40",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5276,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7689721,
+        "totalJSHeapSize": 15492957
+      }
+    },
+    {
+      "label": "scenarioA-store-35",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3804,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8072054,
+        "totalJSHeapSize": 9667218
+      }
+    },
+    {
+      "label": "scenarioA-chat-65",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 3918,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 6823551,
+        "totalJSHeapSize": 9595679
+      }
+    },
+    {
+      "label": "scenarioA-planner-45",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3206,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6842712,
+        "totalJSHeapSize": 9887972
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-50",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3311,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9195377,
+        "totalJSHeapSize": 11449609
+      }
+    },
+    {
+      "label": "scenarioA-chat-70",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4033,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7512410,
+        "totalJSHeapSize": 10668530
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-45",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5340,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 12309736,
+        "totalJSHeapSize": 18134264
+      }
+    },
+    {
+      "label": "scenarioA-store-40",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3876,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7147574,
+        "totalJSHeapSize": 10682698
+      }
+    },
+    {
+      "label": "scenarioA-planner-50",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3269,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6909477,
+        "totalJSHeapSize": 10683321
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-55",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3376,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8152107,
+        "totalJSHeapSize": 10846123
+      }
+    },
+    {
+      "label": "scenarioA-chat-75",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4128,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7217622,
+        "totalJSHeapSize": 9885934
+      }
+    },
+    {
+      "label": "scenarioA-chat-80",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4203,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7282549,
+        "totalJSHeapSize": 10655653
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-50",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5357,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7520266,
+        "totalJSHeapSize": 14622314
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-60",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3415,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8202530,
+        "totalJSHeapSize": 10184490
+      }
+    },
+    {
+      "label": "scenarioA-planner-55",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3325,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6686388,
+        "totalJSHeapSize": 8469588
+      }
+    },
+    {
+      "label": "scenarioA-store-45",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 3957,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7201391,
+        "totalJSHeapSize": 11217987
+      }
+    },
+    {
+      "label": "scenarioA-chat-85",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4318,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 6833417,
+        "totalJSHeapSize": 12140065
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-55",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5477,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7575271,
+        "totalJSHeapSize": 15680127
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-65",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3463,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8686068,
+        "totalJSHeapSize": 11045008
+      }
+    },
+    {
+      "label": "scenarioA-planner-60",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3382,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7021389,
+        "totalJSHeapSize": 10176765
+      }
+    },
+    {
+      "label": "scenarioA-chat-90",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4393,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7028668,
+        "totalJSHeapSize": 12236628
+      }
+    },
+    {
+      "label": "scenarioA-store-50",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4029,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7314638,
+        "totalJSHeapSize": 11226710
+      }
+    },
+    {
+      "label": "scenarioA-chat-95",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4508,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8072648,
+        "totalJSHeapSize": 10403424
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-70",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3536,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7764506,
+        "totalJSHeapSize": 12684498
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-60",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5541,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7923177,
+        "totalJSHeapSize": 10188497
+      }
+    },
+    {
+      "label": "scenarioA-planner-65",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3445,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7341355,
+        "totalJSHeapSize": 10849363
+      }
+    },
+    {
+      "label": "scenarioA-chat-100",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4603,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8222288,
+        "totalJSHeapSize": 10636268
+      }
+    },
+    {
+      "label": "scenarioA-store-55",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4100,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7368029,
+        "totalJSHeapSize": 8878481
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-75",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3575,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6535315,
+        "totalJSHeapSize": 9780563
+      }
+    },
+    {
+      "label": "scenarioA-planner-70",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3510,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7133339,
+        "totalJSHeapSize": 8881543
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-65",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5605,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8235417,
+        "totalJSHeapSize": 15788913
+      }
+    },
+    {
+      "label": "scenarioA-chat-105",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4679,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7632843,
+        "totalJSHeapSize": 12005927
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-80",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3648,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8492358,
+        "totalJSHeapSize": 10360006
+      }
+    },
+    {
+      "label": "scenarioA-chat-110",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4792,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 6946530,
+        "totalJSHeapSize": 10829382
+      }
+    },
+    {
+      "label": "scenarioA-store-60",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4181,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8155657,
+        "totalJSHeapSize": 10531185
+      }
+    },
+    {
+      "label": "scenarioA-planner-75",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3566,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7194026,
+        "totalJSHeapSize": 8890042
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-70",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5670,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9860064,
+        "totalJSHeapSize": 12890792
+      }
+    },
+    {
+      "label": "scenarioA-chat-115",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4888,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8397142,
+        "totalJSHeapSize": 10178086
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-85",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3695,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6993193,
+        "totalJSHeapSize": 9419629
+      }
+    },
+    {
+      "label": "scenarioA-planner-80",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3621,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7558976,
+        "totalJSHeapSize": 12739456
+      }
+    },
+    {
+      "label": "scenarioA-chat-120",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 4964,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8060866,
+        "totalJSHeapSize": 10317630
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-75",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8072330,
+        "totalJSHeapSize": 15332142
+      }
+    },
+    {
+      "label": "scenarioA-store-65",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4253,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9244901,
+        "totalJSHeapSize": 14130281
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-90",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3736,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7627267,
+        "totalJSHeapSize": 11451863
+      }
+    },
+    {
+      "label": "scenarioA-chat-125",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8646664,
+        "totalJSHeapSize": 11719912
+      }
+    },
+    {
+      "label": "scenarioA-planner-85",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3637,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7634053,
+        "totalJSHeapSize": 13151357
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-80",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7911090,
+        "totalJSHeapSize": 17182206
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-95",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9006774,
+        "totalJSHeapSize": 14680006
+      }
+    },
+    {
+      "label": "scenarioA-chat-130",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7856551,
+        "totalJSHeapSize": 11643639
+      }
+    },
+    {
+      "label": "scenarioA-store-70",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4252,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9493476,
+        "totalJSHeapSize": 12874948
+      }
+    },
+    {
+      "label": "scenarioA-planner-90",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7311028,
+        "totalJSHeapSize": 12728612
+      }
+    },
+    {
+      "label": "scenarioA-chat-135",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7040980,
+        "totalJSHeapSize": 9406180
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-100",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8179027,
+        "totalJSHeapSize": 10732443
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-85",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8825521,
+        "totalJSHeapSize": 17550569
+      }
+    },
+    {
+      "label": "scenarioA-store-75",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4253,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7644276,
+        "totalJSHeapSize": 14628720
+      }
+    },
+    {
+      "label": "scenarioA-chat-140",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7040370,
+        "totalJSHeapSize": 8097350
+      }
+    },
+    {
+      "label": "scenarioA-planner-95",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7353418,
+        "totalJSHeapSize": 8810198
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-105",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3736,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6721820,
+        "totalJSHeapSize": 10988884
+      }
+    },
+    {
+      "label": "scenarioA-chat-145",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7507398,
+        "totalJSHeapSize": 10616522
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-90",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8298256,
+        "totalJSHeapSize": 11771248
+      }
+    },
+    {
+      "label": "scenarioA-store-80",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4253,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9145624,
+        "totalJSHeapSize": 11079340
+      }
+    },
+    {
+      "label": "scenarioA-planner-100",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7425279,
+        "totalJSHeapSize": 11970003
+      }
+    },
+    {
+      "label": "scenarioA-chat-150",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7095438,
+        "totalJSHeapSize": 10206790
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-110",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7237562,
+        "totalJSHeapSize": 10661738
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-95",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8230134,
+        "totalJSHeapSize": 16438970
+      }
+    },
+    {
+      "label": "scenarioA-chat-155",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7102902,
+        "totalJSHeapSize": 9948706
+      }
+    },
+    {
+      "label": "scenarioA-planner-105",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3637,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7423292,
+        "totalJSHeapSize": 9100172
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-115",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3736,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9565924,
+        "totalJSHeapSize": 13813300
+      }
+    },
+    {
+      "label": "scenarioA-store-85",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4253,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9450870,
+        "totalJSHeapSize": 14017354
+      }
+    },
+    {
+      "label": "scenarioA-chat-160",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8252461,
+        "totalJSHeapSize": 11437033
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-100",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9495707,
+        "totalJSHeapSize": 14124147
+      }
+    },
+    {
+      "label": "scenarioA-planner-110",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7439938,
+        "totalJSHeapSize": 12259650
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-120",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 10029857,
+        "totalJSHeapSize": 11581309
+      }
+    },
+    {
+      "label": "scenarioA-chat-165",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7269386,
+        "totalJSHeapSize": 9960994
+      }
+    },
+    {
+      "label": "scenarioA-store-90",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4253,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7881780,
+        "totalJSHeapSize": 14684944
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-105",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8089819,
+        "totalJSHeapSize": 19086035
+      }
+    },
+    {
+      "label": "scenarioA-chat-170",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8177760,
+        "totalJSHeapSize": 12764460
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-125",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 10470684,
+        "totalJSHeapSize": 12579824
+      }
+    },
+    {
+      "label": "scenarioA-planner-115",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7510669,
+        "totalJSHeapSize": 9127997
+      }
+    },
+    {
+      "label": "scenarioA-chat-175",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7169862,
+        "totalJSHeapSize": 11542086
+      }
+    },
+    {
+      "label": "scenarioA-store-95",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4252,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9330351,
+        "totalJSHeapSize": 13778091
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-110",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8121647,
+        "totalJSHeapSize": 18314659
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-130",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7396041,
+        "totalJSHeapSize": 11233745
+      }
+    },
+    {
+      "label": "scenarioA-planner-120",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3637,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9379412,
+        "totalJSHeapSize": 16109292
+      }
+    },
+    {
+      "label": "scenarioA-chat-180",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7617756,
+        "totalJSHeapSize": 11468328
+      }
+    },
+    {
+      "label": "scenarioA-chat-185",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8523092,
+        "totalJSHeapSize": 12267944
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-135",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9640714,
+        "totalJSHeapSize": 13904466
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-115",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8328582,
+        "totalJSHeapSize": 15445150
+      }
+    },
+    {
+      "label": "scenarioA-store-100",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4253,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8006334,
+        "totalJSHeapSize": 14072638
+      }
+    },
+    {
+      "label": "scenarioA-planner-125",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7552908,
+        "totalJSHeapSize": 14394608
+      }
+    },
+    {
+      "label": "scenarioA-chat-190",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7287014,
+        "totalJSHeapSize": 12099186
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-140",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 6879164,
+        "totalJSHeapSize": 13393272
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-120",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5732,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8818824,
+        "totalJSHeapSize": 19879524
+      }
+    },
+    {
+      "label": "scenarioA-planner-130",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7696576,
+        "totalJSHeapSize": 11000528
+      }
+    },
+    {
+      "label": "scenarioA-chat-195",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8499806,
+        "totalJSHeapSize": 13284094
+      }
+    },
+    {
+      "label": "scenarioA-store-105",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4252,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 10809856,
+        "totalJSHeapSize": 16749200
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-145",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 10259681,
+        "totalJSHeapSize": 13097665
+      }
+    },
+    {
+      "label": "scenarioA-chat-200",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7633235,
+        "totalJSHeapSize": 13861555
+      }
+    },
+    {
+      "label": "scenarioA-planner-135",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7596937,
+        "totalJSHeapSize": 9178585
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-125",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5732,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8399409,
+        "totalJSHeapSize": 17051261
+      }
+    },
+    {
+      "label": "scenarioA-chat-205",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7245758,
+        "totalJSHeapSize": 10788386
+      }
+    },
+    {
+      "label": "scenarioA-store-110",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4253,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9064060,
+        "totalJSHeapSize": 14468572
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-150",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8841592,
+        "totalJSHeapSize": 10036712
+      }
+    },
+    {
+      "label": "scenarioA-planner-140",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7650259,
+        "totalJSHeapSize": 12081039
+      }
+    },
+    {
+      "label": "scenarioA-chat-210",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7730735,
+        "totalJSHeapSize": 11261503
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-130",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5732,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8466246,
+        "totalJSHeapSize": 18113918
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-155",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7805634,
+        "totalJSHeapSize": 10512266
+      }
+    },
+    {
+      "label": "scenarioA-chat-215",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8074596,
+        "totalJSHeapSize": 12061484
+      }
+    },
+    {
+      "label": "scenarioA-store-115",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4252,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 10017080,
+        "totalJSHeapSize": 14156752
+      }
+    },
+    {
+      "label": "scenarioA-planner-145",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3637,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7201086,
+        "totalJSHeapSize": 10013822
+      }
+    },
+    {
+      "label": "scenarioA-tidplan-135",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9280882,
+        "totalJSHeapSize": 14192202
+      }
+    },
+    {
+      "label": "scenarioA-warehouse-160",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 9214490,
+        "totalJSHeapSize": 16153298
+      }
+    },
+    {
+      "label": "scenarioA-chat-220",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7385014,
+        "totalJSHeapSize": 13180530
+      }
+    },
+    {
+      "label": "scenarioA-planner-150",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3638,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8068947,
+        "totalJSHeapSize": 11909767
+      }
+    },
+    {
+      "label": "scenarioA-store-120",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4252,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8240108,
+        "totalJSHeapSize": 16882292
+      }
+    },
+    {
+      "label": "scenarioA-chat-225",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7819954,
+        "totalJSHeapSize": 12334330
+      }
+    },
+    {
+      "label": "scenario-a-end-B",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "warehouse",
+      "domNodes": 3735,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7219194,
+        "totalJSHeapSize": 10910086
+      }
+    },
+    {
+      "label": "scenario-a-end-C",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4252,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7742074,
+        "totalJSHeapSize": 11583154
+      }
+    },
+    {
+      "label": "scenario-a-end-A",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 3637,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8866506,
+        "totalJSHeapSize": 13513118
+      }
+    },
+    {
+      "label": "scenario-a-end-D",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 10924355,
+        "totalJSHeapSize": 13569491
+      }
+    },
+    {
+      "label": "scenario-a-end-E",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5732,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8506377,
+        "totalJSHeapSize": 20237709
+      }
+    },
+    {
+      "label": "scenarioD-chat-5",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7687200,
+        "totalJSHeapSize": 10813544
+      }
+    },
+    {
+      "label": "scenarioD-chat-10",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8359702,
+        "totalJSHeapSize": 12609562
+      }
+    },
+    {
+      "label": "scenarioD-chat-15",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8796659,
+        "totalJSHeapSize": 13137651
+      }
+    },
+    {
+      "label": "scenarioD-planner-5",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8249559,
+        "totalJSHeapSize": 16049235
+      }
+    },
+    {
+      "label": "scenarioD-chat-20",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5003,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 7404264,
+        "totalJSHeapSize": 9768492
+      }
+    },
+    {
+      "label": "scenarioD-store-5",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4252,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8583036,
+        "totalJSHeapSize": 10604860
+      }
+    },
+    {
+      "label": "scenario-d-end-C",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "workwear",
+      "domNodes": 4252,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 10124225,
+        "totalJSHeapSize": 12019657
+      }
+    },
+    {
+      "label": "scenario-d-end-D",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "siteChat",
+      "domNodes": 5002,
+      "listenerHints": 2,
+      "polling": {
+        "siteChat": true
+      },
+      "memory": {
+        "usedJSHeapSize": 8679357,
+        "totalJSHeapSize": 13143389
+      }
+    },
+    {
+      "label": "scenario-d-end-B",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5830,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8334199,
+        "totalJSHeapSize": 20254679
+      }
+    },
+    {
+      "label": "scenario-d-end-E",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "tidplan",
+      "domNodes": 5733,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 8088798,
+        "totalJSHeapSize": 19998482
+      }
+    },
+    {
+      "label": "scenario-d-end-A",
+      "expectedSite": "Real World Site",
+      "currentSite": "Real World Site",
+      "appSite": "Real World Site",
+      "view": "main",
+      "domNodes": 5732,
+      "listenerHints": 3,
+      "polling": {
+        "siteChat": false
+      },
+      "memory": {
+        "usedJSHeapSize": 7693022,
+        "totalJSHeapSize": 15804278
+      }
+    }
+  ],
+  "currentSiteDrifts": []
+}

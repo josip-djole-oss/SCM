@@ -1112,6 +1112,10 @@ function renderTidplanTable() {
     inputKomentar.className = "tidplan-comment-input";
     inputKomentar.value = activity.komentar || "";
     inputKomentar.disabled = !editableTidplan;
+    inputKomentar.addEventListener("input", () => {
+      activity.komentar = inputKomentar.value;
+      markTidplanChanged(activityIndex, "komentar");
+    });
     inputKomentar.addEventListener("change", () => {
       activity.komentar = inputKomentar.value;
       markTidplanChanged(activityIndex, "komentar");
@@ -1281,10 +1285,15 @@ function saveTidplanData() {
     ? changedIds.map((id) => (tidplanData || []).find((activity) => activity.id === id)).filter(Boolean)
     : [];
   if (patchTargets.length) {
-    Promise.all(patchTargets.map((activity) => patchTidplanActivity(activity, activity.__changedFields || { komentar: activity.komentar || "" })))
+    Promise.all(patchTargets.map((activity) => patchTidplanActivity(activity, activity.__changedFields || { komentar: activity.komentar || "" }, {
+      baseFieldVersions: activity.__baseFieldVersions || activity.fieldVersions || {},
+    })))
       .finally(() => {
         window.tidplanChangedActivityIds = new Set();
-        (tidplanData || []).forEach((activity) => delete activity.__changedFields);
+        (tidplanData || []).forEach((activity) => {
+          delete activity.__changedFields;
+          delete activity.__baseFieldVersions;
+        });
       });
   } else {
     syncModuleState("tidplan", { tidplan: tidplanData || [], tidplanZones: tidplanZones || [] }).catch(() => {});
@@ -1299,6 +1308,9 @@ function markTidplanChanged(activityIndex = null, fieldName = "") {
       tidplanData[activityIndex] = ensureTidplanActivityIdentity(tidplanData[activityIndex], activityIndex);
       window.tidplanChangedActivityIds = window.tidplanChangedActivityIds || new Set();
       window.tidplanChangedActivityIds.add(tidplanData[activityIndex].id);
+      if (!tidplanData[activityIndex].__baseFieldVersions) {
+        tidplanData[activityIndex].__baseFieldVersions = { ...(tidplanData[activityIndex].fieldVersions || {}) };
+      }
       if (fieldName && fieldName !== "activity") {
         tidplanData[activityIndex].__changedFields = {
           ...(tidplanData[activityIndex].__changedFields || {}),

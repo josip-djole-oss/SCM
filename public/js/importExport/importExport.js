@@ -19,8 +19,13 @@ function markClean() {
 }
 
 function saveAllData() {
-  saveData();
-  saveBinsData();
+  if (currentView === "bins") {
+    saveBinsData();
+  } else if (currentView === "tidplan") {
+    saveTidplanData();
+  } else {
+    saveData();
+  }
   if (typeof markClean === "function") markClean();
   showToast(t("dataSaved"), "success");
 }
@@ -35,8 +40,13 @@ function startAutoSave() {
   // Auto-save every 5 minutes
   autoSaveInterval = setInterval(() => {
     if (!appState.isReadonly && appState.currentUser && freshServerDataLoaded) {
-      saveData();
-      saveBinsData();
+      if (currentView === "bins") {
+        saveBinsData();
+      } else if (currentView === "tidplan") {
+        saveTidplanData();
+      } else if (currentView === "main") {
+        saveData();
+      }
       if (typeof markClean === "function") markClean();
       console.log("Auto-saved at", new Date().toLocaleTimeString());
     }

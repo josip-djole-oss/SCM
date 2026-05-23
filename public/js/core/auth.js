@@ -212,6 +212,7 @@ function updateShellForView(view = currentView) {
   if (siteChatSection && view !== "siteChat") {
     siteChatSection.style.display = "none";
     if (typeof siteChatStopPolling === "function") siteChatStopPolling();
+    if (typeof siteChatCleanupDom === "function") siteChatCleanupDom();
   }
   const moduleLabel = document.getElementById("currentModuleLabel");
   if (moduleLabel) moduleLabel.textContent = getModuleLabelForView(view);

@@ -14,6 +14,7 @@
   canModerate: false,
   messageLimit: 4000,
   attachmentMaxBytes: 10 * 1024 * 1024,
+  renderLimit: 120,
   lastRenderedMessageId: "",
   pollTimer: null,
 };

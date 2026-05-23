@@ -27,6 +27,7 @@ const USERS = {
   B: { email: "real-b@cmax.test", name: "Real User B" },
   C: { email: "real-c@cmax.test", name: "Real User C" },
   D: { email: "real-d@cmax.test", name: "Real User D" },
+  E: { email: "real-e@cmax.test", name: "Real User E" },
 };
 
 const telemetry = {
@@ -556,12 +557,14 @@ async function main() {
       await login(pages[key], key);
     }
 
-    await recordScenario("SCENARIO A - Planner + Warehouse + Store + Site Chat, 10 minute real use", async (entry) => {
+    const scenarioMinutes = Math.round(SCENARIO_A_MS / 60000);
+    await recordScenario(`SCENARIO A - Planner + Warehouse + Store + Site Chat + Tidplan, ${scenarioMinutes} minute real use`, async (entry) => {
       await Promise.all([
         pages.A.evaluate(() => CMAX?.tidplan?.showPlanner?.()),
         pages.B.evaluate(() => CMAX?.warehouse?.show?.()),
         pages.C.evaluate(() => CMAX?.workwear?.show?.()),
         pages.D.evaluate((site) => CMAX?.siteChat?.show?.(site), SITE),
+        pages.E.evaluate(() => CMAX?.tidplan?.show?.()),
       ]);
       entry.screenshots.push(await screenshot(pages.A, "scenario-a-planner-start"));
       await Promise.all([
@@ -569,11 +572,13 @@ async function main() {
         runLoop(pages.B, "warehouse", "scenarioA-warehouse", SCENARIO_A_MS, 11000),
         runLoop(pages.C, "store", "scenarioA-store", SCENARIO_A_MS, 15000),
         runLoop(pages.D, "siteChat", "scenarioA-chat", SCENARIO_A_MS, 8000),
+        runLoop(pages.E, "tidplan", "scenarioA-tidplan", SCENARIO_A_MS, 13000),
       ]);
       await Promise.all(Object.entries(pages).map(([label, page]) => samplePage(page, `scenario-a-end-${label}`)));
       entry.screenshots.push(await screenshot(pages.B, "scenario-a-warehouse-end"));
       entry.screenshots.push(await screenshot(pages.C, "scenario-a-store-end"));
       entry.screenshots.push(await screenshot(pages.D, "scenario-a-chat-end"));
+      entry.screenshots.push(await screenshot(pages.E, "scenario-a-tidplan-end"));
     });
 
     await recordScenario("SCENARIO B - Same Planner row conflict options", async (entry) => {

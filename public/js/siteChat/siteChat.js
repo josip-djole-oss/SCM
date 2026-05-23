@@ -100,6 +100,11 @@ function siteChatStopPolling() {
   }
 }
 
+function siteChatCleanupDom() {
+  const root = document.getElementById("siteChatRoot");
+  if (root) root.replaceChildren();
+}
+
 window.showSiteChat = showSiteChat;
 window.siteChatOpenSite = siteChatOpenSite;
 window.siteChatBackToList = siteChatBackToList;
@@ -119,3 +124,4 @@ window.siteChatPinMessage = siteChatPinMessage;
 window.siteChatUnpinMessage = siteChatUnpinMessage;
 window.siteChatRefreshSitesAndUnread = siteChatRefreshSitesAndUnread;
 window.siteChatStopPolling = siteChatStopPolling;
+window.siteChatCleanupDom = siteChatCleanupDom;
