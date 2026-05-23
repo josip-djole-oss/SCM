@@ -378,6 +378,18 @@
     submitTransfer(...args) {
       return callLegacy("submitToolroomTransfer", args);
     },
+    submitFault(...args) {
+      return callLegacy("submitToolroomFault", args);
+    },
+    updateFault(...args) {
+      return callLegacy("updateToolroomFault", args);
+    },
+    submitService(...args) {
+      return callLegacy("submitToolroomService", args);
+    },
+    assignReplacement(...args) {
+      return callLegacy("assignToolroomReplacement", args);
+    },
   });
 
   assignNamespace("workwear", {

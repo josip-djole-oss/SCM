@@ -145,6 +145,9 @@ const DEFAULT_PERMISSIONS = {
   canAssignTools: false,
   canReturnTools: false,
   canViewMyTools: false,
+  canReportToolFault: false,
+  canHandleToolService: false,
+  canWriteOffTools: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
   canExportTidplan: true,
@@ -190,6 +193,9 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canAssignTools: false,
   canReturnTools: false,
   canViewMyTools: false,
+  canReportToolFault: false,
+  canHandleToolService: false,
+  canWriteOffTools: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
   canExportTidplan: false,
@@ -1625,6 +1631,9 @@ function canAccessToolroom(session) {
     sessionHasPermission(session, 'canAssignTools') ||
     sessionHasPermission(session, 'canReturnTools') ||
     sessionHasPermission(session, 'canViewMyTools') ||
+    sessionHasPermission(session, 'canReportToolFault') ||
+    sessionHasPermission(session, 'canHandleToolService') ||
+    sessionHasPermission(session, 'canWriteOffTools') ||
     sessionHasPermission(session, 'canViewToolHistory');
 }
 
@@ -1638,6 +1647,18 @@ function canReturnToolroom(session) {
 
 function canViewOwnToolroom(session) {
   return session?.isSuperAdmin || sessionHasPermission(session, 'canViewMyTools') || canAccessToolroom(session);
+}
+
+function canReportToolFault(session) {
+  return session?.isSuperAdmin || sessionHasPermission(session, 'canReportToolFault') || sessionHasPermission(session, 'canViewMyTools') || sessionHasPermission(session, 'canManageToolroom');
+}
+
+function canHandleToolService(session) {
+  return session?.isSuperAdmin || sessionHasPermission(session, 'canManageToolroom') || sessionHasPermission(session, 'canHandleToolService');
+}
+
+function canWriteOffTools(session) {
+  return session?.isSuperAdmin || sessionHasPermission(session, 'canManageToolroom') || sessionHasPermission(session, 'canWriteOffTools');
 }
 
 async function buildPublicStatePayload(document, session) {
@@ -3813,6 +3834,8 @@ function createEmptyToolroomDocument() {
       ].map(([label, prefix], index) => ({ id: `preset_prefix_${index + 1}`, type: 'prefixRule', label, value: prefix, metadata: { toolType: label }, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
     ],
     assignments: [],
+    faults: [],
+    serviceRecords: [],
     history: [],
     updatedAt: now,
   };
@@ -3837,7 +3860,7 @@ function normalizeToolroomDocument(doc) {
       iconKey: sanitizeString(item?.iconKey || 'tool', 80),
       imageUrl: sanitizeString(item?.imageUrl || '', 500),
       notes: sanitizeString(item?.notes || '', 1000),
-      currentHolderType: ['toolroom', 'worker', 'site', 'lost'].includes(item?.currentHolderType) ? item.currentHolderType : 'toolroom',
+      currentHolderType: ['toolroom', 'worker', 'site', 'service', 'lost', 'written_off'].includes(item?.currentHolderType) ? item.currentHolderType : 'toolroom',
       currentHolderUserId: sanitizeString(item?.currentHolderUserId || '', 160),
       currentHolderUserEmail: sanitizeString(item?.currentHolderUserEmail || '', 160).toLowerCase(),
       currentHolderUserName: sanitizeString(item?.currentHolderUserName || '', 220),
@@ -3878,7 +3901,7 @@ function normalizeToolroomDocument(doc) {
       id: sanitizeString(entry?.id || `assignment_${index + 1}`, 120),
       toolId: sanitizeString(entry?.toolId || '', 120),
       action: sanitizeString(entry?.action || '', 60),
-      holderType: ['worker', 'site', 'toolroom', 'lost'].includes(entry?.holderType) ? entry.holderType : '',
+      holderType: ['worker', 'site', 'toolroom', 'service', 'lost', 'written_off'].includes(entry?.holderType) ? entry.holderType : '',
       fromHolderType: sanitizeString(entry?.fromHolderType || '', 60),
       fromHolderLabel: sanitizeString(entry?.fromHolderLabel || '', 220),
       holderUserEmail: sanitizeString(entry?.holderUserEmail || '', 160).toLowerCase(),
@@ -3892,6 +3915,42 @@ function normalizeToolroomDocument(doc) {
       actor: sanitizeString(entry?.actor || '', 160),
       createdAt: sanitizeString(entry?.createdAt || now, 80),
     })).filter((entry) => entry.id && entry.toolId),
+    faults: (Array.isArray(source.faults) ? source.faults : []).slice(-1000).map((fault, index) => ({
+      id: sanitizeString(fault?.id || `fault_${index + 1}`, 120),
+      toolId: sanitizeString(fault?.toolId || '', 120),
+      status: sanitizeString(fault?.status || 'reported', 80),
+      faultType: sanitizeString(fault?.faultType || '', 180),
+      comment: sanitizeString(fault?.comment || '', 1000),
+      attachmentUrl: sanitizeString(fault?.attachmentUrl || '', 500),
+      replacementRequested: fault?.replacementRequested === true,
+      replacementToolId: sanitizeString(fault?.replacementToolId || '', 120),
+      reporterEmail: sanitizeString(fault?.reporterEmail || '', 160).toLowerCase(),
+      reporterName: sanitizeString(fault?.reporterName || '', 220),
+      reporterSite: sanitizeString(fault?.reporterSite || '', 220),
+      createdAt: sanitizeString(fault?.createdAt || now, 80),
+      updatedAt: sanitizeString(fault?.updatedAt || now, 80),
+      updatedBy: sanitizeString(fault?.updatedBy || '', 160),
+      faultVersion: Math.max(1, Number(fault?.faultVersion || fault?.version || 1)),
+      serviceId: sanitizeString(fault?.serviceId || '', 120),
+    })).filter((fault) => fault.id && fault.toolId),
+    serviceRecords: (Array.isArray(source.serviceRecords) ? source.serviceRecords : []).slice(-1000).map((record, index) => ({
+      id: sanitizeString(record?.id || `service_${index + 1}`, 120),
+      faultId: sanitizeString(record?.faultId || '', 120),
+      toolId: sanitizeString(record?.toolId || '', 120),
+      status: sanitizeString(record?.status || 'open', 80),
+      serviceCompany: sanitizeString(record?.serviceCompany || '', 220),
+      sentAt: sanitizeString(record?.sentAt || '', 80),
+      problemDescription: sanitizeString(record?.problemDescription || '', 1000),
+      expectedReturnAt: sanitizeString(record?.expectedReturnAt || '', 80),
+      cost: Number(record?.cost || 0),
+      documentUrl: sanitizeString(record?.documentUrl || '', 500),
+      returnedAt: sanitizeString(record?.returnedAt || '', 80),
+      comment: sanitizeString(record?.comment || '', 1000),
+      createdAt: sanitizeString(record?.createdAt || now, 80),
+      updatedAt: sanitizeString(record?.updatedAt || now, 80),
+      updatedBy: sanitizeString(record?.updatedBy || '', 160),
+      serviceVersion: Math.max(1, Number(record?.serviceVersion || record?.version || 1)),
+    })).filter((record) => record.id && record.toolId),
     history: (Array.isArray(source.history) ? source.history : []).slice(-500).map((event, index) => ({
       id: sanitizeString(event?.id || `history_${index + 1}`, 120),
       entityType: sanitizeString(event?.entityType || '', 60),
@@ -3932,7 +3991,9 @@ function getToolroomHolderLabel(item) {
   if (!item) return '';
   if (item.currentHolderType === 'worker') return item.currentHolderUserName || item.currentHolderUserEmail || 'Worker';
   if (item.currentHolderType === 'site') return item.currentHolderSiteId || 'Gradiliste';
+  if (item.currentHolderType === 'service') return 'Servis';
   if (item.currentHolderType === 'lost') return 'Izgubljeno';
+  if (item.currentHolderType === 'written_off') return 'Otpisano';
   return 'Alatnica';
 }
 
@@ -3948,13 +4009,52 @@ function buildToolroomNotification(type, item, description) {
         ? `Alat je razduzen: ${item.internalNumber}`
         : type === 'transferred'
           ? `Alat je prebacen: ${item.internalNumber}`
-          : `Alat status: ${item.internalNumber}`,
+          : type === 'fault'
+            ? `Kvar prijavljen: ${item.internalNumber}`
+            : type === 'service'
+              ? `Servis: ${item.internalNumber}`
+              : `Alat status: ${item.internalNumber}`,
     description: sanitizeString(description || `${item.name || item.internalNumber}`, 180),
     targetId: item.id,
     targetView: 'toolroom',
     createdAt: now,
     readAt: null,
   };
+}
+
+function canUserAccessToolForFault(session, item, activeSite = '') {
+  if (!item || item.archived) return false;
+  if (canHandleToolService(session)) return true;
+  const email = sanitizeString(session?.email || '', 160).toLowerCase();
+  if (item.currentHolderType === 'worker' && item.currentHolderUserEmail === email) return true;
+  if (item.currentHolderType === 'site') {
+    const site = sanitizeString(activeSite || item.currentHolderSiteId || '', 220);
+    return site && site === item.currentHolderSiteId && canAccessSite(session, site);
+  }
+  return false;
+}
+
+function getToolroomManagers(admins, excludeEmail = '') {
+  const excluded = sanitizeString(excludeEmail || '', 160).toLowerCase();
+  return admins
+    .map((admin) => normalizeAdminRecord(admin))
+    .filter((admin) => admin.email && admin.email !== excluded && admin.active !== false)
+    .filter((admin) => admin.isSuperAdmin || sessionHasPermission({ permissions: admin.permissions, isSuperAdmin: admin.isSuperAdmin }, 'canManageToolroom') || sessionHasPermission({ permissions: admin.permissions, isSuperAdmin: admin.isSuperAdmin }, 'canHandleToolService'))
+    .map((admin) => admin.email);
+}
+
+function findToolroomReplacement(doc, sourceTool, excludedIds = []) {
+  const exclude = new Set(excludedIds.filter(Boolean));
+  return normalizeToolroomDocument(doc).items.find((item) =>
+    !item.archived &&
+    !exclude.has(item.id) &&
+    item.status === 'available' &&
+    (!item.currentHolderType || item.currentHolderType === 'toolroom') &&
+    (
+      (sourceTool.model && item.model === sourceTool.model) ||
+      (sourceTool.type && item.type === sourceTool.type)
+    )
+  ) || null;
 }
 
 function ensureToolroomAssignable(item) {
@@ -7408,7 +7508,7 @@ apiRouter.get('/warehouse/admin-assignments', requirePermission('canViewWarehous
 
 /* ==================== TOOLROOM FOUNDATION ==================== */
 
-apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManageToolroom', 'canEditToolPresets', 'canViewToolHistory', 'canAssignTools', 'canReturnTools', 'canViewMyTools']), async (req, res, next) => {
+apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManageToolroom', 'canEditToolPresets', 'canViewToolHistory', 'canAssignTools', 'canReturnTools', 'canViewMyTools', 'canReportToolFault', 'canHandleToolService', 'canWriteOffTools']), async (req, res, next) => {
   try {
     if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
     const toolroom = await getToolroomDocument();
@@ -7423,6 +7523,9 @@ apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManage
         canAssignTools: canAssignToolroom(req.session),
         canReturnTools: canReturnToolroom(req.session),
         canViewMyTools: canViewOwnToolroom(req.session),
+        canReportToolFault: canReportToolFault(req.session),
+        canHandleToolService: canHandleToolService(req.session),
+        canWriteOffTools: canWriteOffTools(req.session),
       },
     });
   } catch (error) {
@@ -7719,6 +7822,386 @@ apiRouter.post('/toolroom/transfers', requireAnyPermission(['canAssignTools', 'c
     }
     await logActivity(req.session.email, 'toolroom_tool_transferred', { toolId, from: previousHolder, to: getToolroomHolderLabel(savedItem) });
     res.json({ ok: true, item: savedItem });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.get('/toolroom/faults', requireAnyPermission(['canReportToolFault', 'canViewMyTools', 'canHandleToolService', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const activeSite = sanitizeString(req.query.site || req.session.currentSite || '', 220);
+    const email = sanitizeString(req.session.email || '', 160).toLowerCase();
+    const toolroom = await getToolroomDocument();
+    const faults = canHandleToolService(req.session)
+      ? toolroom.faults
+      : toolroom.faults.filter((fault) => {
+        const tool = toolroom.items.find((item) => item.id === fault.toolId);
+        return fault.reporterEmail === email || (tool && tool.currentHolderType === 'site' && tool.currentHolderSiteId === activeSite && canAccessSite(req.session, activeSite));
+      });
+    res.json({ ok: true, faults, serviceRecords: canHandleToolService(req.session) ? toolroom.serviceRecords : [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/faults', requireAnyPermission(['canReportToolFault', 'canViewMyTools', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly || !canReportToolFault(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const body = sanitizeObject(req.body || {});
+    const toolId = sanitizeString(body.toolId || '', 120);
+    const activeSite = sanitizeString(body.activeSite || body.siteId || req.session.currentSite || '', 220);
+    const faultType = sanitizeString(body.faultType || '', 180);
+    const comment = sanitizeString(body.comment || '', 1000);
+    const attachmentUrl = sanitizeString(body.attachmentUrl || '', 500);
+    const replacementRequested = body.replacementRequested === true;
+    const admins = await readAdmins();
+    let savedFault = null;
+    let savedItem = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.items.findIndex((item) => item.id === toolId && !item.archived);
+      if (index < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const existing = next.items[index];
+      if (!canUserAccessToolForFault(req.session, existing, activeSite)) {
+        const error = new Error('TOOLROOM_FAULT_TOOL_FORBIDDEN');
+        error.statusCode = 403;
+        throw error;
+      }
+      if (['written_off', 'lost'].includes(existing.status)) {
+        const error = new Error('TOOLROOM_FAULT_STATUS_BLOCKED');
+        error.statusCode = 400;
+        throw error;
+      }
+      savedItem = {
+        ...existing,
+        status: existing.currentHolderType === 'site' || existing.currentHolderType === 'worker' ? 'fault_reported' : existing.status,
+        itemVersion: Number(existing.itemVersion || 1) + 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      };
+      next.items[index] = savedItem;
+      savedFault = {
+        id: createToolroomId('fault'),
+        toolId,
+        status: 'reported',
+        faultType: faultType || 'Ostalo',
+        comment,
+        attachmentUrl,
+        replacementRequested,
+        replacementToolId: '',
+        reporterEmail: sanitizeString(req.session.email || '', 160).toLowerCase(),
+        reporterName: sanitizeString(req.session.fullName || req.session.email || '', 220),
+        reporterSite: activeSite,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+        faultVersion: 1,
+        serviceId: '',
+      };
+      next.faults.push(savedFault);
+      next = pushToolroomHistory(next, {
+        entityType: 'toolItem',
+        entityId: toolId,
+        type: 'toolroom_fault_reported',
+        actor: req.session.email,
+        note: `${savedItem.internalNumber} | ${savedFault.faultType}${replacementRequested ? ' | zamjena trazena' : ''}`,
+        before: { status: existing.status, holderType: existing.currentHolderType, holder: getToolroomHolderLabel(existing) },
+        after: { status: savedItem.status, faultId: savedFault.id, faultStatus: savedFault.status, replacementRequested },
+      });
+      next.updatedAt = new Date().toISOString();
+      return next;
+    });
+    await appendAccountNotificationForUsers(getToolroomManagers(admins, req.session.email), buildToolroomNotification('fault', savedItem, `${savedItem.internalNumber}: nova prijava kvara${replacementRequested ? ' i zahtjev za zamjenu' : ''}.`));
+    await logActivity(req.session.email, 'toolroom_fault_reported', { toolId, faultId: savedFault.id, replacementRequested });
+    res.json({ ok: true, fault: savedFault, item: savedItem });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.patch('/toolroom/faults/:id', requireAnyPermission(['canHandleToolService', 'canManageToolroom', 'canWriteOffTools']), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly || !canHandleToolService(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const id = sanitizeString(req.params.id || '', 120);
+    const body = sanitizeObject(req.body || {});
+    const action = sanitizeString(body.action || body.status || '', 80);
+    const allowed = new Set(['received', 'awaiting_return', 'returned_office', 'sent_service', 'in_service', 'repaired', 'returned_available', 'written_off']);
+    if (!allowed.has(action)) return res.status(400).json({ error: 'TOOLROOM_FAULT_ACTION_INVALID' });
+    if (action === 'written_off' && !canWriteOffTools(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    let savedFault = null;
+    let savedItem = null;
+    let savedService = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const faultIndex = next.faults.findIndex((fault) => fault.id === id);
+      if (faultIndex < 0) { const error = new Error('TOOLROOM_FAULT_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const existingFault = next.faults[faultIndex];
+      const itemIndex = next.items.findIndex((item) => item.id === existingFault.toolId && !item.archived);
+      if (itemIndex < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const existingItem = next.items[itemIndex];
+      const statusByAction = {
+        received: 'received',
+        awaiting_return: 'awaiting_return',
+        returned_office: 'returned_office',
+        sent_service: 'sent_service',
+        in_service: 'in_service',
+        repaired: 'repaired',
+        returned_available: 'returned_available',
+        written_off: 'written_off',
+      };
+      savedFault = {
+        ...existingFault,
+        status: statusByAction[action],
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+        faultVersion: Number(existingFault.faultVersion || 1) + 1,
+      };
+      let itemPatch = {};
+      if (action === 'awaiting_return') itemPatch = { status: 'awaiting_return' };
+      if (action === 'returned_office') itemPatch = { status: 'fault_reported', currentHolderType: 'toolroom', currentHolderUserEmail: '', currentHolderUserName: '', currentHolderUserId: '', currentHolderSiteId: '' };
+      if (action === 'sent_service' || action === 'in_service') itemPatch = { status: 'in_service', currentHolderType: 'service', currentHolderUserEmail: '', currentHolderUserName: '', currentHolderUserId: '', currentHolderSiteId: '' };
+      if (action === 'repaired') itemPatch = { status: 'returned_from_service', currentHolderType: 'toolroom' };
+      if (action === 'returned_available') itemPatch = { status: 'available', currentHolderType: 'toolroom', currentHolderUserEmail: '', currentHolderUserName: '', currentHolderUserId: '', currentHolderSiteId: '' };
+      if (action === 'written_off') itemPatch = { status: 'written_off', currentHolderType: 'written_off', currentHolderUserEmail: '', currentHolderUserName: '', currentHolderUserId: '', currentHolderSiteId: '' };
+      savedItem = {
+        ...existingItem,
+        ...itemPatch,
+        itemVersion: Number(existingItem.itemVersion || 1) + 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      };
+      if (action === 'sent_service' || action === 'in_service') {
+        const existingServiceIndex = next.serviceRecords.findIndex((record) => record.faultId === id);
+        const existingService = existingServiceIndex >= 0 ? next.serviceRecords[existingServiceIndex] : null;
+        savedService = {
+          ...(existingService || {}),
+          id: existingService?.id || createToolroomId('service'),
+          faultId: id,
+          toolId: existingItem.id,
+          status: 'in_service',
+          serviceCompany: sanitizeString(body.serviceCompany || existingService?.serviceCompany || '', 220),
+          sentAt: sanitizeString(body.sentAt || existingService?.sentAt || new Date().toISOString().slice(0, 10), 80),
+          problemDescription: sanitizeString(body.problemDescription || body.comment || existingService?.problemDescription || existingFault.comment || '', 1000),
+          expectedReturnAt: sanitizeString(body.expectedReturnAt || existingService?.expectedReturnAt || '', 80),
+          cost: Number(body.cost || existingService?.cost || 0),
+          documentUrl: sanitizeString(body.documentUrl || existingService?.documentUrl || '', 500),
+          returnedAt: sanitizeString(existingService?.returnedAt || '', 80),
+          comment: sanitizeString(body.comment || existingService?.comment || '', 1000),
+          createdAt: existingService?.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          updatedBy: sanitizeString(req.session.email || '', 160),
+          serviceVersion: existingService ? Number(existingService.serviceVersion || 1) + 1 : 1,
+        };
+        if (existingServiceIndex >= 0) next.serviceRecords[existingServiceIndex] = savedService;
+        else next.serviceRecords.push(savedService);
+        savedFault.serviceId = savedService.id;
+      }
+      if (action === 'returned_available' || action === 'repaired') {
+        const serviceIndex = next.serviceRecords.findIndex((record) => record.faultId === id);
+        if (serviceIndex >= 0) {
+          savedService = { ...next.serviceRecords[serviceIndex], status: action === 'returned_available' ? 'closed' : 'repaired', returnedAt: sanitizeString(body.returnedAt || new Date().toISOString().slice(0, 10), 80), comment: sanitizeString(body.comment || next.serviceRecords[serviceIndex].comment || '', 1000), updatedAt: new Date().toISOString(), updatedBy: req.session.email, serviceVersion: Number(next.serviceRecords[serviceIndex].serviceVersion || 1) + 1 };
+          next.serviceRecords[serviceIndex] = savedService;
+        }
+      }
+      next.items[itemIndex] = savedItem;
+      next.faults[faultIndex] = savedFault;
+      next = pushToolroomHistory(next, {
+        entityType: 'toolItem',
+        entityId: existingItem.id,
+        type: action === 'sent_service' || action === 'in_service' ? 'toolroom_service_sent' : action === 'returned_available' ? 'toolroom_tool_returned_to_circulation' : action === 'written_off' ? 'toolroom_tool_written_off' : 'toolroom_fault_status_changed',
+        actor: req.session.email,
+        note: `${existingItem.internalNumber} | ${existingFault.status} -> ${savedFault.status}`,
+        before: { status: existingItem.status, holderType: existingItem.currentHolderType, faultStatus: existingFault.status, faultId: id },
+        after: { status: savedItem.status, holderType: savedItem.currentHolderType, faultStatus: savedFault.status, faultId: id, serviceId: savedService?.id || savedFault.serviceId || '' },
+      });
+      next.updatedAt = new Date().toISOString();
+      return next;
+    });
+    if (savedFault.reporterEmail) {
+      await appendAccountNotificationForUsers([savedFault.reporterEmail], buildToolroomNotification(action === 'sent_service' || action === 'in_service' ? 'service' : 'fault', savedItem, `${savedItem.internalNumber}: status kvara je ${savedFault.status}.`));
+    }
+    await logActivity(req.session.email, 'toolroom_fault_status_changed', { faultId: id, toolId: savedItem.id, action });
+    res.json({ ok: true, fault: savedFault, item: savedItem, service: savedService });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.get('/toolroom/service', requireAnyPermission(['canHandleToolService', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (!canHandleToolService(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const toolroom = await getToolroomDocument();
+    res.json({ ok: true, serviceRecords: toolroom.serviceRecords || [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/service', requireAnyPermission(['canHandleToolService', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly || !canHandleToolService(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const body = sanitizeObject(req.body || {});
+    const faultId = sanitizeString(body.faultId || '', 120);
+    if (!faultId) return res.status(400).json({ error: 'TOOLROOM_FAULT_ID_REQUIRED' });
+    let savedService = null;
+    let savedFault = null;
+    let savedItem = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const faultIndex = next.faults.findIndex((fault) => fault.id === faultId);
+      if (faultIndex < 0) { const error = new Error('TOOLROOM_FAULT_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const fault = next.faults[faultIndex];
+      const itemIndex = next.items.findIndex((item) => item.id === fault.toolId && !item.archived);
+      if (itemIndex < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const item = next.items[itemIndex];
+      savedService = {
+        id: createToolroomId('service'),
+        faultId,
+        toolId: item.id,
+        status: 'in_service',
+        serviceCompany: sanitizeString(body.serviceCompany || '', 220),
+        sentAt: sanitizeString(body.sentAt || new Date().toISOString().slice(0, 10), 80),
+        problemDescription: sanitizeString(body.problemDescription || body.comment || fault.comment || '', 1000),
+        expectedReturnAt: sanitizeString(body.expectedReturnAt || '', 80),
+        cost: Number(body.cost || 0),
+        documentUrl: sanitizeString(body.documentUrl || '', 500),
+        returnedAt: '',
+        comment: sanitizeString(body.comment || '', 1000),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        updatedBy: req.session.email,
+        serviceVersion: 1,
+      };
+      savedFault = { ...fault, status: 'in_service', serviceId: savedService.id, updatedAt: new Date().toISOString(), updatedBy: req.session.email, faultVersion: Number(fault.faultVersion || 1) + 1 };
+      savedItem = { ...item, status: 'in_service', currentHolderType: 'service', currentHolderUserEmail: '', currentHolderUserName: '', currentHolderUserId: '', currentHolderSiteId: '', itemVersion: Number(item.itemVersion || 1) + 1, updatedAt: new Date().toISOString(), updatedBy: req.session.email };
+      next.serviceRecords.push(savedService);
+      next.faults[faultIndex] = savedFault;
+      next.items[itemIndex] = savedItem;
+      next = pushToolroomHistory(next, {
+        entityType: 'toolItem',
+        entityId: item.id,
+        type: 'toolroom_service_sent',
+        actor: req.session.email,
+        note: `${item.internalNumber} -> servis ${savedService.serviceCompany || ''}`,
+        before: { status: item.status, holderType: item.currentHolderType, faultStatus: fault.status, faultId },
+        after: { status: savedItem.status, holderType: savedItem.currentHolderType, faultStatus: savedFault.status, faultId, serviceId: savedService.id },
+      });
+      return next;
+    });
+    if (savedFault.reporterEmail) {
+      await appendAccountNotificationForUsers([savedFault.reporterEmail], buildToolroomNotification('service', savedItem, `${savedItem.internalNumber} je poslan na servis.`));
+    }
+    await logActivity(req.session.email, 'toolroom_service_sent', { faultId, serviceId: savedService.id, toolId: savedItem.id });
+    res.json({ ok: true, fault: savedFault, item: savedItem, service: savedService });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.patch('/toolroom/service/:id', requireAnyPermission(['canHandleToolService', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (!canHandleToolService(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const id = sanitizeString(req.params.id || '', 120);
+    const body = sanitizeObject(req.body || {});
+    let savedService = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      const next = normalizeToolroomDocument(doc);
+      const index = next.serviceRecords.findIndex((record) => record.id === id);
+      if (index < 0) { const error = new Error('TOOLROOM_SERVICE_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const existing = next.serviceRecords[index];
+      savedService = {
+        ...existing,
+        status: sanitizeString(body.status || existing.status || 'open', 80),
+        serviceCompany: sanitizeString(body.serviceCompany || existing.serviceCompany || '', 220),
+        expectedReturnAt: sanitizeString(body.expectedReturnAt || existing.expectedReturnAt || '', 80),
+        cost: Number(body.cost || existing.cost || 0),
+        documentUrl: sanitizeString(body.documentUrl || existing.documentUrl || '', 500),
+        returnedAt: sanitizeString(body.returnedAt || existing.returnedAt || '', 80),
+        comment: sanitizeString(body.comment || existing.comment || '', 1000),
+        updatedAt: new Date().toISOString(),
+        updatedBy: req.session.email,
+        serviceVersion: Number(existing.serviceVersion || 1) + 1,
+      };
+      next.serviceRecords[index] = savedService;
+      return next;
+    });
+    res.json({ ok: true, service: savedService });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/faults/:id/replacement', requireAnyPermission(['canAssignTools', 'canManageToolroom', 'canHandleToolService']), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly || !canAssignToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const id = sanitizeString(req.params.id || '', 120);
+    const body = sanitizeObject(req.body || {});
+    let replacement = null;
+    let savedFault = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const faultIndex = next.faults.findIndex((fault) => fault.id === id);
+      if (faultIndex < 0) { const error = new Error('TOOLROOM_FAULT_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const fault = next.faults[faultIndex];
+      const sourceTool = next.items.find((item) => item.id === fault.toolId);
+      const replacementId = sanitizeString(body.replacementToolId || '', 120);
+      replacement = replacementId
+        ? next.items.find((item) => item.id === replacementId)
+        : findToolroomReplacement(next, sourceTool, [fault.toolId]);
+      ensureToolroomAssignable(replacement);
+      const replacementIndex = next.items.findIndex((item) => item.id === replacement.id);
+      const target = fault.reporterEmail
+        ? { holderType: 'worker', status: 'assigned_worker', holderUserEmail: fault.reporterEmail, holderUserName: fault.reporterName, holderSiteId: '' }
+        : { holderType: 'site', status: 'assigned_site', holderUserEmail: '', holderUserName: '', holderSiteId: fault.reporterSite };
+      replacement = {
+        ...replacement,
+        status: target.status,
+        currentHolderType: target.holderType,
+        currentHolderUserEmail: target.holderUserEmail,
+        currentHolderUserName: target.holderUserName,
+        currentHolderUserId: target.holderUserEmail,
+        currentHolderSiteId: target.holderSiteId,
+        issuedAt: new Date().toISOString().slice(0, 10),
+        itemVersion: Number(replacement.itemVersion || 1) + 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: req.session.email,
+      };
+      next.items[replacementIndex] = replacement;
+      savedFault = { ...fault, replacementToolId: replacement.id, updatedAt: new Date().toISOString(), updatedBy: req.session.email, faultVersion: Number(fault.faultVersion || 1) + 1 };
+      next.faults[faultIndex] = savedFault;
+      next = appendToolroomAssignment(next, {
+        toolId: replacement.id,
+        action: 'replacement_assigned',
+        holderType: replacement.currentHolderType,
+        holderUserEmail: replacement.currentHolderUserEmail,
+        holderUserName: replacement.currentHolderUserName,
+        holderSiteId: replacement.currentHolderSiteId,
+        assignedAt: replacement.issuedAt,
+        note: `Replacement for fault ${id}`,
+        actor: req.session.email,
+      });
+      next = pushToolroomHistory(next, {
+        entityType: 'toolItem',
+        entityId: replacement.id,
+        type: 'toolroom_replacement_assigned',
+        actor: req.session.email,
+        note: `${replacement.internalNumber} -> zamjena za kvar ${id}`,
+        before: { status: 'available', holderType: 'toolroom' },
+        after: { status: replacement.status, holderType: replacement.currentHolderType, faultId: id },
+      });
+      return next;
+    });
+    if (replacement.currentHolderUserEmail) {
+      await appendAccountNotificationForUsers([replacement.currentHolderUserEmail], buildToolroomNotification('assigned', replacement, `${replacement.internalNumber} je dodijeljen kao zamjenski alat.`));
+    }
+    await logActivity(req.session.email, 'toolroom_replacement_assigned', { faultId: id, replacementToolId: replacement.id });
+    res.json({ ok: true, fault: savedFault, replacement });
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);

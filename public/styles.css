@@ -827,6 +827,36 @@ body {
   font-weight: 800;
   font-size: 0.78rem;
 }
+.toolroom-check {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 10px;
+}
+.toolroom-check input {
+  width: auto;
+  min-height: auto;
+}
+.toolroom-fault-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #dbe4f2;
+  border-radius: 18px;
+  background: #f8fbff;
+  padding: 14px;
+}
+.toolroom-fault-card p {
+  margin: 4px 0;
+}
+.toolroom-fault-actions,
+.toolroom-my-tool-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.toolroom-my-tool-actions {
+  justify-content: flex-end;
+}
 
 @media (max-width: 900px) {
   .toolroom-hero,
@@ -848,8 +878,13 @@ body {
   .toolroom-my-tool-card {
     grid-template-columns: 52px minmax(0, 1fr);
   }
-  .toolroom-my-tool-card .btn {
+  .toolroom-my-tool-card .btn,
+  .toolroom-my-tool-actions {
     grid-column: 1 / -1;
+  }
+  .toolroom-my-tool-actions .btn,
+  .toolroom-fault-actions .btn {
+    flex: 1 1 100%;
   }
   .warehouse-log-toolbar-actions {
     justify-content: stretch;

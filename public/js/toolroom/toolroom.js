@@ -7,7 +7,7 @@ var toolroomState = {
   action: null,
   myTools: [],
   myToolsLoaded: false,
-  data: { items: [], categories: [], presets: [], assignments: [], history: [] },
+  data: { items: [], categories: [], presets: [], assignments: [], faults: [], serviceRecords: [], history: [] },
   permissions: {},
 };
 
@@ -101,11 +101,25 @@ function canToolroomViewMyToolsUi() {
   return typeof canViewMyToolsAccess === "function" ? canViewMyToolsAccess() : true;
 }
 
+function canToolroomReportFaultUi() {
+  return typeof canReportToolFaultAccess === "function" ? canReportToolFaultAccess() : false;
+}
+
+function canToolroomHandleServiceUi() {
+  return typeof canHandleToolServiceAccess === "function" ? canHandleToolServiceAccess() : false;
+}
+
+function canToolroomWriteOffUi() {
+  return typeof canWriteOffToolsAccess === "function" ? canWriteOffToolsAccess() : false;
+}
+
 function getToolroomHolderLabelUi(item) {
   if (!item) return "";
   if (item.currentHolderType === "worker") return item.currentHolderUserName || item.currentHolderUserEmail || "Worker";
   if (item.currentHolderType === "site") return item.currentHolderSiteId || "Gradiliste";
+  if (item.currentHolderType === "service") return "Servis";
   if (item.currentHolderType === "lost") return "Izgubljeno";
+  if (item.currentHolderType === "written_off") return "Otpisano";
   return "Alatnica";
 }
 
@@ -115,6 +129,26 @@ function isToolroomAssigned(item) {
 
 function getToolroomAssignableItems() {
   return getToolroomItems().filter((item) => !item.archived && item.status === "available" && (!item.currentHolderType || item.currentHolderType === "toolroom"));
+}
+
+function getToolroomFaults() {
+  return Array.isArray(toolroomState.data.faults) ? toolroomState.data.faults : [];
+}
+
+function getToolroomServiceRecords() {
+  return Array.isArray(toolroomState.data.serviceRecords) ? toolroomState.data.serviceRecords : [];
+}
+
+function getToolroomFaultById(id) {
+  return getToolroomFaults().find((fault) => fault.id === id) || null;
+}
+
+function canReportFaultForToolUi(item) {
+  if (!item || !canToolroomReportFaultUi()) return false;
+  if (canToolroomHandleServiceUi()) return true;
+  const email = (appState.currentUser || "").toLowerCase();
+  if (item.currentHolderType === "worker" && item.currentHolderUserEmail === email) return true;
+  return item.currentHolderType === "site" && item.currentHolderSiteId === currentSite;
 }
 
 function renderToolroomUserOptions(selected = "") {
@@ -225,6 +259,7 @@ function renderToolroom() {
   const awaiting = items.filter((item) => item.status === "awaiting_engraving").length;
   const assignedWorker = items.filter((item) => item.status === "assigned_worker").length;
   const assignedSite = items.filter((item) => item.status === "assigned_site").length;
+  const activeFaults = getToolroomFaults().filter((fault) => !["returned_available", "written_off"].includes(fault.status)).length;
   root.innerHTML = `
     <section class="toolroom-shell">
       <div class="toolroom-hero">
@@ -241,6 +276,7 @@ function renderToolroom() {
         ${[
           ["dashboard", "Dashboard"],
           ["items", "Alati"],
+          ["faults", "Kvarovi"],
           ["categories", "Kategorije"],
           ["presets", "Preseti"],
           ["myTools", "Moji alati"],
@@ -252,7 +288,7 @@ function renderToolroom() {
         <article><strong>${presets.length}</strong><span>Preseti</span></article>
         <article><strong>${assignedWorker}</strong><span>Kod radnika</span></article>
         <article><strong>${assignedSite}</strong><span>Na gradilistima</span></article>
-        <article><strong>${awaiting + inService}</strong><span>Ceka / servis</span></article>
+        <article><strong>${activeFaults + awaiting + inService}</strong><span>Kvarovi / servis</span></article>
       </div>
       <div class="toolroom-content">
         ${renderToolroomActiveTab()}
@@ -263,6 +299,7 @@ function renderToolroom() {
 
 function renderToolroomActiveTab() {
   if (toolroomState.activeTab === "items") return renderToolroomItemsTab();
+  if (toolroomState.activeTab === "faults") return renderToolroomFaultsTab();
   if (toolroomState.activeTab === "categories") return renderToolroomCategoriesTab();
   if (toolroomState.activeTab === "presets") return renderToolroomPresetsTab();
   if (toolroomState.activeTab === "myTools") return renderToolroomMyToolsTab();
@@ -272,6 +309,7 @@ function renderToolroomActiveTab() {
 function renderToolroomDashboardTab() {
   const items = getToolroomItems().filter((item) => !item.archived);
   const recent = (toolroomState.data.history || []).slice(-6).reverse();
+  const faults = getToolroomFaults();
   const byWorker = items.filter((item) => item.currentHolderType === "worker").reduce((acc, item) => {
     const key = getToolroomHolderLabelUi(item);
     acc[key] = acc[key] || [];
@@ -302,6 +340,12 @@ function renderToolroomDashboardTab() {
       <article class="toolroom-card">
         <h3>Po gradilistu</h3>
         ${Object.keys(bySite).length ? Object.entries(bySite).map(([site, list]) => `<p><strong>${toolroomEscape(site)}</strong><br><small>${list.length} alata: ${list.map((item) => toolroomEscape(item.internalNumber)).join(", ")}</small></p>`).join("") : `<div class="toolroom-empty">Nema alata zaduzenih gradilistima.</div>`}
+      </article>
+      <article class="toolroom-card">
+        <h3>Fault queue</h3>
+        <div class="toolroom-status-grid">
+          ${["reported", "awaiting_return", "in_service", "repaired", "written_off"].map((status) => `<span>${status}: <strong>${faults.filter((fault) => fault.status === status).length}</strong></span>`).join("")}
+        </div>
       </article>
       <article class="toolroom-card">
         <h3>Historija</h3>
@@ -384,8 +428,8 @@ function renderToolroomItemDetail(item) {
         <button class="btn" ${canToolroomAssignUi() && !assigned && item.status === "available" ? "" : "disabled"} data-cmax-action="toolroom.openAction" data-cmax-args='["assign","${toolroomEscape(item.id)}"]'>Zaduzi</button>
         <button class="btn" ${canToolroomReturnUi() && assigned ? "" : "disabled"} data-cmax-action="toolroom.openAction" data-cmax-args='["return","${toolroomEscape(item.id)}"]'>Razduzi</button>
         <button class="btn" ${canToolroomAssignUi() && assigned ? "" : "disabled"} data-cmax-action="toolroom.openAction" data-cmax-args='["transfer","${toolroomEscape(item.id)}"]'>Prebaci</button>
-        <button class="btn btn-secondary" disabled>Servis</button>
-        <button class="btn btn-secondary" disabled>Prijavi kvar</button>
+        <button class="btn btn-secondary" ${canToolroomHandleServiceUi() ? "" : "disabled"} data-cmax-action="toolroom.switchTab" data-cmax-args='["faults"]'>Servis</button>
+        <button class="btn btn-secondary" ${canReportFaultForToolUi(item) ? "" : "disabled"} data-cmax-action="toolroom.openAction" data-cmax-args='["fault","${toolroomEscape(item.id)}"]'>Prijavi kvar</button>
         <button class="btn btn-secondary" data-cmax-action="toolroom.openAction" data-cmax-args='["history","${toolroomEscape(item.id)}"]'>Historija</button>
         ${canToolroomManageUi() ? `<button class="btn btn-danger" data-cmax-action="toolroom.archiveItem" data-cmax-args='["${toolroomEscape(item.id)}",${Number(item.itemVersion || 1)}]'>Arhiviraj</button>` : ""}
       </div>
@@ -410,6 +454,19 @@ function renderToolroomActionPanel(item) {
           <label>Datum<input id="toolroomReturnDate" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
           <label class="toolroom-wide">Napomena<textarea id="toolroomReturnNote"></textarea></label>
           <button class="btn" data-cmax-action="toolroom.submitReturn" data-cmax-args='["${toolroomEscape(item.id)}"]'>Potvrdi razduzenje</button>
+        </div>
+      </div>`;
+  }
+  if (type === "fault") {
+    return `
+      <div class="toolroom-action-panel">
+        <div class="toolroom-card-head"><h3>Prijavi kvar</h3><button class="btn btn-secondary" data-cmax-action="toolroom.closeAction">Zatvori</button></div>
+        <div class="toolroom-form">
+          <label>Tip kvara<select id="toolroomFaultType">${renderToolroomPresetOptions("faultType", "")}<option value="Ostalo">Ostalo</option></select></label>
+          <label>Slika/dokument URL<input id="toolroomFaultAttachment" placeholder="Opcionalno"></label>
+          <label class="toolroom-wide">Komentar<textarea id="toolroomFaultComment" placeholder="Opis problema"></textarea></label>
+          <label class="toolroom-wide toolroom-check"><input id="toolroomFaultReplacement" type="checkbox"> Trebam zamjenski alat</label>
+          <button class="btn" data-cmax-action="toolroom.submitFault" data-cmax-args='["${toolroomEscape(item.id)}"]'>Posalji prijavu</button>
         </div>
       </div>`;
   }
@@ -488,6 +545,64 @@ function renderToolroomPresetsTab() {
   `;
 }
 
+function renderToolroomFaultsTab() {
+  const faults = getToolroomFaults().slice().sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
+  const serviceRecords = getToolroomServiceRecords();
+  return `
+    <div class="toolroom-grid">
+      <article class="toolroom-card">
+        <h3>Alatnicar fault queue</h3>
+        ${faults.length ? faults.map((fault) => {
+          const item = getToolroomItemById(fault.toolId);
+          const replacement = fault.replacementRequested ? getToolroomAssignableItems().find((candidate) => candidate.id !== fault.toolId && ((item?.model && candidate.model === item.model) || (item?.type && candidate.type === item.type))) : null;
+          return `
+            <div class="toolroom-fault-card">
+              <div>
+                <strong>${toolroomEscape(item?.internalNumber || "-")} - ${toolroomEscape(item?.name || "-")}</strong>
+                <p>${toolroomEscape(fault.faultType)} | ${toolroomEscape(fault.status)} | ${toolroomEscape(fault.reporterName || fault.reporterEmail)} | ${toolroomEscape(fault.reporterSite || "-")}</p>
+                <small>${toolroomEscape(fault.comment || "")}</small>
+                ${fault.replacementRequested ? `<div class="toolroom-status-pill">Zamjena: ${replacement ? `predlozeno ${toolroomEscape(replacement.internalNumber)}` : "Nema dostupne zamjene"}</div>` : ""}
+              </div>
+              ${canToolroomHandleServiceUi() ? `
+                <div class="toolroom-fault-actions">
+                  <button class="btn btn-secondary" data-cmax-action="toolroom.updateFault" data-cmax-args='["${toolroomEscape(fault.id)}","received"]'>Zaprimljeno</button>
+                  <button class="btn btn-secondary" data-cmax-action="toolroom.updateFault" data-cmax-args='["${toolroomEscape(fault.id)}","awaiting_return"]'>Ceka povrat</button>
+                  <button class="btn btn-secondary" data-cmax-action="toolroom.updateFault" data-cmax-args='["${toolroomEscape(fault.id)}","returned_office"]'>Vraceno u ured</button>
+                  <button class="btn btn-secondary" data-cmax-action="toolroom.openAction" data-cmax-args='["service","${toolroomEscape(fault.id)}"]'>Posalji na servis</button>
+                  <button class="btn btn-secondary" data-cmax-action="toolroom.updateFault" data-cmax-args='["${toolroomEscape(fault.id)}","returned_available"]'>Vrati u opticaj</button>
+                  ${canToolroomWriteOffUi() ? `<button class="btn btn-danger" data-cmax-action="toolroom.updateFault" data-cmax-args='["${toolroomEscape(fault.id)}","written_off"]'>Otpisi</button>` : ""}
+                  ${fault.replacementRequested && replacement ? `<button class="btn" data-cmax-action="toolroom.assignReplacement" data-cmax-args='["${toolroomEscape(fault.id)}","${toolroomEscape(replacement.id)}"]'>Dodijeli zamjenu</button>` : ""}
+                </div>
+              ` : ""}
+              ${toolroomState.action?.type === "service" && toolroomState.action?.toolId === fault.id ? renderToolroomServicePanel(fault) : ""}
+            </div>
+          `;
+        }).join("") : `<div class="toolroom-empty">Nema prijava kvarova.</div>`}
+      </article>
+      <article class="toolroom-card">
+        <h3>Servis records</h3>
+        ${serviceRecords.length ? serviceRecords.slice().reverse().map((record) => `<p><strong>${toolroomEscape(record.serviceCompany || "Servis")}</strong><br><small>${toolroomEscape(record.status)} | ${toolroomEscape(record.sentAt)} | ${toolroomEscape(record.expectedReturnAt || "-")} | ${toolroomEscape(record.cost || 0)} SEK</small></p>`).join("") : `<div class="toolroom-empty">Nema servisnih zapisa.</div>`}
+      </article>
+    </div>
+  `;
+}
+
+function renderToolroomServicePanel(fault) {
+  return `
+    <div class="toolroom-action-panel">
+      <div class="toolroom-card-head"><h3>Servis</h3><button class="btn btn-secondary" data-cmax-action="toolroom.closeAction">Zatvori</button></div>
+      <div class="toolroom-form">
+        <label>Servisna firma<input id="toolroomServiceCompany" placeholder="npr. Hilti Service"></label>
+        <label>Datum slanja<input id="toolroomServiceSentAt" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
+        <label>Ocekivan povrat<input id="toolroomServiceExpectedReturn" type="date"></label>
+        <label>Trosak SEK<input id="toolroomServiceCost" type="number" min="0" step="1"></label>
+        <label>Dokument/racun URL<input id="toolroomServiceDocument"></label>
+        <label class="toolroom-wide">Opis / komentar<textarea id="toolroomServiceComment">${toolroomEscape(fault.comment || "")}</textarea></label>
+        <button class="btn" data-cmax-action="toolroom.submitService" data-cmax-args='["${toolroomEscape(fault.id)}"]'>Posalji na servis</button>
+      </div>
+    </div>`;
+}
+
 function renderToolroomPresetForm() {
   return `
     <div class="toolroom-form">
@@ -518,10 +633,14 @@ function renderToolroomMyToolsTab() {
                   <span class="toolroom-status-pill">${toolroomEscape(item.status || "-")}</span>
                   <small>${toolroomEscape(getToolroomHolderLabelUi(item))} | ${toolroomEscape(item.issuedAt || "-")}</small>
                 </div>
-                <button class="btn btn-secondary" data-cmax-action="toolroom.selectItem" data-cmax-args='["${toolroomEscape(item.id)}"]'>Detalji</button>
+                <div class="toolroom-my-tool-actions">
+                  <button class="btn btn-secondary" data-cmax-action="toolroom.selectItem" data-cmax-args='["${toolroomEscape(item.id)}"]'>Detalji</button>
+                  <button class="btn" ${canReportFaultForToolUi(item) ? "" : "disabled"} data-cmax-action="toolroom.openAction" data-cmax-args='["fault","${toolroomEscape(item.id)}"]'>Prijavi kvar</button>
+                </div>
               </article>
             `).join("") : `<div class="toolroom-empty">Nema alata zaduzenih na vas ili aktivno gradiliste.</div>`}
           </div>
+          ${toolroomState.action?.type === "fault" ? renderToolroomActionPanel(getToolroomItemById(toolroomState.action.toolId) || {}) : ""}
         ` : `<div class="toolroom-empty">Nemate dozvolu za prikaz svojih alata.</div>`}
       </article>
     </div>
@@ -595,6 +714,69 @@ function submitToolroomReturn(toolId) {
     toolroomState.myToolsLoaded = false;
     return loadToolroomData(true).then(renderToolroom);
   }).catch((error) => showToast(error.payload?.error || error.message || "Razduzenje nije uspjelo.", "error")));
+}
+
+function submitToolroomFault(toolId) {
+  const payload = {
+    toolId,
+    activeSite: currentSite || "",
+    faultType: document.getElementById("toolroomFaultType")?.value || "Ostalo",
+    comment: document.getElementById("toolroomFaultComment")?.value || "",
+    attachmentUrl: document.getElementById("toolroomFaultAttachment")?.value || "",
+    replacementRequested: document.getElementById("toolroomFaultReplacement")?.checked === true,
+  };
+  return withLoadingPromise("loadingDefault", () => toolroomApi("/faults", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }).then(() => {
+    showToast("Kvar je prijavljen.", "success");
+    toolroomState.action = null;
+    toolroomState.myToolsLoaded = false;
+    return loadToolroomData(true).then(renderToolroom);
+  }).catch((error) => showToast(error.payload?.error || error.message || "Prijava kvara nije uspjela.", "error")));
+}
+
+function updateToolroomFault(faultId, action) {
+  return withLoadingPromise("loadingDefault", () => toolroomApi(`/faults/${encodeURIComponent(faultId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ action }),
+  }).then(() => {
+    showToast("Status kvara je azuriran.", "success");
+    toolroomState.action = null;
+    toolroomState.myToolsLoaded = false;
+    return loadToolroomData(true).then(renderToolroom);
+  }).catch((error) => showToast(error.payload?.error || error.message || "Azuriranje kvara nije uspjelo.", "error")));
+}
+
+function submitToolroomService(faultId) {
+  const payload = {
+    faultId,
+    serviceCompany: document.getElementById("toolroomServiceCompany")?.value || "",
+    sentAt: document.getElementById("toolroomServiceSentAt")?.value || new Date().toISOString().slice(0, 10),
+    expectedReturnAt: document.getElementById("toolroomServiceExpectedReturn")?.value || "",
+    cost: Number(document.getElementById("toolroomServiceCost")?.value || 0),
+    documentUrl: document.getElementById("toolroomServiceDocument")?.value || "",
+    comment: document.getElementById("toolroomServiceComment")?.value || "",
+  };
+  return withLoadingPromise("loadingDefault", () => toolroomApi("/service", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }).then(() => {
+    showToast("Alat je poslan na servis.", "success");
+    toolroomState.action = null;
+    return loadToolroomData(true).then(renderToolroom);
+  }).catch((error) => showToast(error.payload?.error || error.message || "Servis nije spremljen.", "error")));
+}
+
+function assignToolroomReplacement(faultId, replacementToolId) {
+  return withLoadingPromise("loadingDefault", () => toolroomApi(`/faults/${encodeURIComponent(faultId)}/replacement`, {
+    method: "POST",
+    body: JSON.stringify({ replacementToolId }),
+  }).then(() => {
+    showToast("Zamjenski alat je dodijeljen.", "success");
+    toolroomState.myToolsLoaded = false;
+    return loadToolroomData(true).then(renderToolroom);
+  }).catch((error) => showToast(error.payload?.error || error.message || "Zamjena nije dodijeljena.", "error")));
 }
 
 function saveToolroomItemFromForm() {
