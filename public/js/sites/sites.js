@@ -119,6 +119,24 @@ var SITE_MODULE_OPTIONS = [
   { key: "reports", label: "Reports" },
 ];
 
+var SITE_CONTACT_ROLES = [
+  { key: "arbetsledare", label: "Arbetsledare" },
+  { key: "projektledare", label: "Projektledare" },
+  { key: "electricians", label: "Elektricari" },
+  { key: "ventilation", label: "Ventilacija" },
+  { key: "other", label: "Ostali" },
+];
+
+var SITE_SAFETY_RULE_OPTIONS = [
+  "Kaciga obavezna",
+  "Reflektirajuci prsluk",
+  "Zastitne naocale",
+  "Registracija pri dolasku",
+  "Zabranjeno pusenje",
+  "Lift pravila",
+  "Posebne sigurnosne upute",
+];
+
 var newSiteWizardState = {
   open: false,
   step: 0,
@@ -170,18 +188,20 @@ function getDefaultSiteInfo(siteName = "") {
       defaultNotifications: false,
     },
     templateSite: "",
-    contacts: [],
+    contacts: SITE_CONTACT_ROLES.map((role) => ({
+      role: role.key,
+      label: role.label,
+      name: "",
+      phone: "",
+      email: "",
+    })),
     workHours: {
       days: "Ponedjeljak-Petak",
       hours: "07:00-16:00",
       breaks: ["09:00-09:30", "12:00-12:30"],
     },
-    safetyRules: [
-      "Kaciga obavezna",
-      "Reflektirajuci prsluk",
-      "Zastitne naocale",
-      "Registracija pri dolasku",
-    ],
+    safetyRules: SITE_SAFETY_RULE_OPTIONS.slice(0, 4),
+    customSafetyRules: [],
     logistics: {
       parking: "",
       storage: "",
@@ -286,6 +306,49 @@ function collectNewSiteWizardStep() {
   }
   const template = document.getElementById("siteWizard_templateSite");
   if (template) draft.templateSite = template.value;
+  draft.contacts = SITE_CONTACT_ROLES.map((role) => ({
+    role: role.key,
+    label: role.label,
+    name: document.getElementById(`siteWizard_contact_${role.key}_name`)?.value || "",
+    phone: document.getElementById(`siteWizard_contact_${role.key}_phone`)?.value || "",
+    email: document.getElementById(`siteWizard_contact_${role.key}_email`)?.value || "",
+  }));
+  const workDays = document.getElementById("siteWizard_workDays");
+  const workHours = document.getElementById("siteWizard_workHours");
+  const workBreaks = document.getElementById("siteWizard_workBreaks");
+  draft.workHours = {
+    days: workDays?.value || draft.workHours?.days || "",
+    hours: workHours?.value || draft.workHours?.hours || "",
+    breaks: splitSiteWizardLines(workBreaks?.value || ""),
+  };
+  const selectedSafety = Array.from(document.querySelectorAll("#newSiteWizardBody input[data-site-safety]:checked")).map((cb) => cb.dataset.siteSafety);
+  const customSafety = splitSiteWizardLines(document.getElementById("siteWizard_customSafety")?.value || "");
+  if (selectedSafety.length || document.getElementById("siteWizard_customSafety")) {
+    draft.safetyRules = selectedSafety.concat(customSafety);
+    draft.customSafetyRules = customSafety;
+  }
+  draft.logistics = {
+    parking: document.getElementById("siteWizard_parking")?.value || draft.logistics?.parking || "",
+    storage: document.getElementById("siteWizard_storage")?.value || draft.logistics?.storage || "",
+    unloadingZone: document.getElementById("siteWizard_unloadingZone")?.value || draft.logistics?.unloadingZone || "",
+    apdPlan: document.getElementById("siteWizard_apdPlan")?.value || draft.logistics?.apdPlan || "",
+  };
+  draft.documents = splitSiteWizardLines(document.getElementById("siteWizard_documents")?.value || "");
+  draft.emergency = {
+    emergencyNumber: document.getElementById("siteWizard_emergencyNumber")?.value || draft.emergency?.emergencyNumber || "112",
+    hospital: document.getElementById("siteWizard_hospital")?.value || draft.emergency?.hospital || "",
+    firstAid: document.getElementById("siteWizard_firstAid")?.value || draft.emergency?.firstAid || "",
+    fireDepartment: document.getElementById("siteWizard_fireDepartment")?.value || draft.emergency?.fireDepartment || "",
+    meetingPoint: document.getElementById("siteWizard_meetingPoint")?.value || draft.emergency?.meetingPoint || "",
+    defibrillator: document.getElementById("siteWizard_defibrillator")?.value || draft.emergency?.defibrillator || "",
+  };
+}
+
+function splitSiteWizardLines(value) {
+  return String(value || "")
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function validateNewSiteWizardStep() {
@@ -354,6 +417,10 @@ function newSiteWizardGoTo(index) {
 
 function renderNewSiteBasicStep(draft) {
   const address = [draft.address, draft.postalCode, draft.city, draft.country].filter(Boolean).join(", ");
+  const mapQuery = encodeURIComponent(draft.latitude && draft.longitude ? `${draft.latitude},${draft.longitude}` : address);
+  const contacts = Array.isArray(draft.contacts) && draft.contacts.length
+    ? draft.contacts
+    : getDefaultSiteInfo(draft.name).contacts;
   return `
     <section class="site-wizard-section">
       <h4>Step 1 - Osnovno</h4>
@@ -380,9 +447,66 @@ function renderNewSiteBasicStep(draft) {
       <div class="site-wizard-map-preview">
         <strong>Mapa preview</strong>
         <span>${siteWizardEscape(address || "Upisite adresu ili lat/lng za preview.")}</span>
-        <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(draft.latitude && draft.longitude ? `${draft.latitude},${draft.longitude}` : address)}">Otvori / odaberi na karti</a>
+        <div class="site-wizard-map-frame">
+          ${address || (draft.latitude && draft.longitude) ? `<iframe title="Mapa gradilista" loading="lazy" src="https://www.google.com/maps?q=${mapQuery}&output=embed"></iframe>` : `<span>Mini mapa ce se prikazati kada unesete adresu ili lokaciju.</span>`}
+        </div>
+        <div class="site-wizard-inline-actions">
+          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${mapQuery}">Odaberi na karti</a>
+          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${mapQuery}">Otvori navigaciju</a>
+        </div>
       </div>
+      <details class="site-wizard-details" open>
+        <summary>Kontakti po ulozi</summary>
+        <div class="site-wizard-contact-grid">
+          ${contacts.map((contact) => `
+            <div class="site-wizard-contact-card">
+              <strong>${siteWizardEscape(contact.label || contact.role)}</strong>
+              <input id="siteWizard_contact_${siteWizardEscape(contact.role)}_name" placeholder="Ime" value="${siteWizardEscape(contact.name)}">
+              <input id="siteWizard_contact_${siteWizardEscape(contact.role)}_phone" placeholder="Telefon" value="${siteWizardEscape(contact.phone)}">
+              <input id="siteWizard_contact_${siteWizardEscape(contact.role)}_email" placeholder="Email" value="${siteWizardEscape(contact.email)}">
+            </div>
+          `).join("")}
+        </div>
+      </details>
+      <details class="site-wizard-details">
+        <summary>Radno vrijeme, pravila, logistika i hitni podaci</summary>
+        ${renderNewSiteOperationalInfoFields(draft)}
+      </details>
     </section>
+  `;
+}
+
+function renderNewSiteOperationalInfoFields(draft) {
+  const workHours = draft.workHours || {};
+  const logistics = draft.logistics || {};
+  const emergency = draft.emergency || {};
+  const safety = new Set(Array.isArray(draft.safetyRules) ? draft.safetyRules : []);
+  const customSafety = (draft.customSafetyRules || []).join("\n");
+  return `
+    <div class="site-wizard-grid">
+      <label>Radni dani<input id="siteWizard_workDays" value="${siteWizardEscape(workHours.days || "Ponedjeljak-Petak")}"></label>
+      <label>Radno vrijeme<input id="siteWizard_workHours" value="${siteWizardEscape(workHours.hours || "07:00-16:00")}"></label>
+      <label class="site-wizard-wide">Pauze<textarea id="siteWizard_workBreaks">${siteWizardEscape((workHours.breaks || ["09:00-09:30", "12:00-12:30"]).join("\n"))}</textarea></label>
+    </div>
+    <div class="site-wizard-safety-grid">
+      ${SITE_SAFETY_RULE_OPTIONS.map((rule) => `<label class="site-wizard-card"><input type="checkbox" data-site-safety="${siteWizardEscape(rule)}" ${safety.has(rule) ? "checked" : ""}><span><strong>${siteWizardEscape(rule)}</strong></span></label>`).join("")}
+    </div>
+    <label class="site-wizard-wide">Dodatna pravila<textarea id="siteWizard_customSafety" placeholder="Jedno pravilo po redu">${siteWizardEscape(customSafety)}</textarea></label>
+    <div class="site-wizard-grid">
+      <label>Parking<input id="siteWizard_parking" value="${siteWizardEscape(logistics.parking || "")}"></label>
+      <label>Skladiste<input id="siteWizard_storage" value="${siteWizardEscape(logistics.storage || "")}"></label>
+      <label>Zona istovara<input id="siteWizard_unloadingZone" value="${siteWizardEscape(logistics.unloadingZone || "")}"></label>
+      <label>APD plan link<input id="siteWizard_apdPlan" value="${siteWizardEscape(logistics.apdPlan || "")}"></label>
+      <label class="site-wizard-wide">Dokumenti<textarea id="siteWizard_documents" placeholder="APD plan, sigurnosne upute, PDF/linkovi, slike...">${siteWizardEscape((draft.documents || []).join("\n"))}</textarea></label>
+    </div>
+    <div class="site-wizard-grid">
+      <label>Hitni broj<input id="siteWizard_emergencyNumber" value="${siteWizardEscape(emergency.emergencyNumber || "112")}"></label>
+      <label>Bolnica<input id="siteWizard_hospital" value="${siteWizardEscape(emergency.hospital || "")}"></label>
+      <label>Prva pomoc<input id="siteWizard_firstAid" value="${siteWizardEscape(emergency.firstAid || "")}"></label>
+      <label>Vatrogasci<input id="siteWizard_fireDepartment" value="${siteWizardEscape(emergency.fireDepartment || "")}"></label>
+      <label>Mjesto okupljanja<input id="siteWizard_meetingPoint" value="${siteWizardEscape(emergency.meetingPoint || "")}"></label>
+      <label>Defibrilator lokacija<input id="siteWizard_defibrillator" value="${siteWizardEscape(emergency.defibrillator || "")}"></label>
+    </div>
   `;
 }
 

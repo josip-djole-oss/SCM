@@ -345,6 +345,26 @@ function renderHomeSiteInfo() {
   const emergency = info.emergency || {};
   const workHours = info.workHours || {};
   const safetyRules = Array.isArray(info.safetyRules) ? info.safetyRules : [];
+  const contacts = Array.isArray(info.contacts) && info.contacts.length ? info.contacts : [];
+  const logistics = info.logistics || {};
+  const documents = Array.isArray(info.documents) ? info.documents : [];
+  const mapFrame = address || (info.latitude && info.longitude)
+    ? `<iframe title="Mapa gradilista" loading="lazy" src="https://www.google.com/maps?q=${navQuery}&output=embed"></iframe>`
+    : `<span class="home-site-map-empty">Mapa nije postavljena.</span>`;
+  const apdPlan = String(logistics.apdPlan || "");
+  const apdPlanHtml = /^https?:\/\//i.test(apdPlan)
+    ? `<a href="${dashboardEscapeHtml(apdPlan)}" target="_blank" rel="noopener">${dashboardEscapeHtml(apdPlan)}</a>`
+    : dashboardEscapeHtml(apdPlan || "-");
+  const contactCards = contacts
+    .filter((contact) => contact.name || contact.phone || contact.email)
+    .map((contact) => `
+      <article class="home-site-contact-card">
+        <strong>${dashboardEscapeHtml(contact.label || contact.role || "Kontakt")}</strong>
+        <span>${dashboardEscapeHtml(contact.name || "-")}</span>
+        ${contact.phone ? `<a href="tel:${dashboardEscapeHtml(contact.phone)}">${dashboardEscapeHtml(contact.phone)}</a>` : ""}
+        ${contact.email ? `<a href="mailto:${dashboardEscapeHtml(contact.email)}">${dashboardEscapeHtml(contact.email)}</a>` : ""}
+      </article>
+    `).join("");
   panel.innerHTML = `
     <div class="home-site-info-head">
       <div>
@@ -356,9 +376,13 @@ function renderHomeSiteInfo() {
     <div class="home-site-info-priority">
       <article class="home-site-info-card">
         <strong>Lokacija</strong>
+        <span>${dashboardEscapeHtml(info.name || currentSite || "-")}</span>
         <span>${dashboardEscapeHtml(address || "Adresa nije unesena.")}</span>
+        <div class="home-site-mini-map">${mapFrame}</div>
         <div class="home-site-info-actions">
-          <a class="btn btn-small" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${navQuery}">Google Maps</a>
+          <a class="btn btn-small" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${navQuery}">Otvori navigaciju</a>
+          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${navQuery}">Google Maps</a>
+          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://maps.apple.com/?q=${navQuery}">Apple Maps</a>
           <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://waze.com/ul?q=${navQuery}&navigate=yes">Waze</a>
         </div>
       </article>
@@ -367,23 +391,37 @@ function renderHomeSiteInfo() {
         <span>${dashboardEscapeHtml(info.contactPerson || "Kontakt osoba nije unesena.")}</span>
         ${info.phone ? `<a href="tel:${dashboardEscapeHtml(info.phone)}">${dashboardEscapeHtml(info.phone)}</a>` : ""}
         ${info.email ? `<a href="mailto:${dashboardEscapeHtml(info.email)}">${dashboardEscapeHtml(info.email)}</a>` : ""}
+        <div class="home-site-contact-mini-grid">${contactCards || "<span>Nema dodatnih kontakata.</span>"}</div>
       </article>
       <article class="home-site-info-card is-emergency">
         <strong>Hitni podaci</strong>
         <span>Hitni broj: ${dashboardEscapeHtml(emergency.emergencyNumber || "112")}</span>
         <span>Bolnica: ${dashboardEscapeHtml(emergency.hospital || "-")}</span>
+        <span>Prva pomoc: ${dashboardEscapeHtml(emergency.firstAid || "-")}</span>
+        <span>Vatrogasci: ${dashboardEscapeHtml(emergency.fireDepartment || "-")}</span>
         <span>Okupljanje: ${dashboardEscapeHtml(emergency.meetingPoint || "-")}</span>
+        <span>Defibrilator: ${dashboardEscapeHtml(emergency.defibrillator || "-")}</span>
       </article>
     </div>
     <details class="home-site-info-details">
       <summary>Projekt informacije</summary>
       <p>${dashboardEscapeHtml(info.description || "Nema opisa.")}</p>
+      <p>Investitor: ${dashboardEscapeHtml(info.investor || "-")} | Glavni izvodac: ${dashboardEscapeHtml(info.mainContractor || "-")}</p>
       <p>Pocetak: ${dashboardEscapeHtml(info.startDate || "-")} | Planirani zavrsetak: ${dashboardEscapeHtml(info.plannedEndDate || "-")} | ${dashboardEscapeHtml(String(info.progress || 0))}%</p>
     </details>
     <details class="home-site-info-details">
       <summary>Radno vrijeme i pravila</summary>
       <p>${dashboardEscapeHtml(workHours.days || "Ponedjeljak-Petak")} ${dashboardEscapeHtml(workHours.hours || "07:00-16:00")}</p>
+      <p>Pauze: ${dashboardEscapeHtml(Array.isArray(workHours.breaks) ? workHours.breaks.join(", ") : "-")}</p>
       <ul>${safetyRules.map((rule) => `<li>${dashboardEscapeHtml(rule)}</li>`).join("")}</ul>
+    </details>
+    <details class="home-site-info-details">
+      <summary>Logistika i dokumenti</summary>
+      <p>Parking: ${dashboardEscapeHtml(logistics.parking || "-")}</p>
+      <p>Skladiste: ${dashboardEscapeHtml(logistics.storage || "-")}</p>
+      <p>Zona istovara: ${dashboardEscapeHtml(logistics.unloadingZone || "-")}</p>
+      <p>APD plan: ${apdPlanHtml}</p>
+      <ul>${documents.map((doc) => `<li>${/^https?:\/\//i.test(doc) ? `<a href="${dashboardEscapeHtml(doc)}" target="_blank" rel="noopener">${dashboardEscapeHtml(doc)}</a>` : dashboardEscapeHtml(doc)}</li>`).join("") || "<li>Nema dokumenata.</li>"}</ul>
     </details>
   `;
 }

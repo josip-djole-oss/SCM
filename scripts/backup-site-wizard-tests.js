@@ -29,6 +29,12 @@ try {
   mustContain(sites, "siteWizard_address", "site address field");
   mustContain(sites, "siteWizard_latitude", "latitude field");
   mustContain(sites, "siteWizard_longitude", "longitude field");
+  mustContain(sites, "SITE_CONTACT_ROLES", "site contact role definitions");
+  mustContain(sites, "siteWizard_workHours", "work hours field");
+  mustContain(sites, "data-site-safety", "safety rule checkboxes");
+  mustContain(sites, "siteWizard_parking", "parking field");
+  mustContain(sites, "siteWizard_documents", "documents field");
+  mustContain(sites, "siteWizard_defibrillator", "defibrillator field");
   mustContain(sites, "data-site-user", "user assignment cards");
   mustContain(sites, "data-site-module", "module selection cards");
   mustContain(sites, "createSiteWithMetadata", "site metadata creation");
@@ -37,6 +43,9 @@ try {
   mustContain(server, "siteInfo", "server siteInfo payload");
   mustContain(dataSync, "cmax_site_info", "site info snapshot storage");
   mustContain(dashboard, "renderHomeSiteInfo", "home site information panel");
+  mustContain(dashboard, "Apple Maps", "apple maps navigation link");
+  mustContain(dashboard, "home-site-contact-card", "home contact role cards");
+  mustContain(dashboard, "Logistika i dokumenti", "logistics/document accordion");
   mustContain(dashboard, "isSiteModuleEnabled", "site module visibility");
   mustContain(namespace, "createFromWizard", "site wizard namespace");
   mustContain(namespace, "runBackupWizardRestore", "backup wizard namespace");
@@ -44,7 +53,7 @@ try {
   mustContain(styles, ".site-wizard-overlay", "site wizard CSS");
   mustContain(styles, ".home-site-info-panel", "site info CSS");
 
-  console.log(JSON.stringify({ ok: true, checks: 25 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 35 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);
