@@ -327,6 +327,42 @@
     handleImportExcel(...args) {
       return callLegacy("handleWarehouseImportExcel", args);
     },
+    showStock(...args) {
+      return callLegacy("showWarehouseStock", args);
+    },
+  });
+
+  assignNamespace("toolroom", {
+    show(...args) {
+      return callLegacy("showToolroom", args);
+    },
+    render(...args) {
+      return callLegacy("renderToolroom", args);
+    },
+    switchTab(...args) {
+      return callLegacy("switchToolroomTab", args);
+    },
+    selectCategory(...args) {
+      return callLegacy("selectToolroomCategory", args);
+    },
+    selectItem(...args) {
+      return callLegacy("selectToolroomItem", args);
+    },
+    saveItemFromForm(...args) {
+      return callLegacy("saveToolroomItemFromForm", args);
+    },
+    saveCategoryFromForm(...args) {
+      return callLegacy("saveToolroomCategoryFromForm", args);
+    },
+    savePresetFromForm(...args) {
+      return callLegacy("saveToolroomPresetFromForm", args);
+    },
+    archiveItem(...args) {
+      return callLegacy("archiveToolroomItem", args);
+    },
+    archiveCategory(...args) {
+      return callLegacy("archiveToolroomCategory", args);
+    },
   });
 
   assignNamespace("workwear", {

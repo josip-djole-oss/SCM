@@ -19,6 +19,7 @@ function createFileMap(dataDir) {
     logs: path.join(dataDir, 'logs.json'),
     warehouse: path.join(dataDir, 'warehouse.json'),
     warehouseLogs: path.join(dataDir, 'warehouse-logs.json'),
+    toolroom: path.join(dataDir, 'toolroom.json'),
     siteChat: path.join(dataDir, 'site-chat.json'),
   };
 }
@@ -245,6 +246,7 @@ function createJsonStorage(options = {}) {
       logs: await readJson(files.logs, []),
       warehouse: await readJson(files.warehouse, null),
       warehouseLogs: await readJson(files.warehouseLogs, []),
+      toolroom: await readJson(files.toolroom, null),
       siteChat: await readJson(files.siteChat, null),
     };
   }
@@ -378,6 +380,7 @@ function createPostgresStorage(options = {}) {
     if (normalized === path.normalize(files.logs)) return { table: 'logs', category: 'logs' };
     if (normalized === path.normalize(files.warehouse)) return { table: 'warehouse', key: 'default' };
     if (normalized === path.normalize(files.warehouseLogs)) return { table: 'logs', category: 'warehouse_logs' };
+    if (normalized === path.normalize(files.toolroom)) return { table: 'toolroom', key: 'default' };
     if (normalized === path.normalize(files.siteChat)) return { table: 'site_chat', key: 'default' };
 
     const baseName = path.basename(normalized, '.json');
@@ -395,6 +398,7 @@ function createPostgresStorage(options = {}) {
     if (target.table === 'admins') return 'admins';
     if (target.table === 'state') return `state:${target.key}`;
     if (target.table === 'warehouse') return `warehouse:${target.key}`;
+    if (target.table === 'toolroom') return `toolroom:${target.key}`;
     if (target.table === 'site_chat') return `site_chat:${target.key}`;
     if (target.table === 'reports') return `reports:${target.site}`;
     if (target.table === 'notifications') return `notifications:${target.site}`;
@@ -438,6 +442,13 @@ function createPostgresStorage(options = {}) {
     }
     if (target.table === 'warehouse') {
       const result = await client.query('SELECT data FROM warehouse WHERE key = $1', [target.key]);
+      return {
+        exists: result.rowCount > 0,
+        data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
+      };
+    }
+    if (target.table === 'toolroom') {
+      const result = await client.query('SELECT data FROM toolroom WHERE key = $1', [target.key]);
       return {
         exists: result.rowCount > 0,
         data: result.rowCount > 0 ? result.rows[0].data : fallbackValue,
@@ -501,6 +512,15 @@ function createPostgresStorage(options = {}) {
     if (target.table === 'warehouse') {
       await client.query(
         `INSERT INTO warehouse (key, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
+        [target.key, JSON.stringify(value)],
+      );
+      return;
+    }
+
+    if (target.table === 'toolroom') {
+      await client.query(
+        `INSERT INTO toolroom (key, data) VALUES ($1, $2::jsonb)
          ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, updated_at = NOW()`,
         [target.key, JSON.stringify(value)],
       );
@@ -661,7 +681,7 @@ function createPostgresStorage(options = {}) {
   }
 
   async function exportAll() {
-    const [adminsDoc, stateDoc, reportsResult, notificationsResult, logsResult, warehouseDoc, siteChatDoc] =
+    const [adminsDoc, stateDoc, reportsResult, notificationsResult, logsResult, warehouseDoc, toolroomDoc, siteChatDoc] =
       await Promise.all([
         readDocument(files.admins, []),
         readDocument(files.state, null),
@@ -669,6 +689,7 @@ function createPostgresStorage(options = {}) {
         query('SELECT site, data FROM notifications ORDER BY site ASC'),
         query('SELECT category, data FROM logs ORDER BY category ASC'),
         readDocument(files.warehouse, null),
+        readDocument(files.toolroom, null),
         readDocument(files.siteChat, null),
       ]);
 
@@ -690,6 +711,7 @@ function createPostgresStorage(options = {}) {
       logs: logGroups.logs || [],
       warehouse: warehouseDoc.data,
       warehouseLogs: logGroups.warehouse_logs || [],
+      toolroom: toolroomDoc.data,
       siteChat: siteChatDoc.data,
     };
   }
@@ -741,6 +763,13 @@ function createPostgresStorage(options = {}) {
       `);
       await query(`
         CREATE TABLE IF NOT EXISTS warehouse (
+          key TEXT PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+      `);
+      await query(`
+        CREATE TABLE IF NOT EXISTS toolroom (
           key TEXT PRIMARY KEY,
           data JSONB NOT NULL,
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

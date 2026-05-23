@@ -2057,6 +2057,20 @@
           <div class="warehouse-header-actions">
             <button class="btn" data-cmax-action="core.showHome">Home</button>
             <button
+              class="btn btn-secondary"
+              id="warehouseNavStockBtn"
+              data-cmax-action="warehouse.showStock"
+            >
+              Gradilisno skladiste
+            </button>
+            <button
+              class="btn btn-secondary"
+              id="warehouseNavToolroomBtn"
+              data-cmax-action="toolroom.show"
+            >
+              Alatnica
+            </button>
+            <button
               class="btn"
               id="warehouseNavLogsBtn"
               data-cmax-action="warehouse.showLogs"
@@ -2127,6 +2141,8 @@
             </button>
           </div>
         </div>
+
+        <div id="toolroom-section" class="toolroom-section" style="display: none"></div>
 
         <div class="warehouse-grid">
           <div
@@ -2922,6 +2938,7 @@
     <script src="js/core/theme.js"></script>
     <script src="js/bins/bins.js"></script>
     <script src="js/warehouse/warehouse.js"></script>
+    <script src="js/toolroom/toolroom.js"></script>
     <script src="js/importExport/importExport.js"></script>
     <script src="js/sites/sites.js"></script>
     <script src="js/tidplan/tidplanState.js"></script>

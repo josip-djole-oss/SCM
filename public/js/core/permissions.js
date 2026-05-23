@@ -43,6 +43,22 @@ function canEditWarehouse() {
   return !appState.isReadonly && hasPermission("canManageWarehouse");
 }
 
+function canAccessToolroomModule() {
+  return hasPermission("canAccessToolroom") || hasPermission("canManageToolroom") || hasPermission("canEditToolPresets") || hasPermission("canViewToolHistory");
+}
+
+function canManageToolroom() {
+  return !appState.isReadonly && hasPermission("canManageToolroom");
+}
+
+function canEditToolPresets() {
+  return !appState.isReadonly && hasPermission("canEditToolPresets");
+}
+
+function canViewToolHistory() {
+  return hasPermission("canViewToolHistory");
+}
+
 function canViewWarehouseLogsSection() {
   if (!hasPermission("canViewWarehouseLogs")) return false;
   if (!appState.isReadonly) return true;

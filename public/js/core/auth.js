@@ -294,6 +294,7 @@ function applyPermissionVisibility() {
   const canTidplan = canAccessTidplanModule();
   const canBins = canAccessBinsModule();
   const canWarehouse = canAccessWarehouseModule();
+  const canToolroom = canAccessToolroomModule();
   const canWorkwear = canAccessWorkwearModule();
   const canSiteChat = canAccessSiteChatModule();
   const canWarehouseLogs = canViewWarehouseLogsSection();
@@ -319,7 +320,7 @@ function applyPermissionVisibility() {
   setVisibility("btnPlannerImportExcel", canImportPlanner());
   setVisibility("btnTidplan", canTidplan);
   setVisibility("btnBins", canBins);
-  setVisibility("btnWarehouse", canWarehouse);
+  setVisibility("btnWarehouse", canWarehouse || canToolroom);
   setVisibility("btnNotifications", canAccessNotificationsModule());
   setVisibility("topbarNotificationsBtn", Boolean(appState.currentUser));
   setVisibility("btnPrintNotification", canAccessNotificationsModule() && hasPermission("canPrint"));
@@ -375,7 +376,7 @@ function applyPermissionVisibility() {
     if (reportsSection) reportsSection.style.display = "none";
   }
 
-  if (currentView === "warehouse" && !canWarehouse) {
+  if (currentView === "warehouse" && !canWarehouse && !canToolroom) {
     currentView = "main";
     if (warehouseSection) warehouseSection.style.display = "none";
     if (warehouseLogsSection) warehouseLogsSection.style.display = "none";
@@ -532,12 +533,14 @@ function applyPermissionVisibility() {
   }
 
   if (accessNotice) {
-    const hasAnyPrimaryModule = canPlanner || canTidplan || canBins || canNotifications || canWarehouse || canWorkwear || canSiteChat;
+  const hasAnyPrimaryModule = canPlanner || canTidplan || canBins || canNotifications || canWarehouse || canToolroom || canWorkwear || canSiteChat;
     accessNotice.style.display = hasAnyPrimaryModule ? "none" : "block";
   }
 
   setElVisibility("warehouseNavLogsBtn", canWarehouseLogs);
   setElVisibility("warehouseNavGraphBtn", canWarehouseGraph);
+  setElVisibility("warehouseNavStockBtn", canWarehouse);
+  setElVisibility("warehouseNavToolroomBtn", canToolroom);
   setElVisibility("warehouseLogsGraphBtn", canWarehouseGraph);
   setElVisibility("warehouseGraphLogsBtn", canWarehouseLogs);
   setElVisibility("navWorkwearBtn", canWorkwear);

@@ -64,6 +64,7 @@ const adminsFile = dataStorage.files?.admins || path.join(dataDir, 'admins.json'
 const logsFile = dataStorage.files?.logs || path.join(dataDir, 'logs.json');
 const warehouseFile = dataStorage.files?.warehouse || path.join(dataDir, 'warehouse.json');
 const warehouseLogsFile = dataStorage.files?.warehouseLogs || path.join(dataDir, 'warehouse-logs.json');
+const toolroomFile = dataStorage.files?.toolroom || path.join(dataDir, 'toolroom.json');
 const siteChatFile = dataStorage.files?.siteChat || path.join(dataDir, 'site-chat.json');
 const sessions = new Map();
 const activePresence = new Map();
@@ -137,6 +138,10 @@ const DEFAULT_PERMISSIONS = {
   canManageWarehouse: false,
   canManageWarehouseStock: false,
   canManageWarehouseIssue: false,
+  canAccessToolroom: false,
+  canManageToolroom: false,
+  canEditToolPresets: false,
+  canViewToolHistory: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
   canExportTidplan: true,
@@ -175,6 +180,10 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canManageWarehouse: false,
   canManageWarehouseStock: false,
   canManageWarehouseIssue: false,
+  canAccessToolroom: false,
+  canManageToolroom: false,
+  canEditToolPresets: false,
+  canViewToolHistory: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
   canExportTidplan: false,
@@ -1088,6 +1097,7 @@ function buildBackupModuleSummary(snapshot) {
   const state = payload.state && typeof payload.state === 'object' ? payload.state : {};
   const warehouse = payload.warehouse && typeof payload.warehouse === 'object' ? payload.warehouse : {};
   const warehouseItems = Array.isArray(warehouse.items) ? warehouse.items : [];
+  const toolroom = normalizeToolroomDocument(payload.toolroom || {});
   const reports = payload.reports && typeof payload.reports === 'object' ? payload.reports : {};
   const notifications = payload.notifications && typeof payload.notifications === 'object' ? payload.notifications : {};
   const siteChat = payload.siteChat && typeof payload.siteChat === 'object' ? payload.siteChat : {};
@@ -1107,6 +1117,10 @@ function buildBackupModuleSummary(snapshot) {
     tidplan: countRecordsBySite(state, (siteEntry) => siteEntry?.tidplan || []),
     bins: countRecordsBySite(state, (siteEntry) => siteEntry?.bins || []),
     warehouse: warehouseItems.length,
+    toolroomItems: toolroom.items.length,
+    toolroomCategories: toolroom.categories.length,
+    toolroomPresets: toolroom.presets.length,
+    toolroomHistory: toolroom.history.length,
     reports: totalReports,
     siteNotifications: totalSiteNotifications,
     accountNotifications: Object.keys(accountNotifications).length,
@@ -1245,6 +1259,13 @@ async function restoreBackupSnapshot(identifier, userEmail) {
       warehouseLogsFile,
       Array.isArray(snapshot.warehouseLogs) ? snapshot.warehouseLogs : [],
       { fallbackValue: [] },
+    );
+  }
+  if ('toolroom' in snapshot) {
+    await writeVersionedJsonFile(
+      toolroomFile,
+      normalizeToolroomDocument(snapshot.toolroom),
+      { fallbackValue: createEmptyToolroomDocument() },
     );
   }
   await writeVersionedJsonFile(
@@ -1588,6 +1609,14 @@ function canViewWarehouseInState(session) {
     sessionHasPermission(session, 'canAccessWarehouse') ||
     sessionHasPermission(session, 'canExportWarehouse') ||
     sessionHasPermission(session, 'canImportWarehouse');
+}
+
+function canAccessToolroom(session) {
+  return session?.isSuperAdmin ||
+    sessionHasPermission(session, 'canAccessToolroom') ||
+    sessionHasPermission(session, 'canManageToolroom') ||
+    sessionHasPermission(session, 'canEditToolPresets') ||
+    sessionHasPermission(session, 'canViewToolHistory');
 }
 
 async function buildPublicStatePayload(document, session) {
@@ -3700,6 +3729,168 @@ function getEntityConflictError({ entityType, entityId, conflicts, serverEntity 
   return error;
 }
 
+const TOOLROOM_PRESET_TYPES = new Set(['toolType', 'brand', 'model', 'status', 'faultType', 'serviceAction', 'prefixRule']);
+const TOOLROOM_STATUSES = new Set([
+  'available',
+  'awaiting_engraving',
+  'assigned_worker',
+  'assigned_site',
+  'reserved',
+  'fault_reported',
+  'awaiting_return',
+  'in_service',
+  'returned_from_service',
+  'written_off',
+  'lost',
+]);
+
+function createToolroomId(prefix = 'toolroom') {
+  return `${prefix}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+}
+
+function createEmptyToolroomDocument() {
+  const now = new Date().toISOString();
+  return {
+    version: 1,
+    items: [],
+    categories: [
+      { id: 'cat_machines', parentId: '', name: 'Masine', iconKey: 'drill', order: 1, archived: false, categoryVersion: 1, updatedAt: now, updatedBy: 'system' },
+      { id: 'cat_drills', parentId: 'cat_machines', name: 'Busilice', iconKey: 'drill', order: 1, archived: false, categoryVersion: 1, updatedAt: now, updatedBy: 'system' },
+      { id: 'cat_grinders', parentId: 'cat_machines', name: 'Brusilice', iconKey: 'grinder', order: 2, archived: false, categoryVersion: 1, updatedAt: now, updatedBy: 'system' },
+      { id: 'cat_lasers', parentId: 'cat_machines', name: 'Laseri', iconKey: 'laser', order: 3, archived: false, categoryVersion: 1, updatedAt: now, updatedBy: 'system' },
+      { id: 'cat_hand_tools', parentId: '', name: 'Rucni alat', iconKey: 'hammer', order: 2, archived: false, categoryVersion: 1, updatedAt: now, updatedBy: 'system' },
+      { id: 'cat_ppe', parentId: '', name: 'PPE', iconKey: 'helmet', order: 3, archived: false, categoryVersion: 1, updatedAt: now, updatedBy: 'system' },
+    ],
+    presets: [
+      ...['Busilica', 'Brusilica', 'Laser', 'Cekic', 'Baterija', 'Punjac', 'Usisivac', 'Stativ', 'Mjerac', 'Kompresor', 'Rezac', 'Aku alat', 'Rucni alat', 'PPE', 'Potrosni materijal'].map((label, index) => ({ id: `preset_type_${index + 1}`, type: 'toolType', label, value: label, metadata: {}, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
+      ...['Milwaukee', 'Hilti', 'Bosch', 'Makita', 'DeWalt', 'Festool', 'Leica', 'Stabila', 'Husqvarna', 'Metabo'].map((label, index) => ({ id: `preset_brand_${index + 1}`, type: 'brand', label, value: label, metadata: {}, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
+      ...['Milwaukee M18 FPD3', 'Hilti TE6', 'Hilti TE30', 'Bosch GSR 18V', 'Makita DHR243', 'DeWalt DCD996', 'Leica Disto', 'Stabila Laser'].map((label, index) => ({ id: `preset_model_${index + 1}`, type: 'model', label, value: label, metadata: {}, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
+      ...[
+        ['Dostupno', 'available'],
+        ['Ceka graviranje', 'awaiting_engraving'],
+        ['Zaduzeno radniku', 'assigned_worker'],
+        ['Zaduzeno gradilistu', 'assigned_site'],
+        ['Rezervirano', 'reserved'],
+        ['Prijavljen kvar', 'fault_reported'],
+        ['Ceka povrat', 'awaiting_return'],
+        ['Na servisu', 'in_service'],
+        ['Vraceno sa servisa', 'returned_from_service'],
+        ['Otpisano', 'written_off'],
+        ['Izgubljeno', 'lost'],
+      ].map(([label, value], index) => ({ id: `preset_status_${index + 1}`, type: 'status', label, value, metadata: {}, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
+      ...['Ne radi', 'Motor ne radi', 'Baterija slaba', 'Kuciste osteceno', 'Kabel ostecen', 'Nedostaje dio', 'Pregrijava se', 'Ne puni', 'Ostecen kofer'].map((label, index) => ({ id: `preset_fault_${index + 1}`, type: 'faultType', label, value: label, metadata: {}, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
+      ...['Zaprimljeno nazad', 'Poslano na servis', 'Popravljeno', 'Vraceno u opticaj', 'Otpisano', 'Ceka dijelove'].map((label, index) => ({ id: `preset_service_${index + 1}`, type: 'serviceAction', label, value: label, metadata: {}, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
+      ...[
+        ['Busilica', 'B'],
+        ['Brusilica', 'BR'],
+        ['Laser', 'L'],
+        ['Baterija', 'BA'],
+        ['Punjac', 'P'],
+        ['Cekic', 'C'],
+        ['Usisivac', 'U'],
+        ['Stativ', 'S'],
+      ].map(([label, prefix], index) => ({ id: `preset_prefix_${index + 1}`, type: 'prefixRule', label, value: prefix, metadata: { toolType: label }, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
+    ],
+    history: [],
+    updatedAt: now,
+  };
+}
+
+function normalizeToolroomDocument(doc) {
+  const fallback = createEmptyToolroomDocument();
+  const source = doc && typeof doc === 'object' ? doc : {};
+  const now = new Date().toISOString();
+  return {
+    version: 1,
+    items: (Array.isArray(source.items) ? source.items : fallback.items).map((item, index) => ({
+      id: sanitizeString(item?.id || `tool_${index + 1}`, 120),
+      internalNumber: sanitizeString(item?.internalNumber || '', 80),
+      serialNumber: sanitizeString(item?.serialNumber || '', 160),
+      name: sanitizeString(item?.name || '', 220),
+      type: sanitizeString(item?.type || '', 120),
+      brand: sanitizeString(item?.brand || '', 120),
+      model: sanitizeString(item?.model || '', 160),
+      categoryId: sanitizeString(item?.categoryId || '', 120),
+      status: TOOLROOM_STATUSES.has(item?.status) ? item.status : 'available',
+      iconKey: sanitizeString(item?.iconKey || 'tool', 80),
+      imageUrl: sanitizeString(item?.imageUrl || '', 500),
+      notes: sanitizeString(item?.notes || '', 1000),
+      archived: item?.archived === true,
+      itemVersion: Math.max(1, Number(item?.itemVersion || item?.version || 1)),
+      fieldVersions: isPlainObject(item?.fieldVersions) ? { ...item.fieldVersions } : {},
+      updatedAt: sanitizeString(item?.updatedAt || now, 80),
+      updatedBy: sanitizeString(item?.updatedBy || '', 160),
+    })).filter((item) => item.id),
+    categories: (Array.isArray(source.categories) ? source.categories : fallback.categories).map((category, index) => ({
+      id: sanitizeString(category?.id || `category_${index + 1}`, 120),
+      parentId: sanitizeString(category?.parentId || '', 120),
+      name: sanitizeString(category?.name || '', 180),
+      iconKey: sanitizeString(category?.iconKey || 'folder', 80),
+      imageUrl: sanitizeString(category?.imageUrl || '', 500),
+      order: Number(category?.order || index + 1),
+      archived: category?.archived === true,
+      categoryVersion: Math.max(1, Number(category?.categoryVersion || category?.version || 1)),
+      updatedAt: sanitizeString(category?.updatedAt || now, 80),
+      updatedBy: sanitizeString(category?.updatedBy || '', 160),
+    })).filter((category) => category.id && category.name),
+    presets: (Array.isArray(source.presets) ? source.presets : fallback.presets).map((preset, index) => ({
+      id: sanitizeString(preset?.id || `preset_${index + 1}`, 120),
+      type: TOOLROOM_PRESET_TYPES.has(preset?.type) ? preset.type : 'toolType',
+      label: sanitizeString(preset?.label || preset?.value || '', 180),
+      value: sanitizeString(preset?.value || preset?.label || '', 180),
+      metadata: isPlainObject(preset?.metadata) ? sanitizeObject(preset.metadata) : {},
+      archived: preset?.archived === true,
+      presetVersion: Math.max(1, Number(preset?.presetVersion || preset?.version || 1)),
+      updatedAt: sanitizeString(preset?.updatedAt || now, 80),
+      updatedBy: sanitizeString(preset?.updatedBy || '', 160),
+    })).filter((preset) => preset.id && preset.label),
+    history: (Array.isArray(source.history) ? source.history : []).slice(-500).map((event, index) => ({
+      id: sanitizeString(event?.id || `history_${index + 1}`, 120),
+      entityType: sanitizeString(event?.entityType || '', 60),
+      entityId: sanitizeString(event?.entityId || '', 120),
+      type: sanitizeString(event?.type || '', 80),
+      actor: sanitizeString(event?.actor || '', 160),
+      at: sanitizeString(event?.at || now, 80),
+      note: sanitizeString(event?.note || '', 500),
+    })),
+    updatedAt: sanitizeString(source.updatedAt || now, 80),
+  };
+}
+
+async function getToolroomDocument() {
+  return normalizeToolroomDocument(await readJsonFile(toolroomFile, createEmptyToolroomDocument()));
+}
+
+function pushToolroomHistory(doc, event) {
+  const next = normalizeToolroomDocument(doc);
+  next.history.push({
+    id: createToolroomId('history'),
+    entityType: sanitizeString(event.entityType || '', 60),
+    entityId: sanitizeString(event.entityId || '', 120),
+    type: sanitizeString(event.type || '', 80),
+    actor: sanitizeString(event.actor || '', 160),
+    at: new Date().toISOString(),
+    note: sanitizeString(event.note || '', 500),
+  });
+  next.history = next.history.slice(-500);
+  return next;
+}
+
+function createToolroomEntityConflict(entityType, entityId, serverEntity, submittedVersion, currentVersion) {
+  return getEntityConflictError({
+    entityType,
+    entityId,
+    conflicts: [{
+      field: 'entity',
+      serverValue: currentVersion,
+      myValue: submittedVersion,
+      serverVersion: currentVersion,
+      baseVersion: submittedVersion,
+    }],
+    serverEntity,
+  });
+}
+
 function normalizeVersionedEntity(row, fallbackId, actorEmail = '') {
   const source = row && typeof row === 'object' ? row : {};
   const now = new Date().toISOString();
@@ -4426,6 +4617,7 @@ async function initializeData() {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
+  await dataStorage.ensureJsonFile(toolroomFile, createEmptyToolroomDocument());
   await dataStorage.ensureJsonFile(siteChatFile, createEmptySiteChatDocument());
 
   const reportsFile = getReportsFilePath('default');
@@ -7062,6 +7254,273 @@ apiRouter.get('/warehouse/admin-assignments', requirePermission('canViewWarehous
     const warehouse = await readJsonFile(warehouseFile, { version: 1, items: [], adminAssignments: {} });
     res.json(warehouse.adminAssignments || {});
   } catch (error) {
+    next(error);
+  }
+});
+
+/* ==================== TOOLROOM FOUNDATION ==================== */
+
+apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManageToolroom', 'canEditToolPresets', 'canViewToolHistory']), async (req, res, next) => {
+  try {
+    if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const toolroom = await getToolroomDocument();
+    res.json({
+      ok: true,
+      toolroom,
+      permissions: {
+        canAccessToolroom: canAccessToolroom(req.session),
+        canManageToolroom: req.session.isSuperAdmin || sessionHasPermission(req.session, 'canManageToolroom'),
+        canEditToolPresets: req.session.isSuperAdmin || sessionHasPermission(req.session, 'canEditToolPresets'),
+        canViewToolHistory: req.session.isSuperAdmin || sessionHasPermission(req.session, 'canViewToolHistory'),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/items', requirePermission('canManageToolroom'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'READ_ONLY' });
+    const now = new Date().toISOString();
+    const body = sanitizeObject(req.body || {});
+    const payload = body.item && typeof body.item === 'object' ? body.item : body;
+    const id = sanitizeString(payload.id || createToolroomId('tool'), 120);
+    const baseVersion = Number(body.baseVersion || payload.itemVersion || 0);
+    let savedItem = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const existingIndex = next.items.findIndex((item) => item.id === id);
+      const existing = existingIndex >= 0 ? next.items[existingIndex] : null;
+      if (existing && baseVersion && Number(baseVersion) !== Number(existing.itemVersion)) {
+        throw createToolroomEntityConflict('toolItem', id, existing, baseVersion, existing.itemVersion);
+      }
+      const internalNumber = sanitizeString(payload.internalNumber || '', 80);
+      if (!internalNumber) {
+        const error = new Error('TOOLROOM_INTERNAL_NUMBER_REQUIRED');
+        error.statusCode = 400;
+        throw error;
+      }
+      const duplicate = next.items.find((item) => item.id !== id && !item.archived && String(item.internalNumber).toLowerCase() === internalNumber.toLowerCase());
+      if (duplicate) {
+        const error = new Error('TOOLROOM_DUPLICATE_INTERNAL_NUMBER');
+        error.statusCode = 409;
+        error.code = 'TOOLROOM_DUPLICATE_INTERNAL_NUMBER';
+        throw error;
+      }
+      savedItem = {
+        ...(existing || {}),
+        id,
+        internalNumber,
+        serialNumber: sanitizeString(payload.serialNumber || '', 160),
+        name: sanitizeString(payload.name || '', 220),
+        type: sanitizeString(payload.type || '', 120),
+        brand: sanitizeString(payload.brand || '', 120),
+        model: sanitizeString(payload.model || '', 160),
+        categoryId: sanitizeString(payload.categoryId || '', 120),
+        status: TOOLROOM_STATUSES.has(payload.status) ? payload.status : 'available',
+        iconKey: sanitizeString(payload.iconKey || 'tool', 80),
+        imageUrl: sanitizeString(payload.imageUrl || '', 500),
+        notes: sanitizeString(payload.notes || '', 1000),
+        archived: payload.archived === true,
+        itemVersion: existing ? existing.itemVersion + 1 : 1,
+        fieldVersions: isPlainObject(existing?.fieldVersions) ? { ...existing.fieldVersions } : {},
+        updatedAt: now,
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      };
+      if (!savedItem.name) {
+        const error = new Error('TOOLROOM_ITEM_NAME_REQUIRED');
+        error.statusCode = 400;
+        throw error;
+      }
+      if (existingIndex >= 0) next.items[existingIndex] = savedItem;
+      else next.items.push(savedItem);
+      next = pushToolroomHistory(next, {
+        entityType: 'toolItem',
+        entityId: id,
+        type: existing ? 'toolroom_tool_updated' : 'toolroom_tool_created',
+        actor: req.session.email,
+        note: savedItem.internalNumber,
+      });
+      next.updatedAt = now;
+      return next;
+    });
+    await logActivity(req.session.email, savedItem.itemVersion > 1 ? 'toolroom_tool_updated' : 'toolroom_tool_created', { id, internalNumber: savedItem.internalNumber });
+    res.json({ ok: true, item: savedItem });
+  } catch (error) {
+    if (error?.code === 'ENTITY_VERSION_CONFLICT') {
+      return res.status(409).json({ error: 'ENTITY_VERSION_CONFLICT', entityType: error.entityType, entityId: error.entityId, conflicts: error.conflicts, serverEntity: error.serverEntity });
+    }
+    if (error?.code === 'TOOLROOM_DUPLICATE_INTERNAL_NUMBER' || error?.message === 'TOOLROOM_DUPLICATE_INTERNAL_NUMBER') {
+      return res.status(409).json({ error: 'TOOLROOM_DUPLICATE_INTERNAL_NUMBER' });
+    }
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.patch('/toolroom/items/:id/archive', requirePermission('canManageToolroom'), async (req, res, next) => {
+  try {
+    const id = sanitizeString(req.params.id || '', 120);
+    const baseVersion = Number(req.body?.baseVersion || 0);
+    let item = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.items.findIndex((entry) => entry.id === id);
+      if (index < 0) {
+        const error = new Error('TOOLROOM_ITEM_NOT_FOUND');
+        error.statusCode = 404;
+        throw error;
+      }
+      const existing = next.items[index];
+      if (baseVersion && Number(baseVersion) !== Number(existing.itemVersion)) {
+        throw createToolroomEntityConflict('toolItem', id, existing, baseVersion, existing.itemVersion);
+      }
+      item = { ...existing, archived: true, itemVersion: existing.itemVersion + 1, updatedAt: new Date().toISOString(), updatedBy: req.session.email };
+      next.items[index] = item;
+      next = pushToolroomHistory(next, { entityType: 'toolItem', entityId: id, type: 'toolroom_tool_archived', actor: req.session.email, note: item.internalNumber });
+      return next;
+    });
+    await logActivity(req.session.email, 'toolroom_tool_archived', { id });
+    res.json({ ok: true, item });
+  } catch (error) {
+    if (error?.code === 'ENTITY_VERSION_CONFLICT') return res.status(409).json({ error: 'ENTITY_VERSION_CONFLICT', entityType: error.entityType, entityId: error.entityId, conflicts: error.conflicts, serverEntity: error.serverEntity });
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/categories', requirePermission('canManageToolroom'), async (req, res, next) => {
+  try {
+    const payload = sanitizeObject(req.body?.category || req.body || {});
+    const id = sanitizeString(payload.id || createToolroomId('category'), 120);
+    const baseVersion = Number(req.body?.baseVersion || payload.categoryVersion || 0);
+    let category = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.categories.findIndex((entry) => entry.id === id);
+      const existing = index >= 0 ? next.categories[index] : null;
+      if (existing && baseVersion && Number(baseVersion) !== Number(existing.categoryVersion)) {
+        throw createToolroomEntityConflict('toolCategory', id, existing, baseVersion, existing.categoryVersion);
+      }
+      const parentId = sanitizeString(payload.parentId || '', 120);
+      if (parentId && !next.categories.some((entry) => entry.id === parentId && !entry.archived)) {
+        return (() => { const error = new Error('TOOLROOM_PARENT_CATEGORY_NOT_FOUND'); error.statusCode = 400; throw error; })();
+      }
+      category = {
+        ...(existing || {}),
+        id,
+        parentId,
+        name: sanitizeString(payload.name || '', 180),
+        iconKey: sanitizeString(payload.iconKey || 'folder', 80),
+        imageUrl: sanitizeString(payload.imageUrl || '', 500),
+        order: Number(payload.order || existing?.order || next.categories.length + 1),
+        archived: payload.archived === true,
+        categoryVersion: existing ? existing.categoryVersion + 1 : 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      };
+      if (!category.name) { const error = new Error('TOOLROOM_CATEGORY_NAME_REQUIRED'); error.statusCode = 400; throw error; }
+      if (index >= 0) next.categories[index] = category;
+      else next.categories.push(category);
+      next = pushToolroomHistory(next, { entityType: 'toolCategory', entityId: id, type: existing ? 'toolroom_category_updated' : 'toolroom_category_created', actor: req.session.email, note: category.name });
+      return next;
+    });
+    res.json({ ok: true, category });
+  } catch (error) {
+    if (error?.code === 'ENTITY_VERSION_CONFLICT') return res.status(409).json({ error: 'ENTITY_VERSION_CONFLICT', entityType: error.entityType, entityId: error.entityId, conflicts: error.conflicts, serverEntity: error.serverEntity });
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.patch('/toolroom/categories/:id/archive', requirePermission('canManageToolroom'), async (req, res, next) => {
+  try {
+    const id = sanitizeString(req.params.id || '', 120);
+    const baseVersion = Number(req.body?.baseVersion || 0);
+    let category = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.categories.findIndex((entry) => entry.id === id);
+      if (index < 0) { const error = new Error('TOOLROOM_CATEGORY_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const existing = next.categories[index];
+      if (baseVersion && Number(baseVersion) !== Number(existing.categoryVersion)) {
+        throw createToolroomEntityConflict('toolCategory', id, existing, baseVersion, existing.categoryVersion);
+      }
+      category = { ...existing, archived: true, categoryVersion: existing.categoryVersion + 1, updatedAt: new Date().toISOString(), updatedBy: req.session.email };
+      next.categories[index] = category;
+      next = pushToolroomHistory(next, { entityType: 'toolCategory', entityId: id, type: 'toolroom_category_archived', actor: req.session.email, note: category.name });
+      return next;
+    });
+    res.json({ ok: true, category });
+  } catch (error) {
+    if (error?.code === 'ENTITY_VERSION_CONFLICT') return res.status(409).json({ error: 'ENTITY_VERSION_CONFLICT', entityType: error.entityType, entityId: error.entityId, conflicts: error.conflicts, serverEntity: error.serverEntity });
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/presets', requirePermission('canEditToolPresets'), async (req, res, next) => {
+  try {
+    const payload = sanitizeObject(req.body?.preset || req.body || {});
+    const id = sanitizeString(payload.id || createToolroomId('preset'), 120);
+    const baseVersion = Number(req.body?.baseVersion || payload.presetVersion || 0);
+    let preset = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.presets.findIndex((entry) => entry.id === id);
+      const existing = index >= 0 ? next.presets[index] : null;
+      if (existing && baseVersion && Number(baseVersion) !== Number(existing.presetVersion)) {
+        throw createToolroomEntityConflict('toolPreset', id, existing, baseVersion, existing.presetVersion);
+      }
+      preset = {
+        ...(existing || {}),
+        id,
+        type: TOOLROOM_PRESET_TYPES.has(payload.type) ? payload.type : 'toolType',
+        label: sanitizeString(payload.label || payload.value || '', 180),
+        value: sanitizeString(payload.value || payload.label || '', 180),
+        metadata: isPlainObject(payload.metadata) ? sanitizeObject(payload.metadata) : {},
+        archived: payload.archived === true,
+        presetVersion: existing ? existing.presetVersion + 1 : 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      };
+      if (!preset.label) { const error = new Error('TOOLROOM_PRESET_LABEL_REQUIRED'); error.statusCode = 400; throw error; }
+      if (index >= 0) next.presets[index] = preset;
+      else next.presets.push(preset);
+      next = pushToolroomHistory(next, { entityType: 'toolPreset', entityId: id, type: existing ? 'toolroom_preset_updated' : 'toolroom_preset_created', actor: req.session.email, note: preset.label });
+      return next;
+    });
+    res.json({ ok: true, preset });
+  } catch (error) {
+    if (error?.code === 'ENTITY_VERSION_CONFLICT') return res.status(409).json({ error: 'ENTITY_VERSION_CONFLICT', entityType: error.entityType, entityId: error.entityId, conflicts: error.conflicts, serverEntity: error.serverEntity });
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.patch('/toolroom/presets/:id/archive', requirePermission('canEditToolPresets'), async (req, res, next) => {
+  try {
+    const id = sanitizeString(req.params.id || '', 120);
+    const baseVersion = Number(req.body?.baseVersion || 0);
+    let preset = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.presets.findIndex((entry) => entry.id === id);
+      if (index < 0) { const error = new Error('TOOLROOM_PRESET_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const existing = next.presets[index];
+      if (baseVersion && Number(baseVersion) !== Number(existing.presetVersion)) {
+        throw createToolroomEntityConflict('toolPreset', id, existing, baseVersion, existing.presetVersion);
+      }
+      preset = { ...existing, archived: true, presetVersion: existing.presetVersion + 1, updatedAt: new Date().toISOString(), updatedBy: req.session.email };
+      next.presets[index] = preset;
+      next = pushToolroomHistory(next, { entityType: 'toolPreset', entityId: id, type: 'toolroom_preset_archived', actor: req.session.email, note: preset.label });
+      return next;
+    });
+    res.json({ ok: true, preset });
+  } catch (error) {
+    if (error?.code === 'ENTITY_VERSION_CONFLICT') return res.status(409).json({ error: 'ENTITY_VERSION_CONFLICT', entityType: error.entityType, entityId: error.entityId, conflicts: error.conflicts, serverEntity: error.serverEntity });
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);
   }
 });

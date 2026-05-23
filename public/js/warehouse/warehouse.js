@@ -413,6 +413,9 @@ function toggleWarehouseSection(sectionId) {
 
 function showWarehouse() {
   if (!canAccessWarehouseModule()) {
+    if (typeof canAccessToolroomModule === "function" && canAccessToolroomModule() && typeof showToolroom === "function") {
+      return showToolroom();
+    }
     showToast(t("warehouseAccessDenied"), "error");
     return;
   }
@@ -434,6 +437,7 @@ function showWarehouse() {
   saveCurrentView("warehouse");
   pushRouteForView("warehouse");
   renderWarehousePage();
+  if (typeof setWarehouseToolroomMode === "function") setWarehouseToolroomMode("stock");
   if (typeof updateShellForView === "function") updateShellForView("warehouse");
   sendPresence(true).catch(() => {});
   refreshPresence().catch(() => {});

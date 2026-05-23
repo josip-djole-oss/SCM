@@ -586,13 +586,247 @@ body {
   color: var(--text-light);
 }
 
+.toolroom-section {
+  margin-top: 18px;
+}
+.toolroom-shell {
+  display: grid;
+  gap: 16px;
+}
+.toolroom-hero,
+.toolroom-card,
+.toolroom-stats article {
+  background: #fff;
+  border: 1px solid #dbe4f2;
+  border-radius: 22px;
+  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.08);
+}
+.toolroom-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  background: linear-gradient(135deg, #f0fdfa, #fff7ed);
+}
+.toolroom-hero h2 {
+  margin: 4px 0;
+  font-size: clamp(28px, 4vw, 42px);
+}
+.toolroom-hero p,
+.toolroom-muted,
+.toolroom-row small,
+.toolroom-list small {
+  color: var(--text-light);
+}
+.toolroom-search-card {
+  min-width: min(460px, 100%);
+}
+.toolroom-search-card input,
+.toolroom-form input,
+.toolroom-form select,
+.toolroom-form textarea {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+.toolroom-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toolroom-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+.toolroom-stats article {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+.toolroom-stats strong {
+  font-size: 28px;
+}
+.toolroom-stats span {
+  color: var(--text-light);
+  font-size: 13px;
+}
+.toolroom-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.toolroom-grid.is-items {
+  grid-template-columns: 1.15fr 0.85fr;
+}
+.toolroom-card {
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+.toolroom-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.toolroom-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.toolroom-form label {
+  display: grid;
+  gap: 5px;
+  font-weight: 800;
+  color: var(--text-light);
+  font-size: 12px;
+}
+.toolroom-wide {
+  grid-column: 1 / -1;
+}
+.toolroom-list {
+  display: grid;
+  gap: 10px;
+}
+.toolroom-list.is-compact span,
+.toolroom-row,
+.toolroom-category-card {
+  border: 1px solid #dbe4f2;
+  border-radius: 16px;
+  background: #f8fbff;
+}
+.toolroom-row {
+  display: grid;
+  grid-template-columns: 58px 1fr;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  padding: 10px;
+}
+.toolroom-row.is-active {
+  border-color: #0f766e;
+  background: #ecfdf5;
+}
+.toolroom-icon,
+.toolroom-big-icon {
+  display: grid;
+  place-items: center;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-weight: 900;
+}
+.toolroom-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+}
+.toolroom-big-icon {
+  width: 92px;
+  height: 92px;
+  border-radius: 26px;
+}
+.toolroom-detail {
+  display: grid;
+  gap: 12px;
+}
+.toolroom-status-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.toolroom-status-grid span {
+  padding: 10px;
+  border-radius: 14px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.toolroom-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.toolroom-breadcrumb {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.toolroom-breadcrumb button {
+  border: 1px solid #dbe4f2;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 999px;
+  padding: 8px 12px;
+}
+.toolroom-category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.toolroom-category-card {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  color: inherit;
+  padding: 14px;
+}
+.toolroom-empty {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px dashed #cbd5e1;
+  color: var(--text-light);
+  background: #f8fafc;
+}
+
 @media (max-width: 900px) {
+  .toolroom-hero,
+  .toolroom-card-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .toolroom-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .toolroom-grid,
+  .toolroom-grid.is-items,
+  .toolroom-form {
+    grid-template-columns: 1fr;
+  }
+  .toolroom-quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .warehouse-log-toolbar-actions {
     justify-content: stretch;
   }
 
   .warehouse-log-toolbar-actions .btn {
     flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .toolroom-section {
+    margin-top: 10px;
+  }
+  .toolroom-hero,
+  .toolroom-card {
+    padding: 12px;
+    border-radius: 18px;
+  }
+  .toolroom-tabs .btn,
+  .toolroom-quick-actions .btn {
+    min-height: 44px;
+  }
+  .toolroom-quick-actions,
+  .toolroom-status-grid {
+    grid-template-columns: 1fr;
   }
 }
 .header::after {
