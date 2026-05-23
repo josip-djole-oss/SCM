@@ -3254,6 +3254,17 @@ body {
   justify-content: space-between;
   margin-bottom: 12px;
 }
+.home-site-info-head-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.home-site-info-head-actions .btn {
+  min-height: 36px;
+  padding-inline: 12px;
+}
 .home-site-info-head h3 {
   margin: 4px 0 0;
 }
@@ -3890,6 +3901,11 @@ body {
     grid-template-columns: 1fr;
   }
   .site-wizard-dynamic-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .home-site-info-head,
+  .home-site-info-head-actions {
     align-items: stretch;
     flex-direction: column;
   }
@@ -10183,6 +10199,11 @@ body.account-notifications-open .account-notifications-panel {
 
 .workwear-size-checkbox-grid .workwear-chip {
   min-height: 42px;
+}
+.site-wizard-helper {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 @media (max-width: 1024px) {

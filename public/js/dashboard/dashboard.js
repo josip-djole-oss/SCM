@@ -399,13 +399,17 @@ function renderHomeSiteInfo() {
       <p>Zona istovara: ${dashboardEscapeHtml(logistics.unloadingZone || "-")}</p>
       <p>APD plan: ${apdPlanHtml}</p>
     `;
+  const canEditSiteInfo = typeof canManageSiteAccess === "function" && canManageSiteAccess();
   panel.innerHTML = `
     <div class="home-site-info-head">
       <div>
         <span class="admin-compose-eyebrow">Baustela - Informacije</span>
         <h3>${dashboardEscapeHtml(info.projectName || currentSite || "-")}</h3>
       </div>
-      <span class="home-site-status">${dashboardEscapeHtml(statusLabel)}</span>
+      <div class="home-site-info-head-actions">
+        <span class="home-site-status">${dashboardEscapeHtml(statusLabel)}</span>
+        ${canEditSiteInfo ? `<button class="btn btn-small btn-secondary" type="button" data-cmax-action="sites.editCurrentSiteInfo">Uredi informacije</button>` : ""}
+      </div>
     </div>
     <div class="home-site-info-priority">
       <article class="home-site-info-card">

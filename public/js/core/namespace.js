@@ -87,6 +87,7 @@
       return callLegacy("addSite", args);
     },
     closeWizard: legacyMethod("closeNewSiteWizard"),
+    editCurrentSiteInfo: legacyMethod("openEditSiteInfoWizard"),
     wizardNext: legacyMethod("newSiteWizardNext"),
     wizardBack: legacyMethod("newSiteWizardBack"),
     wizardGoTo: legacyMethod("newSiteWizardGoTo"),

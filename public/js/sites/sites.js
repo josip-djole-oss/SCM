@@ -141,6 +141,8 @@ var newSiteWizardState = {
   open: false,
   step: 0,
   draft: null,
+  mode: "create",
+  editSite: "",
 };
 
 var siteWizardMapState = {
@@ -552,7 +554,30 @@ function openNewSiteWizard() {
     showToast(t("errAdminManageDenied") || "Nemate dozvolu.", "error");
     return;
   }
-  newSiteWizardState = { open: true, step: 0, draft: getDefaultSiteInfo("") };
+  newSiteWizardState = { open: true, step: 0, draft: getDefaultSiteInfo(""), mode: "create", editSite: "" };
+  const overlay = ensureNewSiteWizardOverlay();
+  overlay.classList.add("is-open");
+  document.body.classList.add("modal-open");
+  renderNewSiteWizard();
+}
+
+function openEditSiteInfoWizard(site = currentSite) {
+  if (!canManageSiteAccess()) {
+    showToast(t("errAdminManageDenied") || "Nemate dozvolu.", "error");
+    return;
+  }
+  const targetSite = String(site || currentSite || "").trim();
+  if (!targetSite || !sites.includes(targetSite)) {
+    showToast("Gradiliste nije dostupno.", "error");
+    return;
+  }
+  const existingInfo = getSiteInfoStorage(targetSite);
+  const draft = {
+    ...getDefaultSiteInfo(targetSite),
+    ...(existingInfo && typeof existingInfo === "object" ? existingInfo : {}),
+    name: targetSite,
+  };
+  newSiteWizardState = { open: true, step: 0, draft, mode: "edit", editSite: targetSite };
   const overlay = ensureNewSiteWizardOverlay();
   overlay.classList.add("is-open");
   document.body.classList.add("modal-open");
@@ -564,6 +589,8 @@ function closeNewSiteWizard() {
   if (overlay) overlay.classList.remove("is-open");
   document.body.classList.remove("modal-open");
   newSiteWizardState.open = false;
+  newSiteWizardState.mode = "create";
+  newSiteWizardState.editSite = "";
   destroySiteWizardMap();
 }
 
@@ -772,17 +799,25 @@ function validateNewSiteWizardStep() {
   const draft = getNewSiteWizardDraft();
   const step = NEW_SITE_WIZARD_STEPS[newSiteWizardState.step]?.key;
   if (step === "basic") {
-    if (!String(draft.name || "").trim()) {
+    const name = String(draft.name || "").trim();
+    const isEdit = newSiteWizardState.mode === "edit";
+    const editSite = String(newSiteWizardState.editSite || "").trim();
+    if (!name) {
       showToast("Unesite naziv gradilista.", "error");
       return false;
     }
-    if (sites.includes(String(draft.name).trim())) {
+    if (isEdit && name !== editSite) {
+      showToast("Naziv postojeceg gradilista se ne mijenja u ovom editoru.", "error");
+      draft.name = editSite;
+      return false;
+    }
+    if (!isEdit && sites.includes(name)) {
       showToast("Gradiliste s tim nazivom vec postoji.", "error");
       return false;
     }
   }
   if (step === "review" && !hasValidSiteWizardPin(draft)) {
-    showToast("Postavite pin lokacije prije kreiranja gradilista.", "error");
+    showToast("Postavite pin lokacije prije spremanja gradilista.", "error");
     return false;
   }
   return true;
@@ -863,6 +898,11 @@ function renderNewSiteWizard() {
   const stepper = document.getElementById("newSiteWizardStepper");
   const body = document.getElementById("newSiteWizardBody");
   const draft = getNewSiteWizardDraft();
+  const isEdit = newSiteWizardState.mode === "edit";
+  const title = document.getElementById("newSiteWizardTitle");
+  const eyebrow = document.querySelector("#newSiteWizardOverlay .admin-compose-eyebrow");
+  if (title) title.textContent = isEdit ? "Uredi informacije gradilista" : "Dodaj gradiliste";
+  if (eyebrow) eyebrow.textContent = isEdit ? "Site Info Editor" : "New Site Wizard";
   if (stepper) {
     stepper.innerHTML = NEW_SITE_WIZARD_STEPS.map((step, index) => `
       <button type="button" class="site-wizard-step ${index === newSiteWizardState.step ? "is-active" : ""}" data-cmax-action="sites.wizardGoTo" data-cmax-args='[${index}]'><span>${index + 1}</span>${siteWizardEscape(step.title)}</button>
@@ -888,7 +928,10 @@ function renderNewSiteWizard() {
   const create = document.getElementById("newSiteWizardCreateBtn");
   if (back) back.style.display = newSiteWizardState.step === 0 ? "none" : "";
   if (next) next.style.display = newSiteWizardState.step >= NEW_SITE_WIZARD_STEPS.length - 1 ? "none" : "";
-  if (create) create.style.display = newSiteWizardState.step >= NEW_SITE_WIZARD_STEPS.length - 1 ? "" : "none";
+  if (create) {
+    create.style.display = newSiteWizardState.step >= NEW_SITE_WIZARD_STEPS.length - 1 ? "" : "none";
+    create.textContent = isEdit ? "Spremi" : "Kreiraj";
+  }
 }
 
 function newSiteWizardGoTo(index) {
@@ -899,6 +942,7 @@ function newSiteWizardGoTo(index) {
 }
 
 function renderNewSiteBasicStep(draft) {
+  const isEdit = newSiteWizardState.mode === "edit";
   const address = [draft.address, draft.postalCode, draft.city, draft.country].filter(Boolean).join(", ");
   const pinText = formatSiteWizardPin(draft);
   const navQuery = encodeURIComponent(pinText || address || "Sweden");
@@ -907,7 +951,7 @@ function renderNewSiteBasicStep(draft) {
     <section class="site-wizard-section">
       <h4>Step 1 - Osnovno</h4>
       <div class="site-wizard-grid">
-        <label>Naziv gradilista<input id="siteWizard_name" value="${siteWizardEscape(draft.name)}"></label>
+        <label>Naziv gradilista<input id="siteWizard_name" value="${siteWizardEscape(draft.name)}" ${isEdit ? "readonly" : ""}>${isEdit ? `<small class="site-wizard-helper">Naziv postojeceg gradilista ostaje isti; ovdje se uredjuju informacije, lokacija, kontakti i aktivni moduli.</small>` : ""}</label>
         <label>Naziv projekta<input id="siteWizard_projectName" value="${siteWizardEscape(draft.projectName)}"></label>
         <label class="site-wizard-wide">Opis<textarea id="siteWizard_description">${siteWizardEscape(draft.description)}</textarea></label>
         <label>Adresa<input id="siteWizard_address" value="${siteWizardEscape(draft.address)}"></label>
@@ -1171,6 +1215,7 @@ function renderNewSiteReviewStep(draft) {
 }
 
 function createSiteFromWizard() {
+  if (newSiteWizardState.mode === "edit") return saveEditedSiteFromWizard();
   collectNewSiteWizardStep();
   if (!validateNewSiteWizardStep()) return;
   const draft = getNewSiteWizardDraft();
@@ -1180,6 +1225,42 @@ function createSiteFromWizard() {
   }
   const newSite = String(draft.name || "").trim();
   return createSiteWithMetadata(newSite, draft);
+}
+
+function saveEditedSiteFromWizard() {
+  collectNewSiteWizardStep();
+  if (!validateNewSiteWizardStep()) return Promise.resolve(false);
+  const site = String(newSiteWizardState.editSite || currentSite || "").trim();
+  if (!site || !sites.includes(site)) {
+    showToast("Gradiliste nije dostupno.", "error");
+    return Promise.resolve(false);
+  }
+  const draft = { ...getNewSiteWizardDraft(), name: site };
+  if (!hasValidSiteWizardPin(draft)) {
+    showToast("Postavite pin lokacije prije spremanja gradilista.", "error");
+    return Promise.resolve(false);
+  }
+  const previousInfo = getSiteInfoStorage(site);
+  return withLoadingPromise("loadingSiteChange", () => {
+    saveSiteInfoStorage(site, draft);
+    return syncModuleState("siteMetadata", {
+      sites,
+      siteInfo: draft,
+    }, { siteId: site }).then((saved) => {
+      if (!saved) {
+        saveSiteInfoStorage(site, previousInfo);
+        if (typeof refreshHomeLaunchpad === "function") refreshHomeLaunchpad();
+        showToast("Spremanje informacija gradilista nije uspjelo.", "error");
+        return false;
+      }
+      addLog("site_info_updated_wizard", { site });
+      closeNewSiteWizard();
+      if (typeof refreshHomeLaunchpad === "function") refreshHomeLaunchpad();
+      if (typeof renderCurrentSiteAfterHydrate === "function") renderCurrentSiteAfterHydrate();
+      showToast("Informacije gradilista su spremljene.", "success");
+      return true;
+    });
+  });
 }
 
 function createSiteWithMetadata(newSite, siteInfo) {

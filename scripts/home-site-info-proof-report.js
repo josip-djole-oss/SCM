@@ -184,9 +184,48 @@ async function inspectHome(page) {
       outsidePanel,
       storeProducts,
       hasAllSitesProduct: storeProducts.includes("proof-all-sites-product"),
+      editButtonVisible: !!document.querySelector("[data-cmax-action='sites.editCurrentSiteInfo']"),
       horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 2,
     };
   });
+}
+
+async function inspectEditWizard(page) {
+  await page.click("[data-cmax-action='sites.editCurrentSiteInfo']");
+  await page.waitForSelector("#newSiteWizardOverlay.is-open", { timeout: 10000 });
+  return page.evaluate(() => {
+    const overlay = document.getElementById("newSiteWizardOverlay");
+    const shell = overlay?.querySelector(".site-wizard-shell");
+    const rect = shell?.getBoundingClientRect();
+    const title = document.getElementById("newSiteWizardTitle")?.textContent.trim() || "";
+    const createButton = document.getElementById("newSiteWizardCreateBtn")?.textContent.trim() || "";
+    const nameInput = document.getElementById("siteWizard_name");
+    return {
+      title,
+      createButton,
+      nameReadonly: !!nameInput?.readOnly,
+      overlayOpen: overlay?.classList.contains("is-open") === true,
+      shellInsideViewport: !!rect && rect.left >= -2 && rect.top >= -2 && rect.right <= window.innerWidth + 2 && rect.bottom <= window.innerHeight + 2,
+      horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 2,
+    };
+  });
+}
+
+async function verifyEditSave(page, viewportName) {
+  const nextName = `Edited ${viewportName} Project`;
+  await page.fill("#siteWizard_projectName", nextName);
+  await page.evaluate(() => {
+    if (typeof newSiteWizardGoTo === "function") newSiteWizardGoTo(5);
+  });
+  await page.waitForSelector("#newSiteWizardCreateBtn", { state: "visible", timeout: 10000 });
+  await page.click("#newSiteWizardCreateBtn");
+  await page.waitForFunction(() => !document.getElementById("newSiteWizardOverlay")?.classList.contains("is-open"), null, { timeout: 20000 });
+  await page.waitForFunction((expected) => document.querySelector("#homeSiteInfoPanel h3")?.textContent.includes(expected), nextName, { timeout: 10000 });
+  return page.evaluate((expected) => ({
+    expected,
+    renderedTitle: document.querySelector("#homeSiteInfoPanel h3")?.textContent.trim() || "",
+    persistedTitle: typeof getSiteInfoStorage === "function" ? getSiteInfoStorage(currentSite).projectName : "",
+  }), nextName);
 }
 
 async function main() {
@@ -208,13 +247,52 @@ async function main() {
       const file = path.join(screenshotDir, `${safe(viewport.name)}-home-full.png`);
       await page.screenshot({ path: file, fullPage: true });
       const metrics = await inspectHome(page);
-      const status = metrics.overlaps.length || metrics.offscreen.length || metrics.outsidePanel.length || metrics.horizontalOverflow || !metrics.hasAllSitesProduct ? "MAJOR" : "GOOD";
-      rows.push({ viewport: viewport.name, status, screenshot: path.relative(outputDir, file).replace(/\\/g, "/"), metrics });
+      const wizardMetrics = await inspectEditWizard(page);
+      const wizardFile = path.join(screenshotDir, `${safe(viewport.name)}-edit-site-info-wizard.png`);
+      await page.screenshot({ path: wizardFile, fullPage: true });
+      const editSave = await verifyEditSave(page, viewport.name);
+      const status = metrics.overlaps.length
+        || metrics.offscreen.length
+        || metrics.outsidePanel.length
+        || metrics.horizontalOverflow
+        || !metrics.hasAllSitesProduct
+        || !metrics.editButtonVisible
+        || !wizardMetrics.overlayOpen
+        || !wizardMetrics.nameReadonly
+        || !/Uredi/i.test(wizardMetrics.title)
+        || wizardMetrics.horizontalOverflow
+        || editSave.renderedTitle !== editSave.expected
+        || editSave.persistedTitle !== editSave.expected
+        ? "MAJOR" : "GOOD";
+      rows.push({
+        viewport: viewport.name,
+        status,
+        screenshot: path.relative(outputDir, file).replace(/\\/g, "/"),
+        editWizardScreenshot: path.relative(outputDir, wizardFile).replace(/\\/g, "/"),
+        metrics,
+        wizardMetrics,
+        editSave,
+      });
       await context.close();
     }
     const md = ["# Home Site Info Proof", "", `Run: ${runId}`, ""];
     rows.forEach((row) => {
-      md.push(`## ${row.status} - ${row.viewport}`, "", `![${row.viewport}](${row.screenshot})`, "", "```json", JSON.stringify(row.metrics, null, 2), "```", "");
+      md.push(
+        `## ${row.status} - ${row.viewport}`,
+        "",
+        "Home:",
+        "",
+        `![${row.viewport}](${row.screenshot})`,
+        "",
+        "Edit wizard:",
+        "",
+        `![${row.viewport} edit](${row.editWizardScreenshot})`,
+        "",
+        "```json",
+        JSON.stringify({ home: row.metrics, editWizard: row.wizardMetrics, editSave: row.editSave }, null, 2),
+        "```",
+        "",
+      );
     });
     fs.writeFileSync(path.join(outputDir, "REPORT.md"), md.join("\n"), "utf8");
     console.log(JSON.stringify({ ok: rows.every((row) => row.status === "GOOD"), report: path.join(outputDir, "REPORT.md"), rows }, null, 2));
