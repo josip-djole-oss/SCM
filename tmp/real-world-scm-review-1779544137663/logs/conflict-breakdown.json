@@ -1,0 +1,503 @@
+{
+  "currentRun": {
+    "byModule": {
+      "planner": 3,
+      "bins": 3,
+      "plannerRow": 1,
+      "tidplanActivity": 1
+    },
+    "byField": {
+      "planner:moduleVersion": 3,
+      "bins:moduleVersion": 3,
+      "plannerRow:komentar": 1,
+      "tidplanActivity:komentar": 1
+    },
+    "byEntity": {
+      "planner:planner": 3,
+      "bins:bins": 3,
+      "plannerRow:real-planner-row-1": 1,
+      "tidplanActivity:real-tid-1": 1
+    },
+    "details": [
+      {
+        "module": "planner",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "D"
+      },
+      {
+        "module": "bins",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "D"
+      },
+      {
+        "module": "planner",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "B"
+      },
+      {
+        "module": "bins",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "B"
+      },
+      {
+        "module": "planner",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "D"
+      },
+      {
+        "module": "bins",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "D"
+      },
+      {
+        "module": "plannerRow",
+        "url": "/api/planner/Real%20World%20Site/2026-05-23/rows/real-planner-row-1",
+        "entityId": "real-planner-row-1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Real%20World%20Site/activities/real-tid-1",
+        "entityId": "real-tid-1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      }
+    ]
+  },
+  "previousMultiUserRun": {
+    "byModule": {
+      "plannerRow": 5,
+      "tidplanActivity": 35,
+      "planner": 2,
+      "bins": 2
+    },
+    "byField": {
+      "plannerRow:komentar": 5,
+      "tidplanActivity:komentar": 35,
+      "planner:moduleVersion": 2,
+      "bins:moduleVersion": 2
+    },
+    "byEntity": {
+      "plannerRow:planner_row_2026_05_21_1": 5,
+      "tidplanActivity:tid-1": 3,
+      "tidplanActivity:tid-2": 3,
+      "tidplanActivity:tid-3": 3,
+      "tidplanActivity:tid-4": 3,
+      "tidplanActivity:tid-5": 3,
+      "tidplanActivity:tid-15": 4,
+      "tidplanActivity:tid-16": 4,
+      "tidplanActivity:tid-17": 4,
+      "tidplanActivity:tid-18": 4,
+      "tidplanActivity:tid-19": 4,
+      "planner:planner": 2,
+      "bins:bins": 2
+    },
+    "details": [
+      {
+        "module": "plannerRow",
+        "url": "/api/planner/Concurrency%20Site/2026-05-21/rows/planner_row_2026_05_21_1",
+        "entityId": "planner_row_2026_05_21_1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-1",
+        "entityId": "tid-1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-2",
+        "entityId": "tid-2",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-3",
+        "entityId": "tid-3",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-4",
+        "entityId": "tid-4",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-5",
+        "entityId": "tid-5",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "plannerRow",
+        "url": "/api/planner/Concurrency%20Site/2026-05-21/rows/planner_row_2026_05_21_1",
+        "entityId": "planner_row_2026_05_21_1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-15",
+        "entityId": "tid-15",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-16",
+        "entityId": "tid-16",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-17",
+        "entityId": "tid-17",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-18",
+        "entityId": "tid-18",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-19",
+        "entityId": "tid-19",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-15",
+        "entityId": "tid-15",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-16",
+        "entityId": "tid-16",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-17",
+        "entityId": "tid-17",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-18",
+        "entityId": "tid-18",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-19",
+        "entityId": "tid-19",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-15",
+        "entityId": "tid-15",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-16",
+        "entityId": "tid-16",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-17",
+        "entityId": "tid-17",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-18",
+        "entityId": "tid-18",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-19",
+        "entityId": "tid-19",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-1",
+        "entityId": "tid-1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-2",
+        "entityId": "tid-2",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-3",
+        "entityId": "tid-3",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-4",
+        "entityId": "tid-4",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-5",
+        "entityId": "tid-5",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "plannerRow",
+        "url": "/api/planner/Concurrency%20Site/2026-05-21/rows/planner_row_2026_05_21_1",
+        "entityId": "planner_row_2026_05_21_1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "plannerRow",
+        "url": "/api/planner/Concurrency%20Site/2026-05-21/rows/planner_row_2026_05_21_1",
+        "entityId": "planner_row_2026_05_21_1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-15",
+        "entityId": "tid-15",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-16",
+        "entityId": "tid-16",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-17",
+        "entityId": "tid-17",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-18",
+        "entityId": "tid-18",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-19",
+        "entityId": "tid-19",
+        "fields": [
+          "komentar"
+        ],
+        "label": "C"
+      },
+      {
+        "module": "plannerRow",
+        "url": "/api/planner/Concurrency%20Site/2026-05-21/rows/planner_row_2026_05_21_1",
+        "entityId": "planner_row_2026_05_21_1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-1",
+        "entityId": "tid-1",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-2",
+        "entityId": "tid-2",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-3",
+        "entityId": "tid-3",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-4",
+        "entityId": "tid-4",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "tidplanActivity",
+        "url": "/api/tidplan/Concurrency%20Site/activities/tid-5",
+        "entityId": "tid-5",
+        "fields": [
+          "komentar"
+        ],
+        "label": "B"
+      },
+      {
+        "module": "planner",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "C"
+      },
+      {
+        "module": "bins",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "C"
+      },
+      {
+        "module": "planner",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "C"
+      },
+      {
+        "module": "bins",
+        "url": "/api/state/module",
+        "entityId": "",
+        "fields": [],
+        "label": "C"
+      }
+    ]
+  }
+}
