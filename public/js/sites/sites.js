@@ -343,26 +343,54 @@ function getDefaultSiteInfo(siteName = "") {
       defaultNotifications: false,
     },
     templateSite: "",
+    contactGroups: SITE_CONTACT_ROLES.map((role) => ({
+      id: `group_${role.key}`,
+      name: role.label,
+      contacts: [{ id: `contact_${role.key}_1`, name: "", phone: "", email: "", note: "" }],
+    })),
     contacts: SITE_CONTACT_ROLES.map((role) => ({
       role: role.key,
       label: role.label,
       name: "",
       phone: "",
       email: "",
+      note: "",
     })),
+    workHoursRows: [
+      { id: "work_1", days: "Ponedjeljak-Petak", time: "07:00-16:00", breaks: "09:00-09:30, 12:00-12:30" },
+    ],
     workHours: {
       days: "Ponedjeljak-Petak",
       hours: "07:00-16:00",
       breaks: ["09:00-09:30", "12:00-12:30"],
     },
-    safetyRules: SITE_SAFETY_RULE_OPTIONS.slice(0, 4),
+    safetyRules: SITE_SAFETY_RULE_OPTIONS.slice(0, 4).map((rule, index) => ({
+      id: `rule_${index + 1}`,
+      name: rule,
+      required: index < 4,
+      order: index + 1,
+    })),
     customSafetyRules: [],
+    logisticsItems: [
+      { id: "log_parking", name: "Parking", description: "", link: "" },
+      { id: "log_storage", name: "Skladiste", description: "", link: "" },
+      { id: "log_unloading", name: "Zona istovara", description: "", link: "" },
+      { id: "log_apd", name: "APD plan", description: "", link: "" },
+    ],
     logistics: {
       parking: "",
       storage: "",
       unloadingZone: "",
       apdPlan: "",
     },
+    emergencyItems: [
+      { id: "emergency_number", name: "Hitni broj", phone: "112", description: "", link: "" },
+      { id: "emergency_hospital", name: "Bolnica", phone: "", description: "", link: "" },
+      { id: "emergency_first_aid", name: "Prva pomoc", phone: "", description: "", link: "" },
+      { id: "emergency_fire", name: "Vatrogasci", phone: "", description: "", link: "" },
+      { id: "emergency_meeting", name: "Mjesto okupljanja", phone: "", description: "", link: "" },
+      { id: "emergency_defib", name: "Defibrilator lokacija", phone: "", description: "", link: "" },
+    ],
     emergency: {
       emergencyNumber: "112",
       hospital: "",
@@ -373,6 +401,106 @@ function getDefaultSiteInfo(siteName = "") {
     },
     documents: [],
   };
+}
+
+function createSiteWizardId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function normalizeSiteWizardContactGroups(draft) {
+  if (Array.isArray(draft?.contactGroups) && draft.contactGroups.length) {
+    return draft.contactGroups.map((group, groupIndex) => ({
+      id: group.id || createSiteWizardId("group"),
+      name: String(group.name || group.label || `Grupa ${groupIndex + 1}`).trim() || `Grupa ${groupIndex + 1}`,
+      contacts: (Array.isArray(group.contacts) && group.contacts.length ? group.contacts : [{ id: createSiteWizardId("contact"), name: "", phone: "", email: "", note: "" }]).map((contact) => ({
+        id: contact.id || createSiteWizardId("contact"),
+        name: contact.name || "",
+        phone: contact.phone || "",
+        email: contact.email || "",
+        note: contact.note || "",
+      })),
+    }));
+  }
+  const legacy = Array.isArray(draft?.contacts) ? draft.contacts : getDefaultSiteInfo(draft?.name || "").contacts;
+  return legacy.map((contact) => ({
+    id: `group_${contact.role || createSiteWizardId("group")}`,
+    name: contact.label || contact.role || "Kontakt",
+    contacts: [{
+      id: `contact_${contact.role || createSiteWizardId("contact")}`,
+      name: contact.name || "",
+      phone: contact.phone || "",
+      email: contact.email || "",
+      note: contact.note || "",
+    }],
+  }));
+}
+
+function normalizeSiteWizardWorkHoursRows(draft) {
+  if (Array.isArray(draft?.workHoursRows) && draft.workHoursRows.length) {
+    return draft.workHoursRows.map((row, index) => ({
+      id: row.id || createSiteWizardId("work"),
+      days: row.days || "",
+      time: row.time || row.hours || "",
+      breaks: Array.isArray(row.breaks) ? row.breaks.join(", ") : (row.breaks || ""),
+      order: Number(row.order || index + 1),
+    }));
+  }
+  const workHours = draft?.workHours || {};
+  return [{
+    id: "work_1",
+    days: workHours.days || "Ponedjeljak-Petak",
+    time: workHours.hours || "07:00-16:00",
+    breaks: Array.isArray(workHours.breaks) ? workHours.breaks.join(", ") : "",
+    order: 1,
+  }];
+}
+
+function normalizeSiteWizardSafetyRules(draft) {
+  const rules = Array.isArray(draft?.safetyRules) ? draft.safetyRules : [];
+  return rules.length
+    ? rules.map((rule, index) => typeof rule === "string"
+      ? { id: `rule_${index + 1}`, name: rule, required: true, order: index + 1 }
+      : { id: rule.id || createSiteWizardId("rule"), name: rule.name || "", required: rule.required === true, order: Number(rule.order || index + 1) })
+    : getDefaultSiteInfo(draft?.name || "").safetyRules;
+}
+
+function normalizeSiteWizardLogisticsItems(draft) {
+  if (Array.isArray(draft?.logisticsItems) && draft.logisticsItems.length) {
+    return draft.logisticsItems.map((item) => ({
+      id: item.id || createSiteWizardId("log"),
+      name: item.name || "",
+      description: item.description || "",
+      link: item.link || "",
+    }));
+  }
+  const logistics = draft?.logistics || {};
+  return [
+    { id: "log_parking", name: "Parking", description: logistics.parking || "", link: "" },
+    { id: "log_storage", name: "Skladiste", description: logistics.storage || "", link: "" },
+    { id: "log_unloading", name: "Zona istovara", description: logistics.unloadingZone || "", link: "" },
+    { id: "log_apd", name: "APD plan", description: "", link: logistics.apdPlan || "" },
+  ];
+}
+
+function normalizeSiteWizardEmergencyItems(draft) {
+  if (Array.isArray(draft?.emergencyItems) && draft.emergencyItems.length) {
+    return draft.emergencyItems.map((item) => ({
+      id: item.id || createSiteWizardId("emergency"),
+      name: item.name || "",
+      phone: item.phone || "",
+      description: item.description || "",
+      link: item.link || "",
+    }));
+  }
+  const emergency = draft?.emergency || {};
+  return [
+    { id: "emergency_number", name: "Hitni broj", phone: emergency.emergencyNumber || "112", description: "", link: "" },
+    { id: "emergency_hospital", name: "Bolnica", phone: "", description: emergency.hospital || "", link: "" },
+    { id: "emergency_first_aid", name: "Prva pomoc", phone: "", description: emergency.firstAid || "", link: "" },
+    { id: "emergency_fire", name: "Vatrogasci", phone: "", description: emergency.fireDepartment || "", link: "" },
+    { id: "emergency_meeting", name: "Mjesto okupljanja", phone: "", description: emergency.meetingPoint || "", link: "" },
+    { id: "emergency_defib", name: "Defibrilator lokacija", phone: "", description: emergency.defibrillator || "", link: "" },
+  ];
 }
 
 function getNewSiteWizardDraft() {
@@ -470,42 +598,83 @@ function collectNewSiteWizardStep() {
   }
   const template = document.getElementById("siteWizard_templateSite");
   if (template) draft.templateSite = template.value;
-  draft.contacts = SITE_CONTACT_ROLES.map((role) => ({
-    role: role.key,
-    label: role.label,
-    name: document.getElementById(`siteWizard_contact_${role.key}_name`)?.value || "",
-    phone: document.getElementById(`siteWizard_contact_${role.key}_phone`)?.value || "",
-    email: document.getElementById(`siteWizard_contact_${role.key}_email`)?.value || "",
-  }));
-  const workDays = document.getElementById("siteWizard_workDays");
-  const workHours = document.getElementById("siteWizard_workHours");
-  const workBreaks = document.getElementById("siteWizard_workBreaks");
-  draft.workHours = {
-    days: workDays?.value || draft.workHours?.days || "",
-    hours: workHours?.value || draft.workHours?.hours || "",
-    breaks: splitSiteWizardLines(workBreaks?.value || ""),
-  };
-  const selectedSafety = Array.from(document.querySelectorAll("#newSiteWizardBody input[data-site-safety]:checked")).map((cb) => cb.dataset.siteSafety);
-  const customSafety = splitSiteWizardLines(document.getElementById("siteWizard_customSafety")?.value || "");
-  if (selectedSafety.length || document.getElementById("siteWizard_customSafety")) {
-    draft.safetyRules = selectedSafety.concat(customSafety);
-    draft.customSafetyRules = customSafety;
+  if (document.querySelector("[data-site-contact-group]")) {
+    draft.contactGroups = Array.from(document.querySelectorAll("[data-site-contact-group]")).map((groupEl) => {
+      const groupId = groupEl.dataset.siteContactGroup;
+      return {
+        id: groupId,
+        name: groupEl.querySelector("[data-site-contact-group-name]")?.value || "",
+        contacts: Array.from(groupEl.querySelectorAll("[data-site-contact]")).map((contactEl) => {
+          const contactId = contactEl.dataset.siteContact;
+          return {
+            id: contactId,
+            name: contactEl.querySelector("[data-site-contact-name]")?.value || "",
+            phone: contactEl.querySelector("[data-site-contact-phone]")?.value || "",
+            email: contactEl.querySelector("[data-site-contact-email]")?.value || "",
+            note: contactEl.querySelector("[data-site-contact-note]")?.value || "",
+          };
+        }),
+      };
+    }).filter((group) => group.name || group.contacts.some((contact) => contact.name || contact.phone || contact.email || contact.note));
+    draft.contacts = draft.contactGroups.flatMap((group) => group.contacts.map((contact) => ({
+      role: group.id,
+      label: group.name,
+      ...contact,
+    })));
   }
-  draft.logistics = {
-    parking: document.getElementById("siteWizard_parking")?.value || draft.logistics?.parking || "",
-    storage: document.getElementById("siteWizard_storage")?.value || draft.logistics?.storage || "",
-    unloadingZone: document.getElementById("siteWizard_unloadingZone")?.value || draft.logistics?.unloadingZone || "",
-    apdPlan: document.getElementById("siteWizard_apdPlan")?.value || draft.logistics?.apdPlan || "",
-  };
+  if (document.querySelector("[data-site-work-row]")) {
+    draft.workHoursRows = Array.from(document.querySelectorAll("[data-site-work-row]")).map((rowEl, index) => ({
+      id: rowEl.dataset.siteWorkRow,
+      days: rowEl.querySelector("[data-site-work-days]")?.value || "",
+      time: rowEl.querySelector("[data-site-work-time]")?.value || "",
+      breaks: rowEl.querySelector("[data-site-work-breaks]")?.value || "",
+      order: index + 1,
+    }));
+    const first = draft.workHoursRows[0] || {};
+    draft.workHours = { days: first.days || "", hours: first.time || "", breaks: splitSiteWizardLines(first.breaks || "") };
+  }
+  if (document.querySelector("[data-site-rule-row]")) {
+    draft.safetyRules = Array.from(document.querySelectorAll("[data-site-rule-row]")).map((rowEl, index) => ({
+      id: rowEl.dataset.siteRuleRow,
+      name: rowEl.querySelector("[data-site-rule-name]")?.value || "",
+      required: rowEl.querySelector("[data-site-rule-required]")?.checked === true,
+      order: Number(rowEl.querySelector("[data-site-rule-order]")?.value || index + 1),
+    })).filter((rule) => rule.name);
+  }
+  if (document.querySelector("[data-site-logistics-row]")) {
+    draft.logisticsItems = Array.from(document.querySelectorAll("[data-site-logistics-row]")).map((rowEl) => ({
+      id: rowEl.dataset.siteLogisticsRow,
+      name: rowEl.querySelector("[data-site-logistics-name]")?.value || "",
+      description: rowEl.querySelector("[data-site-logistics-description]")?.value || "",
+      link: rowEl.querySelector("[data-site-logistics-link]")?.value || "",
+    })).filter((item) => item.name || item.description || item.link);
+    const byName = Object.fromEntries(draft.logisticsItems.map((item) => [String(item.name || "").toLowerCase(), item]));
+    draft.logistics = {
+      parking: byName.parking?.description || draft.logistics?.parking || "",
+      storage: byName.skladiste?.description || byName["skladište"]?.description || draft.logistics?.storage || "",
+      unloadingZone: byName["zona istovara"]?.description || draft.logistics?.unloadingZone || "",
+      apdPlan: byName["apd plan"]?.link || draft.logistics?.apdPlan || "",
+    };
+  }
   draft.documents = splitSiteWizardLines(document.getElementById("siteWizard_documents")?.value || "");
-  draft.emergency = {
-    emergencyNumber: document.getElementById("siteWizard_emergencyNumber")?.value || draft.emergency?.emergencyNumber || "112",
-    hospital: document.getElementById("siteWizard_hospital")?.value || draft.emergency?.hospital || "",
-    firstAid: document.getElementById("siteWizard_firstAid")?.value || draft.emergency?.firstAid || "",
-    fireDepartment: document.getElementById("siteWizard_fireDepartment")?.value || draft.emergency?.fireDepartment || "",
-    meetingPoint: document.getElementById("siteWizard_meetingPoint")?.value || draft.emergency?.meetingPoint || "",
-    defibrillator: document.getElementById("siteWizard_defibrillator")?.value || draft.emergency?.defibrillator || "",
-  };
+  if (document.querySelector("[data-site-emergency-row]")) {
+    draft.emergencyItems = Array.from(document.querySelectorAll("[data-site-emergency-row]")).map((rowEl) => ({
+      id: rowEl.dataset.siteEmergencyRow,
+      name: rowEl.querySelector("[data-site-emergency-name]")?.value || "",
+      phone: rowEl.querySelector("[data-site-emergency-phone]")?.value || "",
+      description: rowEl.querySelector("[data-site-emergency-description]")?.value || "",
+      link: rowEl.querySelector("[data-site-emergency-link]")?.value || "",
+    })).filter((item) => item.name || item.phone || item.description || item.link);
+    const emergencyNumber = draft.emergencyItems.find((item) => /hitni/i.test(item.name));
+    draft.emergency = {
+      emergencyNumber: emergencyNumber?.phone || draft.emergency?.emergencyNumber || "112",
+      hospital: draft.emergencyItems.find((item) => /bolnica/i.test(item.name))?.description || draft.emergency?.hospital || "",
+      firstAid: draft.emergencyItems.find((item) => /prva/i.test(item.name))?.description || draft.emergency?.firstAid || "",
+      fireDepartment: draft.emergencyItems.find((item) => /vatro/i.test(item.name))?.description || draft.emergency?.fireDepartment || "",
+      meetingPoint: draft.emergencyItems.find((item) => /okuplj|mjesto/i.test(item.name))?.description || draft.emergency?.meetingPoint || "",
+      defibrillator: draft.emergencyItems.find((item) => /defib/i.test(item.name))?.description || draft.emergency?.defibrillator || "",
+    };
+  }
 }
 
 function splitSiteWizardLines(value) {
@@ -513,6 +682,90 @@ function splitSiteWizardLines(value) {
     .split(/\r?\n|,/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function updateSiteWizardDraftAndRender(mutator) {
+  collectNewSiteWizardStep();
+  const draft = getNewSiteWizardDraft();
+  mutator(draft);
+  renderNewSiteWizard();
+}
+
+function addSiteWizardContactGroup() {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.contactGroups = normalizeSiteWizardContactGroups(draft);
+    draft.contactGroups.push({ id: createSiteWizardId("group"), name: "Nova grupa", contacts: [{ id: createSiteWizardId("contact"), name: "", phone: "", email: "", note: "" }] });
+  });
+}
+
+function removeSiteWizardContactGroup(groupId) {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.contactGroups = normalizeSiteWizardContactGroups(draft).filter((group) => group.id !== groupId);
+  });
+}
+
+function addSiteWizardContact(groupId) {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.contactGroups = normalizeSiteWizardContactGroups(draft).map((group) => group.id === groupId
+      ? { ...group, contacts: group.contacts.concat({ id: createSiteWizardId("contact"), name: "", phone: "", email: "", note: "" }) }
+      : group);
+  });
+}
+
+function removeSiteWizardContact(groupId, contactId) {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.contactGroups = normalizeSiteWizardContactGroups(draft).map((group) => group.id === groupId
+      ? { ...group, contacts: group.contacts.filter((contact) => contact.id !== contactId) }
+      : group);
+  });
+}
+
+function addSiteWizardWorkRow() {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.workHoursRows = normalizeSiteWizardWorkHoursRows(draft).concat({ id: createSiteWizardId("work"), days: "", time: "", breaks: "", order: 99 });
+  });
+}
+
+function removeSiteWizardWorkRow(rowId) {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.workHoursRows = normalizeSiteWizardWorkHoursRows(draft).filter((row) => row.id !== rowId);
+  });
+}
+
+function addSiteWizardSafetyRule() {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.safetyRules = normalizeSiteWizardSafetyRules(draft).concat({ id: createSiteWizardId("rule"), name: "Novo pravilo", required: false, order: 99 });
+  });
+}
+
+function removeSiteWizardSafetyRule(ruleId) {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.safetyRules = normalizeSiteWizardSafetyRules(draft).filter((rule) => rule.id !== ruleId);
+  });
+}
+
+function addSiteWizardLogisticsItem() {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.logisticsItems = normalizeSiteWizardLogisticsItems(draft).concat({ id: createSiteWizardId("log"), name: "Nova stavka", description: "", link: "" });
+  });
+}
+
+function removeSiteWizardLogisticsItem(itemId) {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.logisticsItems = normalizeSiteWizardLogisticsItems(draft).filter((item) => item.id !== itemId);
+  });
+}
+
+function addSiteWizardEmergencyItem() {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.emergencyItems = normalizeSiteWizardEmergencyItems(draft).concat({ id: createSiteWizardId("emergency"), name: "Nova hitna stavka", phone: "", description: "", link: "" });
+  });
+}
+
+function removeSiteWizardEmergencyItem(itemId) {
+  updateSiteWizardDraftAndRender((draft) => {
+    draft.emergencyItems = normalizeSiteWizardEmergencyItems(draft).filter((item) => item.id !== itemId);
+  });
 }
 
 function validateNewSiteWizardStep() {
@@ -649,9 +902,7 @@ function renderNewSiteBasicStep(draft) {
   const address = [draft.address, draft.postalCode, draft.city, draft.country].filter(Boolean).join(", ");
   const pinText = formatSiteWizardPin(draft);
   const navQuery = encodeURIComponent(pinText || address || "Sweden");
-  const contacts = Array.isArray(draft.contacts) && draft.contacts.length
-    ? draft.contacts
-    : getDefaultSiteInfo(draft.name).contacts;
+  const contactGroups = normalizeSiteWizardContactGroups(draft);
   return `
     <section class="site-wizard-section">
       <h4>Step 1 - Osnovno</h4>
@@ -701,14 +952,29 @@ function renderNewSiteBasicStep(draft) {
         ${pinText ? "" : `<div class="site-wizard-warning">Pin je obavezan prije kreiranja gradilista.</div>`}
       </div>
       <details class="site-wizard-details" open>
-        <summary>Kontakti po ulozi</summary>
-        <div class="site-wizard-contact-grid">
-          ${contacts.map((contact) => `
-            <div class="site-wizard-contact-card">
-              <strong>${siteWizardEscape(contact.label || contact.role)}</strong>
-              <input id="siteWizard_contact_${siteWizardEscape(contact.role)}_name" placeholder="Ime" value="${siteWizardEscape(contact.name)}">
-              <input id="siteWizard_contact_${siteWizardEscape(contact.role)}_phone" placeholder="Telefon" value="${siteWizardEscape(contact.phone)}">
-              <input id="siteWizard_contact_${siteWizardEscape(contact.role)}_email" placeholder="Email" value="${siteWizardEscape(contact.email)}">
+        <summary>Kontakt grupe i kontakti</summary>
+        <div class="site-wizard-inline-actions">
+          <button type="button" class="btn btn-small" data-cmax-action="sites.addContactGroup">Dodaj grupu</button>
+        </div>
+        <div class="site-wizard-dynamic-list">
+          ${contactGroups.map((group) => `
+            <div class="site-wizard-dynamic-card" data-site-contact-group="${siteWizardEscape(group.id)}">
+              <div class="site-wizard-dynamic-head">
+                <input data-site-contact-group-name value="${siteWizardEscape(group.name)}" placeholder="Naziv grupe">
+                <button type="button" class="btn btn-small btn-danger" data-cmax-action="sites.removeContactGroup" data-cmax-args='${siteWizardEscape(JSON.stringify([group.id]))}'>Ukloni grupu</button>
+              </div>
+              <div class="site-wizard-dynamic-list is-inner">
+                ${group.contacts.map((contact) => `
+                  <div class="site-wizard-contact-card" data-site-contact="${siteWizardEscape(contact.id)}">
+                    <input data-site-contact-name placeholder="Ime" value="${siteWizardEscape(contact.name)}">
+                    <input data-site-contact-phone placeholder="Telefon" value="${siteWizardEscape(contact.phone)}">
+                    <input data-site-contact-email placeholder="Email" value="${siteWizardEscape(contact.email)}">
+                    <input data-site-contact-note placeholder="Napomena" value="${siteWizardEscape(contact.note)}">
+                    <button type="button" class="btn btn-small btn-secondary" data-cmax-action="sites.removeContact" data-cmax-args='${siteWizardEscape(JSON.stringify([group.id, contact.id]))}'>Ukloni kontakt</button>
+                  </div>
+                `).join("")}
+              </div>
+              <button type="button" class="btn btn-small btn-secondary" data-cmax-action="sites.addContact" data-cmax-args='${siteWizardEscape(JSON.stringify([group.id]))}'>Dodaj kontakt</button>
             </div>
           `).join("")}
         </div>
@@ -722,35 +988,81 @@ function renderNewSiteBasicStep(draft) {
 }
 
 function renderNewSiteOperationalInfoFields(draft) {
-  const workHours = draft.workHours || {};
-  const logistics = draft.logistics || {};
-  const emergency = draft.emergency || {};
-  const safety = new Set(Array.isArray(draft.safetyRules) ? draft.safetyRules : []);
-  const customSafety = (draft.customSafetyRules || []).join("\n");
+  const workRows = normalizeSiteWizardWorkHoursRows(draft);
+  const rules = normalizeSiteWizardSafetyRules(draft).sort((a, b) => Number(a.order || 0) - Number(b.order || 0));
+  const logisticsItems = normalizeSiteWizardLogisticsItems(draft);
+  const emergencyItems = normalizeSiteWizardEmergencyItems(draft);
   return `
-    <div class="site-wizard-grid">
-      <label>Radni dani<input id="siteWizard_workDays" value="${siteWizardEscape(workHours.days || "Ponedjeljak-Petak")}"></label>
-      <label>Radno vrijeme<input id="siteWizard_workHours" value="${siteWizardEscape(workHours.hours || "07:00-16:00")}"></label>
-      <label class="site-wizard-wide">Pauze<textarea id="siteWizard_workBreaks">${siteWizardEscape((workHours.breaks || ["09:00-09:30", "12:00-12:30"]).join("\n"))}</textarea></label>
+    <div class="site-wizard-subsection">
+      <div class="site-wizard-dynamic-head">
+        <strong>Radno vrijeme</strong>
+        <button type="button" class="btn btn-small" data-cmax-action="sites.addWorkRow">Dodaj red</button>
+      </div>
+      <div class="site-wizard-dynamic-list">
+        ${workRows.map((row) => `
+          <div class="site-wizard-dynamic-card" data-site-work-row="${siteWizardEscape(row.id)}">
+            <input data-site-work-days placeholder="Dani, npr. Ponedjeljak-Petak" value="${siteWizardEscape(row.days)}">
+            <input data-site-work-time placeholder="Vrijeme, npr. 07:00-16:00" value="${siteWizardEscape(row.time)}">
+            <input data-site-work-breaks placeholder="Pauze, npr. 09:00-09:30, 12:00-12:30" value="${siteWizardEscape(row.breaks)}">
+            <button type="button" class="btn btn-small btn-secondary" data-cmax-action="sites.removeWorkRow" data-cmax-args='${siteWizardEscape(JSON.stringify([row.id]))}'>Ukloni</button>
+          </div>
+        `).join("")}
+      </div>
     </div>
-    <div class="site-wizard-safety-grid">
-      ${SITE_SAFETY_RULE_OPTIONS.map((rule) => `<label class="site-wizard-card"><input type="checkbox" data-site-safety="${siteWizardEscape(rule)}" ${safety.has(rule) ? "checked" : ""}><span><strong>${siteWizardEscape(rule)}</strong></span></label>`).join("")}
+    <div class="site-wizard-subsection">
+      <div class="site-wizard-dynamic-head">
+        <strong>Pravila gradilista</strong>
+        <button type="button" class="btn btn-small" data-cmax-action="sites.addSafetyRule">Dodaj pravilo</button>
+      </div>
+      <div class="site-wizard-dynamic-list">
+        ${rules.map((rule) => `
+          <div class="site-wizard-dynamic-card site-wizard-rule-row" data-site-rule-row="${siteWizardEscape(rule.id)}">
+            <input data-site-rule-order type="number" min="1" value="${siteWizardEscape(String(rule.order || 1))}" aria-label="Redoslijed">
+            <input data-site-rule-name placeholder="Naziv pravila" value="${siteWizardEscape(rule.name)}">
+            <label class="site-wizard-inline-check"><input data-site-rule-required type="checkbox" ${rule.required ? "checked" : ""}> Required</label>
+            <button type="button" class="btn btn-small btn-secondary" data-cmax-action="sites.removeSafetyRule" data-cmax-args='${siteWizardEscape(JSON.stringify([rule.id]))}'>Ukloni</button>
+          </div>
+        `).join("")}
+      </div>
     </div>
-    <label class="site-wizard-wide">Dodatna pravila<textarea id="siteWizard_customSafety" placeholder="Jedno pravilo po redu">${siteWizardEscape(customSafety)}</textarea></label>
-    <div class="site-wizard-grid">
-      <label>Parking<input id="siteWizard_parking" value="${siteWizardEscape(logistics.parking || "")}"></label>
-      <label>Skladiste<input id="siteWizard_storage" value="${siteWizardEscape(logistics.storage || "")}"></label>
-      <label>Zona istovara<input id="siteWizard_unloadingZone" value="${siteWizardEscape(logistics.unloadingZone || "")}"></label>
-      <label>APD plan link<input id="siteWizard_apdPlan" value="${siteWizardEscape(logistics.apdPlan || "")}"></label>
+    <div class="site-wizard-subsection">
+      <div class="site-wizard-dynamic-head">
+        <strong>Logistika</strong>
+        <button type="button" class="btn btn-small" data-cmax-action="sites.addLogisticsItem">Dodaj stavku</button>
+      </div>
+      <div class="site-wizard-dynamic-list">
+        ${logisticsItems.map((item) => `
+          <div class="site-wizard-dynamic-card" data-site-logistics-row="${siteWizardEscape(item.id)}">
+            <input data-site-logistics-name placeholder="Naziv" value="${siteWizardEscape(item.name)}">
+            <input data-site-logistics-description placeholder="Opis" value="${siteWizardEscape(item.description)}">
+            <input data-site-logistics-link placeholder="Link/dokument" value="${siteWizardEscape(item.link)}">
+            <button type="button" class="btn btn-small btn-secondary" data-cmax-action="sites.removeLogisticsItem" data-cmax-args='${siteWizardEscape(JSON.stringify([item.id]))}'>Ukloni</button>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+    <div class="site-wizard-subsection">
+      <div class="site-wizard-dynamic-head">
+        <strong>Dokumenti</strong>
+      </div>
       <label class="site-wizard-wide">Dokumenti<textarea id="siteWizard_documents" placeholder="APD plan, sigurnosne upute, PDF/linkovi, slike...">${siteWizardEscape((draft.documents || []).join("\n"))}</textarea></label>
     </div>
-    <div class="site-wizard-grid">
-      <label>Hitni broj<input id="siteWizard_emergencyNumber" value="${siteWizardEscape(emergency.emergencyNumber || "112")}"></label>
-      <label>Bolnica<input id="siteWizard_hospital" value="${siteWizardEscape(emergency.hospital || "")}"></label>
-      <label>Prva pomoc<input id="siteWizard_firstAid" value="${siteWizardEscape(emergency.firstAid || "")}"></label>
-      <label>Vatrogasci<input id="siteWizard_fireDepartment" value="${siteWizardEscape(emergency.fireDepartment || "")}"></label>
-      <label>Mjesto okupljanja<input id="siteWizard_meetingPoint" value="${siteWizardEscape(emergency.meetingPoint || "")}"></label>
-      <label>Defibrilator lokacija<input id="siteWizard_defibrillator" value="${siteWizardEscape(emergency.defibrillator || "")}"></label>
+    <div class="site-wizard-subsection">
+      <div class="site-wizard-dynamic-head">
+        <strong>Hitni podaci</strong>
+        <button type="button" class="btn btn-small" data-cmax-action="sites.addEmergencyItem">Dodaj hitni podatak</button>
+      </div>
+      <div class="site-wizard-dynamic-list">
+        ${emergencyItems.map((item) => `
+          <div class="site-wizard-dynamic-card" data-site-emergency-row="${siteWizardEscape(item.id)}">
+            <input data-site-emergency-name placeholder="Naziv" value="${siteWizardEscape(item.name)}">
+            <input data-site-emergency-phone placeholder="Telefon" value="${siteWizardEscape(item.phone)}">
+            <input data-site-emergency-description placeholder="Opis" value="${siteWizardEscape(item.description)}">
+            <input data-site-emergency-link placeholder="Link" value="${siteWizardEscape(item.link)}">
+            <button type="button" class="btn btn-small btn-secondary" data-cmax-action="sites.removeEmergencyItem" data-cmax-args='${siteWizardEscape(JSON.stringify([item.id]))}'>Ukloni</button>
+          </div>
+        `).join("")}
+      </div>
     </div>
   `;
 }

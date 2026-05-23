@@ -94,6 +94,18 @@
     findWizardLocation: legacyMethod("findSiteWizardLocation"),
     useMapsLink: legacyMethod("useSiteWizardMapsLink"),
     useWizardLocation: legacyMethod("useSiteWizardLocation"),
+    addContactGroup: legacyMethod("addSiteWizardContactGroup"),
+    removeContactGroup: legacyMethod("removeSiteWizardContactGroup"),
+    addContact: legacyMethod("addSiteWizardContact"),
+    removeContact: legacyMethod("removeSiteWizardContact"),
+    addWorkRow: legacyMethod("addSiteWizardWorkRow"),
+    removeWorkRow: legacyMethod("removeSiteWizardWorkRow"),
+    addSafetyRule: legacyMethod("addSiteWizardSafetyRule"),
+    removeSafetyRule: legacyMethod("removeSiteWizardSafetyRule"),
+    addLogisticsItem: legacyMethod("addSiteWizardLogisticsItem"),
+    removeLogisticsItem: legacyMethod("removeSiteWizardLogisticsItem"),
+    addEmergencyItem: legacyMethod("addSiteWizardEmergencyItem"),
+    removeEmergencyItem: legacyMethod("removeSiteWizardEmergencyItem"),
     createFromWizard: legacyMethod("createSiteFromWizard"),
     remove(...args) {
       return callLegacy("removeSite", args);

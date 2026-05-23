@@ -348,8 +348,13 @@ function renderHomeSiteInfo() {
   const emergency = info.emergency || {};
   const workHours = info.workHours || {};
   const safetyRules = Array.isArray(info.safetyRules) ? info.safetyRules : [];
-  const contacts = Array.isArray(info.contacts) && info.contacts.length ? info.contacts : [];
+  const contactGroups = Array.isArray(info.contactGroups) && info.contactGroups.length
+    ? info.contactGroups
+    : (Array.isArray(info.contacts) && info.contacts.length ? info.contacts.map((contact) => ({ name: contact.label || contact.role || "Kontakt", contacts: [contact] })) : []);
   const logistics = info.logistics || {};
+  const logisticsItems = Array.isArray(info.logisticsItems) && info.logisticsItems.length ? info.logisticsItems : [];
+  const emergencyItems = Array.isArray(info.emergencyItems) && info.emergencyItems.length ? info.emergencyItems : [];
+  const workRows = Array.isArray(info.workHoursRows) && info.workHoursRows.length ? info.workHoursRows : [{ days: workHours.days || "Ponedjeljak-Petak", time: workHours.hours || "07:00-16:00", breaks: Array.isArray(workHours.breaks) ? workHours.breaks.join(", ") : "" }];
   const documents = Array.isArray(info.documents) ? info.documents : [];
   const mapFrame = hasExactPin || address
     ? `<iframe title="Mapa gradilista" loading="lazy" src="https://www.google.com/maps?q=${navQuery}&output=embed"></iframe>`
@@ -358,16 +363,42 @@ function renderHomeSiteInfo() {
   const apdPlanHtml = /^https?:\/\//i.test(apdPlan)
     ? `<a href="${dashboardEscapeHtml(apdPlan)}" target="_blank" rel="noopener">${dashboardEscapeHtml(apdPlan)}</a>`
     : dashboardEscapeHtml(apdPlan || "-");
-  const contactCards = contacts
-    .filter((contact) => contact.name || contact.phone || contact.email)
+  const contactCards = contactGroups
+    .flatMap((group) => (Array.isArray(group.contacts) ? group.contacts : []).map((contact) => ({ ...contact, groupName: group.name || group.label || "Kontakt" })))
+    .filter((contact) => contact.name || contact.phone || contact.email || contact.note)
     .map((contact) => `
       <article class="home-site-contact-card">
-        <strong>${dashboardEscapeHtml(contact.label || contact.role || "Kontakt")}</strong>
+        <strong>${dashboardEscapeHtml(contact.groupName || "Kontakt")}</strong>
         <span>${dashboardEscapeHtml(contact.name || "-")}</span>
         ${contact.phone ? `<a href="tel:${dashboardEscapeHtml(contact.phone)}">${dashboardEscapeHtml(contact.phone)}</a>` : ""}
         ${contact.email ? `<a href="mailto:${dashboardEscapeHtml(contact.email)}">${dashboardEscapeHtml(contact.email)}</a>` : ""}
+        ${contact.note ? `<span>${dashboardEscapeHtml(contact.note)}</span>` : ""}
       </article>
     `).join("");
+  const emergencyHtml = emergencyItems.length
+    ? emergencyItems.map((item) => `
+      <span>${dashboardEscapeHtml(item.name || "Hitno")}: ${item.phone ? `<a href="tel:${dashboardEscapeHtml(item.phone)}">${dashboardEscapeHtml(item.phone)}</a>` : dashboardEscapeHtml(item.description || "-")}</span>
+    `).join("")
+    : `
+      <span>Hitni broj: ${dashboardEscapeHtml(emergency.emergencyNumber || "112")}</span>
+      <span>Bolnica: ${dashboardEscapeHtml(emergency.hospital || "-")}</span>
+      <span>Prva pomoc: ${dashboardEscapeHtml(emergency.firstAid || "-")}</span>
+      <span>Vatrogasci: ${dashboardEscapeHtml(emergency.fireDepartment || "-")}</span>
+      <span>Okupljanje: ${dashboardEscapeHtml(emergency.meetingPoint || "-")}</span>
+      <span>Defibrilator: ${dashboardEscapeHtml(emergency.defibrillator || "-")}</span>
+    `;
+  const workRowsHtml = workRows.map((row) => `<p>${dashboardEscapeHtml(row.days || "-")} ${dashboardEscapeHtml(row.time || row.hours || "-")} ${row.breaks ? `| Pauze: ${dashboardEscapeHtml(Array.isArray(row.breaks) ? row.breaks.join(", ") : row.breaks)}` : ""}</p>`).join("");
+  const safetyHtml = safetyRules.map((rule) => typeof rule === "string"
+    ? `<li>${dashboardEscapeHtml(rule)}</li>`
+    : `<li>${dashboardEscapeHtml(rule.name || "-")}${rule.required ? " (required)" : ""}</li>`).join("");
+  const logisticsHtml = logisticsItems.length
+    ? logisticsItems.map((item) => `<p>${dashboardEscapeHtml(item.name || "-")}: ${dashboardEscapeHtml(item.description || "-")} ${item.link ? `<a href="${dashboardEscapeHtml(item.link)}" target="_blank" rel="noopener">Link</a>` : ""}</p>`).join("")
+    : `
+      <p>Parking: ${dashboardEscapeHtml(logistics.parking || "-")}</p>
+      <p>Skladiste: ${dashboardEscapeHtml(logistics.storage || "-")}</p>
+      <p>Zona istovara: ${dashboardEscapeHtml(logistics.unloadingZone || "-")}</p>
+      <p>APD plan: ${apdPlanHtml}</p>
+    `;
   panel.innerHTML = `
     <div class="home-site-info-head">
       <div>
@@ -398,12 +429,7 @@ function renderHomeSiteInfo() {
       </article>
       <article class="home-site-info-card is-emergency">
         <strong>Hitni podaci</strong>
-        <span>Hitni broj: ${dashboardEscapeHtml(emergency.emergencyNumber || "112")}</span>
-        <span>Bolnica: ${dashboardEscapeHtml(emergency.hospital || "-")}</span>
-        <span>Prva pomoc: ${dashboardEscapeHtml(emergency.firstAid || "-")}</span>
-        <span>Vatrogasci: ${dashboardEscapeHtml(emergency.fireDepartment || "-")}</span>
-        <span>Okupljanje: ${dashboardEscapeHtml(emergency.meetingPoint || "-")}</span>
-        <span>Defibrilator: ${dashboardEscapeHtml(emergency.defibrillator || "-")}</span>
+        ${emergencyHtml}
       </article>
     </div>
     <details class="home-site-info-details">
@@ -414,16 +440,12 @@ function renderHomeSiteInfo() {
     </details>
     <details class="home-site-info-details">
       <summary>Radno vrijeme i pravila</summary>
-      <p>${dashboardEscapeHtml(workHours.days || "Ponedjeljak-Petak")} ${dashboardEscapeHtml(workHours.hours || "07:00-16:00")}</p>
-      <p>Pauze: ${dashboardEscapeHtml(Array.isArray(workHours.breaks) ? workHours.breaks.join(", ") : "-")}</p>
-      <ul>${safetyRules.map((rule) => `<li>${dashboardEscapeHtml(rule)}</li>`).join("")}</ul>
+      ${workRowsHtml}
+      <ul>${safetyHtml}</ul>
     </details>
     <details class="home-site-info-details">
       <summary>Logistika i dokumenti</summary>
-      <p>Parking: ${dashboardEscapeHtml(logistics.parking || "-")}</p>
-      <p>Skladiste: ${dashboardEscapeHtml(logistics.storage || "-")}</p>
-      <p>Zona istovara: ${dashboardEscapeHtml(logistics.unloadingZone || "-")}</p>
-      <p>APD plan: ${apdPlanHtml}</p>
+      ${logisticsHtml}
       <ul>${documents.map((doc) => `<li>${/^https?:\/\//i.test(doc) ? `<a href="${dashboardEscapeHtml(doc)}" target="_blank" rel="noopener">${dashboardEscapeHtml(doc)}</a>` : dashboardEscapeHtml(doc)}</li>`).join("") || "<li>Nema dokumenata.</li>"}</ul>
     </details>
   `;

@@ -36,11 +36,18 @@ try {
   mustContain(sites, "extractSiteWizardCoordinatesFromLink", "Google Maps link coordinate fallback");
   mustContain(sites, "https://www.google.com/maps/search/?api=1&query=${navQuery}", "exact navigation link");
   mustContain(sites, "SITE_CONTACT_ROLES", "site contact role definitions");
-  mustContain(sites, "siteWizard_workHours", "work hours field");
-  mustContain(sites, "data-site-safety", "safety rule checkboxes");
-  mustContain(sites, "siteWizard_parking", "parking field");
+  mustContain(sites, "contactGroups", "editable contact groups");
+  mustContain(sites, "addSiteWizardContactGroup", "add contact group action");
+  mustContain(sites, "addSiteWizardContact", "add contact action");
+  mustContain(sites, "workHoursRows", "editable work hour rows");
+  mustContain(sites, "addSiteWizardWorkRow", "add work row action");
+  mustContain(sites, "addSiteWizardSafetyRule", "add safety rule action");
+  mustContain(sites, "addSiteWizardLogisticsItem", "add logistics item action");
+  mustContain(sites, "addSiteWizardEmergencyItem", "add emergency item action");
+  mustContain(sites, "data-site-rule-required", "required safety rule toggle");
+  mustContain(sites, "data-site-logistics-link", "logistics link field");
   mustContain(sites, "siteWizard_documents", "documents field");
-  mustContain(sites, "siteWizard_defibrillator", "defibrillator field");
+  mustContain(sites, "data-site-emergency-phone", "emergency phone field");
   mustContain(sites, "data-site-user", "user assignment cards");
   mustContain(sites, "data-site-module", "module selection cards");
   mustContain(sites, "createSiteWithMetadata", "site metadata creation");
@@ -51,16 +58,24 @@ try {
   mustContain(dashboard, "renderHomeSiteInfo", "home site information panel");
   mustContain(dashboard, "hasExactPin", "exact pin navigation guard");
   mustContain(dashboard, "Apple Maps", "apple maps navigation link");
+  mustContain(dashboard, "contactGroups", "home contact groups render");
+  mustContain(dashboard, "emergencyItems", "home emergency items render");
+  mustContain(dashboard, "logisticsItems", "home logistics items render");
   mustContain(dashboard, "home-site-contact-card", "home contact role cards");
   mustContain(dashboard, "Logistika i dokumenti", "logistics/document accordion");
   mustContain(dashboard, "isSiteModuleEnabled", "site module visibility");
   mustContain(namespace, "createFromWizard", "site wizard namespace");
+  mustContain(namespace, "addContactGroup", "contact group namespace");
+  mustContain(namespace, "addWorkRow", "work row namespace");
+  mustContain(namespace, "addSafetyRule", "safety rule namespace");
+  mustContain(namespace, "addLogisticsItem", "logistics namespace");
+  mustContain(namespace, "addEmergencyItem", "emergency namespace");
   mustContain(namespace, "runBackupWizardRestore", "backup wizard namespace");
   mustContain(styles, ".backup-wizard-overlay", "backup wizard CSS");
   mustContain(styles, ".site-wizard-overlay", "site wizard CSS");
   mustContain(styles, ".home-site-info-panel", "site info CSS");
 
-  console.log(JSON.stringify({ ok: true, checks: 41 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 56 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

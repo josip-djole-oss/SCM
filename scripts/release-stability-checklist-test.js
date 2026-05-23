@@ -152,13 +152,14 @@ async function loginPage(page) {
   await page.fill("#loginPassword", USER.password);
   await page.evaluate(() => window.CMAX.core.login());
   await page.waitForFunction((email) => window.appState?.currentUser === email, USER.email);
+  await page.waitForFunction((site) => Array.isArray(window.sites) && window.sites.includes(site), SITE);
   await page.evaluate((site) => {
     if (typeof switchSiteFromLocal === "function") switchSiteFromLocal(site, { syncSites: false });
     if (typeof currentSite !== "undefined") currentSite = site;
     window.currentSite = site;
     if (window.appState) window.appState.currentSite = site;
   }, SITE).catch(() => {});
-  await page.waitForFunction((site) => window.currentSite === site || window.appState?.currentSite === site, SITE);
+  await page.waitForFunction((site) => window.currentSite === site && window.appState?.currentSite === site, SITE);
 }
 
 async function triggerMobilePlannerConflict(page) {

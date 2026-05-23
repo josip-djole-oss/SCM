@@ -3591,6 +3591,67 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 10px;
 }
+.site-wizard-subsection,
+.site-wizard-dynamic-list {
+  display: grid;
+  gap: 10px;
+}
+.site-wizard-subsection {
+  margin-top: 12px;
+}
+.site-wizard-dynamic-list.is-inner {
+  gap: 8px;
+}
+.site-wizard-dynamic-card {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid #dbe4f2;
+  border-radius: 14px;
+  background: #f8fbff;
+}
+.site-wizard-dynamic-card input,
+.site-wizard-dynamic-card textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font: inherit;
+}
+.site-wizard-dynamic-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.site-wizard-dynamic-head input {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font: inherit;
+  font-weight: 800;
+}
+.site-wizard-inline-check {
+  min-height: 40px;
+  display: inline-flex !important;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px !important;
+  padding: 8px 10px;
+  border: 1px solid #dbe4f2;
+  border-radius: 12px;
+  background: #fff;
+}
+.site-wizard-rule-row {
+  grid-template-columns: 76px minmax(0, 1fr) auto auto;
+}
+.site-wizard-contact-card[data-site-contact] {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+}
 .site-wizard-wide {
   grid-column: 1 / -1;
 }
@@ -3808,11 +3869,17 @@ body {
   .site-wizard-card-grid,
   .backup-wizard-analysis-grid,
   .site-wizard-grid,
+  .site-wizard-dynamic-card,
+  .site-wizard-contact-card[data-site-contact],
   .site-wizard-contact-grid,
   .site-wizard-safety-grid,
   .home-site-contact-mini-grid,
   .home-site-info-priority {
     grid-template-columns: 1fr;
+  }
+  .site-wizard-dynamic-head {
+    align-items: stretch;
+    flex-direction: column;
   }
   .backup-wizard-footer,
   .site-wizard-footer {
