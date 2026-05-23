@@ -3900,6 +3900,8 @@ function normalizeToolroomDocument(doc) {
       actor: sanitizeString(event?.actor || '', 160),
       at: sanitizeString(event?.at || now, 80),
       note: sanitizeString(event?.note || '', 500),
+      before: isPlainObject(event?.before) ? sanitizeObject(event.before) : null,
+      after: isPlainObject(event?.after) ? sanitizeObject(event.after) : null,
     })),
     updatedAt: sanitizeString(source.updatedAt || now, 80),
   };
@@ -3919,6 +3921,8 @@ function pushToolroomHistory(doc, event) {
     actor: sanitizeString(event.actor || '', 160),
     at: new Date().toISOString(),
     note: sanitizeString(event.note || '', 500),
+    before: isPlainObject(event.before) ? sanitizeObject(event.before) : null,
+    after: isPlainObject(event.after) ? sanitizeObject(event.after) : null,
   });
   next.history = next.history.slice(-500);
   return next;
@@ -7506,6 +7510,18 @@ apiRouter.post('/toolroom/assignments', requireAnyPermission(['canAssignTools', 
         type: 'toolroom_tool_assigned',
         actor: req.session.email,
         note: `${savedItem.internalNumber} -> ${getToolroomHolderLabel(savedItem)}${note ? ` | ${note}` : ''}`,
+        before: {
+          status: existing.status,
+          holderType: existing.currentHolderType,
+          holder: getToolroomHolderLabel(existing),
+        },
+        after: {
+          status: savedItem.status,
+          holderType: savedItem.currentHolderType,
+          holder: getToolroomHolderLabel(savedItem),
+          issuedAt: savedItem.issuedAt,
+          expectedReturnAt: savedItem.expectedReturnAt,
+        },
       });
       next.updatedAt = new Date().toISOString();
       return next;
@@ -7589,6 +7605,18 @@ apiRouter.post('/toolroom/returns', requireAnyPermission(['canReturnTools', 'can
         type: condition === 'lost' ? 'toolroom_tool_lost' : condition === 'damaged' ? 'toolroom_tool_returned_damaged' : 'toolroom_tool_returned',
         actor: req.session.email,
         note: `${savedItem.internalNumber} | ${condition}${note ? ` | ${note}` : ''}`,
+        before: {
+          status: existing.status,
+          holderType: existing.currentHolderType,
+          holder: getToolroomHolderLabel(existing),
+        },
+        after: {
+          status: savedItem.status,
+          holderType: savedItem.currentHolderType,
+          holder: getToolroomHolderLabel(savedItem),
+          condition,
+          returnedAt: savedItem.returnedAt,
+        },
       });
       next.updatedAt = new Date().toISOString();
       return next;
@@ -7664,6 +7692,18 @@ apiRouter.post('/toolroom/transfers', requireAnyPermission(['canAssignTools', 'c
         type: 'toolroom_tool_transferred',
         actor: req.session.email,
         note: `${savedItem.internalNumber}: ${previousHolder} -> ${getToolroomHolderLabel(savedItem)}${note ? ` | ${note}` : ''}`,
+        before: {
+          status: existing.status,
+          holderType: existing.currentHolderType,
+          holder: previousHolder,
+        },
+        after: {
+          status: savedItem.status,
+          holderType: savedItem.currentHolderType,
+          holder: getToolroomHolderLabel(savedItem),
+          issuedAt: savedItem.issuedAt,
+          expectedReturnAt: savedItem.expectedReturnAt,
+        },
       });
       next.updatedAt = new Date().toISOString();
       return next;
