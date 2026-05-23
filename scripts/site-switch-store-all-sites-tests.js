@@ -64,7 +64,7 @@ function fixture() {
     accountNotifications: {},
     siteData: {
       [SITE_A]: { planner: { workers: [], lifts: [], moments: [], plans: [], karnas: [], dailyData: {}, resourceHistory: [] }, tidplan: [], tidplanZones: [], warehouse: { catalog: [], stock: {}, logs: [] }, store: JSON.parse(JSON.stringify(store)), notifications: [], surveys: [], reports: [], bins: {} },
-      [SITE_B]: { planner: { workers: [], lifts: [], moments: [], plans: [], karnas: [], dailyData: {}, resourceHistory: [] }, tidplan: [], tidplanZones: [], warehouse: { catalog: [], stock: {}, logs: [] }, store: JSON.parse(JSON.stringify(store)), notifications: [], surveys: [], reports: [], bins: {} },
+      [SITE_B]: { planner: { workers: [], lifts: [], moments: [], plans: [], karnas: [], dailyData: {}, resourceHistory: [] }, tidplan: [], tidplanZones: [], warehouse: { catalog: [], stock: {}, logs: [] }, store: { settings: { approvalRequiredDefault: true }, products: [], orders: [], carts: {}, workerProfiles: {}, creditLedger: [], auditLog: [] }, notifications: [], surveys: [], reports: [], bins: {} },
     },
   };
 }
@@ -142,6 +142,17 @@ async function runBrowserSitePersistence() {
       await page.waitForTimeout(150);
       await assertCurrentSite(page, SITE_B, `module ${name}`);
     }
+    const storeVisibility = await page.evaluate((siteB) => {
+      switchSiteFromLocal(siteB, { syncSites: false });
+      const products = getVisibleStoreProducts(siteB).map((product) => product.id);
+      return {
+        products,
+        hasAllSites: products.includes("all-sites-product"),
+        hasRestricted: products.includes("site-a-only-product"),
+      };
+    }, SITE_B);
+    assert(storeVisibility.hasAllSites, `All-sites product missing from Site B frontend catalog: ${JSON.stringify(storeVisibility)}`);
+    assert(!storeVisibility.hasRestricted, `Restricted Site A product leaked to Site B frontend catalog: ${JSON.stringify(storeVisibility)}`);
 
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => window.appState?.currentUser === "site-switch-admin@cmax.test" && window.freshServerDataLoaded === true);
@@ -202,6 +213,8 @@ async function main() {
       "site_b_persists_across_planner_store_warehouse_tidplan",
       "site_b_persists_after_refresh",
       "site_b_persists_after_logout_login",
+      "store_all_sites_product_visible_on_site_b_frontend",
+      "store_restricted_product_hidden_on_site_b_frontend",
       "store_availableForAllSites_orders_on_site_b",
       "store_restricted_site_a_product_blocked_on_site_b",
     ] }, null, 2));

@@ -3246,6 +3246,8 @@ body {
   display: flex;
   align-items: stretch;
   gap: 12px;
+  flex-wrap: wrap;
+  width: 100%;
 }
 .home-site-info-head {
   align-items: center;
@@ -3275,6 +3277,16 @@ body {
   border: 1px solid #dbe4f2;
   border-radius: 16px;
   background: #fff;
+}
+.home-site-info-actions .btn {
+  flex: 1 1 128px;
+  min-width: 0;
+  min-height: 40px;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  line-height: 1.2;
+  padding-inline: 10px;
 }
 .home-site-info-card.is-emergency {
   border-color: #fecaca;

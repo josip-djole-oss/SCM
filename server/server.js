@@ -2024,6 +2024,23 @@ function storeProductSiteAllowed(product, site) {
   return availableSites.includes('*') || availableSites.includes(site);
 }
 
+function getStoreProductsAvailableForSiteFromState(state, site) {
+  const requestedSite = sanitizeString(site || '', 80);
+  const siteData = state?.siteData && typeof state.siteData === 'object' ? state.siteData : {};
+  const siteNames = Object.keys(siteData).filter((entry) => entry !== requestedSite).concat(requestedSite);
+  const byId = new Map();
+  siteNames.forEach((sourceSite) => {
+    const store = siteData[sourceSite]?.store;
+    const products = Array.isArray(store?.products) ? store.products : [];
+    products.forEach((product) => {
+      const id = sanitizeString(product?.id || '', 120);
+      if (!id) return;
+      byId.set(id, product);
+    });
+  });
+  return Array.from(byId.values());
+}
+
 function storeProductRoleAllowed(product, workerEmail, roleKeys) {
   const visibleToUsers = Array.isArray(product?.visibleToUsers)
     ? product.visibleToUsers.map((entry) => sanitizeString(entry, 160).toLowerCase()).filter(Boolean)
@@ -5237,6 +5254,8 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
       const store = siteEntry.store && typeof siteEntry.store === 'object' ? { ...siteEntry.store } : {};
       store.orders = Array.isArray(store.orders) ? store.orders.slice() : [];
       store.products = Array.isArray(store.products) ? store.products.slice() : [];
+      const currentSiteProducts = store.products;
+      store.products = getStoreProductsAvailableForSiteFromState(nextState, site);
       store.workerProfiles = store.workerProfiles && typeof store.workerProfiles === 'object'
         ? { ...store.workerProfiles }
         : {};
@@ -5251,6 +5270,7 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
         nowIso,
         actorEmail: sessionEmail,
       });
+      store.products = currentSiteProducts;
       store.orders.push(calculated.order);
       siteEntry.store = store;
       nextState.siteData[site] = siteEntry;

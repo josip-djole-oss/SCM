@@ -211,7 +211,11 @@ function renderWorkwearFilters() {
   if (!categoryFilter || !seasonFilter) return;
 
   categoryFilter.innerHTML = `<option value="">${escapeHtml(t("filterAll") || "All")}</option>`;
-  getWorkwearCategories().forEach((category) => {
+  const categories = new Set(getWorkwearCategories());
+  getWorkwearProductCatalogForSite(currentSite).forEach((product) => {
+    if (product?.category) categories.add(product.category);
+  });
+  Array.from(categories).sort((a, b) => compareNaturally(a, b)).forEach((category) => {
     const option = document.createElement("option");
     option.value = category;
     option.textContent = category;
@@ -220,7 +224,7 @@ function renderWorkwearFilters() {
 
   seasonFilter.innerHTML = `<option value="">${escapeHtml(t("filterAll") || "All")}</option>`;
   const seasons = new Set(getWorkwearSeasons());
-  (state.products || []).forEach((product) => {
+  getWorkwearProductCatalogForSite(currentSite).forEach((product) => {
     if (product?.seasonalCollection) seasons.add(product.seasonalCollection);
   });
   Array.from(seasons).forEach((season) => {

@@ -656,8 +656,27 @@ function resetWorkwearCartForUser(email = appState.currentUser) {
   saveWorkwearState();
 }
 
-function getWorkwearProductById(productId) {
-  return getWorkwearState().products.find((product) => product.id === productId) || null;
+function getWorkwearProductCatalogForSite(site = currentSite) {
+  const requestedSite = String(site || currentSite || "").trim();
+  const knownSites = Array.isArray(sites) && sites.length ? sites : [requestedSite];
+  const byId = new Map();
+  const orderedSites = knownSites.filter((entry) => entry !== requestedSite).concat(requestedSite);
+  orderedSites.forEach((sourceSite) => {
+    const sourceState = getWorkwearState(sourceSite);
+    (sourceState.products || []).forEach((rawProduct) => {
+      const product = normalizeStoreProduct(rawProduct);
+      if (!product.id) return;
+      if (sourceSite !== requestedSite && !isStoreProductSiteAllowed(product, requestedSite)) return;
+      byId.set(product.id, product);
+    });
+  });
+  return Array.from(byId.values());
+}
+
+function getWorkwearProductById(productId, site = currentSite) {
+  const key = String(productId || "").trim();
+  if (!key) return null;
+  return getWorkwearProductCatalogForSite(site).find((product) => String(product.id || "").trim() === key) || null;
 }
 
 function getStoreCategoryOptions(includeInactive = false) {
@@ -856,8 +875,7 @@ function isStoreProductRoleAllowed(product) {
 }
 
 function getVisibleStoreProducts(site = currentSite) {
-  return (getWorkwearState(site).products || [])
-    .map((product) => normalizeStoreProduct(product))
+  return getWorkwearProductCatalogForSite(site)
     .filter((product) => product.active !== false)
     .filter((product) => isStoreProductSiteAllowed(product, site))
     .filter((product) => isStoreProductRoleAllowed(product));
