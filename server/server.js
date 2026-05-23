@@ -142,6 +142,9 @@ const DEFAULT_PERMISSIONS = {
   canManageToolroom: false,
   canEditToolPresets: false,
   canViewToolHistory: false,
+  canAssignTools: false,
+  canReturnTools: false,
+  canViewMyTools: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
   canExportTidplan: true,
@@ -184,6 +187,9 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canManageToolroom: false,
   canEditToolPresets: false,
   canViewToolHistory: false,
+  canAssignTools: false,
+  canReturnTools: false,
+  canViewMyTools: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
   canExportTidplan: false,
@@ -1616,7 +1622,22 @@ function canAccessToolroom(session) {
     sessionHasPermission(session, 'canAccessToolroom') ||
     sessionHasPermission(session, 'canManageToolroom') ||
     sessionHasPermission(session, 'canEditToolPresets') ||
+    sessionHasPermission(session, 'canAssignTools') ||
+    sessionHasPermission(session, 'canReturnTools') ||
+    sessionHasPermission(session, 'canViewMyTools') ||
     sessionHasPermission(session, 'canViewToolHistory');
+}
+
+function canAssignToolroom(session) {
+  return session?.isSuperAdmin || sessionHasPermission(session, 'canManageToolroom') || sessionHasPermission(session, 'canAssignTools');
+}
+
+function canReturnToolroom(session) {
+  return session?.isSuperAdmin || sessionHasPermission(session, 'canManageToolroom') || sessionHasPermission(session, 'canReturnTools');
+}
+
+function canViewOwnToolroom(session) {
+  return session?.isSuperAdmin || sessionHasPermission(session, 'canViewMyTools') || canAccessToolroom(session);
 }
 
 async function buildPublicStatePayload(document, session) {
@@ -3791,6 +3812,7 @@ function createEmptyToolroomDocument() {
         ['Stativ', 'S'],
       ].map(([label, prefix], index) => ({ id: `preset_prefix_${index + 1}`, type: 'prefixRule', label, value: prefix, metadata: { toolType: label }, archived: false, presetVersion: 1, updatedAt: now, updatedBy: 'system' })),
     ],
+    assignments: [],
     history: [],
     updatedAt: now,
   };
@@ -3815,6 +3837,14 @@ function normalizeToolroomDocument(doc) {
       iconKey: sanitizeString(item?.iconKey || 'tool', 80),
       imageUrl: sanitizeString(item?.imageUrl || '', 500),
       notes: sanitizeString(item?.notes || '', 1000),
+      currentHolderType: ['toolroom', 'worker', 'site', 'lost'].includes(item?.currentHolderType) ? item.currentHolderType : 'toolroom',
+      currentHolderUserId: sanitizeString(item?.currentHolderUserId || '', 160),
+      currentHolderUserEmail: sanitizeString(item?.currentHolderUserEmail || '', 160).toLowerCase(),
+      currentHolderUserName: sanitizeString(item?.currentHolderUserName || '', 220),
+      currentHolderSiteId: sanitizeString(item?.currentHolderSiteId || '', 220),
+      issuedAt: sanitizeString(item?.issuedAt || '', 80),
+      expectedReturnAt: sanitizeString(item?.expectedReturnAt || '', 80),
+      returnedAt: sanitizeString(item?.returnedAt || '', 80),
       archived: item?.archived === true,
       itemVersion: Math.max(1, Number(item?.itemVersion || item?.version || 1)),
       fieldVersions: isPlainObject(item?.fieldVersions) ? { ...item.fieldVersions } : {},
@@ -3844,6 +3874,24 @@ function normalizeToolroomDocument(doc) {
       updatedAt: sanitizeString(preset?.updatedAt || now, 80),
       updatedBy: sanitizeString(preset?.updatedBy || '', 160),
     })).filter((preset) => preset.id && preset.label),
+    assignments: (Array.isArray(source.assignments) ? source.assignments : []).slice(-1000).map((entry, index) => ({
+      id: sanitizeString(entry?.id || `assignment_${index + 1}`, 120),
+      toolId: sanitizeString(entry?.toolId || '', 120),
+      action: sanitizeString(entry?.action || '', 60),
+      holderType: ['worker', 'site', 'toolroom', 'lost'].includes(entry?.holderType) ? entry.holderType : '',
+      fromHolderType: sanitizeString(entry?.fromHolderType || '', 60),
+      fromHolderLabel: sanitizeString(entry?.fromHolderLabel || '', 220),
+      holderUserEmail: sanitizeString(entry?.holderUserEmail || '', 160).toLowerCase(),
+      holderUserName: sanitizeString(entry?.holderUserName || '', 220),
+      holderSiteId: sanitizeString(entry?.holderSiteId || '', 220),
+      condition: sanitizeString(entry?.condition || '', 80),
+      assignedAt: sanitizeString(entry?.assignedAt || '', 80),
+      returnedAt: sanitizeString(entry?.returnedAt || '', 80),
+      expectedReturnAt: sanitizeString(entry?.expectedReturnAt || '', 80),
+      note: sanitizeString(entry?.note || '', 500),
+      actor: sanitizeString(entry?.actor || '', 160),
+      createdAt: sanitizeString(entry?.createdAt || now, 80),
+    })).filter((entry) => entry.id && entry.toolId),
     history: (Array.isArray(source.history) ? source.history : []).slice(-500).map((event, index) => ({
       id: sanitizeString(event?.id || `history_${index + 1}`, 120),
       entityType: sanitizeString(event?.entityType || '', 60),
@@ -3873,6 +3921,102 @@ function pushToolroomHistory(doc, event) {
     note: sanitizeString(event.note || '', 500),
   });
   next.history = next.history.slice(-500);
+  return next;
+}
+
+function getToolroomHolderLabel(item) {
+  if (!item) return '';
+  if (item.currentHolderType === 'worker') return item.currentHolderUserName || item.currentHolderUserEmail || 'Worker';
+  if (item.currentHolderType === 'site') return item.currentHolderSiteId || 'Gradiliste';
+  if (item.currentHolderType === 'lost') return 'Izgubljeno';
+  return 'Alatnica';
+}
+
+function buildToolroomNotification(type, item, description) {
+  const now = new Date().toISOString();
+  return {
+    id: `toolroom_${type}_${item.id}_${Date.now()}`,
+    uniqueKey: `toolroom:${type}:${item.id}:${now}`,
+    type: 'toolroom',
+    title: type === 'assigned'
+      ? `Alat vam je zaduzen: ${item.internalNumber}`
+      : type === 'returned'
+        ? `Alat je razduzen: ${item.internalNumber}`
+        : type === 'transferred'
+          ? `Alat je prebacen: ${item.internalNumber}`
+          : `Alat status: ${item.internalNumber}`,
+    description: sanitizeString(description || `${item.name || item.internalNumber}`, 180),
+    targetId: item.id,
+    targetView: 'toolroom',
+    createdAt: now,
+    readAt: null,
+  };
+}
+
+function ensureToolroomAssignable(item) {
+  if (!item || item.archived) {
+    const error = new Error('TOOLROOM_ITEM_NOT_FOUND');
+    error.statusCode = 404;
+    throw error;
+  }
+  if (!item.internalNumber || item.status === 'awaiting_engraving') {
+    const error = new Error('TOOLROOM_INTERNAL_NUMBER_REQUIRED');
+    error.statusCode = 400;
+    throw error;
+  }
+  if (['assigned_worker', 'assigned_site', 'reserved', 'in_service', 'written_off', 'lost'].includes(item.status) || ['worker', 'site', 'lost'].includes(item.currentHolderType)) {
+    const error = new Error('TOOLROOM_ITEM_NOT_ASSIGNABLE');
+    error.statusCode = 400;
+    throw error;
+  }
+}
+
+function resolveToolroomAssignmentTarget(payload, admins, sites) {
+  const holderType = sanitizeString(payload.holderType || payload.assignTo || '', 40);
+  if (holderType === 'worker') {
+    const email = sanitizeString(payload.workerEmail || payload.holderUserEmail || '', 160).toLowerCase();
+    const user = admins.map((admin) => normalizeAdminRecord(admin)).find((admin) => admin.email === email && admin.active !== false);
+    if (!user) {
+      const error = new Error('TOOLROOM_WORKER_NOT_FOUND');
+      error.statusCode = 400;
+      throw error;
+    }
+    return {
+      holderType: 'worker',
+      status: 'assigned_worker',
+      holderUserEmail: user.email,
+      holderUserName: user.fullName || user.email,
+      holderSiteId: '',
+    };
+  }
+  if (holderType === 'site') {
+    const siteId = sanitizeString(payload.siteId || payload.holderSiteId || '', 220);
+    if (!siteId || !sites.includes(siteId)) {
+      const error = new Error('TOOLROOM_SITE_NOT_FOUND');
+      error.statusCode = 400;
+      throw error;
+    }
+    return {
+      holderType: 'site',
+      status: 'assigned_site',
+      holderUserEmail: '',
+      holderUserName: '',
+      holderSiteId: siteId,
+    };
+  }
+  const error = new Error('TOOLROOM_ASSIGNMENT_TARGET_REQUIRED');
+  error.statusCode = 400;
+  throw error;
+}
+
+function appendToolroomAssignment(doc, assignment) {
+  const next = normalizeToolroomDocument(doc);
+  next.assignments.push({
+    id: createToolroomId('assignment'),
+    ...assignment,
+    createdAt: new Date().toISOString(),
+  });
+  next.assignments = next.assignments.slice(-1000);
   return next;
 }
 
@@ -7260,7 +7404,7 @@ apiRouter.get('/warehouse/admin-assignments', requirePermission('canViewWarehous
 
 /* ==================== TOOLROOM FOUNDATION ==================== */
 
-apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManageToolroom', 'canEditToolPresets', 'canViewToolHistory']), async (req, res, next) => {
+apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManageToolroom', 'canEditToolPresets', 'canViewToolHistory', 'canAssignTools', 'canReturnTools', 'canViewMyTools']), async (req, res, next) => {
   try {
     if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
     const toolroom = await getToolroomDocument();
@@ -7272,9 +7416,271 @@ apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManage
         canManageToolroom: req.session.isSuperAdmin || sessionHasPermission(req.session, 'canManageToolroom'),
         canEditToolPresets: req.session.isSuperAdmin || sessionHasPermission(req.session, 'canEditToolPresets'),
         canViewToolHistory: req.session.isSuperAdmin || sessionHasPermission(req.session, 'canViewToolHistory'),
+        canAssignTools: canAssignToolroom(req.session),
+        canReturnTools: canReturnToolroom(req.session),
+        canViewMyTools: canViewOwnToolroom(req.session),
       },
     });
   } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get('/toolroom/assignments', requireAnyPermission(['canManageToolroom', 'canAssignTools', 'canReturnTools', 'canViewToolHistory']), async (req, res, next) => {
+  try {
+    if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const toolroom = await getToolroomDocument();
+    res.json({ ok: true, assignments: toolroom.assignments || [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.get('/toolroom/my-tools', requireAnyPermission(['canViewMyTools', 'canAccessToolroom', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (!canViewOwnToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const activeSite = sanitizeString(req.query.site || req.session.currentSite || '', 220);
+    const email = sanitizeString(req.session.email || '', 160).toLowerCase();
+    const toolroom = await getToolroomDocument();
+    const direct = toolroom.items.filter((item) => !item.archived && item.currentHolderType === 'worker' && item.currentHolderUserEmail === email);
+    const siteTools = toolroom.items.filter((item) =>
+      !item.archived &&
+      item.currentHolderType === 'site' &&
+      item.currentHolderSiteId === activeSite &&
+      canAccessSite(req.session, activeSite)
+    );
+    res.json({ ok: true, activeSite, tools: [...direct, ...siteTools] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/assignments', requireAnyPermission(['canAssignTools', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly || !canAssignToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const body = sanitizeObject(req.body || {});
+    const toolId = sanitizeString(body.toolId || '', 120);
+    const admins = await readAdmins();
+    const state = await getState();
+    const target = resolveToolroomAssignmentTarget(body, admins, Array.isArray(state.sites) ? state.sites : []);
+    const assignedAt = sanitizeString(body.assignedAt || new Date().toISOString().slice(0, 10), 80);
+    const expectedReturnAt = sanitizeString(body.expectedReturnAt || '', 80);
+    const note = sanitizeString(body.note || '', 500);
+    let savedItem = null;
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.items.findIndex((item) => item.id === toolId);
+      const existing = index >= 0 ? next.items[index] : null;
+      ensureToolroomAssignable(existing);
+      savedItem = {
+        ...existing,
+        status: target.status,
+        currentHolderType: target.holderType,
+        currentHolderUserEmail: target.holderUserEmail,
+        currentHolderUserName: target.holderUserName,
+        currentHolderUserId: target.holderUserEmail,
+        currentHolderSiteId: target.holderSiteId,
+        issuedAt: assignedAt,
+        expectedReturnAt,
+        returnedAt: '',
+        itemVersion: Number(existing.itemVersion || 1) + 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      };
+      next.items[index] = savedItem;
+      next = appendToolroomAssignment(next, {
+        toolId,
+        action: 'assigned',
+        holderType: target.holderType,
+        holderUserEmail: target.holderUserEmail,
+        holderUserName: target.holderUserName,
+        holderSiteId: target.holderSiteId,
+        assignedAt,
+        expectedReturnAt,
+        note,
+        actor: req.session.email,
+      });
+      next = pushToolroomHistory(next, {
+        entityType: 'toolItem',
+        entityId: toolId,
+        type: 'toolroom_tool_assigned',
+        actor: req.session.email,
+        note: `${savedItem.internalNumber} -> ${getToolroomHolderLabel(savedItem)}${note ? ` | ${note}` : ''}`,
+      });
+      next.updatedAt = new Date().toISOString();
+      return next;
+    });
+    if (savedItem.currentHolderType === 'worker' && savedItem.currentHolderUserEmail) {
+      await appendAccountNotificationForUsers([savedItem.currentHolderUserEmail], buildToolroomNotification('assigned', savedItem, `${savedItem.name} je zaduzen na vas.`));
+    } else if (savedItem.currentHolderType === 'site' && savedItem.currentHolderSiteId) {
+      const siteRecipients = admins
+        .map((admin) => normalizeAdminRecord(admin))
+        .filter((admin) => admin.email && admin.email !== req.session.email && admin.active !== false && adminHasSiteAccess(admin, savedItem.currentHolderSiteId))
+        .map((admin) => admin.email);
+      await appendAccountNotificationForUsers(siteRecipients, buildToolroomNotification('assigned', savedItem, `${savedItem.name} je zaduzen na gradiliste ${savedItem.currentHolderSiteId}.`));
+    }
+    await logActivity(req.session.email, 'toolroom_tool_assigned', { toolId, holderType: savedItem.currentHolderType, holder: getToolroomHolderLabel(savedItem) });
+    res.json({ ok: true, item: savedItem });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/returns', requireAnyPermission(['canReturnTools', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly || !canReturnToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const body = sanitizeObject(req.body || {});
+    const toolId = sanitizeString(body.toolId || '', 120);
+    const condition = sanitizeString(body.condition || 'ok', 80);
+    const returnedAt = sanitizeString(body.returnedAt || new Date().toISOString().slice(0, 10), 80);
+    const note = sanitizeString(body.note || '', 500);
+    const allowed = new Set(['ok', 'damaged', 'not_returned', 'lost']);
+    if (!allowed.has(condition)) return res.status(400).json({ error: 'TOOLROOM_RETURN_CONDITION_INVALID' });
+    let savedItem = null;
+    let previousHolderEmail = '';
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.items.findIndex((item) => item.id === toolId && !item.archived);
+      if (index < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const existing = next.items[index];
+      if (!['worker', 'site'].includes(existing.currentHolderType) && !['assigned_worker', 'assigned_site', 'awaiting_return'].includes(existing.status)) {
+        const error = new Error('TOOLROOM_ITEM_NOT_ASSIGNED');
+        error.statusCode = 400;
+        throw error;
+      }
+      previousHolderEmail = existing.currentHolderUserEmail || '';
+      const nextStatus = condition === 'lost'
+        ? 'lost'
+        : condition === 'not_returned'
+          ? 'awaiting_return'
+          : condition === 'damaged'
+            ? 'fault_reported'
+            : 'available';
+      const keepHolder = condition === 'not_returned';
+      savedItem = {
+        ...existing,
+        status: nextStatus,
+        currentHolderType: condition === 'lost' ? 'lost' : keepHolder ? existing.currentHolderType : 'toolroom',
+        currentHolderUserEmail: keepHolder ? existing.currentHolderUserEmail : '',
+        currentHolderUserName: keepHolder ? existing.currentHolderUserName : '',
+        currentHolderUserId: keepHolder ? existing.currentHolderUserId : '',
+        currentHolderSiteId: keepHolder ? existing.currentHolderSiteId : '',
+        returnedAt,
+        itemVersion: Number(existing.itemVersion || 1) + 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      };
+      next.items[index] = savedItem;
+      next = appendToolroomAssignment(next, {
+        toolId,
+        action: condition === 'lost' ? 'lost' : 'returned',
+        fromHolderType: existing.currentHolderType,
+        fromHolderLabel: getToolroomHolderLabel(existing),
+        holderType: savedItem.currentHolderType,
+        condition,
+        returnedAt,
+        note,
+        actor: req.session.email,
+      });
+      next = pushToolroomHistory(next, {
+        entityType: 'toolItem',
+        entityId: toolId,
+        type: condition === 'lost' ? 'toolroom_tool_lost' : condition === 'damaged' ? 'toolroom_tool_returned_damaged' : 'toolroom_tool_returned',
+        actor: req.session.email,
+        note: `${savedItem.internalNumber} | ${condition}${note ? ` | ${note}` : ''}`,
+      });
+      next.updatedAt = new Date().toISOString();
+      return next;
+    });
+    if (previousHolderEmail) {
+      await appendAccountNotificationForUsers([previousHolderEmail], buildToolroomNotification('returned', savedItem, `${savedItem.name} je razduzen. Status: ${savedItem.status}.`));
+    }
+    await logActivity(req.session.email, 'toolroom_tool_returned', { toolId, condition, status: savedItem.status });
+    res.json({ ok: true, item: savedItem });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/transfers', requireAnyPermission(['canAssignTools', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly || !canAssignToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const body = sanitizeObject(req.body || {});
+    const toolId = sanitizeString(body.toolId || '', 120);
+    const admins = await readAdmins();
+    const state = await getState();
+    const target = resolveToolroomAssignmentTarget(body, admins, Array.isArray(state.sites) ? state.sites : []);
+    const assignedAt = sanitizeString(body.assignedAt || new Date().toISOString().slice(0, 10), 80);
+    const expectedReturnAt = sanitizeString(body.expectedReturnAt || '', 80);
+    const note = sanitizeString(body.note || '', 500);
+    let savedItem = null;
+    let previousHolder = '';
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const index = next.items.findIndex((item) => item.id === toolId && !item.archived);
+      if (index < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
+      const existing = next.items[index];
+      if (!['worker', 'site'].includes(existing.currentHolderType)) {
+        const error = new Error('TOOLROOM_ITEM_NOT_ASSIGNED');
+        error.statusCode = 400;
+        throw error;
+      }
+      previousHolder = getToolroomHolderLabel(existing);
+      savedItem = {
+        ...existing,
+        status: target.status,
+        currentHolderType: target.holderType,
+        currentHolderUserEmail: target.holderUserEmail,
+        currentHolderUserName: target.holderUserName,
+        currentHolderUserId: target.holderUserEmail,
+        currentHolderSiteId: target.holderSiteId,
+        issuedAt: assignedAt,
+        expectedReturnAt,
+        returnedAt: '',
+        itemVersion: Number(existing.itemVersion || 1) + 1,
+        updatedAt: new Date().toISOString(),
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      };
+      next.items[index] = savedItem;
+      next = appendToolroomAssignment(next, {
+        toolId,
+        action: 'transferred',
+        fromHolderType: existing.currentHolderType,
+        fromHolderLabel: previousHolder,
+        holderType: target.holderType,
+        holderUserEmail: target.holderUserEmail,
+        holderUserName: target.holderUserName,
+        holderSiteId: target.holderSiteId,
+        assignedAt,
+        expectedReturnAt,
+        note,
+        actor: req.session.email,
+      });
+      next = pushToolroomHistory(next, {
+        entityType: 'toolItem',
+        entityId: toolId,
+        type: 'toolroom_tool_transferred',
+        actor: req.session.email,
+        note: `${savedItem.internalNumber}: ${previousHolder} -> ${getToolroomHolderLabel(savedItem)}${note ? ` | ${note}` : ''}`,
+      });
+      next.updatedAt = new Date().toISOString();
+      return next;
+    });
+    if (savedItem.currentHolderType === 'worker' && savedItem.currentHolderUserEmail) {
+      await appendAccountNotificationForUsers([savedItem.currentHolderUserEmail], buildToolroomNotification('transferred', savedItem, `${savedItem.name} je prebacen na vas.`));
+    } else if (savedItem.currentHolderType === 'site' && savedItem.currentHolderSiteId) {
+      const siteRecipients = admins
+        .map((admin) => normalizeAdminRecord(admin))
+        .filter((admin) => admin.email && admin.email !== req.session.email && admin.active !== false && adminHasSiteAccess(admin, savedItem.currentHolderSiteId))
+        .map((admin) => admin.email);
+      await appendAccountNotificationForUsers(siteRecipients, buildToolroomNotification('transferred', savedItem, `${savedItem.name} je prebacen na gradiliste ${savedItem.currentHolderSiteId}.`));
+    }
+    await logActivity(req.session.email, 'toolroom_tool_transferred', { toolId, from: previousHolder, to: getToolroomHolderLabel(savedItem) });
+    res.json({ ok: true, item: savedItem });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);
   }
 });

@@ -44,7 +44,7 @@ function canEditWarehouse() {
 }
 
 function canAccessToolroomModule() {
-  return hasPermission("canAccessToolroom") || hasPermission("canManageToolroom") || hasPermission("canEditToolPresets") || hasPermission("canViewToolHistory");
+  return hasPermission("canAccessToolroom") || hasPermission("canManageToolroom") || hasPermission("canEditToolPresets") || hasPermission("canViewToolHistory") || hasPermission("canAssignTools") || hasPermission("canReturnTools") || hasPermission("canViewMyTools");
 }
 
 function canManageToolroom() {
@@ -57,6 +57,18 @@ function canEditToolPresets() {
 
 function canViewToolHistory() {
   return hasPermission("canViewToolHistory");
+}
+
+function canAssignToolsAccess() {
+  return !appState.isReadonly && (hasPermission("canAssignTools") || hasPermission("canManageToolroom"));
+}
+
+function canReturnToolsAccess() {
+  return !appState.isReadonly && (hasPermission("canReturnTools") || hasPermission("canManageToolroom"));
+}
+
+function canViewMyToolsAccess() {
+  return hasPermission("canViewMyTools") || canAccessToolroomModule();
 }
 
 function canViewWarehouseLogsSection() {

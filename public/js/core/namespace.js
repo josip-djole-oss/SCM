@@ -363,6 +363,21 @@
     archiveCategory(...args) {
       return callLegacy("archiveToolroomCategory", args);
     },
+    openAction(...args) {
+      return callLegacy("openToolroomAction", args);
+    },
+    closeAction(...args) {
+      return callLegacy("closeToolroomAction", args);
+    },
+    submitAssign(...args) {
+      return callLegacy("submitToolroomAssign", args);
+    },
+    submitReturn(...args) {
+      return callLegacy("submitToolroomReturn", args);
+    },
+    submitTransfer(...args) {
+      return callLegacy("submitToolroomTransfer", args);
+    },
   });
 
   assignNamespace("workwear", {

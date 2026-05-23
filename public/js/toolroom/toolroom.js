@@ -4,7 +4,10 @@ var toolroomState = {
   activeTab: "dashboard",
   activeCategoryId: "",
   activeItemId: "",
-  data: { items: [], categories: [], presets: [], history: [] },
+  action: null,
+  myTools: [],
+  myToolsLoaded: false,
+  data: { items: [], categories: [], presets: [], assignments: [], history: [] },
   permissions: {},
 };
 
@@ -86,6 +89,63 @@ function canToolroomEditPresetsUi() {
   return typeof canEditToolPresets === "function" && canEditToolPresets();
 }
 
+function canToolroomAssignUi() {
+  return typeof canAssignToolsAccess === "function" && canAssignToolsAccess();
+}
+
+function canToolroomReturnUi() {
+  return typeof canReturnToolsAccess === "function" && canReturnToolsAccess();
+}
+
+function canToolroomViewMyToolsUi() {
+  return typeof canViewMyToolsAccess === "function" ? canViewMyToolsAccess() : true;
+}
+
+function getToolroomHolderLabelUi(item) {
+  if (!item) return "";
+  if (item.currentHolderType === "worker") return item.currentHolderUserName || item.currentHolderUserEmail || "Worker";
+  if (item.currentHolderType === "site") return item.currentHolderSiteId || "Gradiliste";
+  if (item.currentHolderType === "lost") return "Izgubljeno";
+  return "Alatnica";
+}
+
+function isToolroomAssigned(item) {
+  return item && (item.currentHolderType === "worker" || item.currentHolderType === "site" || item.status === "assigned_worker" || item.status === "assigned_site");
+}
+
+function getToolroomAssignableItems() {
+  return getToolroomItems().filter((item) => !item.archived && item.status === "available" && (!item.currentHolderType || item.currentHolderType === "toolroom"));
+}
+
+function renderToolroomUserOptions(selected = "") {
+  const admins = typeof getAdmins === "function" ? getAdmins() : [];
+  return admins
+    .filter((admin) => admin && admin.email && admin.active !== false)
+    .map((admin) => {
+      const label = admin.fullName || admin.email;
+      return `<option value="${toolroomEscape(admin.email)}" ${selected === admin.email ? "selected" : ""}>${toolroomEscape(label)} - ${toolroomEscape(admin.functionBadge || admin.function || admin.level || "")}</option>`;
+    }).join("");
+}
+
+function renderToolroomSiteOptions(selected = "") {
+  const list = Array.isArray(sites) ? sites : [];
+  return list.map((site) => `<option value="${toolroomEscape(site)}" ${selected === site ? "selected" : ""}>${toolroomEscape(site)}</option>`).join("");
+}
+
+function loadToolroomMyTools(force = false) {
+  if (toolroomState.myToolsLoaded && !force) return Promise.resolve(toolroomState.myTools);
+  return toolroomApi(`/my-tools?site=${encodeURIComponent(currentSite || "")}`)
+    .then((payload) => {
+      toolroomState.myTools = Array.isArray(payload.tools) ? payload.tools : [];
+      toolroomState.myToolsLoaded = true;
+      return toolroomState.myTools;
+    })
+    .catch((error) => {
+      showToast(error.payload?.error || error.message || "Moji alati se ne mogu ucitati.", "error");
+      return [];
+    });
+}
+
 function setWarehouseToolroomMode(mode) {
   const toolroom = document.getElementById("toolroom-section");
   const warehouseGrid = document.querySelector("#warehouse-section > .warehouse-grid");
@@ -134,6 +194,10 @@ function showToolroom() {
 
 function switchToolroomTab(tab) {
   toolroomState.activeTab = tab || "dashboard";
+  toolroomState.action = null;
+  if (toolroomState.activeTab === "myTools") {
+    return loadToolroomMyTools(true).then(renderToolroom);
+  }
   renderToolroom();
 }
 
@@ -145,6 +209,8 @@ function selectToolroomCategory(categoryId = "") {
 
 function selectToolroomItem(itemId = "") {
   toolroomState.activeItemId = String(itemId || "");
+  toolroomState.action = null;
+  if (toolroomState.activeTab === "myTools") toolroomState.activeTab = "items";
   renderToolroom();
 }
 
@@ -157,6 +223,8 @@ function renderToolroom() {
   const presets = (data.presets || []).filter((preset) => !preset.archived);
   const inService = items.filter((item) => item.status === "in_service").length;
   const awaiting = items.filter((item) => item.status === "awaiting_engraving").length;
+  const assignedWorker = items.filter((item) => item.status === "assigned_worker").length;
+  const assignedSite = items.filter((item) => item.status === "assigned_site").length;
   root.innerHTML = `
     <section class="toolroom-shell">
       <div class="toolroom-hero">
@@ -182,8 +250,9 @@ function renderToolroom() {
         <article><strong>${items.length}</strong><span>Ukupno alata</span></article>
         <article><strong>${categories.length}</strong><span>Kategorije</span></article>
         <article><strong>${presets.length}</strong><span>Preseti</span></article>
-        <article><strong>${inService}</strong><span>Na servisu</span></article>
-        <article><strong>${awaiting}</strong><span>Ceka graviranje</span></article>
+        <article><strong>${assignedWorker}</strong><span>Kod radnika</span></article>
+        <article><strong>${assignedSite}</strong><span>Na gradilistima</span></article>
+        <article><strong>${awaiting + inService}</strong><span>Ceka / servis</span></article>
       </div>
       <div class="toolroom-content">
         ${renderToolroomActiveTab()}
@@ -203,14 +272,36 @@ function renderToolroomActiveTab() {
 function renderToolroomDashboardTab() {
   const items = getToolroomItems().filter((item) => !item.archived);
   const recent = (toolroomState.data.history || []).slice(-6).reverse();
+  const byWorker = items.filter((item) => item.currentHolderType === "worker").reduce((acc, item) => {
+    const key = getToolroomHolderLabelUi(item);
+    acc[key] = acc[key] || [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+  const bySite = items.filter((item) => item.currentHolderType === "site").reduce((acc, item) => {
+    const key = item.currentHolderSiteId || "-";
+    acc[key] = acc[key] || [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+  const overdue = items.filter((item) => item.expectedReturnAt && item.expectedReturnAt < new Date().toISOString().slice(0, 10) && isToolroomAssigned(item)).length;
   return `
     <div class="toolroom-grid">
       <article class="toolroom-card">
         <h3>Pregled za Alatnicara</h3>
-        <p class="toolroom-muted">Phase 1 prikazuje osnovu. Zaduzenje, servis i kvarovi dolaze u sljedecoj fazi.</p>
+        <p class="toolroom-muted">Brzi pregled dostupnih, zaduzenih, izgubljenih i zakasnjelih alata.</p>
         <div class="toolroom-status-grid">
-          ${["available", "awaiting_engraving", "assigned_worker", "assigned_site", "in_service", "written_off"].map((status) => `<span>${status}: <strong>${items.filter((item) => item.status === status).length}</strong></span>`).join("")}
+          ${["available", "assigned_worker", "assigned_site", "lost", "awaiting_return", "fault_reported"].map((status) => `<span>${status}: <strong>${items.filter((item) => item.status === status).length}</strong></span>`).join("")}
+          <span>kasni povrat: <strong>${overdue}</strong></span>
         </div>
+      </article>
+      <article class="toolroom-card">
+        <h3>Po radniku</h3>
+        ${Object.keys(byWorker).length ? Object.entries(byWorker).map(([name, list]) => `<p><strong>${toolroomEscape(name)}</strong><br><small>${list.length} alata: ${list.map((item) => toolroomEscape(item.internalNumber)).join(", ")}</small></p>`).join("") : `<div class="toolroom-empty">Nema alata zaduzenih radnicima.</div>`}
+      </article>
+      <article class="toolroom-card">
+        <h3>Po gradilistu</h3>
+        ${Object.keys(bySite).length ? Object.entries(bySite).map(([site, list]) => `<p><strong>${toolroomEscape(site)}</strong><br><small>${list.length} alata: ${list.map((item) => toolroomEscape(item.internalNumber)).join(", ")}</small></p>`).join("") : `<div class="toolroom-empty">Nema alata zaduzenih gradilistima.</div>`}
       </article>
       <article class="toolroom-card">
         <h3>Historija</h3>
@@ -275,29 +366,68 @@ function renderToolroomPresetOptions(type, selected) {
 
 function renderToolroomItemDetail(item) {
   const category = getToolroomCategoryById(item.categoryId);
+  const assigned = isToolroomAssigned(item);
   return `
     <div class="toolroom-detail">
       <div class="toolroom-big-icon">${toolroomEscape(item.internalNumber || "?")}</div>
       <h2>${toolroomEscape(item.name || "-")}</h2>
-      <p>${toolroomEscape(item.brand)} ${toolroomEscape(item.model)}</p>
+      <p>${toolroomEscape(item.brand)} ${toolroomEscape(item.model)} ${assigned ? `| Kod: ${toolroomEscape(getToolroomHolderLabelUi(item))}` : ""}</p>
       <div class="toolroom-status-grid">
         <span>Status <strong>${toolroomEscape(item.status)}</strong></span>
         <span>Kategorija <strong>${toolroomEscape(category?.name || "-")}</strong></span>
         <span>Serijski broj <strong>${toolroomEscape(item.serialNumber || "-")}</strong></span>
         <span>Verzija <strong>${toolroomEscape(item.itemVersion || 1)}</strong></span>
+        <span>Zaduzeno <strong>${toolroomEscape(item.issuedAt || "-")}</strong></span>
+        <span>Ocekivan povrat <strong>${toolroomEscape(item.expectedReturnAt || "-")}</strong></span>
       </div>
       <div class="toolroom-quick-actions">
-        <button class="btn" disabled>Zaduzi</button>
-        <button class="btn" disabled>Razduzi</button>
-        <button class="btn" disabled>Prebaci</button>
+        <button class="btn" ${canToolroomAssignUi() && !assigned && item.status === "available" ? "" : "disabled"} data-cmax-action="toolroom.openAction" data-cmax-args='["assign","${toolroomEscape(item.id)}"]'>Zaduzi</button>
+        <button class="btn" ${canToolroomReturnUi() && assigned ? "" : "disabled"} data-cmax-action="toolroom.openAction" data-cmax-args='["return","${toolroomEscape(item.id)}"]'>Razduzi</button>
+        <button class="btn" ${canToolroomAssignUi() && assigned ? "" : "disabled"} data-cmax-action="toolroom.openAction" data-cmax-args='["transfer","${toolroomEscape(item.id)}"]'>Prebaci</button>
         <button class="btn btn-secondary" disabled>Servis</button>
         <button class="btn btn-secondary" disabled>Prijavi kvar</button>
-        <button class="btn btn-secondary" disabled>Historija</button>
+        <button class="btn btn-secondary" data-cmax-action="toolroom.openAction" data-cmax-args='["history","${toolroomEscape(item.id)}"]'>Historija</button>
         ${canToolroomManageUi() ? `<button class="btn btn-danger" data-cmax-action="toolroom.archiveItem" data-cmax-args='["${toolroomEscape(item.id)}",${Number(item.itemVersion || 1)}]'>Arhiviraj</button>` : ""}
       </div>
-      <p class="toolroom-muted">Brze akcije su prikazane kao Phase 1 placeholder; workflowi dolaze u Phase 2.</p>
+      ${renderToolroomActionPanel(item)}
     </div>
   `;
+}
+
+function renderToolroomActionPanel(item) {
+  if (!toolroomState.action || toolroomState.action.toolId !== item.id) return "";
+  const type = toolroomState.action.type;
+  if (type === "history") {
+    const events = (toolroomState.data.history || []).filter((event) => event.entityId === item.id).slice(-12).reverse();
+    return `<div class="toolroom-action-panel"><div class="toolroom-card-head"><h3>Historija alata</h3><button class="btn btn-secondary" data-cmax-action="toolroom.closeAction">Zatvori</button></div>${events.length ? events.map((event) => `<p><strong>${toolroomEscape(event.type)}</strong><br><small>${toolroomEscape(event.note)} | ${toolroomEscape(event.actor)} | ${toolroomEscape(event.at)}</small></p>`).join("") : `<div class="toolroom-empty">Nema historije za ovaj alat.</div>`}</div>`;
+  }
+  if (type === "return") {
+    return `
+      <div class="toolroom-action-panel">
+        <div class="toolroom-card-head"><h3>Razduzi / vrati alat</h3><button class="btn btn-secondary" data-cmax-action="toolroom.closeAction">Zatvori</button></div>
+        <div class="toolroom-form">
+          <label>Stanje<select id="toolroomReturnCondition"><option value="ok">Vracen ispravan</option><option value="damaged">Vracen ostecen</option><option value="not_returned">Nije vracen</option><option value="lost">Izgubljen</option></select></label>
+          <label>Datum<input id="toolroomReturnDate" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
+          <label class="toolroom-wide">Napomena<textarea id="toolroomReturnNote"></textarea></label>
+          <button class="btn" data-cmax-action="toolroom.submitReturn" data-cmax-args='["${toolroomEscape(item.id)}"]'>Potvrdi razduzenje</button>
+        </div>
+      </div>`;
+  }
+  const submitAction = type === "transfer" ? "toolroom.submitTransfer" : "toolroom.submitAssign";
+  const title = type === "transfer" ? "Prebaci alat" : "Zaduzi alat";
+  return `
+    <div class="toolroom-action-panel">
+      <div class="toolroom-card-head"><h3>${title}</h3><button class="btn btn-secondary" data-cmax-action="toolroom.closeAction">Zatvori</button></div>
+      <div class="toolroom-form">
+        <label>Zaduzi na<select id="toolroomAssignHolderType"><option value="worker">Radnika</option><option value="site">Gradiliste</option></select></label>
+        <label>Radnik<select id="toolroomAssignWorker"><option value="">Odaberi radnika</option>${renderToolroomUserOptions()}</select></label>
+        <label>Gradiliste<select id="toolroomAssignSite"><option value="">Odaberi gradiliste</option>${renderToolroomSiteOptions(currentSite)}</select></label>
+        <label>Datum<input id="toolroomAssignDate" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
+        <label>Ocekivan povrat<input id="toolroomExpectedReturnDate" type="date"></label>
+        <label class="toolroom-wide">Napomena<textarea id="toolroomAssignNote"></textarea></label>
+        <button class="btn" data-cmax-action="${submitAction}" data-cmax-args='["${toolroomEscape(item.id)}"]'>Potvrdi</button>
+      </div>
+    </div>`;
 }
 
 function renderToolroomCategoriesTab() {
@@ -370,14 +500,101 @@ function renderToolroomPresetForm() {
 }
 
 function renderToolroomMyToolsTab() {
+  const tools = Array.isArray(toolroomState.myTools) ? toolroomState.myTools : [];
   return `
     <div class="toolroom-my-tools">
       <article class="toolroom-card">
         <h3>Moji alati</h3>
-        <div class="toolroom-empty">Phase 1 empty state. U Phase 2 ovdje dolaze velike mobile kartice za alate zaduzenje na korisnika ili aktivno gradiliste.</div>
+        <p class="toolroom-muted">Prikazuje alate zaduzenje direktno na vas i alate zaduzenje na aktivno gradiliste: <strong>${toolroomEscape(currentSite || "-")}</strong>.</p>
+        ${canToolroomViewMyToolsUi() ? `
+          <div class="toolroom-my-tool-grid">
+            ${tools.length ? tools.map((item) => `
+              <article class="toolroom-my-tool-card">
+                <div class="toolroom-icon">${toolroomEscape((item.internalNumber || "?").slice(0, 3))}</div>
+                <div>
+                  <strong>${toolroomEscape(item.internalNumber || "-")}</strong>
+                  <h4>${toolroomEscape(item.name || "-")}</h4>
+                  <p>${toolroomEscape(item.brand || "")} ${toolroomEscape(item.model || "")}</p>
+                  <span class="toolroom-status-pill">${toolroomEscape(item.status || "-")}</span>
+                  <small>${toolroomEscape(getToolroomHolderLabelUi(item))} | ${toolroomEscape(item.issuedAt || "-")}</small>
+                </div>
+                <button class="btn btn-secondary" data-cmax-action="toolroom.selectItem" data-cmax-args='["${toolroomEscape(item.id)}"]'>Detalji</button>
+              </article>
+            `).join("") : `<div class="toolroom-empty">Nema alata zaduzenih na vas ili aktivno gradiliste.</div>`}
+          </div>
+        ` : `<div class="toolroom-empty">Nemate dozvolu za prikaz svojih alata.</div>`}
       </article>
     </div>
   `;
+}
+
+function openToolroomAction(type, toolId) {
+  toolroomState.action = { type: String(type || ""), toolId: String(toolId || "") };
+  toolroomState.activeItemId = String(toolId || toolroomState.activeItemId || "");
+  renderToolroom();
+}
+
+function closeToolroomAction() {
+  toolroomState.action = null;
+  renderToolroom();
+}
+
+function readToolroomAssignmentForm(toolId) {
+  const holderType = document.getElementById("toolroomAssignHolderType")?.value || "worker";
+  return {
+    toolId,
+    holderType,
+    workerEmail: document.getElementById("toolroomAssignWorker")?.value || "",
+    siteId: document.getElementById("toolroomAssignSite")?.value || "",
+    assignedAt: document.getElementById("toolroomAssignDate")?.value || new Date().toISOString().slice(0, 10),
+    expectedReturnAt: document.getElementById("toolroomExpectedReturnDate")?.value || "",
+    note: document.getElementById("toolroomAssignNote")?.value || "",
+  };
+}
+
+function submitToolroomAssign(toolId) {
+  return withLoadingPromise("loadingDefault", () => toolroomApi("/assignments", {
+    method: "POST",
+    body: JSON.stringify(readToolroomAssignmentForm(toolId)),
+  }).then((payload) => {
+    showToast("Alat je zaduzen.", "success");
+    toolroomState.activeItemId = payload.item?.id || toolId;
+    toolroomState.action = null;
+    toolroomState.myToolsLoaded = false;
+    return loadToolroomData(true).then(renderToolroom);
+  }).catch((error) => showToast(error.payload?.error || error.message || "Zaduzenje nije uspjelo.", "error")));
+}
+
+function submitToolroomTransfer(toolId) {
+  return withLoadingPromise("loadingDefault", () => toolroomApi("/transfers", {
+    method: "POST",
+    body: JSON.stringify(readToolroomAssignmentForm(toolId)),
+  }).then((payload) => {
+    showToast("Alat je prebacen.", "success");
+    toolroomState.activeItemId = payload.item?.id || toolId;
+    toolroomState.action = null;
+    toolroomState.myToolsLoaded = false;
+    return loadToolroomData(true).then(renderToolroom);
+  }).catch((error) => showToast(error.payload?.error || error.message || "Prebacivanje nije uspjelo.", "error")));
+}
+
+function submitToolroomReturn(toolId) {
+  const payload = {
+    toolId,
+    condition: document.getElementById("toolroomReturnCondition")?.value || "ok",
+    returnedAt: document.getElementById("toolroomReturnDate")?.value || new Date().toISOString().slice(0, 10),
+    note: document.getElementById("toolroomReturnNote")?.value || "",
+  };
+  return withLoadingPromise("loadingDefault", () => toolroomApi("/returns", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  }).then((response) => {
+    showToast("Razduzenje je spremljeno.", "success");
+    toolroomState.activeItemId = response.item?.id || toolId;
+    toolroomState.action = null;
+    toolroomState.myToolsLoaded = false;
+    return loadToolroomData(true).then(renderToolroom);
+  }).catch((error) => showToast(error.payload?.error || error.message || "Razduzenje nije uspjelo.", "error")));
 }
 
 function saveToolroomItemFromForm() {
