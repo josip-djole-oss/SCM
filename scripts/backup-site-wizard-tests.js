@@ -27,8 +27,14 @@ try {
   mustContain(backups, "/api/backup/restore", "restore API call");
   mustContain(sites, "NEW_SITE_WIZARD_STEPS", "new site wizard steps");
   mustContain(sites, "siteWizard_address", "site address field");
-  mustContain(sites, "siteWizard_latitude", "latitude field");
-  mustContain(sites, "siteWizard_longitude", "longitude field");
+  mustContain(sites, "siteWizardMapPicker", "map picker container");
+  mustContain(sites, "findSiteWizardLocation", "address geocode action");
+  mustContain(sites, "setSiteWizardPin", "draggable/clickable pin setter");
+  mustContain(sites, "normalizeSiteWizardCoordinate", "lat/lng validation");
+  mustContain(sites, "siteWizard_latitude\" type=\"hidden", "latitude hidden field");
+  mustContain(sites, "siteWizard_longitude\" type=\"hidden", "longitude hidden field");
+  mustContain(sites, "extractSiteWizardCoordinatesFromLink", "Google Maps link coordinate fallback");
+  mustContain(sites, "https://www.google.com/maps/search/?api=1&query=${navQuery}", "exact navigation link");
   mustContain(sites, "SITE_CONTACT_ROLES", "site contact role definitions");
   mustContain(sites, "siteWizard_workHours", "work hours field");
   mustContain(sites, "data-site-safety", "safety rule checkboxes");
@@ -43,6 +49,7 @@ try {
   mustContain(server, "siteInfo", "server siteInfo payload");
   mustContain(dataSync, "cmax_site_info", "site info snapshot storage");
   mustContain(dashboard, "renderHomeSiteInfo", "home site information panel");
+  mustContain(dashboard, "hasExactPin", "exact pin navigation guard");
   mustContain(dashboard, "Apple Maps", "apple maps navigation link");
   mustContain(dashboard, "home-site-contact-card", "home contact role cards");
   mustContain(dashboard, "Logistika i dokumenti", "logistics/document accordion");
@@ -53,7 +60,7 @@ try {
   mustContain(styles, ".site-wizard-overlay", "site wizard CSS");
   mustContain(styles, ".home-site-info-panel", "site info CSS");
 
-  console.log(JSON.stringify({ ok: true, checks: 35 }, null, 2));
+  console.log(JSON.stringify({ ok: true, checks: 41 }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ ok: false, error: error.message }, null, 2));
   process.exit(1);

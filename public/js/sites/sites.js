@@ -143,6 +143,161 @@ var newSiteWizardState = {
   draft: null,
 };
 
+var siteWizardMapState = {
+  map: null,
+  marker: null,
+  ready: false,
+  leafletLoading: null,
+  center: { lat: 59.3293, lng: 18.0686 },
+};
+
+function normalizeSiteWizardCoordinate(value, min, max) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < min || num > max) return null;
+  return Math.round(num * 1000000) / 1000000;
+}
+
+function hasValidSiteWizardPin(info) {
+  return normalizeSiteWizardCoordinate(info?.latitude, -90, 90) !== null
+    && normalizeSiteWizardCoordinate(info?.longitude, -180, 180) !== null;
+}
+
+function formatSiteWizardPin(info) {
+  if (!hasValidSiteWizardPin(info)) return "";
+  const lat = normalizeSiteWizardCoordinate(info.latitude, -90, 90);
+  const lng = normalizeSiteWizardCoordinate(info.longitude, -180, 180);
+  return `${lat.toFixed(6)},${lng.toFixed(6)}`;
+}
+
+function getSiteWizardAddressQuery(draft = getNewSiteWizardDraft()) {
+  return [draft.address, draft.postalCode, draft.city, draft.country].filter(Boolean).join(", ");
+}
+
+function setSiteWizardPin(lat, lng, options = {}) {
+  const cleanLat = normalizeSiteWizardCoordinate(lat, -90, 90);
+  const cleanLng = normalizeSiteWizardCoordinate(lng, -180, 180);
+  if (cleanLat === null || cleanLng === null) {
+    showToast("Lokacija nije validna. Latitude mora biti -90..90, longitude -180..180.", "error");
+    return false;
+  }
+  const draft = getNewSiteWizardDraft();
+  draft.latitude = cleanLat;
+  draft.longitude = cleanLng;
+  siteWizardMapState.center = { lat: cleanLat, lng: cleanLng };
+  const latInput = document.getElementById("siteWizard_latitude");
+  const lngInput = document.getElementById("siteWizard_longitude");
+  const pinInfo = document.getElementById("siteWizardPinInfo");
+  if (latInput) latInput.value = String(cleanLat);
+  if (lngInput) lngInput.value = String(cleanLng);
+  if (pinInfo) pinInfo.textContent = `Pin: ${cleanLat.toFixed(6)}, ${cleanLng.toFixed(6)}`;
+  if (siteWizardMapState.marker?.setLatLng) siteWizardMapState.marker.setLatLng([cleanLat, cleanLng]);
+  if (siteWizardMapState.map?.setView && options.setView !== false) siteWizardMapState.map.setView([cleanLat, cleanLng], options.zoom || 16);
+  return true;
+}
+
+function extractSiteWizardCoordinatesFromLink(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const decoded = decodeURIComponent(raw);
+  const patterns = [
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&](?:q|query|ll)=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /(?:^|[^\d-])(-?\d{1,2}\.\d{3,}),\s*(-?\d{1,3}\.\d{3,})(?:[^\d]|$)/,
+  ];
+  for (const pattern of patterns) {
+    const match = decoded.match(pattern);
+    if (!match) continue;
+    const lat = normalizeSiteWizardCoordinate(match[1], -90, 90);
+    const lng = normalizeSiteWizardCoordinate(match[2], -180, 180);
+    if (lat !== null && lng !== null) return { lat, lng };
+  }
+  return null;
+}
+
+function loadSiteWizardLeaflet() {
+  if (window.L?.map) return Promise.resolve(true);
+  if (siteWizardMapState.leafletLoading) return siteWizardMapState.leafletLoading;
+  siteWizardMapState.leafletLoading = new Promise((resolve) => {
+    if (!document.querySelector("link[data-site-wizard-leaflet]")) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      link.dataset.siteWizardLeaflet = "true";
+      document.head.appendChild(link);
+    }
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.async = true;
+    script.addEventListener("load", () => resolve(Boolean(window.L?.map)), { once: true });
+    script.addEventListener("error", () => resolve(false), { once: true });
+    document.head.appendChild(script);
+  });
+  return siteWizardMapState.leafletLoading;
+}
+
+function destroySiteWizardMap() {
+  if (siteWizardMapState.map?.remove) siteWizardMapState.map.remove();
+  siteWizardMapState.map = null;
+  siteWizardMapState.marker = null;
+  siteWizardMapState.ready = false;
+}
+
+function renderSiteWizardFallbackMap(container, draft) {
+  const pinText = formatSiteWizardPin(draft);
+  container.innerHTML = `
+    <div class="site-map-fallback">
+      <strong>Map picker fallback</strong>
+      <p>Mapa se nije mogla ucitati. Zalijepi Google Maps link sa pinom ili klikni okvir za probni pin oko trenutne lokacije.</p>
+      <span>${siteWizardEscape(pinText || "Pin jos nije postavljen.")}</span>
+    </div>
+  `;
+  if (container.dataset.fallbackClickBound === "true") return;
+  container.dataset.fallbackClickBound = "true";
+  container.addEventListener("click", (event) => {
+    const rect = container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(rect.width, 1)));
+    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / Math.max(rect.height, 1)));
+    const base = siteWizardMapState.center || { lat: 59.3293, lng: 18.0686 };
+    setSiteWizardPin(base.lat + (0.02 - y * 0.04), base.lng + (x * 0.04 - 0.02), { setView: false });
+  });
+}
+
+function initSiteWizardMapPicker() {
+  const container = document.getElementById("siteWizardMapPicker");
+  if (!container || !newSiteWizardState.open) return;
+  const draft = getNewSiteWizardDraft();
+  const pinLat = normalizeSiteWizardCoordinate(draft.latitude, -90, 90);
+  const pinLng = normalizeSiteWizardCoordinate(draft.longitude, -180, 180);
+  const center = pinLat !== null && pinLng !== null
+    ? { lat: pinLat, lng: pinLng }
+    : siteWizardMapState.center;
+  destroySiteWizardMap();
+  loadSiteWizardLeaflet().then((ok) => {
+    if (!document.getElementById("siteWizardMapPicker")) return;
+    if (!ok || !window.L?.map) {
+      renderSiteWizardFallbackMap(container, draft);
+      return;
+    }
+    container.innerHTML = "";
+    const map = window.L.map(container, { scrollWheelZoom: false }).setView([center.lat, center.lng], pinLat !== null ? 16 : 6);
+    window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "&copy; OpenStreetMap",
+    }).addTo(map);
+    const marker = window.L.marker([center.lat, center.lng], { draggable: true }).addTo(map);
+    marker.on("dragend", () => {
+      const pos = marker.getLatLng();
+      setSiteWizardPin(pos.lat, pos.lng, { setView: false });
+    });
+    map.on("click", (event) => setSiteWizardPin(event.latlng.lat, event.latlng.lng, { setView: false }));
+    siteWizardMapState.map = map;
+    siteWizardMapState.marker = marker;
+    siteWizardMapState.ready = true;
+    setTimeout(() => map.invalidateSize(), 80);
+    if (pinLat !== null && pinLng !== null) setSiteWizardPin(pinLat, pinLng, { setView: false });
+  });
+}
+
 function getSiteInfoStorage(site = currentSite) {
   return safeParseStoredJson(localStorage.getItem(getSiteStorageKey("cmax_site_info", site)), {}) || {};
 }
@@ -281,15 +436,24 @@ function closeNewSiteWizard() {
   if (overlay) overlay.classList.remove("is-open");
   document.body.classList.remove("modal-open");
   newSiteWizardState.open = false;
+  destroySiteWizardMap();
 }
 
 function collectNewSiteWizardStep() {
   if (!newSiteWizardState.open) return;
   const draft = getNewSiteWizardDraft();
-  ["name", "description", "address", "postalCode", "city", "country", "latitude", "longitude", "projectName", "investor", "mainContractor", "contactPerson", "phone", "email", "startDate", "plannedEndDate", "progress"].forEach((key) => {
+  ["name", "description", "address", "postalCode", "city", "country", "projectName", "investor", "mainContractor", "contactPerson", "phone", "email", "startDate", "plannedEndDate", "progress"].forEach((key) => {
     const el = document.getElementById(`siteWizard_${key}`);
     if (el) draft[key] = el.value;
   });
+  const latEl = document.getElementById("siteWizard_latitude");
+  const lngEl = document.getElementById("siteWizard_longitude");
+  if (latEl && lngEl) {
+    const lat = normalizeSiteWizardCoordinate(latEl.value, -90, 90);
+    const lng = normalizeSiteWizardCoordinate(lngEl.value, -180, 180);
+    draft.latitude = lat === null ? "" : lat;
+    draft.longitude = lng === null ? "" : lng;
+  }
   const status = document.getElementById("siteWizard_status");
   if (status) draft.status = status.value;
   const userInputs = document.querySelectorAll("#newSiteWizardBody input[data-site-user]");
@@ -364,6 +528,67 @@ function validateNewSiteWizardStep() {
       return false;
     }
   }
+  if (step === "review" && !hasValidSiteWizardPin(draft)) {
+    showToast("Postavite pin lokacije prije kreiranja gradilista.", "error");
+    return false;
+  }
+  return true;
+}
+
+function findSiteWizardLocation() {
+  collectNewSiteWizardStep();
+  const draft = getNewSiteWizardDraft();
+  const queryInput = document.getElementById("siteWizard_locationSearch");
+  const query = String(queryInput?.value || getSiteWizardAddressQuery(draft) || "").trim();
+  if (!query) {
+    showToast("Upisite adresu za trazenje lokacije.", "error");
+    return Promise.resolve(false);
+  }
+  const button = document.querySelector("[data-cmax-action='sites.findWizardLocation']");
+  if (button) button.setAttribute("disabled", "disabled");
+  return fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`, {
+    headers: { Accept: "application/json" },
+  })
+    .then((response) => response.ok ? response.json() : Promise.reject(new Error("Geocode failed")))
+    .then((results) => {
+      const result = Array.isArray(results) ? results[0] : null;
+      if (!result) {
+        showToast("Lokacija nije pronadjena. Probajte precizniju adresu ili zalijepite Google Maps link.", "error");
+        return false;
+      }
+      if (result.display_name && queryInput) queryInput.value = result.display_name;
+      setSiteWizardPin(result.lat, result.lon, { zoom: 16 });
+      showToast("Lokacija je pronadjena. Ako treba, pomjerite pin na mapi.", "success");
+      return true;
+    })
+    .catch(() => {
+      showToast("Mapa/geocode servis trenutno nije dostupan. Zalijepite Google Maps link sa pinom.", "error");
+      return false;
+    })
+    .finally(() => {
+      if (button) button.removeAttribute("disabled");
+    });
+}
+
+function useSiteWizardMapsLink() {
+  const link = document.getElementById("siteWizardGoogleMapsLink")?.value || "";
+  const coords = extractSiteWizardCoordinatesFromLink(link);
+  if (!coords) {
+    showToast("Nisam nasao koordinate u linku. Otvorite Google Maps, podijelite lokaciju/pin i zalijepite taj link.", "error");
+    return false;
+  }
+  setSiteWizardPin(coords.lat, coords.lng, { zoom: 16 });
+  showToast("Pin je ucitan iz Google Maps linka.", "success");
+  return true;
+}
+
+function useSiteWizardLocation() {
+  collectNewSiteWizardStep();
+  if (!hasValidSiteWizardPin(getNewSiteWizardDraft())) {
+    showToast("Prvo pronadjite lokaciju ili spustite pin na mapu.", "error");
+    return false;
+  }
+  showToast("Lokacija je potvrdjena za ovo gradiliste.", "success");
   return true;
 }
 
@@ -400,6 +625,11 @@ function renderNewSiteWizard() {
       key === "template" ? renderNewSiteTemplateStep(draft) :
       renderNewSiteReviewStep(draft);
   }
+  if (NEW_SITE_WIZARD_STEPS[newSiteWizardState.step]?.key === "basic") {
+    setTimeout(initSiteWizardMapPicker, 60);
+  } else {
+    destroySiteWizardMap();
+  }
   const back = document.getElementById("newSiteWizardBackBtn");
   const next = document.getElementById("newSiteWizardNextBtn");
   const create = document.getElementById("newSiteWizardCreateBtn");
@@ -417,7 +647,8 @@ function newSiteWizardGoTo(index) {
 
 function renderNewSiteBasicStep(draft) {
   const address = [draft.address, draft.postalCode, draft.city, draft.country].filter(Boolean).join(", ");
-  const mapQuery = encodeURIComponent(draft.latitude && draft.longitude ? `${draft.latitude},${draft.longitude}` : address);
+  const pinText = formatSiteWizardPin(draft);
+  const navQuery = encodeURIComponent(pinText || address || "Sweden");
   const contacts = Array.isArray(draft.contacts) && draft.contacts.length
     ? draft.contacts
     : getDefaultSiteInfo(draft.name).contacts;
@@ -432,8 +663,8 @@ function renderNewSiteBasicStep(draft) {
         <label>Postanski broj<input id="siteWizard_postalCode" value="${siteWizardEscape(draft.postalCode)}"></label>
         <label>Grad<input id="siteWizard_city" value="${siteWizardEscape(draft.city)}"></label>
         <label>Drzava<input id="siteWizard_country" value="${siteWizardEscape(draft.country)}"></label>
-        <label>Latitude<input id="siteWizard_latitude" value="${siteWizardEscape(draft.latitude)}"></label>
-        <label>Longitude<input id="siteWizard_longitude" value="${siteWizardEscape(draft.longitude)}"></label>
+        <input id="siteWizard_latitude" type="hidden" value="${siteWizardEscape(draft.latitude)}">
+        <input id="siteWizard_longitude" type="hidden" value="${siteWizardEscape(draft.longitude)}">
         <label>Pocetak<input id="siteWizard_startDate" type="date" value="${siteWizardEscape(draft.startDate)}"></label>
         <label>Planirani zavrsetak<input id="siteWizard_plannedEndDate" type="date" value="${siteWizardEscape(draft.plannedEndDate)}"></label>
         <label>Status<select id="siteWizard_status"><option value="active" ${draft.status === "active" ? "selected" : ""}>Aktivno</option><option value="paused" ${draft.status === "paused" ? "selected" : ""}>Pauzirano</option><option value="finished" ${draft.status === "finished" ? "selected" : ""}>Zavrseno</option></select></label>
@@ -444,16 +675,30 @@ function renderNewSiteBasicStep(draft) {
         <label>Telefon<input id="siteWizard_phone" value="${siteWizardEscape(draft.phone)}"></label>
         <label>Email<input id="siteWizard_email" type="email" value="${siteWizardEscape(draft.email)}"></label>
       </div>
-      <div class="site-wizard-map-preview">
-        <strong>Mapa preview</strong>
-        <span>${siteWizardEscape(address || "Upisite adresu ili lat/lng za preview.")}</span>
-        <div class="site-wizard-map-frame">
-          ${address || (draft.latitude && draft.longitude) ? `<iframe title="Mapa gradilista" loading="lazy" src="https://www.google.com/maps?q=${mapQuery}&output=embed"></iframe>` : `<span>Mini mapa ce se prikazati kada unesete adresu ili lokaciju.</span>`}
+      <div class="site-wizard-map-preview site-wizard-map-picker-card">
+        <div class="site-wizard-map-head">
+          <div>
+            <strong>Pin lokacija</strong>
+            <span>Upisite adresu, pronadjite je na karti i po potrebi kliknite ili pomjerite marker na tacno mjesto.</span>
+          </div>
+          <span id="siteWizardPinInfo" class="site-wizard-pin-info">${siteWizardEscape(pinText ? `Pin: ${pinText}` : "Pin jos nije postavljen.")}</span>
+        </div>
+        <div class="site-wizard-map-search">
+          <input id="siteWizard_locationSearch" class="site-wizard-search" value="${siteWizardEscape(address)}" placeholder="Npr. Drottninggatan 1, Stockholm, Sweden">
+          <button type="button" class="btn btn-small" data-cmax-action="sites.findWizardLocation">Pronadji na karti</button>
+        </div>
+        <div id="siteWizardMapPicker" class="site-wizard-map-frame site-map-picker" data-testid="site-map-picker">
+          <span>Mapa se ucitava...</span>
+        </div>
+        <div class="site-wizard-map-search">
+          <input id="siteWizardGoogleMapsLink" class="site-wizard-search" placeholder="Fallback: zalijepi Google Maps link sa pinom">
+          <button type="button" class="btn btn-small btn-secondary" data-cmax-action="sites.useMapsLink">Ucitaj pin iz linka</button>
         </div>
         <div class="site-wizard-inline-actions">
-          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${mapQuery}">Odaberi na karti</a>
-          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${mapQuery}">Otvori navigaciju</a>
+          <button type="button" class="btn btn-small" data-cmax-action="sites.useWizardLocation">Koristi ovu lokaciju</button>
+          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${navQuery}">Otvori Google Maps</a>
         </div>
+        ${pinText ? "" : `<div class="site-wizard-warning">Pin je obavezan prije kreiranja gradilista.</div>`}
       </div>
       <details class="site-wizard-details" open>
         <summary>Kontakti po ulozi</summary>
@@ -587,6 +832,8 @@ function renderNewSiteTemplateStep(draft) {
 
 function renderNewSiteReviewStep(draft) {
   const modules = SITE_MODULE_OPTIONS.filter((item) => draft.modules[item.key] !== false).map((item) => item.label).join(", ");
+  const pinText = formatSiteWizardPin(draft);
+  const navQuery = encodeURIComponent(pinText || [draft.address, draft.postalCode, draft.city, draft.country].filter(Boolean).join(", ") || "Sweden");
   return `
     <section class="site-wizard-section">
       <h4>Step 6 - Pregled</h4>
@@ -596,6 +843,16 @@ function renderNewSiteReviewStep(draft) {
         <div><strong>Moduli</strong><span>${siteWizardEscape(modules || "-")}</span></div>
         <div><strong>Template</strong><span>${siteWizardEscape(draft.templateSite || "Prazno gradiliste")}</span></div>
         <div><strong>Lokacija</strong><span>${siteWizardEscape([draft.address, draft.postalCode, draft.city, draft.country].filter(Boolean).join(", ") || "-")}</span></div>
+        <div><strong>Pin</strong><span>${siteWizardEscape(pinText || "Pin nije postavljen")}</span></div>
+      </div>
+      <div class="site-wizard-map-preview">
+        <strong>Mapa preview</strong>
+        <div class="site-wizard-map-frame">
+          ${pinText ? `<iframe title="Mapa gradilista" loading="lazy" src="https://www.google.com/maps?q=${navQuery}&output=embed"></iframe>` : `<span>Postavite pin prije kreiranja gradilista.</span>`}
+        </div>
+        <div class="site-wizard-inline-actions">
+          <a class="btn btn-small btn-secondary" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${navQuery}">Otvori navigaciju</a>
+        </div>
       </div>
     </section>
   `;
@@ -605,6 +862,10 @@ function createSiteFromWizard() {
   collectNewSiteWizardStep();
   if (!validateNewSiteWizardStep()) return;
   const draft = getNewSiteWizardDraft();
+  if (!hasValidSiteWizardPin(draft)) {
+    showToast("Postavite pin lokacije prije kreiranja gradilista.", "error");
+    return Promise.resolve(false);
+  }
   const newSite = String(draft.name || "").trim();
   return createSiteWithMetadata(newSite, draft);
 }

@@ -91,6 +91,9 @@
     wizardBack: legacyMethod("newSiteWizardBack"),
     wizardGoTo: legacyMethod("newSiteWizardGoTo"),
     filterWizardUsers: legacyMethod("filterNewSiteWizardUsers"),
+    findWizardLocation: legacyMethod("findSiteWizardLocation"),
+    useMapsLink: legacyMethod("useSiteWizardMapsLink"),
+    useWizardLocation: legacyMethod("useSiteWizardLocation"),
     createFromWizard: legacyMethod("createSiteFromWizard"),
     remove(...args) {
       return callLegacy("removeSite", args);

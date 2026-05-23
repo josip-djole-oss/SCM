@@ -340,7 +340,10 @@ function renderHomeSiteInfo() {
   }
   const info = typeof getSiteInfoStorage === "function" ? getSiteInfoStorage(currentSite) : {};
   const address = [info.address, info.postalCode, info.city, info.country].filter(Boolean).join(", ");
-  const navQuery = encodeURIComponent(info.latitude && info.longitude ? `${info.latitude},${info.longitude}` : address || currentSite);
+  const lat = Number(info.latitude);
+  const lng = Number(info.longitude);
+  const hasExactPin = Number.isFinite(lat) && lat >= -90 && lat <= 90 && Number.isFinite(lng) && lng >= -180 && lng <= 180;
+  const navQuery = encodeURIComponent(hasExactPin ? `${lat.toFixed(6)},${lng.toFixed(6)}` : address || currentSite);
   const statusLabel = info.status === "paused" ? "Pauzirano" : info.status === "finished" ? "Zavrseno" : "Aktivno";
   const emergency = info.emergency || {};
   const workHours = info.workHours || {};
@@ -348,7 +351,7 @@ function renderHomeSiteInfo() {
   const contacts = Array.isArray(info.contacts) && info.contacts.length ? info.contacts : [];
   const logistics = info.logistics || {};
   const documents = Array.isArray(info.documents) ? info.documents : [];
-  const mapFrame = address || (info.latitude && info.longitude)
+  const mapFrame = hasExactPin || address
     ? `<iframe title="Mapa gradilista" loading="lazy" src="https://www.google.com/maps?q=${navQuery}&output=embed"></iframe>`
     : `<span class="home-site-map-empty">Mapa nije postavljena.</span>`;
   const apdPlan = String(logistics.apdPlan || "");

@@ -36,6 +36,17 @@ var workwearProductLinkPreviewState = {
   url: "",
 };
 var workwearOrderRenderLimit = 20;
+var WORKWEAR_PRODUCT_WIZARD_STEPS = [
+  { step: 1, title: "Osnovno", helper: "Naziv, opis, kategorija i status" },
+  { step: 2, title: "Slike", helper: "Upload, URL i preview galerije" },
+  { step: 3, title: "Velicine", helper: "Preset velicina, custom velicine i varijante" },
+  { step: 4, title: "Gradilista", helper: "Gdje je artikal dostupan" },
+  { step: 5, title: "Funkcije", helper: "Ko smije naruciti" },
+  { step: 6, title: "Cijena", helper: "SEK, budzet i prikaz cijene" },
+  { step: 7, title: "Pravila", helper: "Approval, free, limit i upgrade" },
+  { step: 8, title: "Supplier", helper: "Opcionalna priprema dobavljaca" },
+  { step: 9, title: "Pregled", helper: "Provjera i spremanje" },
+];
 var WORKWEAR_SIZE_PRESETS = {
   odjeca: ["XS", "S", "M", "L", "XL", "XXL", "3XL"],
   obuca: ["35", "36", "37", "38", "39", "40", "41", "42", "43", "44", "45", "46", "47", "48", "49", "50"],
@@ -663,13 +674,16 @@ function renderWorkwearAdminPanel() {
     .split(",")
     .map((url) => url.trim())
     .filter(Boolean);
+  const currentWizardStep = WORKWEAR_PRODUCT_WIZARD_STEPS.find((item) => item.step === workwearProductWizardStep) || WORKWEAR_PRODUCT_WIZARD_STEPS[0];
+  const nextWizardStep = WORKWEAR_PRODUCT_WIZARD_STEPS.find((item) => item.step === workwearProductWizardStep + 1);
 
   panel.innerHTML = `
     <div class="workwear-admin-card">
       <div class="workwear-wizard-head">
         <div>
-          <h3>Product wizard</h3>
-          <div class="workwear-product-meta">${workwearEditingProductId ? "Uredjivanje artikla" : "Novi artikal"} · Korak ${workwearProductWizardStep} / 9</div>
+          <div class="admin-compose-eyebrow">Store Product Wizard</div>
+          <h3>${workwearEditingProductId ? "Uredi artikal" : "Dodaj novi artikal"}</h3>
+          <div class="workwear-product-meta">Korak ${workwearProductWizardStep} / ${WORKWEAR_PRODUCT_WIZARD_STEPS.length} - ${escapeHtml(currentWizardStep.title)}${nextWizardStep ? ` | Slijedi: ${escapeHtml(nextWizardStep.title)}` : " | Spremno za provjeru"}</div>
         </div>
         <button class="btn btn-secondary" data-cmax-action="workwear.startNewProductWizard">Novi artikal</button>
       </div>
@@ -701,10 +715,24 @@ function renderWorkwearAdminPanel() {
           <div class="workwear-product-meta">Odabrano za bulk: ${selectedIds.length}</div>
         </div>
         <div class="workwear-product-wizard">
-          <div class="workwear-stepper">
-            ${[1,2,3,4,5,6,7,8,9].map((step) => `
-              <button class="btn btn-small ${step === workwearProductWizardStep ? "" : "btn-secondary"}" data-cmax-action="workwear.setProductWizardStep" data-cmax-args='${escapeHtml(JSON.stringify([step]))}'>${step}</button>
-            `).join("")}
+          <div class="workwear-wizard-progress">
+            <div class="workwear-wizard-progress-meta">
+              <strong>${escapeHtml(currentWizardStep.title)}</strong>
+              <span>${escapeHtml(currentWizardStep.helper)}</span>
+            </div>
+            <div class="workwear-stepper workwear-stepper-modern" aria-label="Store wizard progress">
+              ${WORKWEAR_PRODUCT_WIZARD_STEPS.map((item) => `
+                <button
+                  class="workwear-step-pill ${item.step === workwearProductWizardStep ? "is-active" : ""} ${item.step < workwearProductWizardStep ? "is-done" : ""}"
+                  data-cmax-action="workwear.setProductWizardStep"
+                  data-cmax-args='${escapeHtml(JSON.stringify([item.step]))}'
+                  type="button"
+                >
+                  <span class="workwear-step-number">${item.step < workwearProductWizardStep ? "✓" : item.step}</span>
+                  <span class="workwear-step-title">${escapeHtml(item.title)}</span>
+                </button>
+              `).join("")}
+            </div>
           </div>
           <div class="workwear-product-wizard-scroll">
 
@@ -984,9 +1012,10 @@ function renderWorkwearAdminPanel() {
           </div>
 
           <div class="workwear-cart-actions">
-            <button class="btn btn-secondary" data-cmax-action="workwear.prevProductWizardStep">Nazad</button>
-            <button class="btn btn-secondary" data-cmax-action="workwear.nextProductWizardStep">Naprijed</button>
-            <button class="btn" data-cmax-action="workwear.saveProduct" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreSave">Spremi artikal</button>
+            <button class="btn btn-ghost" data-cmax-action="workwear.startNewProductWizard">Odustani</button>
+            <button class="btn btn-secondary" data-cmax-action="workwear.prevProductWizardStep" ${workwearProductWizardStep <= 1 ? "disabled" : ""}>Nazad</button>
+            <button class="btn btn-secondary" data-cmax-action="workwear.nextProductWizardStep" ${workwearProductWizardStep >= WORKWEAR_PRODUCT_WIZARD_STEPS.length ? "disabled" : ""}>Dalje</button>
+            <button class="btn" data-cmax-action="workwear.saveProduct" data-cmax-server-action="true" data-cmax-loading-key="loadingStoreSave">Spremi</button>
           </div>
         </div>
       </div>
@@ -1493,3 +1522,4 @@ function renderWorkwearAuditLog() {
     `)
     .join("");
 }
+
