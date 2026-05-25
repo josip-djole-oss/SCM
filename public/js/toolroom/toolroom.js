@@ -5,6 +5,7 @@ var toolroomState = {
   activeCategoryId: "",
   activeItemId: "",
   action: null,
+  bulkWizard: { open: false, step: 0, serialMode: "later", draft: {} },
   myTools: [],
   myToolsLoaded: false,
   data: { items: [], categories: [], presets: [], assignments: [], faults: [], serviceRecords: [], history: [] },
@@ -111,6 +112,10 @@ function canToolroomHandleServiceUi() {
 
 function canToolroomWriteOffUi() {
   return typeof canWriteOffToolsAccess === "function" ? canWriteOffToolsAccess() : false;
+}
+
+function canToolroomExportUi() {
+  return typeof canExportToolroomAccess === "function" ? canExportToolroomAccess() : false;
 }
 
 function getToolroomHolderLabelUi(item) {
@@ -280,6 +285,7 @@ function renderToolroom() {
           ["categories", "Kategorije"],
           ["presets", "Preseti"],
           ["myTools", "Moji alati"],
+          ["export", "Export"],
         ].map(([key, label]) => `<button class="btn btn-secondary ${toolroomState.activeTab === key ? "btn-success" : ""}" data-cmax-action="toolroom.switchTab" data-cmax-args='["${key}"]'>${label}</button>`).join("")}
       </div>
       <div class="toolroom-stats">
@@ -303,6 +309,7 @@ function renderToolroomActiveTab() {
   if (toolroomState.activeTab === "categories") return renderToolroomCategoriesTab();
   if (toolroomState.activeTab === "presets") return renderToolroomPresetsTab();
   if (toolroomState.activeTab === "myTools") return renderToolroomMyToolsTab();
+  if (toolroomState.activeTab === "export") return renderToolroomExportTab();
   return renderToolroomDashboardTab();
 }
 
@@ -363,8 +370,9 @@ function renderToolroomItemsTab() {
       <article class="toolroom-card">
         <div class="toolroom-card-head">
           <h3>Registar alata</h3>
-          ${canToolroomManageUi() ? `<button class="btn" data-cmax-action="toolroom.saveItemFromForm">Dodaj / Spremi alat</button>` : ""}
+          ${canToolroomManageUi() ? `<div class="toolroom-inline-actions"><button class="btn" data-cmax-action="toolroom.saveItemFromForm">Dodaj / Spremi alat</button><button class="btn btn-secondary" data-cmax-action="toolroom.openBulkWizard">Bulk dodavanje</button></div>` : ""}
         </div>
+        ${toolroomState.bulkWizard.open ? renderToolroomBulkWizard() : ""}
         ${canToolroomManageUi() ? renderToolroomItemForm(selected) : ""}
         <div class="toolroom-list">
           ${items.length ? items.map((item) => `
@@ -434,6 +442,113 @@ function renderToolroomItemDetail(item) {
         ${canToolroomManageUi() ? `<button class="btn btn-danger" data-cmax-action="toolroom.archiveItem" data-cmax-args='["${toolroomEscape(item.id)}",${Number(item.itemVersion || 1)}]'>Arhiviraj</button>` : ""}
       </div>
       ${renderToolroomActionPanel(item)}
+    </div>
+  `;
+}
+
+function getToolroomBulkStep() {
+  return Math.max(0, Math.min(4, Number(toolroomState.bulkWizard.step || 0)));
+}
+
+function setToolroomBulkStep(step) {
+  toolroomState.bulkWizard.draft = { ...(toolroomState.bulkWizard.draft || {}), ...readToolroomBulkDraft() };
+  toolroomState.bulkWizard.step = Math.max(0, Math.min(4, Number(step || 0)));
+  renderToolroom();
+}
+
+function openToolroomBulkWizard() {
+  toolroomState.bulkWizard = { open: true, step: 0, serialMode: "later", draft: { quantity: 20, prefix: "B", startNumber: 54, serialMode: "later", engraved: false } };
+  toolroomState.activeTab = "items";
+  renderToolroom();
+}
+
+function closeToolroomBulkWizard() {
+  toolroomState.bulkWizard = { open: false, step: 0, serialMode: "later", draft: {} };
+  renderToolroom();
+}
+
+function readToolroomBulkDraft() {
+  const existing = toolroomState.bulkWizard.draft || {};
+  const serialText = document.getElementById("toolroomBulkSerials")?.value || "";
+  return {
+    ...existing,
+    type: document.getElementById("toolroomBulkType")?.value || existing.type || "",
+    brand: document.getElementById("toolroomBulkBrand")?.value || existing.brand || "",
+    model: document.getElementById("toolroomBulkModel")?.value || existing.model || "",
+    name: document.getElementById("toolroomBulkName")?.value || existing.name || "",
+    categoryId: document.getElementById("toolroomBulkCategory")?.value || existing.categoryId || "",
+    status: document.getElementById("toolroomBulkStatus")?.value || existing.status || "available",
+    imageUrl: document.getElementById("toolroomBulkImageUrl")?.value || existing.imageUrl || "",
+    quantity: Number(document.getElementById("toolroomBulkQuantity")?.value || existing.quantity || 1),
+    prefix: document.getElementById("toolroomBulkPrefix")?.value || existing.prefix || "",
+    startNumber: Number(document.getElementById("toolroomBulkStart")?.value || existing.startNumber || 1),
+    serialMode: document.getElementById("toolroomBulkSerialMode")?.value || existing.serialMode || "later",
+    serialNumbers: (serialText ? serialText.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) : existing.serialNumbers) || [],
+    engraved: document.getElementById("toolroomBulkEngraved") ? document.getElementById("toolroomBulkEngraved").checked === true : existing.engraved === true,
+  };
+}
+
+function previewToolroomBulkNumbers(draft) {
+  const quantity = Math.max(0, Math.min(100, Number(draft.quantity || 0)));
+  const width = Math.max(3, String(draft.startNumber || "").length);
+  const prefix = String(draft.prefix || "").toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  return Array.from({ length: quantity }, (_, index) => `${prefix}${String(Number(draft.startNumber || 0) + index).padStart(width, "0")}`);
+}
+
+function renderToolroomBulkWizard() {
+  const step = getToolroomBulkStep();
+  const draft = readToolroomBulkDraft();
+  const categories = getToolroomCategories().filter((category) => !category.archived);
+  const statuses = getToolroomPresets("status");
+  const preview = previewToolroomBulkNumbers(draft);
+  const steps = ["Osnovno", "Kolicina", "Serijski", "Graviranje", "Pregled"];
+  return `
+    <div class="toolroom-action-panel toolroom-bulk-wizard">
+      <div class="toolroom-card-head">
+        <div><h3>Bulk dodavanje alata</h3><p class="toolroom-muted">Dodajte vise istih alata atomarno, bez duplih internih brojeva.</p></div>
+        <button class="btn btn-secondary" data-cmax-action="toolroom.closeBulkWizard">Zatvori</button>
+      </div>
+      <div class="toolroom-stepper">${steps.map((label, index) => `<button class="${index === step ? "is-active" : index < step ? "is-done" : ""}" data-cmax-action="toolroom.setBulkStep" data-cmax-args='[${index}]'><span>${index + 1}</span>${label}</button>`).join("")}</div>
+      <div class="toolroom-form">
+        ${step === 0 ? `
+          <label>Tip<select id="toolroomBulkType">${renderToolroomPresetOptions("toolType", draft.type)}</select></label>
+          <label>Marka<select id="toolroomBulkBrand">${renderToolroomPresetOptions("brand", draft.brand)}</select></label>
+          <label>Model<select id="toolroomBulkModel">${renderToolroomPresetOptions("model", draft.model)}</select></label>
+          <label>Naziv<input id="toolroomBulkName" value="${toolroomEscape(draft.name)}" placeholder="Milwaukee M18 FPD3"></label>
+          <label>Kategorija<select id="toolroomBulkCategory"><option value="">Bez kategorije</option>${categories.map((category) => `<option value="${toolroomEscape(category.id)}" ${draft.categoryId === category.id ? "selected" : ""}>${toolroomEscape(category.name)}</option>`).join("")}</select></label>
+          <label>Status<select id="toolroomBulkStatus">${statuses.map((preset) => `<option value="${toolroomEscape(preset.value)}" ${draft.status === preset.value ? "selected" : ""}>${toolroomEscape(preset.label)}</option>`).join("")}</select></label>
+          <label class="toolroom-wide">Slika / ikona URL<input id="toolroomBulkImageUrl" value="${toolroomEscape(draft.imageUrl)}"></label>
+        ` : ""}
+        ${step === 1 ? `
+          <label>Kolicina<input id="toolroomBulkQuantity" type="number" min="1" max="500" value="${toolroomEscape(draft.quantity || 20)}"></label>
+          <label>Prefix<input id="toolroomBulkPrefix" value="${toolroomEscape(draft.prefix || "B")}" placeholder="B"></label>
+          <label>Pocetni broj<input id="toolroomBulkStart" type="number" min="0" value="${toolroomEscape(draft.startNumber || 54)}"></label>
+          <div class="toolroom-wide toolroom-preview-list"><strong>Preview:</strong>${preview.slice(0, 30).map((number) => `<span>${toolroomEscape(number)}</span>`).join("")}${preview.length > 30 ? `<small>+${preview.length - 30} jos</small>` : ""}</div>
+        ` : ""}
+        ${step === 2 ? `
+          <label>Serijski brojevi<select id="toolroomBulkSerialMode"><option value="later" ${draft.serialMode === "later" ? "selected" : ""}>Dodaj kasnije</option><option value="now" ${draft.serialMode === "now" ? "selected" : ""}>Dodaj sada</option></select></label>
+          <label class="toolroom-wide">Paste lista serijskih brojeva<textarea id="toolroomBulkSerials" placeholder="Jedan serijski broj po redu">${toolroomEscape(draft.serialNumbers.join("\n"))}</textarea></label>
+          <p class="toolroom-muted toolroom-wide">Ako lista ima isti broj redova kao kolicina, automatski se mapira redom na interne brojeve.</p>
+        ` : ""}
+        ${step === 3 ? `
+          <label class="toolroom-wide toolroom-check"><input id="toolroomBulkEngraved" type="checkbox" ${draft.engraved ? "checked" : ""}> Vec ugravirano / oznaceno</label>
+          <p class="toolroom-muted toolroom-wide">Ako nije oznaceno, backend ce kreirati alate sa statusom "Ceka graviranje" i zaduzenje nece biti dozvoljeno.</p>
+        ` : ""}
+        ${step === 4 ? `
+          <div class="toolroom-wide toolroom-review">
+            <p><strong>Kreira se:</strong> ${toolroomEscape(draft.quantity || 0)} alata</p>
+            <p><strong>Raspon:</strong> ${toolroomEscape(preview[0] || "-")} - ${toolroomEscape(preview[preview.length - 1] || "-")}</p>
+            <p><strong>Kategorija:</strong> ${toolroomEscape(categories.find((category) => category.id === draft.categoryId)?.name || "-")}</p>
+            <p><strong>Status:</strong> ${draft.engraved ? toolroomEscape(draft.status || "available") : "awaiting_engraving"}</p>
+            <p><strong>Missing serials:</strong> ${Math.max(0, Number(draft.quantity || 0) - draft.serialNumbers.length)}</p>
+          </div>
+        ` : ""}
+      </div>
+      <div class="toolroom-wizard-footer">
+        <button class="btn btn-secondary" ${step === 0 ? "disabled" : ""} data-cmax-action="toolroom.setBulkStep" data-cmax-args='[${step - 1}]'>Nazad</button>
+        ${step < 4 ? `<button class="btn" data-cmax-action="toolroom.setBulkStep" data-cmax-args='[${step + 1}]'>Dalje</button>` : `<button class="btn" data-cmax-action="toolroom.submitBulkAdd">Kreiraj</button>`}
+        <button class="btn btn-secondary" data-cmax-action="toolroom.closeBulkWizard">Odustani</button>
+      </div>
     </div>
   `;
 }
@@ -647,6 +762,74 @@ function renderToolroomMyToolsTab() {
   `;
 }
 
+function renderToolroomExportTab() {
+  const categories = getToolroomCategories().filter((category) => !category.archived);
+  const statuses = getToolroomPresets("status");
+  return `
+    <div class="toolroom-grid">
+      <article class="toolroom-card">
+        <h3>Export Alatnice</h3>
+        <p class="toolroom-muted">Izvoz nije JSON. CSV se otvara u Excelu, a PDF je citljiv pregled za slanje ili arhivu.</p>
+        ${canToolroomExportUi() ? `
+          <div class="toolroom-form">
+            <label>Opseg<select id="toolroomExportScope">
+              <option value="all">Svi alati</option>
+              <option value="service">Alati na servisu</option>
+              <option value="written_off">Otpisani alati</option>
+              <option value="faults">Kvarovi</option>
+            </select></label>
+            <label>Status<select id="toolroomExportStatus"><option value="all">Svi statusi</option>${statuses.map((preset) => `<option value="${toolroomEscape(preset.value)}">${toolroomEscape(preset.label)}</option>`).join("")}</select></label>
+            <label>Radnik<select id="toolroomExportWorker"><option value="">Svi radnici</option>${renderToolroomUserOptions()}</select></label>
+            <label>Gradiliste<select id="toolroomExportSite"><option value="">Sva gradilista</option>${renderToolroomSiteOptions("")}</select></label>
+            <label>Kategorija<select id="toolroomExportCategory"><option value="">Sve kategorije</option>${categories.map((category) => `<option value="${toolroomEscape(category.id)}">${toolroomEscape(category.name)}</option>`).join("")}</select></label>
+            <label>Od datuma<input id="toolroomExportFrom" type="date"></label>
+            <label>Do datuma<input id="toolroomExportUntil" type="date"></label>
+            <label>Format<select id="toolroomExportFormat"><option value="csv">Excel/CSV</option><option value="excel">XLSX</option><option value="pdf">PDF</option></select></label>
+            <button class="btn" data-cmax-action="toolroom.downloadExport">Generisi export</button>
+          </div>
+        ` : `<div class="toolroom-empty">Nemate dozvolu za export Alatnice.</div>`}
+      </article>
+      <article class="toolroom-card">
+        <h3>Sta export sadrzi</h3>
+        <div class="toolroom-list is-compact">
+          <span>Svi alati i statusi</span>
+          <span>Zaduzenja po radniku ili gradilistu</span>
+          <span>Servis i otpisani alati</span>
+          <span>Kvarovi kroz opseg/filter</span>
+          <span>History ostaje u backupu; PDF/CSV daju operativni pregled</span>
+        </div>
+      </article>
+    </div>
+  `;
+}
+
+function buildToolroomExportQuery() {
+  const params = new URLSearchParams();
+  params.set("scope", document.getElementById("toolroomExportScope")?.value || "all");
+  params.set("status", document.getElementById("toolroomExportStatus")?.value || "all");
+  const worker = document.getElementById("toolroomExportWorker")?.value || "";
+  const site = document.getElementById("toolroomExportSite")?.value || "";
+  const categoryId = document.getElementById("toolroomExportCategory")?.value || "";
+  const fromDate = document.getElementById("toolroomExportFrom")?.value || "";
+  const untilDate = document.getElementById("toolroomExportUntil")?.value || "";
+  if (worker) params.set("worker", worker);
+  if (site) params.set("site", site);
+  if (categoryId) params.set("categoryId", categoryId);
+  if (fromDate) params.set("fromDate", fromDate);
+  if (untilDate) params.set("untilDate", untilDate);
+  return params.toString();
+}
+
+function downloadToolroomExport() {
+  if (!canToolroomExportUi()) {
+    showToast("Nemate dozvolu za export Alatnice.", "error");
+    return;
+  }
+  const format = document.getElementById("toolroomExportFormat")?.value || "csv";
+  const query = buildToolroomExportQuery();
+  window.open(`/api/toolroom/export/${encodeURIComponent(format)}?${query}`, "_blank", "noopener");
+}
+
 function openToolroomAction(type, toolId) {
   toolroomState.action = { type: String(type || ""), toolId: String(toolId || "") };
   toolroomState.activeItemId = String(toolId || toolroomState.activeItemId || "");
@@ -777,6 +960,36 @@ function assignToolroomReplacement(faultId, replacementToolId) {
     toolroomState.myToolsLoaded = false;
     return loadToolroomData(true).then(renderToolroom);
   }).catch((error) => showToast(error.payload?.error || error.message || "Zamjena nije dodijeljena.", "error")));
+}
+
+function submitToolroomBulkAdd() {
+  const draft = readToolroomBulkDraft();
+  toolroomState.bulkWizard.draft = draft;
+  return withLoadingPromise("loadingDefault", () => toolroomApi("/items/bulk", {
+    method: "POST",
+    body: JSON.stringify({
+      type: draft.type,
+      brand: draft.brand,
+      model: draft.model,
+      name: draft.name || draft.model || draft.type,
+      categoryId: draft.categoryId,
+      status: draft.status,
+      imageUrl: draft.imageUrl,
+      quantity: draft.quantity,
+      prefix: draft.prefix,
+      startNumber: draft.startNumber,
+      serialNumbers: draft.serialMode === "now" ? draft.serialNumbers : [],
+      engraved: draft.engraved === true,
+    }),
+  }).then((payload) => {
+    showToast(`Kreirano ${payload.items?.length || 0} alata.`, "success");
+    toolroomState.bulkWizard = { open: false, step: 0, serialMode: "later", draft: {} };
+    toolroomState.loaded = false;
+    return loadToolroomData(true).then(renderToolroom);
+  }).catch((error) => {
+    const code = error.payload?.error || error.message || "TOOLROOM_BULK_FAILED";
+    showToast(code === "INTERNAL_NUMBER_RANGE_CONFLICT" ? "Raspon internih brojeva je zauzet." : code, "error");
+  }));
 }
 
 function saveToolroomItemFromForm() {

@@ -148,6 +148,7 @@ const DEFAULT_PERMISSIONS = {
   canReportToolFault: false,
   canHandleToolService: false,
   canWriteOffTools: false,
+  canExportToolroom: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
   canExportTidplan: true,
@@ -196,6 +197,7 @@ const DEFAULT_GUEST_PERMISSIONS = {
   canReportToolFault: false,
   canHandleToolService: false,
   canWriteOffTools: false,
+  canExportToolroom: false,
   canExportWarehouse: false,
   canImportWarehouse: false,
   canExportTidplan: false,
@@ -1634,6 +1636,7 @@ function canAccessToolroom(session) {
     sessionHasPermission(session, 'canReportToolFault') ||
     sessionHasPermission(session, 'canHandleToolService') ||
     sessionHasPermission(session, 'canWriteOffTools') ||
+    sessionHasPermission(session, 'canExportToolroom') ||
     sessionHasPermission(session, 'canViewToolHistory');
 }
 
@@ -1659,6 +1662,10 @@ function canHandleToolService(session) {
 
 function canWriteOffTools(session) {
   return session?.isSuperAdmin || sessionHasPermission(session, 'canManageToolroom') || sessionHasPermission(session, 'canWriteOffTools');
+}
+
+function canExportToolroom(session) {
+  return session?.isSuperAdmin || sessionHasPermission(session, 'canExportToolroom') || sessionHasPermission(session, 'canManageToolroom');
 }
 
 async function buildPublicStatePayload(document, session) {
@@ -4122,6 +4129,68 @@ function appendToolroomAssignment(doc, assignment) {
   });
   next.assignments = next.assignments.slice(-1000);
   return next;
+}
+
+function formatToolroomInternalNumber(prefix, number, width = 3) {
+  const safePrefix = sanitizeString(prefix || '', 20).toUpperCase().replace(/[^A-Z0-9-]/g, '');
+  const numeric = Math.max(0, Number(number || 0));
+  return `${safePrefix}${String(numeric).padStart(Math.max(1, Number(width || 3)), '0')}`;
+}
+
+function buildToolroomBulkInternalNumbers({ prefix, startNumber, quantity }) {
+  const count = Math.max(0, Math.min(500, Number(quantity || 0)));
+  const first = Math.max(0, Number(startNumber || 0));
+  const width = Math.max(3, String(startNumber || '').length);
+  return Array.from({ length: count }, (_, index) => formatToolroomInternalNumber(prefix, first + index, width));
+}
+
+function buildToolroomExportRows(doc, filters = {}) {
+  const toolroom = normalizeToolroomDocument(doc);
+  const status = sanitizeString(filters.status || 'all', 80);
+  const worker = sanitizeString(filters.worker || '', 160).toLowerCase();
+  const site = sanitizeString(filters.site || '', 220);
+  const categoryId = sanitizeString(filters.categoryId || '', 120);
+  const scope = sanitizeString(filters.scope || 'all', 80);
+  const fromDate = sanitizeString(filters.fromDate || '', 20);
+  const untilDate = sanitizeString(filters.untilDate || '', 20);
+  const inRange = (date) => {
+    if (!date) return true;
+    const value = String(date).slice(0, 10);
+    if (fromDate && value < fromDate) return false;
+    if (untilDate && value > untilDate) return false;
+    return true;
+  };
+  const categories = new Map(toolroom.categories.map((category) => [category.id, category.name]));
+  const serviceToolIds = new Set(toolroom.serviceRecords.map((record) => record.toolId));
+  const faultToolIds = new Set(toolroom.faults.map((fault) => fault.toolId));
+  return toolroom.items
+    .filter((item) => !item.archived)
+    .filter((item) => status === 'all' || item.status === status)
+    .filter((item) => !worker || item.currentHolderUserEmail === worker)
+    .filter((item) => !site || item.currentHolderSiteId === site)
+    .filter((item) => !categoryId || item.categoryId === categoryId)
+    .filter((item) => scope !== 'service' || item.status === 'in_service' || serviceToolIds.has(item.id))
+    .filter((item) => scope !== 'written_off' || item.status === 'written_off')
+    .filter((item) => scope !== 'faults' || item.status === 'fault_reported' || faultToolIds.has(item.id))
+    .filter((item) => inRange(item.updatedAt || item.issuedAt || ''))
+    .map((item) => ({
+      InternalNumber: item.internalNumber,
+      SerialNumber: item.serialNumber,
+      Name: item.name,
+      Type: item.type,
+      Brand: item.brand,
+      Model: item.model,
+      Category: categories.get(item.categoryId) || '',
+      Status: item.status,
+      HolderType: item.currentHolderType || 'toolroom',
+      Holder: getToolroomHolderLabel(item),
+      Site: item.currentHolderSiteId || '',
+      Worker: item.currentHolderUserName || item.currentHolderUserEmail || '',
+      IssuedAt: item.issuedAt || '',
+      ExpectedReturnAt: item.expectedReturnAt || '',
+      UpdatedAt: item.updatedAt || '',
+      Notes: item.notes || '',
+    }));
 }
 
 function createToolroomEntityConflict(entityType, entityId, serverEntity, submittedVersion, currentVersion) {
@@ -7508,7 +7577,7 @@ apiRouter.get('/warehouse/admin-assignments', requirePermission('canViewWarehous
 
 /* ==================== TOOLROOM FOUNDATION ==================== */
 
-apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManageToolroom', 'canEditToolPresets', 'canViewToolHistory', 'canAssignTools', 'canReturnTools', 'canViewMyTools', 'canReportToolFault', 'canHandleToolService', 'canWriteOffTools']), async (req, res, next) => {
+apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManageToolroom', 'canEditToolPresets', 'canViewToolHistory', 'canAssignTools', 'canReturnTools', 'canViewMyTools', 'canReportToolFault', 'canHandleToolService', 'canWriteOffTools', 'canExportToolroom']), async (req, res, next) => {
   try {
     if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
     const toolroom = await getToolroomDocument();
@@ -7526,6 +7595,7 @@ apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManage
         canReportToolFault: canReportToolFault(req.session),
         canHandleToolService: canHandleToolService(req.session),
         canWriteOffTools: canWriteOffTools(req.session),
+        canExportToolroom: canExportToolroom(req.session),
       },
     });
   } catch (error) {
@@ -8204,6 +8274,160 @@ apiRouter.post('/toolroom/faults/:id/replacement', requireAnyPermission(['canAss
     res.json({ ok: true, fault: savedFault, replacement });
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.post('/toolroom/items/bulk', requirePermission('canManageToolroom'), async (req, res, next) => {
+  try {
+    if (req.session.isReadonly) return res.status(403).json({ error: 'READ_ONLY' });
+    const body = sanitizeObject(req.body || {});
+    const quantity = Math.max(0, Math.min(500, Number(body.quantity || 0)));
+    const prefix = sanitizeString(body.prefix || '', 20).toUpperCase();
+    const startNumber = Number(body.startNumber || 0);
+    if (!quantity || quantity > 500) return res.status(400).json({ error: 'TOOLROOM_BULK_QUANTITY_INVALID' });
+    if (!prefix) return res.status(400).json({ error: 'TOOLROOM_BULK_PREFIX_REQUIRED' });
+    if (!Number.isFinite(startNumber) || startNumber < 0) return res.status(400).json({ error: 'TOOLROOM_BULK_START_INVALID' });
+    const internalNumbers = buildToolroomBulkInternalNumbers({ prefix, startNumber, quantity });
+    if (new Set(internalNumbers.map((number) => number.toLowerCase())).size !== internalNumbers.length) {
+      return res.status(409).json({ error: 'INTERNAL_NUMBER_RANGE_CONFLICT', conflicts: internalNumbers });
+    }
+    const serialNumbers = Array.isArray(body.serialNumbers) ? body.serialNumbers.map((value) => sanitizeString(value || '', 160)) : [];
+    const engraved = body.engraved === true;
+    const status = engraved
+      ? (TOOLROOM_STATUSES.has(body.status) && body.status !== 'awaiting_engraving' ? body.status : 'available')
+      : 'awaiting_engraving';
+    const now = new Date().toISOString();
+    let created = [];
+    await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
+      let next = normalizeToolroomDocument(doc);
+      const existingNumbers = new Set(next.items.filter((item) => !item.archived).map((item) => String(item.internalNumber || '').toLowerCase()));
+      const conflicts = internalNumbers.filter((number) => existingNumbers.has(number.toLowerCase()));
+      if (conflicts.length) {
+        const error = new Error('INTERNAL_NUMBER_RANGE_CONFLICT');
+        error.statusCode = 409;
+        error.conflicts = conflicts;
+        throw error;
+      }
+      created = internalNumbers.map((internalNumber, index) => ({
+        id: createToolroomId('tool'),
+        internalNumber,
+        serialNumber: serialNumbers[index] || '',
+        name: sanitizeString(body.name || body.model || body.type || '', 220),
+        type: sanitizeString(body.type || '', 120),
+        brand: sanitizeString(body.brand || '', 120),
+        model: sanitizeString(body.model || '', 160),
+        categoryId: sanitizeString(body.categoryId || '', 120),
+        status,
+        iconKey: sanitizeString(body.iconKey || 'tool', 80),
+        imageUrl: sanitizeString(body.imageUrl || '', 500),
+        notes: sanitizeString(body.notes || '', 1000),
+        currentHolderType: 'toolroom',
+        currentHolderUserId: '',
+        currentHolderUserEmail: '',
+        currentHolderUserName: '',
+        currentHolderSiteId: '',
+        issuedAt: '',
+        expectedReturnAt: '',
+        returnedAt: '',
+        archived: false,
+        itemVersion: 1,
+        fieldVersions: {},
+        updatedAt: now,
+        updatedBy: sanitizeString(req.session.email || '', 160),
+      }));
+      if (created.some((item) => !item.name)) {
+        const error = new Error('TOOLROOM_ITEM_NAME_REQUIRED');
+        error.statusCode = 400;
+        throw error;
+      }
+      next.items.push(...created);
+      created.forEach((item) => {
+        next = pushToolroomHistory(next, {
+          entityType: 'toolItem',
+          entityId: item.id,
+          type: 'toolroom_tool_created',
+          actor: req.session.email,
+          note: item.internalNumber,
+          after: { internalNumber: item.internalNumber, status: item.status },
+        });
+      });
+      next = pushToolroomHistory(next, {
+        entityType: 'toolroomBatch',
+        entityId: createToolroomId('bulk'),
+        type: 'toolroom_bulk_created',
+        actor: req.session.email,
+        note: `${created.length} tools | ${internalNumbers[0]}-${internalNumbers[internalNumbers.length - 1]}`,
+        after: { count: created.length, prefix, range: internalNumbers },
+      });
+      next.updatedAt = now;
+      return next;
+    });
+    await logActivity(req.session.email, 'toolroom_bulk_created', { count: created.length, prefix, rangeStart: internalNumbers[0], rangeEnd: internalNumbers[internalNumbers.length - 1] });
+    res.status(201).json({ ok: true, items: created, range: internalNumbers });
+  } catch (error) {
+    if (error?.message === 'INTERNAL_NUMBER_RANGE_CONFLICT') {
+      return res.status(409).json({ error: 'INTERNAL_NUMBER_RANGE_CONFLICT', conflicts: error.conflicts || [] });
+    }
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
+    next(error);
+  }
+});
+
+apiRouter.get('/toolroom/export/:format(csv|excel|pdf)', requireAnyPermission(['canExportToolroom', 'canManageToolroom']), async (req, res, next) => {
+  try {
+    if (!canExportToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const format = sanitizeString(req.params.format || 'csv', 20).toLowerCase();
+    const filters = {
+      scope: sanitizeString(req.query.scope || 'all', 80),
+      status: sanitizeString(req.query.status || 'all', 80),
+      worker: sanitizeString(req.query.worker || '', 160),
+      site: sanitizeString(req.query.site || '', 220),
+      categoryId: sanitizeString(req.query.categoryId || '', 120),
+      fromDate: sanitizeString(req.query.fromDate || '', 20),
+      untilDate: sanitizeString(req.query.untilDate || '', 20),
+    };
+    if (filters.site && !canAccessSite(req.session, filters.site)) return res.status(403).json({ error: 'FORBIDDEN' });
+    const toolroom = await getToolroomDocument();
+    const rows = buildToolroomExportRows(toolroom, filters);
+    const generatedAt = new Date().toISOString();
+    const exportLabel = `toolroom-${filters.scope || 'all'}-${generatedAt.slice(0, 10)}`;
+    const headers = ['InternalNumber', 'SerialNumber', 'Name', 'Type', 'Brand', 'Model', 'Category', 'Status', 'HolderType', 'Holder', 'Site', 'Worker', 'IssuedAt', 'ExpectedReturnAt', 'UpdatedAt', 'Notes'];
+    if (format === 'csv') {
+      const escapeCsv = (value) => {
+        const text = String(value ?? '');
+        if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+        return text;
+      };
+      const csv = [headers.join(','), ...rows.map((row) => headers.map((key) => escapeCsv(row[key])).join(','))].join('\n');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${exportLabel}.csv"`);
+      await logActivity(req.session.email, 'toolroom_export_csv', { filters, rows: rows.length });
+      return res.send(`\uFEFF${csv}`);
+    }
+    if (format === 'excel') {
+      const buffer = await exportToExcel(rows, headers);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${exportLabel}.xlsx"`);
+      await logActivity(req.session.email, 'toolroom_export_excel', { filters, rows: rows.length });
+      return res.send(Buffer.from(buffer));
+    }
+    const lines = [
+      'Toolroom Export',
+      `Generated: ${generatedAt}`,
+      `Scope: ${filters.scope}`,
+      `Status: ${filters.status}`,
+      `Rows: ${rows.length}`,
+      '',
+      headers.join(' | '),
+      ...rows.map((row) => headers.map((key) => row[key] || '').join(' | ')),
+    ];
+    const buffer = await exportToPDF('Toolroom Export', lines.join('\n'));
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${exportLabel}.pdf"`);
+    await logActivity(req.session.email, 'toolroom_export_pdf', { filters, rows: rows.length });
+    return res.send(Buffer.from(buffer));
+  } catch (error) {
     next(error);
   }
 });

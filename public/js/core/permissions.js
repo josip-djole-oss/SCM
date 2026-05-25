@@ -44,7 +44,7 @@ function canEditWarehouse() {
 }
 
 function canAccessToolroomModule() {
-  return hasPermission("canAccessToolroom") || hasPermission("canManageToolroom") || hasPermission("canEditToolPresets") || hasPermission("canViewToolHistory") || hasPermission("canAssignTools") || hasPermission("canReturnTools") || hasPermission("canViewMyTools") || hasPermission("canReportToolFault") || hasPermission("canHandleToolService") || hasPermission("canWriteOffTools");
+  return hasPermission("canAccessToolroom") || hasPermission("canManageToolroom") || hasPermission("canEditToolPresets") || hasPermission("canViewToolHistory") || hasPermission("canAssignTools") || hasPermission("canReturnTools") || hasPermission("canViewMyTools") || hasPermission("canReportToolFault") || hasPermission("canHandleToolService") || hasPermission("canWriteOffTools") || hasPermission("canExportToolroom");
 }
 
 function canManageToolroom() {
@@ -81,6 +81,10 @@ function canHandleToolServiceAccess() {
 
 function canWriteOffToolsAccess() {
   return !appState.isReadonly && (hasPermission("canWriteOffTools") || hasPermission("canManageToolroom"));
+}
+
+function canExportToolroomAccess() {
+  return !appState.isReadonly && (hasPermission("canExportToolroom") || hasPermission("canManageToolroom"));
 }
 
 function canViewWarehouseLogsSection() {

@@ -857,6 +857,68 @@ body {
 .toolroom-my-tool-actions {
   justify-content: flex-end;
 }
+.toolroom-inline-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.toolroom-stepper {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+.toolroom-stepper button {
+  min-height: 44px;
+  border: 1px solid #dbe4f2;
+  border-radius: 14px;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 800;
+}
+.toolroom-stepper button span {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+.toolroom-stepper button.is-active,
+.toolroom-stepper button.is-done {
+  border-color: #0f766e;
+  background: #ecfdf5;
+}
+.toolroom-preview-list,
+.toolroom-review {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #dbe4f2;
+  border-radius: 16px;
+  background: #f8fafc;
+}
+.toolroom-preview-list span {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-weight: 900;
+}
+.toolroom-review {
+  display: grid;
+}
+.toolroom-review p {
+  margin: 0;
+}
+.toolroom-wizard-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 @media (max-width: 900px) {
   .toolroom-hero,
@@ -886,6 +948,13 @@ body {
   .toolroom-fault-actions .btn {
     flex: 1 1 100%;
   }
+  .toolroom-stepper {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .toolroom-wizard-footer .btn,
+  .toolroom-inline-actions .btn {
+    flex: 1 1 auto;
+  }
   .warehouse-log-toolbar-actions {
     justify-content: stretch;
   }
@@ -914,6 +983,13 @@ body {
   }
   .toolroom-my-tool-grid {
     grid-template-columns: 1fr;
+  }
+  .toolroom-stepper {
+    grid-template-columns: 1fr;
+  }
+  .toolroom-wizard-footer .btn,
+  .toolroom-inline-actions .btn {
+    width: 100%;
   }
 }
 .header::after {

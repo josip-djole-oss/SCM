@@ -390,6 +390,21 @@
     assignReplacement(...args) {
       return callLegacy("assignToolroomReplacement", args);
     },
+    openBulkWizard(...args) {
+      return callLegacy("openToolroomBulkWizard", args);
+    },
+    closeBulkWizard(...args) {
+      return callLegacy("closeToolroomBulkWizard", args);
+    },
+    setBulkStep(...args) {
+      return callLegacy("setToolroomBulkStep", args);
+    },
+    submitBulkAdd(...args) {
+      return callLegacy("submitToolroomBulkAdd", args);
+    },
+    downloadExport(...args) {
+      return callLegacy("downloadToolroomExport", args);
+    },
   });
 
   assignNamespace("workwear", {
