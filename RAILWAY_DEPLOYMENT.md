@@ -1,402 +1,73 @@
-# 🚀 RAILWAY DEPLOYMENT GUIDE
+# Railway deployment
 
-**Za:** CMAX SCM v1.1  
-**Datum:** 2026-04-29  
-**Status:** Production Ready
+SCM can run on Railway with PostgreSQL or JSON document storage. User uploads always require a Railway persistent volume. PostgreSQL does not make files written by the application persistent.
 
----
+## Services and commands
 
-## 📋 PRE-DEPLOYMENT CHECKLIST
+Create one application service and, for production, a PostgreSQL service. Attach a persistent volume to the application service; `/data` is a practical mount path.
 
-- [ ] Svi kodovi su commitani
-- [ ] `.env` datoteka je u `.gitignore`
-- [ ] `package.json` ima sve dependencies
-- [ ] PostgreSQL baza je kreirana na Railwayu
-- [ ] Testirali ste lokalno `npm start`
-- [ ] Testirali ste export/import funkcije
-- [ ] Kreirali ste test backup
-- [ ] Read-only korisnik je konfiguriran
+The committed `.railway/railway.ts` owns only the SCM service and its upload volume. It preserves existing production variables, the GitHub source and the single-replica setting, and configures:
 
----
-
-## 🔧 SETUP NA RAILWAYU
-
-### 1. KREIRANJE POSTGRE SQL BAZE
-
-#### U Railway Dashboard:
-```
-1. Create New Project
-2. Add Database → PostgreSQL
-3. Kliknite na PostgreSQL instancu
-4. Kopirajte connection string
+```text
+Build: npm ci && npm run build
+Start: npm start
+Health: /api/health
 ```
 
-#### Trebate ove podatke:
-- Host: `railway-db` (automatski)
-- Port: `5432` (automatski)
-- Database: `cmax`
-- User: `postgres` (ili custom)
-- Password: (generirano automatski)
+The production project is `hospitable-wisdom`, environment `production`, service `SCM`. Its Railway domain is `scm-production-f9fc.up.railway.app`. `scm-volume` is mounted at `/data`; the separate PostgreSQL volume remains mounted only on the PostgreSQL service.
 
----
+The build copies locked browser dependencies from `node_modules` into `public/vendor`. Production therefore does not depend on third-party CDNs for jsPDF, AutoTable or Flatpickr.
 
-### 2. ENVIRONMENT VARIJABLE NA RAILWAYU
-
-U Railway Dashboard → Variables:
+## Required variables
 
 ```env
-# NODE
 NODE_ENV=production
-PORT=3000
-
-# BOOTSTRAP ADMIN (PRVI PUT)
-BOOTSTRAP_ADMIN_EMAIL=vasa.email@example.com
-BOOTSTRAP_ADMIN_PASSWORD=VloZenaSuperLozinka123!@#_VelikaBetaMala
-
-# DATABASE (Из PostgreSQL connection)
 STORAGE_TYPE=postgres
-DATABASE_URL=postgresql://user:pass@railway-db:5432/cmax
-
-# SECURITY
-BCRYPT_ROUNDS=12
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+RAILWAY_VOLUME_MOUNT_PATH=/data
+BOOTSTRAP_ADMIN_EMAIL=owner@example.com
+BOOTSTRAP_ADMIN_PASSWORD=<unique password of 12-72 UTF-8 bytes>
+CORS_ORIGINS=https://your-scm-domain.example
+SESSION_COOKIE_NAME=cmax_session
 SESSION_TTL_MS=28800000
-
-# CORS (VAŠA DOMENA!)
-CORS_ALLOW_ALL=false
-CORS_ORIGINS=https://vasa-aplikacija.railway.app,https://www.vasa-aplikacija.railway.app
-
-# BACKUP
-AUTO_BACKUP_INTERVAL_MS=21600000
-BACKUP_RATE_LIMIT_MAX=10
-
-# UPLOAD
+BCRYPT_ROUNDS=12
 UPLOAD_MAX_BYTES=10485760
-
-# LOGIN
-LOGIN_RATE_LIMIT_MAX=5
+API_BODY_LIMIT=5mb
+API_RATE_LIMIT_MAX=300
+LOGIN_RATE_LIMIT_MAX=10
+AUTO_BACKUP_INTERVAL_MS=21600000
 ```
 
-### ⚠️ VAŽNO: Konfiguracija CORS-a
+Railway provides `PORT`; setting it manually is optional. With the volume mounted, SCM defaults to `/data/uploads` for files and `/data/data/backups` for backup snapshots. `UPLOAD_PATH` must remain inside the volume. With JSON storage, `DATA_PATH` and `BACKUP_PATH` must also remain inside it. Startup deliberately fails if Railway is detected without persistent upload storage.
 
-```env
-❌ LOŠE:
-CORS_ALLOW_ALL=true
+Bootstrap credentials create the first Super Admin only when account data is empty. Remove the bootstrap password variable after successful initialization and retain it in a password manager. Never commit `.env`.
 
-✅ DOBRO:
-CORS_ALLOW_ALL=false
-CORS_ORIGINS=https://vasa-domena.railway.app
-```
+`npm run validate:railway-config` validates the effective runtime variables without printing their values. `npm run validate:postgres` performs two read-only connections and verifies the expected PostgreSQL schema without reading business records.
 
----
+## Before deployment
 
-## 🔐 SIGURNOST - BEST PRACTICES
-
-### 1. Sigurna Lozinka
-```
-❌ LOŠE:
-BOOTSTRAP_ADMIN_PASSWORD=123456
-
-✅ DOBRO:
-BOOTSTRAP_ADMIN_PASSWORD=NekaRandoamLozinka2026!@#$%^&*()_+
-```
-
-**Generirajte s:**
 ```bash
-node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+npm ci
+npm run check
+npm run test:browser
 ```
 
-### 2. Nikad Ne Commitajte .env
-```bash
-# .gitignore
-.env
-.env.local
-.env.production
-node_modules/
-```
+Create a database backup and volume snapshot before upgrading an existing deployment. Migrations preserve unknown and disabled-module data. Module OFF never deletes module records.
 
-### 3. Čuvajte Tajne
-```javascript
-// ❌ LOŠE
-const DB_PASS = "hemligaLozinka";
+## Verification after deployment
 
-// ✅ DOBRO
-const DB_PASS = process.env.DATABASE_PASSWORD;
-```
+1. Confirm `/api/health` returns `ok: true` and `storageReady: true`.
+2. Sign in as the explicit Super Admin and verify the intended projects.
+3. Upload an image and PDF, download both, restart the service, and download them again.
+4. Disable Store for one test project. Verify navigation disappears, `/store` redirects, and `/api/store/orders?site=<project>` returns 403. Verify Store remains usable in an enabled project.
+5. Re-enable Store and confirm the previous products and orders remain.
+6. Use two isolated browser sessions to verify permission and module changes arrive without another login.
+7. Exercise a create/update/delete workflow, refresh both sessions, and confirm the same authoritative result.
 
-### 4. HTTPS Obavezno
-```
-Railway automatski koristi HTTPS.
-Sve konekcije su enkripirane.
-```
+## Scaling limitation
 
----
+Sessions and Server-Sent Event subscribers currently live in one application process. Run one replica. Multiple replicas require a shared session store and shared event transport. PostgreSQL protects documents but does not distribute in-memory sessions or realtime events.
 
-## 📊 BACKUP STRATEGIJA ZA RAILWAY
+## Recovery
 
-### Problem: Ephemeral Storage
-```
-Railway ima "ephemeral" (privremeni) storage:
-- Max 100GB
-- Briše se ako se app restartuje
-- Datoteke u /data se gube
-```
-
-### Rješenje: PostgreSQL Database
-
-Svi podaci idu u PostgreSQL bazu:
-```
-✅ Trajni (persistent)
-✅ Automatski backupirani
-✅ Dostupan iz bilo gdje
-✅ Skalabilan
-```
-
-### Dodatni Backup - External Storage
-
-Za extra sigurnost, backupirajte i u:
-- **AWS S3**
-- **Google Cloud Storage**
-- **Azure Blob Storage**
-- **Backblaze B2**
-
-Primjer s S3:
-```env
-# U environment varijable dodajte:
-AWS_ACCESS_KEY_ID=your-key
-AWS_SECRET_ACCESS_KEY=your-secret
-S3_BUCKET=cmax-backups
-
-# Trebate prilagoditi server.js da šalje backupe u S3
-```
-
----
-
-## 🚀 DEPLOYMENT KORACI
-
-### Korak 1: Push na GitHub
-```bash
-git add .
-git commit -m "CMAX v1.1 - Export/Import + Backup"
-git push origin main
-```
-
-### Korak 2: Povežite Railway
-```bash
-# U Railway Dashboard:
-1. Create New Project
-2. Create New Service
-3. Deploy from GitHub
-4. Odaberite repository
-5. Odaberite branch (main)
-```
-
-### Korak 3: Postavite Variables
-```
-U Railway Dashboard → Variables:
-Dodajte sve env varijable iz gornje liste
-```
-
-### Korak 4: Deploy
-```
-Railway će automatski:
-1. Pulati kod
-2. Instalirati dependencies
-3. Pokrenuti "npm start"
-4. Sve bi trebalo biti live u 2-3 minute
-```
-
----
-
-## ✅ POST-DEPLOYMENT TEST
-
-### Test 1: Jestli je server dostupan?
-```bash
-curl https://vasa-aplikacija.railway.app
-# Trebalo bi vratiti index.html
-```
-
-### Test 2: Login
-```bash
-curl -X POST https://vasa-aplikacija.railway.app/api/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@example.com",
-    "password": "vasa-lozinka"
-  }'
-
-# Trebalo bi vratiti session cookie i CSRF token
-```
-
-### Test 3: Export Warehouse
-```bash
-# Trebate biti logirani prvo
-curl -X GET https://vasa-aplikacija.railway.app/api/warehouse/export/excel \
-  -b "cmax_session=YOUR_SESSION" \
-  -H "x-csrf-token: YOUR_TOKEN" \
-  --output warehouse.xlsx
-
-# Trebalo bi preuzeti .xlsx datoteku
-```
-
-### Test 4: Backup
-```bash
-curl -X POST https://vasa-aplikacija.railway.app/api/backup \
-  -b "cmax_session=YOUR_SESSION" \
-  -H "x-csrf-token: YOUR_TOKEN"
-
-# Trebalo bi vratiti backup info
-```
-
----
-
-## 🔍 MONITORING NA RAILWAYU
-
-### Logovi
-```
-U Railway Dashboard:
-1. Kliknite na servis
-2. Logs tab
-3. Vidite sve logove
-4. Možete filtrirati po "error", "warning"
-```
-
-### Resource Usage
-```
-U Railway Dashboard:
-1. Kliknite na servis
-2. Metrics tab
-3. Vidite CPU, Memory, Disk
-```
-
-### Alerts
-```
-Trebate postaviti alerts za:
-- High CPU (> 80%)
-- High Memory (> 512MB)
-- Failed deployments
-- Error rate > 1%
-```
-
----
-
-## ⚠️ ČESTI PROBLEMI
-
-### Problem 1: "DATABASE_URL: MISSING"
-```
-Rješenje:
-Provjerite da ste postavili DATABASE_URL u variables
-```
-
-### Problem 2: "CORS blocked"
-```
-Rješenje:
-Provjerite CORS_ORIGINS vrijednost
-Trebala bi biti: https://vasa-domena.railway.app
-```
-
-### Problem 3: "File not found"
-```
-Rješenje:
-Datoteke se gube na restartu. Trebate PostgreSQL.
-Provjerite STORAGE_TYPE=postgres
-```
-
-### Problem 4: "Cannot upload file"
-```
-Rješenje:
-- Provjerite UPLOAD_MAX_BYTES (10MB default)
-- Datoteke se trebale učitati u /uploads
-- Na Railwayu se brišu! Trebate vanjski storage.
-```
-
-### Problem 5: "Rate limit exceeded"
-```
-LOGIN_RATE_LIMIT_MAX=5 (pokušaja)
-BACKUP_RATE_LIMIT_MAX=10 (pokušaja po 15 min)
-
-Čekajte 15 minuta i pokušajte ponovno.
-```
-
----
-
-## 🔄 DEPLOYMENT UPDATES
-
-### Za nove verzije:
-```bash
-1. Testirajte lokalno
-2. Commitajte kod
-3. Push na GitHub
-4. Railway će automatski deploy
-5. Provjerite logove
-```
-
----
-
-## 📊 PRODUCTION MONITORING CHECKLIST
-
-### Dnevno (Daily):
-- [ ] Provjerite logove za greške
-- [ ] Provjerite disk prostor
-- [ ] Provjerite CPU/Memory korištenje
-
-### Tjedno (Weekly):
-- [ ] Pregledate warehouse logs
-- [ ] Proverite failed logins
-- [ ] Testirate backup restoration
-
-### Mjesečno (Monthly):
-- [ ] Update dependencies
-- [ ] Audit admin accounts
-- [ ] Test disaster recovery
-- [ ] Review security logs
-
----
-
-## 🆘 EMERGENCY - BRZI TROUBLESHOOTING
-
-### Server ne radi?
-```bash
-1. Idite u Railway Dashboard
-2. Kliknite na Logs
-3. Pogledajte zadnje 50 logova
-4. Traži "Error" ili "Cannot find module"
-```
-
-### Database je nedostupna?
-```bash
-1. Provjerite DATABASE_URL
-2. Provjerite da PostgreSQL servis radi
-3. U Railway Dashboard → Database tab
-```
-
-### Nema backupa?
-```bash
-1. Provjerite AUTO_BACKUP_INTERVAL_MS
-2. Provjerite da je STORAGE_TYPE=postgres
-3. Trebate set-up vanjski storage (S3)
-```
-
----
-
-## 📞 KONTAKT & SUPPORT
-
-Trebate li pomoć?
-- 📖 Vidi: [BACKUP_AND_SECURITY.md](./BACKUP_AND_SECURITY.md)
-- 🧪 Vidi: [TESTING_SECURITY.md](./TESTING_SECURITY.md)
-- 🎯 Vidi: [QUICK_START_v1.1.md](./QUICK_START_v1.1.md)
-
----
-
-## ✨ VAŽNE NAPOMENE
-
-1. **HTTPS je obavezna** - Railway to radi automatski
-2. **CORS mora biti konfiguriran** - bez toga frontend neće raditi
-3. **PostgreSQL je preporučena** - JSON datoteke se gube
-4. **Backupi trebaju vanjski storage** - za produkciju!
-5. **Čuvajte .env tajno** - nikad ga ne commitajte
-
----
-
-**Verzija:** 1.1  
-**Status:** ✅ Production Ready  
-**Last Updated:** 2026-04-29
+If health reports unavailable storage, inspect the volume mount and database connection before restarting repeatedly. Never point production JSON data or uploads at the repository filesystem. Restore backups into an isolated environment first, verify project/module data and file access, then use the Admin Panel for the production restore.

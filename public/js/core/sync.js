@@ -27,7 +27,12 @@ function trackLocalEditKey(key) {
 }
 
 function stableJson(value) {
-  return JSON.stringify(value === undefined ? null : value);
+  const canonical = (entry) => {
+    if (Array.isArray(entry)) return entry.map(canonical);
+    if (entry && typeof entry === "object") return Object.fromEntries(Object.keys(entry).sort().map((key) => [key, canonical(entry[key])]));
+    return entry === undefined ? null : entry;
+  };
+  return JSON.stringify(canonical(value));
 }
 
 function getSnapshotSiteEntry(snapshot, site = currentSite) {
@@ -274,33 +279,34 @@ function renderAfterSharedDataRefresh() {
 }
 
 function applySharedDataRefresh(snapshot, version) {
-  rememberAppliedRemoteState(snapshot, version);
-  return loadAllData()
+  const context = captureAppContext();
+  return loadAllData({ strict: true })
     .then(() => {
+      if (!isAppContextCurrent(context)) return false;
       renderAfterSharedDataRefresh();
       return true;
     })
-    .catch(() => false);
+    .catch((error) => {
+      if (isAppContextCurrent(context)) showDataLoadError(error?.message);
+      return false;
+    });
 }
 
 function refreshSharedDataIfSafe() {
-  if (!BACKEND_ENABLED) {
-    return Promise.resolve(false);
-  }
-
+  if (!BACKEND_ENABLED || !appState.currentUser || !freshServerDataLoaded || appLoadingDepth > 0 || applicationResyncInFlight) return Promise.resolve(false);
+  const context = captureAppContext();
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((payload) => {
+      if (!isAppContextCurrent(context)) return false;
       serverStateVersion = Number(payload?.version) || serverStateVersion || 1;
       const snapshot = payload?.state;
       const remoteKey = getRemoteStateKey(snapshot, serverStateVersion);
       if (!remoteKey || remoteKey === lastAppliedRemoteStateKey || remoteKey === ignoredRemoteStateKey) {
         return false;
       }
-      if (!snapshot?.savedBy || snapshot.savedBy === appState.currentUser) {
-        rememberAppliedRemoteState(snapshot, serverStateVersion);
-        return false;
-      }
+      if (serverSyncInFlight || Object.keys(moduleSyncInFlight).length || Object.keys(pendingModuleSaves).length) return false;
+      if (canRefreshSharedData()) return applySharedDataRefresh(snapshot, serverStateVersion);
       const editor = getRemoteEditorName(snapshot);
       const time = formatRemoteEditTime(snapshot.savedAt);
       const message = `${editor} je uređivao podatke${time ? ` u ${time}` : ""}. Želite li povući najnovije podatke?`;
@@ -387,35 +393,8 @@ function syncSiteMetadata(snapshot) {
         localStorage.setItem(ADMINS_KEY, JSON.stringify(normalizedAdmins));
         metaChanged = true;
 
-        if (appState.currentUser && !appState.isReadonly) {
-          const currentAdmin = normalizedAdmins.find(
-            (admin) => admin.email === appState.currentUser,
-          );
-          if (currentAdmin) {
-            const currentLevel = getAdminLevel(currentAdmin);
-            appState.adminLevel = currentLevel;
-            appState.permissions = currentAdmin.isSuperAdmin
-              ? { ...DEFAULT_PERMISSIONS }
-              : clampPermissionsToLevel(currentAdmin.permissions || {}, currentLevel);
-            appState.currentUserName = currentAdmin.fullName || appState.currentUserName;
-
-            const authData = safeParseStoredJson(localStorage.getItem(AUTH_KEY), null);
-            if (authData) {
-              authData.permissions = appState.permissions;
-              authData.fullName = currentAdmin.fullName || authData.fullName || "";
-              authData.isSuperAdmin = !!currentAdmin.isSuperAdmin;
-              authData.level = currentLevel;
-              localStorage.setItem(AUTH_KEY, JSON.stringify(authData));
-            }
-
-            applyPermissionVisibility();
-            if (document.getElementById("adminModal")?.style.display === "flex") {
-              CMAX.admin.open();
-            }
-          } else if (!appState.isSuperAdmin && !appState.isReadonly) {
-            handleAdminRemoval(getAdminRemovalNotice(appState.currentUser));
-          }
-        }
+        // Session permissions are authoritative. Admin list hydration must never rewrite them.
+        refreshCurrentSessionPermissions({ notify: true }).catch(() => false);
       }
     }
 
@@ -460,35 +439,26 @@ function syncSiteMetadata(snapshot) {
   updateMainTitle();
 
   if (currentChanged) {
-    loadCurrentSiteRuntimeFromLocalStorage();
-    renderCurrentSiteAfterHydrate();
-    syncServerState({ includeSites: true, skipLog: true }).catch(() => {});
+    invalidateAppContext();
+    return resynchronizeApplication({ notifyPermissions: false });
   }
 
   return Promise.resolve(true);
 }
 
 function refreshSiteMetadata() {
-  if (!BACKEND_ENABLED) {
+  if (!BACKEND_ENABLED || !freshServerDataLoaded || !appState.currentUser || appLoadingDepth > 0) {
     return Promise.resolve(false);
   }
 
+  const context = captureAppContext();
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((data) => {
+      if (!isAppContextCurrent(context)) return false;
       serverStateVersion = Number(data?.version) || serverStateVersion || 1;
       return syncSiteMetadata(data?.state);
     })
-    .then((changed) =>
-      loadNotificationsData()
-        .then(() => {
-          if (currentView === "notifications") {
-            renderNotificationsList();
-          }
-          return changed;
-        })
-        .catch(() => changed),
-    )
     .catch(() => false);
 }
 
@@ -505,64 +475,106 @@ function stopSiteMetaRefresh() {
   siteMetaRefreshInterval = null;
 }
 
-function refreshCurrentSessionPermissions({ notify = true } = {}) {
-  if (!BACKEND_ENABLED || !appState.currentUser || appState.currentUser === "readonly") {
-    return Promise.resolve(false);
-  }
-  const before = stableJson({
-    permissions: appState.permissions || {},
-    level: appState.adminLevel || 1,
-    isSuperAdmin: appState.isSuperAdmin,
-    isReadonly: appState.isReadonly,
+function effectivePermissionSignature() {
+  return stableJson({
+    readonly: appState.isReadonly === true,
+    superAdmin: appState.isSuperAdmin === true,
+    permissions: Object.fromEntries(Object.keys(DEFAULT_PERMISSIONS).sort().map((key) => [key, appState.permissions?.[key] === true])),
+    guestPermissions: appState.isReadonly ? appState.guestPermissions : null,
   });
-  return fetch("/api/session", { cache: "no-store" })
-    .then((res) => (res.ok ? res.json() : Promise.reject()))
-    .then((data) => {
-      if (data?.csrfToken) setCsrfToken(data.csrfToken);
-      if (!data?.auth) return false;
-      const auth = data.auth;
-      const level = Number(auth.level) || deriveLevelFromPermissions(auth.permissions || {});
-      const nextPermissions = auth.isSuperAdmin
-        ? { ...DEFAULT_PERMISSIONS }
-        : clampPermissionsToLevel(auth.permissions || {}, level);
-      const after = stableJson({
-        permissions: nextPermissions,
-        level,
-        isSuperAdmin: auth.isSuperAdmin,
-        isReadonly: auth.isReadonly,
-      });
-      if (after === before) return false;
+}
 
-      appState.permissions = nextPermissions;
-      appState.adminLevel = level;
-      appState.isSuperAdmin = !!auth.isSuperAdmin;
-      appState.isReadonly = !!auth.isReadonly;
-      appState.currentUserName = auth.fullName || appState.currentUserName;
-      const authData = safeParseStoredJson(localStorage.getItem(AUTH_KEY), {}) || {};
-      localStorage.setItem(
-        AUTH_KEY,
-        JSON.stringify({
-          ...authData,
-          ...auth,
-          permissions: nextPermissions,
-          level,
-          timestamp: Date.now(),
-        }),
-      );
-      if (notify) showToast(t("permissionsChangedRefresh"), "info");
-      return loadAllData({ strict: true }).then(() => {
-        applyPermissionVisibility();
-        renderAll();
-        if (currentView === "surveys" && hasPermission("canViewSurveys")) {
-          return getSurveysList({ strict: true }).then(() => {
-            renderSurveysList();
-            return true;
-          });
-        }
-        return true;
-      });
+function refreshCurrentSessionPermissions({ notify = true } = {}) {
+  if (!BACKEND_ENABLED || !appState.currentUser) return Promise.resolve(false);
+  if (permissionRefreshInFlight) return permissionRefreshInFlight;
+  const context = captureAppContext();
+  const before = effectivePermissionSignature();
+  const promise = fetch("/api/session", { cache: "no-store" })
+    .then((res) => {
+      if (!res.ok) throw new Error(`SESSION_REFRESH_${res.status}`);
+      return res.json();
     })
-    .catch(() => false);
+    .then(async (data) => {
+      if (!isAppContextCurrent(context) || !data?.auth?.email) return false;
+      if (data.auth.email !== context.user) {
+        handleApiUnauthorized();
+        return false;
+      }
+      if (data.csrfToken) setCsrfToken(data.csrfToken);
+      applyAuthData({ ...data.auth, timestamp: Date.now() });
+      const changed = effectivePermissionSignature() !== before;
+      if (!changed) return false;
+      applyPermissionVisibility();
+      if (notify) {
+        showToast(t("permissionsChangedRefresh"), "info");
+        if (typeof syncAccountNotifications === "function") syncAccountNotifications();
+      } else if (typeof baselineAccountNotificationPermissions === "function") {
+        baselineAccountNotificationPermissions();
+      }
+      return true;
+    })
+    .finally(() => {
+      if (permissionRefreshInFlight === promise) permissionRefreshInFlight = null;
+    });
+  permissionRefreshInFlight = promise;
+  return promise;
+}
+
+var applicationResyncInFlight = null;
+async function resynchronizeApplication({ notifyPermissions = false } = {}) {
+  if (!appState.currentUser || !BACKEND_ENABLED) return false;
+  if (applicationResyncInFlight) return applicationResyncInFlight;
+  const context = captureAppContext();
+  const promise = withLoadingPromise("loadingDefault", async () => {
+    document.getElementById("mainContainer").style.display = "none";
+    try {
+      await refreshCurrentSessionPermissions({ notify: notifyPermissions });
+      if (!isAppContextCurrent(context)) return false;
+      if (appState.hasUnsavedChanges || tidplanDataChanged || Object.keys(pendingModuleSaves).length || Object.keys(moduleSyncInFlight).length) {
+        // Preserve pending input and require its persistence before replacing runtime state.
+        freshServerDataLoaded = true;
+        if (!(await flushPendingModuleSaves())) throw new Error("UNSAVED_CHANGES_SYNC_FAILED");
+        if (appState.hasUnsavedChanges || tidplanDataChanged) {
+          const target = currentView === "tidplan" ? "tidplan" : currentView === "bins" ? "bins" : "planner";
+          if (!(await syncModuleState(target))) throw new Error("UNSAVED_CHANGES_SYNC_FAILED");
+        }
+      }
+      freshServerDataLoaded = false;
+      await loadFreshBackendData();
+      if (!isAppContextCurrent(context, false)) return false;
+      appState.hasUnsavedChanges = false;
+      tidplanDataChanged = false;
+      freshServerDataLoaded = true;
+      appDataLoadError = "";
+      renderCurrentSiteAfterHydrate();
+      showMainApp();
+      startAutoSave();
+      return true;
+    } catch (error) {
+      if (isAppContextCurrent(context, false)) showDataLoadError(error?.message);
+      return false;
+    }
+  });
+  applicationResyncInFlight = promise;
+  try { return await promise; }
+  finally { if (applicationResyncInFlight === promise) applicationResyncInFlight = null; }
+}
+
+function installRealtimeSynchronization() {
+  if (window.scmRealtimeSynchronizationInstalled) return;
+  window.scmRealtimeSynchronizationInstalled = true;
+  document.addEventListener("scm:state-changed", () => {
+    if (freshServerDataLoaded) refreshSharedDataIfSafe().catch(() => false);
+  });
+  document.addEventListener("scm:permissions-changed", () => {
+    resynchronizeApplication({ notifyPermissions: true }).catch(() => false);
+  });
+  document.addEventListener("scm:reconnected", () => {
+    resynchronizeApplication({ notifyPermissions: false }).catch(() => false);
+  });
+  window.addEventListener("online", () => {
+    resynchronizeApplication({ notifyPermissions: false }).catch(() => false);
+  });
 }
 
 function startPermissionRefresh() {
@@ -593,8 +605,10 @@ function getSharedDataRefreshDelay() {
 
 function startSharedDataRefresh() {
   stopSharedDataRefresh();
-  if (!BACKEND_ENABLED || !appState.currentUser || appState.currentUser === "readonly") return;
+  if (!BACKEND_ENABLED || !appState.currentUser) return;
+  const generation = sharedRefreshGeneration;
   const tick = () => {
+    if (generation !== sharedRefreshGeneration) return;
     if (!freshServerDataLoaded) {
       sharedDataRefreshTimer = setTimeout(tick, getSharedDataRefreshDelay());
       return;
@@ -608,6 +622,7 @@ function startSharedDataRefresh() {
       .catch(() => false)
       .finally(() => {
         sharedDataRefreshRunning = false;
+        if (generation !== sharedRefreshGeneration) return;
         sharedDataRefreshTimer = setTimeout(tick, getSharedDataRefreshDelay());
       });
   };
@@ -615,6 +630,7 @@ function startSharedDataRefresh() {
 }
 
 function stopSharedDataRefresh() {
+  sharedRefreshGeneration += 1;
   if (sharedDataRefreshTimer) clearTimeout(sharedDataRefreshTimer);
   sharedDataRefreshTimer = null;
   sharedDataRefreshRunning = false;
@@ -669,7 +685,7 @@ function stopPresenceTracking() {
 
 function startReportsPolling() {
   stopReportsPolling();
-  if (!BACKEND_ENABLED || !hasAdminPermission("canViewReports")) return;
+  if (!BACKEND_ENABLED || !hasAdminPermission("canViewReports") || !isSiteModuleEnabled("reports")) return;
 
   loadReportsData()
     .then(() => {

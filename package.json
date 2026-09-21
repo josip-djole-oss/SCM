@@ -6,6 +6,13 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
+    "build": "node scripts/build.js",
+    "test": "npm run test:core",
+    "test:core": "node --test --test-concurrency=1 scripts/frontend-sync.test.js scripts/frontend-persistence.test.js scripts/storage-integrity-tests.js scripts/upload-persistence-tests.js tests/backend-modules-auth.test.js tests/railway-production-readiness.test.js",
+    "test:browser": "node scripts/frontend-freshness-browser-test.js",
+    "validate:railway-config": "node scripts/railway-config-check.js",
+    "validate:postgres": "node scripts/postgres-readiness-check.js",
+    "check": "npm run build && npm run test:core && npm audit --audit-level=high",
     "install-deps": "npm install",
     "audit:dead-code": "node scripts/dead-code-audit.js"
   },
@@ -18,16 +25,26 @@
     "exceljs": "^4.4.0",
     "express": "^4.18.2",
     "express-rate-limit": "^8.4.1",
+    "flatpickr": "^4.6.13",
     "helmet": "^8.1.0",
-    "jspdf": "^2.5.1",
-    "multer": "^1.4.5-lts.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "multer": "^2.4.0",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^5.7.284",
+    "pdfjs-dist": "^6.3.289",
     "pdfkit": "^0.18.0",
     "pg": "^8.13.1"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "playwright": "^1.63.0",
+    "railway": "^3.11.0"
+  },
+  "overrides": {
+    "qs": "^6.16.0",
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   },
   "keywords": [
     "construction",

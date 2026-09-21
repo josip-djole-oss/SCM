@@ -43,14 +43,14 @@ function ensureWarehouseStockRecord(itemId) {
   return warehouseData.stock[itemId];
 }
 
-function persistWarehouseData(site = currentSite) {
+async function persistWarehouseData(site = currentSite) {
   warehouseData = normalizeWarehouseData(warehouseData);
   const changed = setCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), warehouseData);
-  if (!changed) return false;
+  if (!changed) return true;
   trackEditActivity();
   scheduleModuleSync("warehouse", 600, { warehouse: warehouseData }, { siteId: site });
   CMAX_PERF?.count?.("persistWarehouseData");
-  return true;
+  return flushPendingModuleSaves();
 }
 
 function getWarehouseAlerts() {
@@ -548,7 +548,7 @@ function applyWarehouseMovement(itemId, quantity, direction, extra = {}) {
   return true;
 }
 
-function saveWarehouseIssueRow() {
+async function saveWarehouseIssueRow() {
   if (!canEditWarehouse()) return;
   const worker = (warehouseData.issueDraft.worker || "").trim();
   if (!worker) {
@@ -572,13 +572,16 @@ function saveWarehouseIssueRow() {
     if (!ok) return;
   }
   warehouseData.issueDraft = createWarehouseIssueDraft();
-  persistWarehouseData();
+  if (!await persistWarehouseData()) {
+    showToast("Izdavanje nije spremljeno na server. Podaci su zadrzani za ponovni pokusaj.", "error");
+    return;
+  }
   addLog("warehouse_issue", { worker, items: chosenSlots.length, site: currentSite });
   renderWarehousePage();
   showToast(t("warehouseIssueSaved"), "success");
 }
 
-function saveWarehouseStockAdjustment() {
+async function saveWarehouseStockAdjustment() {
   if (!canEditWarehouse()) return;
   const { itemId, quantity, direction, comment } = warehouseData.stockForm || {};
   if (!itemId) {
@@ -590,7 +593,10 @@ function saveWarehouseStockAdjustment() {
   }
   warehouseData.stockForm.quantity = 1;
   warehouseData.stockForm.comment = "";
-  persistWarehouseData();
+  if (!await persistWarehouseData()) {
+    showToast("Promjena zalihe nije spremljena na server. Podaci su zadrzani za ponovni pokusaj.", "error");
+    return;
+  }
   addLog("warehouse_stock_update", { itemId, quantity, direction, site: currentSite });
   renderWarehousePage();
   showToast(t("warehouseStockSaved"), "success");
@@ -769,9 +775,12 @@ function deleteWarehouseLog(logId) {
   const entry = (warehouseData.logs || []).find((log) => log.id === logId);
   if (!entry) return;
 
-  showConfirm(t("warehouseDeleteLogConfirm"), null, "⚠️", () => {
+  showConfirm(t("warehouseDeleteLogConfirm"), null, "⚠️", async () => {
     warehouseData.logs = warehouseData.logs.filter((log) => log.id !== logId);
-    persistWarehouseData();
+    if (!await persistWarehouseData()) {
+      showToast("Brisanje nije spremljeno na server. Promjena je zadržana za ponovni pokušaj.", "error");
+      return;
+    }
     addLog("warehouse_log_delete", { logId, site: currentSite });
     renderWarehouseLogsPage();
     showToast(t("warehouseDeleteLogSuccess"), "success");
@@ -785,9 +794,12 @@ function clearAllWarehouseLogs() {
     return;
   }
 
-  showConfirm(t("warehouseDeleteAllLogsConfirm"), null, "⚠️", () => {
+  showConfirm(t("warehouseDeleteAllLogsConfirm"), null, "⚠️", async () => {
     warehouseData.logs = [];
-    persistWarehouseData();
+    if (!await persistWarehouseData()) {
+      showToast("Brisanje nije spremljeno na server. Promjena je zadržana za ponovni pokušaj.", "error");
+      return;
+    }
     addLog("warehouse_logs_clear", { site: currentSite });
     renderWarehouseLogsPage();
     showToast(t("warehouseDeleteAllLogsSuccess"), "success");

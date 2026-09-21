@@ -1,13 +1,6 @@
 function populateSiteSelect() {
   const select = document.getElementById("siteSelect");
   const accessibleSites = getAccessibleSites();
-  if (accessibleSites.length && !accessibleSites.includes(currentSite)) {
-    persistCurrentStateToLocalStorage();
-    currentSite = accessibleSites[0];
-    setStoredCurrentSitePreference(currentSite);
-    updateScopedStorageKeysForCurrentSite();
-    loadCurrentSiteRuntimeFromLocalStorage();
-  }
   if (select) {
     select.innerHTML = "";
     accessibleSites
@@ -55,9 +48,8 @@ function renderSiteSwitcher() {
       item.textContent = site;
       item.addEventListener("click", () => {
         withLoadingPromise("loadingSiteChange", () => {
-          switchSiteFromLocal(site);
           closeSiteDropdown();
-          return Promise.resolve();
+          return switchSiteFromLocal(site);
         });
       });
       container.appendChild(item);
@@ -108,16 +100,7 @@ var NEW_SITE_WIZARD_STEPS = [
   { key: "review", title: "Pregled" },
 ];
 
-var SITE_MODULE_OPTIONS = [
-  { key: "planner", label: "Planner" },
-  { key: "tidplan", label: "Tidplan" },
-  { key: "warehouse", label: "Warehouse" },
-  { key: "store", label: "Store" },
-  { key: "notifications", label: "Notifications" },
-  { key: "surveys", label: "Surveys" },
-  { key: "siteChat", label: "Chat" },
-  { key: "reports", label: "Reports" },
-];
+var SITE_MODULE_OPTIONS = SCMModuleRegistry.list.map((item) => ({ key: item.id, label: item.label }));
 
 var SITE_CONTACT_ROLES = [
   { key: "arbetsledare", label: "Arbetsledare" },
@@ -309,10 +292,27 @@ function saveSiteInfoStorage(site, info) {
 }
 
 function isSiteModuleEnabled(moduleKey, site = currentSite) {
-  const info = getSiteInfoStorage(site);
-  const modules = info.modules && typeof info.modules === "object" ? info.modules : null;
-  if (!modules) return true;
-  return modules[moduleKey] !== false;
+  if (!BACKEND_ENABLED) return SCMModuleRegistry.isEnabled(getSiteInfoStorage(site).modules || {}, moduleKey);
+  return window.CMAX?.projectModules?.isEnabled(moduleKey, site) === true;
+}
+
+async function saveSiteModulesFromWizard(site, modules) {
+  if (!appState.isSuperAdmin || !BACKEND_ENABLED) return true;
+  const current = await CMAX.projectModules.request(site);
+  const normalized = SCMModuleRegistry.normalize(modules);
+  if (stableJson(current.modules) === stableJson(normalized)) return true;
+  const saved = await CMAX.projectModules.request(site, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modules: normalized, baseVersion: current.version }),
+  });
+  if (site === currentSite) CMAX.projectModules.apply(saved, { render: false });
+  return true;
+}
+
+function siteMetadataWithoutModules(info) {
+  const { modules, ...metadata } = info || {};
+  return metadata;
 }
 
 function getDefaultSiteInfo(siteName = "") {
@@ -561,7 +561,7 @@ function openNewSiteWizard() {
   renderNewSiteWizard();
 }
 
-function openEditSiteInfoWizard(site = currentSite) {
+async function openEditSiteInfoWizard(site = currentSite) {
   if (!canManageSiteAccess()) {
     showToast(t("errAdminManageDenied") || "Nemate dozvolu.", "error");
     return;
@@ -577,6 +577,15 @@ function openEditSiteInfoWizard(site = currentSite) {
     ...(existingInfo && typeof existingInfo === "object" ? existingInfo : {}),
     name: targetSite,
   };
+  if (BACKEND_ENABLED) {
+    try {
+      const config = await CMAX.projectModules.request(targetSite);
+      draft.modules = { ...config.modules };
+    } catch (error) {
+      showToast("Ucitavanje postavki gradilista nije uspjelo.", "error");
+      return;
+    }
+  }
   newSiteWizardState = { open: true, step: 0, draft, mode: "edit", editSite: targetSite };
   const overlay = ensureNewSiteWizardOverlay();
   overlay.classList.add("is-open");
@@ -1143,6 +1152,7 @@ function filterNewSiteWizardUsers(input) {
 }
 
 function renderNewSiteModulesStep(draft) {
+  if (!appState.isSuperAdmin) return `<section class="site-wizard-section"><p>Module gradilista postavlja Super Admin.</p></section>`;
   return `
     <section class="site-wizard-section">
       <h4>Step 3 - Aktivni moduli</h4>
@@ -1245,7 +1255,7 @@ function saveEditedSiteFromWizard() {
     saveSiteInfoStorage(site, draft);
     return syncModuleState("siteMetadata", {
       sites,
-      siteInfo: draft,
+      siteInfo: siteMetadataWithoutModules(draft),
     }, { siteId: site }).then((saved) => {
       if (!saved) {
         saveSiteInfoStorage(site, previousInfo);
@@ -1253,12 +1263,18 @@ function saveEditedSiteFromWizard() {
         showToast("Spremanje informacija gradilista nije uspjelo.", "error");
         return false;
       }
+      return saveSiteModulesFromWizard(site, draft.modules).then(async () => {
+      if (site === currentSite) await CMAX.projectModules.load(site);
       addLog("site_info_updated_wizard", { site });
       closeNewSiteWizard();
       if (typeof refreshHomeLaunchpad === "function") refreshHomeLaunchpad();
       if (typeof renderCurrentSiteAfterHydrate === "function") renderCurrentSiteAfterHydrate();
       showToast("Informacije gradilista su spremljene.", "success");
       return true;
+      }).catch((error) => {
+        showToast("Informacije su spremljene, ali postavke modula nisu potvrdjene. Pokusajte ponovo.", "error");
+        return false;
+      });
     });
   });
 }
@@ -1268,7 +1284,11 @@ function createSiteWithMetadata(newSite, siteInfo) {
     showToast("Gradiliste s tim nazivom vec postoji.", "error");
     return Promise.resolve(false);
   }
-  return withLoadingPromise("loadingSiteChange", () => {
+  return withLoadingPromise("loadingSiteChange", async () => {
+    if (!(await flushPendingModuleSaves())) {
+      showToast("Prvo dovrsite spremanje trenutnog gradilista.", "error");
+      return false;
+    }
     persistCurrentStateToLocalStorage();
     const previousSites = [...sites];
     const previousCurrentSite = currentSite;
@@ -1278,6 +1298,7 @@ function createSiteWithMetadata(newSite, siteInfo) {
     initializeSiteStorage(newSite);
     applyNewSiteTemplate(newSite, siteInfo);
     saveSiteInfoStorage(newSite, { ...siteInfo, name: newSite });
+    invalidateAppContext();
     currentSite = newSite;
     setStoredCurrentSitePreference(currentSite);
     populateSiteSelect();
@@ -1286,7 +1307,7 @@ function createSiteWithMetadata(newSite, siteInfo) {
     renderCurrentSiteAfterHydrate();
     return syncModuleState("siteMetadata", {
       sites,
-      siteInfo: { ...siteInfo, name: newSite },
+      siteInfo: siteMetadataWithoutModules({ ...siteInfo, name: newSite }),
     }, { siteId: newSite }).then((saved) => {
       if (!saved) {
         sites = previousSites;
@@ -1297,16 +1318,27 @@ function createSiteWithMetadata(newSite, siteInfo) {
         populateSiteSelect();
         updateScopedStorageKeysForCurrentSite();
         loadCurrentSiteRuntimeFromLocalStorage();
-        renderCurrentSiteAfterHydrate();
+        CMAX.projectModules.load(currentSite).then(() => { freshServerDataLoaded = true; renderCurrentSiteAfterHydrate(); }).catch((error) => showDataLoadError(error.message));
         showToast("Spremanje gradilista na server nije uspjelo.", "error");
         return false;
       }
-      return syncNewSiteInitialModules(newSite, siteInfo).then(() => {
+      return syncNewSiteInitialModules(newSite, siteInfo).then(async (modulesSaved) => {
+        if (!modulesSaved) {
+          showToast("Gradiliste je kreirano, ali pocetni podaci nisu u cijelosti spremljeni.", "error");
+          return false;
+        }
+        await saveSiteModulesFromWizard(newSite, siteInfo.modules);
+        await CMAX.projectModules.load(newSite);
+        freshServerDataLoaded = true;
+        applyPermissionVisibility();
         addLog("site_created_wizard", { site: newSite, modules: siteInfo.modules || {} });
         closeNewSiteWizard();
         showToast("Gradiliste je kreirano.", "success");
         if (typeof refreshHomeLaunchpad === "function") refreshHomeLaunchpad();
         return true;
+      }).catch((error) => {
+        showToast("Gradiliste je kreirano, ali postavke modula nisu spremljene. Provjerite postavke gradilista.", "error");
+        return false;
       });
     });
   });
@@ -1340,7 +1372,7 @@ function syncNewSiteInitialModules(newSite, siteInfo) {
       bins: getCachedStorageJson(getSiteStorageKey("cmax_planner_bins", newSite), {}),
     }, { siteId: newSite }));
   }
-  return Promise.all(jobs.map((job) => job.catch(() => false))).then(() => true);
+  return Promise.all(jobs.map((job) => job.catch(() => false))).then((results) => results.every((saved) => saved === true));
 }
 
 function applyNewSiteTemplate(newSite, siteInfo) {
@@ -1398,72 +1430,12 @@ function changeSite() {
   const select = document.getElementById("siteSelect");
   if (!select) return;
   withLoadingPromise("loadingSiteChange", () => {
-    switchSiteFromLocal(select.value);
-    return Promise.resolve();
+    return switchSiteFromLocal(select.value);
   });
 }
 
 function addSite() {
-  showPromptDialog("Unesite ime novog gradilišta:", "🏗️", "", (siteName) => {
-    const newSite = (siteName || "").trim();
-    if (!newSite) return;
-    if (sites.includes(newSite)) {
-      showAlert("Gradilište s tim nazivom već postoji.", "⚠️");
-      return;
-    }
-
-    withLoadingPromise("loadingSiteChange", () => {
-      persistCurrentStateToLocalStorage();
-      const previousSites = [...sites];
-      const previousCurrentSite = currentSite;
-      const newSitePlannerKey = getSiteStorageKey("cmax_planner_data", newSite);
-      const newSiteBinsKey = getSiteStorageKey("cmax_planner_bins", newSite);
-      const newSiteTidplanKey = getSiteStorageKey("tidplan", newSite);
-      const newSiteTidplanZonesKey = getSiteStorageKey("tidplan_zones", newSite);
-      const newSiteWarehouseKey = getSiteStorageKey("cmax_warehouse_data", newSite);
-      const newSiteStoreKey = getSiteStorageKey("cmax_workwear_data", newSite);
-      const newSiteReportsKey = getSiteStorageKey("cmax_planner_reports", newSite);
-      const newSiteNotificationsKey = getSiteStorageKey("cmax_planner_notifications", newSite);
-      sites.push(newSite);
-      markLocalSiteMutation();
-      localStorage.setItem(SITES_KEY, JSON.stringify(sites));
-      initializeSiteStorage(newSite);
-      currentSite = newSite;
-      setStoredCurrentSitePreference(currentSite);
-      populateSiteSelect();
-      document.getElementById("siteSelect").value = newSite;
-      updateScopedStorageKeysForCurrentSite();
-      loadCurrentSiteRuntimeFromLocalStorage();
-      renderCurrentSiteAfterHydrate();
-      logSiteScopeDebug("add-site", { fromSite: previousCurrentSite, toSite: newSite, to: getSiteDebugSummary(newSite) });
-      return syncServerState({ includeSites: true }).then((saved) => {
-        if (!saved) {
-          sites = previousSites;
-          currentSite = previousCurrentSite;
-          localStorage.setItem(SITES_KEY, JSON.stringify(sites));
-          setStoredCurrentSitePreference(currentSite);
-          localStorage.removeItem(newSitePlannerKey);
-          localStorage.removeItem(newSiteBinsKey);
-          localStorage.removeItem(newSiteTidplanKey);
-          localStorage.removeItem(newSiteTidplanZonesKey);
-          localStorage.removeItem(newSiteWarehouseKey);
-          localStorage.removeItem(newSiteStoreKey);
-          localStorage.removeItem(newSiteReportsKey);
-          localStorage.removeItem(newSiteNotificationsKey);
-          populateSiteSelect();
-          updateScopedStorageKeysForCurrentSite();
-          loadCurrentSiteRuntimeFromLocalStorage();
-          renderCurrentSiteAfterHydrate();
-          updateMainTitle();
-          showToast("Spremanje gradilišta na server nije uspjelo.", "error");
-          return;
-        }
-        sendPresence(true).catch(() => {});
-        refreshPresence().catch(() => {});
-        return Promise.resolve();
-      });
-    });
-  });
+  return openNewSiteWizard();
 }
 
 function removeSite() {
@@ -1513,7 +1485,7 @@ function removeSite() {
             return summary;
           }, {}),
         });
-        return syncServerState({ includeSites: true }).then((saved) => {
+        return syncServerState({ includeSites: true }).then(async (saved) => {
           if (!saved) {
             sites = previousSites;
             currentSite = previousCurrentSite;
@@ -1551,11 +1523,15 @@ function removeSite() {
             showToast("Brisanje gradilišta na serveru nije uspjelo.", "error");
             return;
           }
+          invalidateAppContext();
+          await loadFreshBackendData();
+          freshServerDataLoaded = true;
+          applyPermissionVisibility();
           renderCurrentSiteAfterHydrate();
           sendPresence(true).catch(() => {});
           refreshPresence().catch(() => {});
-          return Promise.resolve();
-        });
+          return true;
+        }).catch((error) => { showDataLoadError(error.message); return false; });
       });
     }
   );

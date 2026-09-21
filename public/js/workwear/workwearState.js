@@ -52,8 +52,8 @@ var STORE_ROLE_NORMALIZE_MAP = STORE_ROLE_OPTIONS.reduce((acc, role) => {
   });
   return acc;
 }, {});
-var STORE_USER_MANAGER_PASSWORD_MIN = 8;
-var STORE_PASSWORD_RESET_MIN_PASSWORD = 10;
+var STORE_USER_MANAGER_PASSWORD_MIN = 12;
+var STORE_PASSWORD_RESET_MIN_PASSWORD = 16;
 var WORKWEAR_ACCOUNT_NOTIFICATION_TRACKER_PREFIX = "cmax_workwear_account_notification_tracker_";
 
 function getWorkwearStorageKey(site = currentSite) {
@@ -474,6 +474,15 @@ function saveWorkwearState(site = currentSite, options = {}) {
     scheduleModuleSync(target, 600, { store: state }, { siteId: site });
   }
   return state;
+}
+
+async function persistWorkwearState(site = currentSite, options = {}) {
+  if (!BACKEND_ENABLED || !appState.currentUser) {
+    showToast("Spremanje zahtijeva vezu sa serverom.", "error");
+    return false;
+  }
+  saveWorkwearState(site, options);
+  return (await flushPendingModuleSaves()) === true;
 }
 
 function pushWorkwearAudit(eventType, payload = {}) {

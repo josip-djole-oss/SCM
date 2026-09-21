@@ -1,23 +1,5 @@
-function initAdmins() {
-  if (BACKEND_ENABLED) return;
-  const admins = getAdmins();
-  const superAdminExists = admins.some(
-    (a) => a.email === SUPER_ADMIN_EMAIL,
-  );
-  if (!superAdminExists) {
-    admins.push({
-      firstName: "Super",
-      lastName: "Admin",
-      fullName: "Super Admin",
-      email: SUPER_ADMIN_EMAIL,
-      password: SUPER_ADMIN_PASSWORD,
-      isSuperAdmin: true,
-      level: 6,
-      permissions: { ...DEFAULT_PERMISSIONS },
-    });
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-  }
-}
+// Accounts are provisioned and authenticated by the server only.
+function initAdmins() {}
 
 function getAdmins() {
   const d = localStorage.getItem(ADMINS_KEY);
@@ -45,11 +27,11 @@ function extractListPayload(payload, key) {
   return { list: [], version: null, updatedAt: null };
 }
 
-function saveReports(reports) {
-  localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
-  if (BACKEND_ENABLED) {
-    const site = currentSite;
-    fetch("/api/reports", {
+async function saveReports(reports) {
+  if (!BACKEND_ENABLED) throw new Error("REPORTS_BACKEND_REQUIRED");
+  const site = currentSite;
+  const context = captureAppContext();
+  const res = await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -58,13 +40,14 @@ function saveReports(reports) {
         site,
         lastKnownVersion: reportsStateVersionBySite[site] || 1,
       }),
-    })
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((payload) => {
-        reportsStateVersionBySite[site] = Number(payload?.version) || reportsStateVersionBySite[site] || 1;
-      })
-      .catch(() => {});
-  }
+  });
+  const payload = await res.json();
+  if (!res.ok || !Number.isFinite(Number(payload.version))) throw new Error(payload.error || "REPORT_SAVE_FAILED");
+  if (!isAppContextCurrent(context)) return false;
+  reportsStateVersionBySite[site] = Number(payload.version);
+  localStorage.setItem(getSiteStorageKey("cmax_planner_reports", site), JSON.stringify(reports));
+  localStorage.setItem(REPORTS_KEY, JSON.stringify(reports));
+  return true;
 }
 
 function loadReportsData(options = {}) {
@@ -74,11 +57,13 @@ function loadReportsData(options = {}) {
   }
 
   const site = currentSite;
+  const context = captureAppContext();
   return fetch(`/api/reports?site=${encodeURIComponent(site)}`, {
     cache: "no-store",
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((payload) => {
+      if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
       const parsed = extractListPayload(payload, "reports");
       if (parsed.version) reportsStateVersionBySite[site] = parsed.version;
       localStorage.setItem(getSiteStorageKey("cmax_planner_reports", site), JSON.stringify(parsed.list));

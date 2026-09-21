@@ -53,6 +53,34 @@ var ignoredRemoteStateKey = sessionStorage.getItem("cmax_ignored_remote_state_ke
 var freshServerDataLoaded = false;
 var lastServerStateSnapshot = null;
 var appDataLoadError = "";
+// A response from a previous login or project must never hydrate the active app.
+var appRuntimeGeneration = 0;
+var stateLoadSequence = 0;
+var sharedRefreshGeneration = 0;
+var permissionRefreshInFlight = null;
+var appLoadingDepth = 0;
+
+function captureAppContext() {
+  return { generation: appRuntimeGeneration, user: appState.currentUser, site: currentSite };
+}
+
+function isAppContextCurrent(context, includeSite = true) {
+  return !!context && context.generation === appRuntimeGeneration &&
+    context.user === appState.currentUser && (!includeSite || context.site === currentSite);
+}
+
+function invalidateAppContext() {
+  appRuntimeGeneration += 1;
+  stateLoadSequence += 1;
+  freshServerDataLoaded = !BACKEND_ENABLED;
+  lastServerStateSnapshot = null;
+  lastAppliedRemoteStateKey = "";
+  ignoredRemoteStateKey = "";
+  localEditKeys.clear();
+  if (typeof stopServerSync === "function") stopServerSync();
+  if (window.CMAX?.projectModules?.reset) CMAX.projectModules.reset();
+  if (typeof resetAccountNotificationSession === "function") resetAccountNotificationSession();
+}
 var unlockedPastDates = {};
 var WAREHOUSE_SLOTS_PER_ROW = 8;
 var BACKEND_ENABLED =
@@ -418,9 +446,9 @@ function getMaxGrantableLevel() {
 function canManageAdminRecord(targetAdmin) {
   if (!canManageAdminsByLevel()) return false;
   if (targetAdmin?.email === appState.currentUser) return false;
+  if (appState.isSuperAdmin) return true;
   if (targetAdmin?.isSuperAdmin) return false;
   const currentLevel = getCurrentAdminLevel();
-  if (currentLevel >= 6) return true;
   const targetLevel = getAdminLevel(targetAdmin);
   return targetLevel < currentLevel;
 }

@@ -123,7 +123,7 @@ function closeChangePasswordModal() {
   document.getElementById("changePasswordModal").style.display = "none";
 }
 
-function submitChangePassword() {
+async function submitChangePassword() {
   const oldPassword = document.getElementById("oldPassword").value.trim();
   const newPassword = document.getElementById("newPassword").value.trim();
   const confirmPassword = document
@@ -136,8 +136,8 @@ function submitChangePassword() {
     return;
   }
 
-  if (newPassword.length < 6) {
-    showAlert("Nova lozinka mora imati najmanje 6 znakova.", "!");
+  if (newPassword.length < 12 || new TextEncoder().encode(newPassword).length > 72) {
+    showAlert("Nova lozinka mora imati najmanje 12 znakova i najvise 72 UTF-8 bajta.", "!");
     return;
   }
 
@@ -151,38 +151,17 @@ function submitChangePassword() {
     return;
   }
 
-  // Get current logged-in user email from AUTH_KEY
-  const authData = JSON.parse(
-    localStorage.getItem(AUTH_KEY) || '{"email":""}',
-  );
-  const currentUserEmail = authData.email || appState.currentUser;
-
-  if (!currentUserEmail) {
-    showAlert("Korisnik nije pronadjen.", "!");
+  try {
+    const response = await fetch("/api/account/password", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.ok !== true) throw new Error(payload.error || "PASSWORD_CHANGE_FAILED");
+  } catch (error) {
+    showToast(`Lozinka nije promijenjena: ${error.message}`, "error");
     return;
   }
-
-  // Find user in admins list and verify old password
-  const admins = getAdmins();
-  const userIndex = admins.findIndex((a) => a.email === currentUserEmail);
-
-  if (userIndex === -1) {
-    showAlert("Korisnik nije pronadjen u sustavu.", "!");
-    return;
-  }
-
-  if (admins[userIndex].password !== oldPassword) {
-    showAlert("Stara lozinka nije tocna!", "!");
-    return;
-  }
-
-  // Update password
-  admins[userIndex].password = newPassword;
-  localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-  syncModuleState("adminUsers", { admins }).catch(() => {});
-
-  // Log password change
-  addLog("Changed password", currentUserEmail);
 
   // Clear inputs and close modal
   document.getElementById("oldPassword").value = "";
@@ -193,7 +172,8 @@ function submitChangePassword() {
   showAlert("Lozinka je uspjesno promijenjena!", "OK");
 }
 
-function submitReport() {
+async function submitReport() {
+  if (!canCreateReportsAccess()) return;
   const liftNumber = document.getElementById("reportLift").value;
   const plan = document.getElementById("reportPlan").value;
   const reporterName = getCurrentReporterName();
@@ -216,7 +196,12 @@ function submitReport() {
     date: new Date().toISOString(),
     isNew: true,
   });
-  saveReports(reports);
+  try {
+    if (!await saveReports(reports)) return;
+  } catch (error) {
+    showToast(`Prijava nije spremljena: ${error.message}`, "error");
+    return;
+  }
   trackEditActivity();
   closeReportModal();
   showToast(t("reportSubmitSuccess"), "success");
@@ -349,12 +334,7 @@ function renderReportsList(status) {
     );
   }
 
-  // Mark all as seen
-  const allReports = getReports();
-  allReports.forEach((r) => {
-    r.isNew = false;
-  });
-  saveReports(allReports);
+  // Viewing a report never mutates shared business data.
   updateNotifBadge();
   CMAX_PERF?.count?.("renderReportsList");
   if (token) CMAX_PERF.end(token, { count: sortedReports.length, total: reports.length });
@@ -373,14 +353,20 @@ function reviewReport(id, action) {
   }
 }
 
-function doReviewReport(id, action, note) {
+async function doReviewReport(id, action, note) {
+  if (!hasAdminPermission("canApproveReports")) return;
   const reports = getReports();
   const idx = reports.findIndex((r) => r.id === id);
   if (idx !== -1) {
     const report = reports[idx];
     reports[idx].status = action;
     reports[idx].adminNote = note;
-    saveReports(reports);
+    try {
+      if (!await saveReports(reports)) return;
+    } catch (error) {
+      showToast(`Promjena nije spremljena: ${error.message}`, "error");
+      return;
+    }
     trackEditActivity();
     addLog(
       `${action === "approved" ? "Approved" : "Rejected"} report`,

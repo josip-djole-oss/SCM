@@ -10,12 +10,8 @@ function getNotificationsForSite(site = currentSite) {
 }
 
 function saveNotificationsForSite(site, notifications) {
-  const changed = setCachedStorageJson(getNotificationStorageKey(site), notifications);
-  if (site === currentSite) {
-    setCachedStorageJson(NOTIFICATIONS_KEY, notifications);
-  }
-  if (!changed) return Promise.resolve(true);
-  if (!BACKEND_ENABLED) return Promise.resolve(true);
+  if (!BACKEND_ENABLED) return Promise.reject(new Error("NOTIFICATIONS_BACKEND_REQUIRED"));
+  const context = captureAppContext();
   return fetch("/api/notifications", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -26,19 +22,24 @@ function saveNotificationsForSite(site, notifications) {
       lastKnownVersion: notificationsStateVersionBySite[site] || 1,
     }),
   })
-    .then((res) => (res.ok ? res.json().catch(() => ({})) : Promise.reject(res)))
+    .then(async (res) => {
+      const payload = await res.json();
+      if (!res.ok || !Number.isFinite(Number(payload.version))) throw new Error(payload.error || "NOTIFICATION_SAVE_FAILED");
+      return payload;
+    })
     .then((payload) => {
+      if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
       notificationsStateVersionBySite[site] =
         Number(payload?.version) || notificationsStateVersionBySite[site] || 1;
+      setCachedStorageJson(getNotificationStorageKey(site), notifications);
+      if (site === currentSite) setCachedStorageJson(NOTIFICATIONS_KEY, notifications);
       return true;
-    })
-    .catch(() => {
-      return false;
     });
 }
 
 function loadNotificationsData(site = currentSite, options = {}) {
   const { strict = false } = options;
+  const context = captureAppContext();
   if (!BACKEND_ENABLED) {
     return Promise.resolve(getNotificationsForSite(site));
   }
@@ -55,6 +56,7 @@ function loadNotificationsData(site = currentSite, options = {}) {
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((payload) => {
+      if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
       const parsed = extractListPayload(payload, "notifications");
       const list = parsed.list;
       if (parsed.version) notificationsStateVersionBySite[site] = parsed.version;
@@ -66,11 +68,12 @@ function loadNotificationsData(site = currentSite, options = {}) {
       return list;
     })
     .catch((error) => {
-      if (error?.name === "AbortError") return getNotificationsForSite(site);
+      if (error?.name === "AbortError" || error?.message === "STALE_APP_CONTEXT") throw error;
       if (strict) throw error;
       return fetch("/api/state", { cache: "no-store" })
         .then((res) => (res.ok ? res.json() : Promise.reject()))
         .then((data) => {
+          if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
           serverStateVersion = Number(data?.version) || serverStateVersion || 1;
           const state = data?.state;
           const list =
@@ -193,7 +196,7 @@ function renderNotificationImagePreview(files) {
   });
 }
 
-function uploadNotificationImages(files) {
+function uploadNotificationImages(files, site = currentSite) {
   const fileList = Array.from(files || []);
   if (!fileList.length) return Promise.resolve([]);
 
@@ -237,19 +240,20 @@ function uploadNotificationImages(files) {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("userEmail", appState.currentUser || "");
-      return fetch("/api/upload", {
+      return fetch(`/api/upload?site=${encodeURIComponent(site)}&module=notifications`, {
         method: "POST",
         body: formData,
       })
-        .then((res) => (res.ok ? res.json() : Promise.reject()))
+        .then(async (res) => {
+          const payload = await res.json();
+          if (!res.ok) throw new Error(payload.error || "UPLOAD_FAILED");
+          return payload;
+        })
         .then((data) => {
           const fileInfo = (data && data.file) || data || null;
           const url = normalizeUploadUrl(fileInfo);
+          if (!url) throw new Error("UPLOAD_UNCONFIRMED");
           return { url, name: (fileInfo && fileInfo.originalName) || file.name };
-        })
-        .catch((err) => {
-          console.error("Image upload failed:", err);
-          return { url: "", name: file.name };
         });
     }),
   );
@@ -591,43 +595,27 @@ function submitNotification() {
   const createdAt = new Date().toISOString();
   const authorName = getCurrentNotificationAuthor();
 
-  withLoadingPromise("loadingNotificationUpload", () =>
-    uploadNotificationImages(files).then((uploadedImages) => {
-      const images = (uploadedImages || []).filter((img) => img.url);
-      if (files.length && images.length === 0) {
-        showToast(t("notificationUploadFailed"), "error");
-      }
-      if (!message && images.length === 0) {
-        showToast(t("notificationUploadFailed"), "error");
-        return;
-      }
-      const baseNotification = {
-        id: postId,
-        createdAt,
-        authorName,
-        message,
-        images,
-        sites: [...selectedSites],
-      };
-
-      const savePromises = selectedSites.map((site) => {
-        const list = getNotificationsForSite(site);
-        list.unshift({ ...baseNotification, site });
-        return saveNotificationsForSite(site, list);
-      });
-
-      addLog("Objavio obavijest", `Post ${formatNotificationId(postId)}`);
-
-      return Promise.all(savePromises).then(() => {
-        trackEditActivity();
-        showToast(t("notificationPosted"), "success");
-        resetNotificationComposer();
-        if (selectedSites.includes(currentSite)) {
-          renderNotificationsList();
-        }
-      });
-    }),
-  );
+  const context = captureAppContext();
+  return withLoadingPromise("loadingNotificationUpload", async () => {
+    const results = await Promise.allSettled(selectedSites.map(async (site) => {
+      const images = await uploadNotificationImages(files, site);
+      if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
+      const list = await loadNotificationsData(site, { strict: true });
+      return saveNotificationsForSite(site, [{ id: postId, createdAt, authorName, message, images, sites: [site], site }, ...list]);
+    }));
+    if (!isAppContextCurrent(context)) return;
+    const failedSites = selectedSites.filter((site, index) => results[index].status === "rejected");
+    if (failedSites.length) {
+      // Keep failed targets selected so retry cannot duplicate confirmed posts.
+      siteContainer?.querySelectorAll("input[type='checkbox']").forEach((cb) => { cb.checked = failedSites.includes(cb.value); });
+      showToast(`Nije spremljeno za: ${failedSites.join(", ")}. Unos je sacuvan za ponovni pokusaj.`, "error");
+      return;
+    }
+    addLog("Objavio obavijest", `Post ${formatNotificationId(postId)}`);
+    showToast(t("notificationPosted"), "success");
+    resetNotificationComposer();
+    renderNotificationsList();
+  });
 }
 
 function deleteNotification(notificationId, site = currentSite) {
@@ -643,7 +631,7 @@ function deleteNotification(notificationId, site = currentSite) {
       showToast(t("notificationDeleted"), "success");
       renderNotificationsList();
       addLog("Obrisao obavijest", `Post ${formatNotificationId(notificationId)}`);
-    });
+    }).catch((error) => showToast(`Nije obrisano: ${error.message}`, "error"));
   });
 }
 
@@ -652,11 +640,11 @@ function toggleNotificationPin(notificationId, site = currentSite, pinned = true
   const list = getNotificationsForSite(site);
   const idx = list.findIndex((n) => n.id === notificationId);
   if (idx === -1) return;
-  list[idx].pinned = pinned;
-  saveNotificationsForSite(site, list).then(() => {
+  const next = list.map((note, index) => index === idx ? { ...note, pinned } : note);
+  saveNotificationsForSite(site, next).then(() => {
     trackEditActivity();
     renderNotificationsList();
-  });
+  }).catch((error) => showToast(`Nije spremljeno: ${error.message}`, "error"));
 }
 
 function showNotifications() {

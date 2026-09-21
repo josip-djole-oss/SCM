@@ -17,12 +17,15 @@ function loadData(options = {}) {
     return Promise.resolve();
   }
 
+  const context = captureAppContext();
+  const requestSequence = ++stateLoadSequence;
   return fetch("/api/state", { cache: "no-store" })
     .then((res) => {
       if (res.ok) return res.json();
       throw new Error(`STATE_LOAD_${res.status}`);
     })
     .then((data) => {
+      if (!isAppContextCurrent(context) || requestSequence !== stateLoadSequence) throw new Error("STALE_APP_CONTEXT");
       serverStateVersion = Number(data?.version) || serverStateVersion || 1;
       if (data?.state && applyServerStateSnapshot(data.state)) {
         collectPlans();
@@ -31,28 +34,37 @@ function loadData(options = {}) {
       throw new Error("STATE_EMPTY");
     })
     .catch((error) => {
-      if (strict) throw error;
-      console.error("Server data load failed:", error);
+      if (error?.message !== "STALE_APP_CONTEXT") console.error("Server data load failed:", error);
+      throw error;
     });
 }
 
-function loadAllData(options = {}) {
+async function loadAllData(options = {}) {
   const { strict = false } = options;
   const token = CMAX_PERF?.begin?.("load-all-data", { strict });
-  return Promise.resolve(loadData({ strict })).then(() => {
+  try {
+    await loadData({ strict });
+    const context = captureAppContext();
+    if (BACKEND_ENABLED && window.CMAX?.projectModules?.load) {
+      await CMAX.projectModules.load(currentSite);
+    }
+    if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
+    CMAX.projectModules?.updateVisibility?.();
     loadBinsData();
     loadTidplanData();
     loadWarehouseData();
     const tasks = [];
-    if (hasPermission("canViewReports")) tasks.push(loadReportsData({ strict }));
+    if (hasPermission("canViewReports") && isSiteModuleEnabled("reports")) tasks.push(loadReportsData({ strict }));
     if (canAccessNotificationsModule()) tasks.push(loadNotificationsData(currentSite, { strict }));
-    if (hasPermission("canViewSurveys")) tasks.push(getSurveysList({ strict }));
-    return Promise.all(tasks).finally(() => {
-      CMAX_PERF?.count?.("loadAllData");
-      if (token) CMAX_PERF.end(token, { taskCount: tasks.length });
-    });
-  });
+    if (hasPermission("canViewSurveys") && isSiteModuleEnabled("surveys")) tasks.push(getSurveysList({ strict }));
+    await Promise.all(tasks);
+    if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
+    CMAX_PERF?.count?.("loadAllData");
+  } finally {
+    if (token) CMAX_PERF.end(token);
+  }
 }
+
 function loadWarehouseData(site = currentSite) {
   warehouseData = normalizeWarehouseData(
     getCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), null),
@@ -133,26 +145,39 @@ function renderActiveSharedModule() {
   if (token) CMAX_PERF.end(token);
 }
 
-function switchSiteFromLocal(toSite, options = {}) {
-  const fromSite = currentSite;
-  persistCurrentStateToLocalStorage();
-  currentSite = toSite;
-  setStoredCurrentSitePreference(currentSite);
-  updateScopedStorageKeysForCurrentSite();
-  loadCurrentSiteRuntimeFromLocalStorage();
-  populateSiteSelect();
-  renderCurrentSiteAfterHydrate();
-  logSiteScopeDebug("switch", {
-    fromSite,
-    toSite,
-    from: getSiteDebugSummary(fromSite),
-    to: getSiteDebugSummary(toSite),
+async function switchSiteFromLocal(toSite, options = {}) {
+  if (!toSite || !getAccessibleSites().includes(toSite)) return false;
+  if (toSite === currentSite && freshServerDataLoaded) return true;
+  return withLoadingPromise("loadingSiteChange", async () => {
+    if (BACKEND_ENABLED && freshServerDataLoaded) {
+      const saved = await flushPendingModuleSaves();
+      if (!saved) {
+        showToast("Promjena gradilista nije moguca dok spremanje nije potvrdjeno.", "error");
+        populateSiteSelect();
+        return false;
+      }
+    }
+    persistCurrentStateToLocalStorage();
+    invalidateAppContext();
+    currentSite = toSite;
+    setStoredCurrentSitePreference(currentSite);
+    updateScopedStorageKeysForCurrentSite();
+    document.getElementById("mainContainer").style.display = "none";
+    try {
+      await loadFreshBackendData();
+      freshServerDataLoaded = true;
+      appDataLoadError = "";
+      populateSiteSelect();
+      renderCurrentSiteAfterHydrate();
+      showMainApp();
+      if (typeof restoreLastView === "function") restoreLastView();
+      startAutoSave();
+      return true;
+    } catch (error) {
+      if (error?.message !== "STALE_APP_CONTEXT") showDataLoadError(error?.message);
+      return false;
+    }
   });
-  if (options.syncSites !== false) {
-    syncServerState({ includeSites: true, skipLog: true }).catch(() => {});
-  }
-  sendPresence(true).catch(() => {});
-  refreshPresence().catch(() => {});
 }
 
 
@@ -659,8 +684,8 @@ function applyServerStateSnapshot(snapshot) {
     ? snapshot.accountNotifications
     : {};
   const currentUserKey = getCurrentUserAccountNotificationKey();
-  if (currentUserKey && accountNotifications[currentUserKey]) {
-    applyCurrentUserAccountNotificationBundle(accountNotifications[currentUserKey]);
+  if (currentUserKey) {
+    applyCurrentUserAccountNotificationBundle(accountNotifications[currentUserKey] || {});
   }
   sites.forEach((site) => {
     const siteEntry = snapshotSiteData[site] || {};
@@ -721,6 +746,8 @@ var serverStateVersion = 1;
 var serverSyncInFlight = null;
 var moduleSyncTimeouts = {};
 var moduleSyncInFlight = {};
+var pendingModuleSaves = {};
+var moduleSaveFailures = {};
 
 function getModuleStateVersion(target, site = currentSite) {
   const versions = moduleStateVersions && typeof moduleStateVersions === "object" ? moduleStateVersions : {};
@@ -776,62 +803,65 @@ function createModuleStatePayload(target) {
   return {};
 }
 
-function syncModuleState(target, payload = null, options = {}) {
-  if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser) return Promise.resolve(false);
+async function syncModuleState(target, payload = null, options = {}) {
+  if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser) return false;
   const siteId = options.siteId || currentSite || "default";
-  const requestPayload = payload || createModuleStatePayload(target);
-  const baseVersion = options.baseVersion || getModuleStateVersion(target, siteId);
-  const body = {
-    target,
-    siteId,
-    baseVersion,
-    payload: requestPayload,
-  };
+  const context = captureAppContext();
+  const requestPayload = JSON.parse(JSON.stringify(payload || createModuleStatePayload(target)));
   const key = target === "adminUsers" ? target : `${target}:${siteId}`;
   if (moduleSyncInFlight[key]) {
-    return moduleSyncInFlight[key].catch(() => false).then(() => syncModuleState(target, payload, options));
+    await moduleSyncInFlight[key];
+    if (!isAppContextCurrent(context)) return false;
+    if (moduleSaveFailures[key]) return false;
+    return syncModuleState(target, requestPayload, { ...options, siteId });
   }
-  moduleSyncInFlight[key] = fetch("/api/state/module", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-    .then((res) =>
-      res.ok
-        ? res.json().catch(() => ({}))
-        : res.json()
-            .catch(() => ({}))
-            .then((errorPayload) => {
-              const error = new Error(errorPayload?.error || "MODULE_STATE_SAVE_FAILED");
-              error.status = res.status;
-              error.payload = errorPayload;
-              throw error;
-            }),
-    )
-    .then((response) => {
-      if (response?.moduleVersion) setModuleStateVersion(target, response.moduleVersion, siteId);
-      if (response?.version) serverStateVersion = Number(response.version) || serverStateVersion || 1;
-      if (response?.admins && target === "adminUsers") {
-        localStorage.setItem(ADMINS_KEY, JSON.stringify(response.admins));
+  const saveRevision = Number(appState.editRevision) || 0;
+  const promise = Promise.resolve().then(async () => {
+    try {
+      const res = await fetch("/api/state/module", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target, siteId, baseVersion: options.baseVersion || getModuleStateVersion(target, siteId), payload: requestPayload }),
+      });
+      const response = await res.json();
+      if (!res.ok) {
+        const error = new Error(response?.error || "MODULE_STATE_SAVE_FAILED");
+        error.status = res.status;
+        error.payload = response;
+        throw error;
+      }
+      if (!response || !Number.isFinite(Number(response.moduleVersion)) || Number(response.moduleVersion) < 1) {
+        throw new Error("MODULE_SAVE_UNCONFIRMED");
+      }
+      if (!isAppContextCurrent(context)) return false;
+      setModuleStateVersion(target, response.moduleVersion, siteId);
+      if (response.version) serverStateVersion = Number(response.version);
+      if (response.admins && target === "adminUsers") setCachedStorageJson(ADMINS_KEY, response.admins);
+      delete moduleSaveFailures[key];
+      if (["planner", "tidplan", "bins"].includes(target) && !pendingModuleSaves[key] && saveRevision === (Number(appState.editRevision) || 0)
+          && stableJson(requestPayload) === stableJson(createModuleStatePayload(target))) {
+        if (target === "tidplan") tidplanDataChanged = false;
+        if (target === "planner" && typeof markClean === "function") markClean();
       }
       CMAX_PERF?.count?.("syncModuleState");
       return true;
-    })
-    .catch((error) => {
+    } catch (error) {
+      if (!isAppContextCurrent(context)) return false;
+      moduleSaveFailures[key] = true;
       if (error?.payload?.error === "MODULE_VERSION_CONFLICT") {
-        setModuleStateVersion(target, error.payload.moduleVersion, siteId);
-        if (typeof showServerConflictNotice === "function") {
-          showServerConflictNotice("Ovaj modul je promijenjen na drugom uredjaju. Osvjezi taj modul prije spremanja.");
-        }
-        return false;
+        // Keep the original base version: retrying local data against a new version would overwrite another user's work.
+        showServerConflictNotice("Ovaj modul je promijenjen na drugom uredjaju. Usporedite promjene prije ponovnog spremanja.");
+      } else {
+        console.error("Module sync failed:", target, error);
+        showToast("Spremanje na server nije uspjelo. Unosi nisu izgubljeni; pokusajte ponovo.", "error");
       }
-      console.error("Module sync failed:", target, error);
       return false;
-    })
-    .finally(() => {
-      delete moduleSyncInFlight[key];
-    });
-  return moduleSyncInFlight[key];
+    } finally {
+      if (moduleSyncInFlight[key] === promise) delete moduleSyncInFlight[key];
+    }
+  });
+  moduleSyncInFlight[key] = promise;
+  return promise;
 }
 
 function renderAfterEntityConflict(moduleName) {
@@ -902,6 +932,7 @@ function showEntityConflictNotice(errorPayload, context = {}) {
 function patchPlannerRow(date, row, changedFields, options = {}) {
   if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser || !row?.id) return Promise.resolve(false);
   const siteId = options.siteId || currentSite || "default";
+  const context = captureAppContext();
   const body = {
     changedFields,
     baseRowVersion: row.rowVersion || 1,
@@ -923,6 +954,8 @@ function patchPlannerRow(date, row, changedFields, options = {}) {
           }),
     )
     .then((payload) => {
+      if (!isAppContextCurrent(context)) return false;
+      if (!payload?.row) throw new Error("PLANNER_ROW_SAVE_UNCONFIRMED");
       if (payload?.row) {
         Object.assign(row, payload.row);
         persistCurrentStateToLocalStorage();
@@ -930,6 +963,7 @@ function patchPlannerRow(date, row, changedFields, options = {}) {
       return true;
     })
     .catch((error) => {
+      if (!isAppContextCurrent(context)) return false;
       if (error?.payload?.error === "ENTITY_VERSION_CONFLICT") {
         showEntityConflictNotice(error.payload, {
           module: "planner",
@@ -942,6 +976,7 @@ function patchPlannerRow(date, row, changedFields, options = {}) {
         return false;
       }
       console.error("Planner row save failed:", error);
+      showToast("Spremanje nije uspjelo. Promjene nisu potvrdjene na serveru.", "error");
       return false;
     });
 }
@@ -949,6 +984,7 @@ function patchPlannerRow(date, row, changedFields, options = {}) {
 function patchTidplanActivity(activity, changedFields, options = {}) {
   if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser || !activity?.id) return Promise.resolve(false);
   const siteId = options.siteId || currentSite || "default";
+  const context = captureAppContext();
   const body = {
     changedFields,
     baseActivityVersion: activity.activityVersion || 1,
@@ -970,6 +1006,8 @@ function patchTidplanActivity(activity, changedFields, options = {}) {
           }),
     )
     .then((payload) => {
+      if (!isAppContextCurrent(context)) return false;
+      if (!payload?.activity) throw new Error("TIDPLAN_ACTIVITY_SAVE_UNCONFIRMED");
       if (payload?.activity) {
         Object.assign(activity, payload.activity);
         localStorage.setItem(getStorageKey("tidplan"), JSON.stringify((tidplanData || []).map((item, index) => ensureTidplanActivityIdentity(item, index))));
@@ -977,6 +1015,7 @@ function patchTidplanActivity(activity, changedFields, options = {}) {
       return true;
     })
     .catch((error) => {
+      if (!isAppContextCurrent(context)) return false;
       if (error?.payload?.error === "ENTITY_VERSION_CONFLICT") {
         showEntityConflictNotice(error.payload, {
           module: "tidplan",
@@ -988,6 +1027,7 @@ function patchTidplanActivity(activity, changedFields, options = {}) {
         return false;
       }
       console.error("Tidplan activity save failed:", error);
+      showToast("Spremanje nije uspjelo. Promjene nisu potvrdjene na serveru.", "error");
       return false;
     });
 }
@@ -995,16 +1035,45 @@ function patchTidplanActivity(activity, changedFields, options = {}) {
 function scheduleModuleSync(target, delay = 600, payload = null, options = {}) {
   if (!BACKEND_ENABLED || appState.isReadonly || !appState.currentUser) return;
   const siteId = options.siteId || currentSite || "default";
+  const context = captureAppContext();
   const key = target === "adminUsers" ? target : `${target}:${siteId}`;
   if (moduleSyncTimeouts[key]) clearTimeout(moduleSyncTimeouts[key]);
+  // Capture both scope and content now; resolving either after a switch corrupts the other project.
+  pendingModuleSaves[key] = { target, payload: JSON.parse(JSON.stringify(payload || createModuleStatePayload(target))), options: { ...options, siteId }, context };
   moduleSyncTimeouts[key] = setTimeout(() => {
     delete moduleSyncTimeouts[key];
-    syncModuleState(target, payload, options).catch(() => {});
+    const queued = pendingModuleSaves[key];
+    delete pendingModuleSaves[key];
+    if (queued && isAppContextCurrent(queued.context)) syncModuleState(queued.target, queued.payload, queued.options);
   }, delay);
+}
+
+async function flushPendingModuleSaves() {
+  const saves = Object.values(pendingModuleSaves);
+  Object.values(moduleSyncTimeouts).forEach(clearTimeout);
+  moduleSyncTimeouts = {};
+  pendingModuleSaves = {};
+  const jobs = Object.values(moduleSyncInFlight);
+  if (serverSyncInFlight) jobs.push(serverSyncInFlight);
+  if (serverSyncTimeout) {
+    clearTimeout(serverSyncTimeout);
+    serverSyncTimeout = null;
+    jobs.push(syncServerState({ ...pendingServerSyncOptions }));
+  }
+  saves.forEach((queued) => {
+    if (isAppContextCurrent(queued.context)) jobs.push(syncModuleState(queued.target, queued.payload, queued.options));
+  });
+  const results = await Promise.all(jobs);
+  return results.every((saved) => saved === true) && !Object.keys(moduleSaveFailures).length;
 }
 
 function stopServerSync() {
   if (serverSyncTimeout) clearTimeout(serverSyncTimeout);
+  Object.values(moduleSyncTimeouts).forEach(clearTimeout);
+  moduleSyncTimeouts = {};
+  pendingModuleSaves = {};
+  moduleSaveFailures = {};
+  moduleSyncInFlight = {};
   serverSyncTimeout = null;
   serverSyncInFlight = null;
   pendingServerSyncOptions = {};
@@ -1028,6 +1097,8 @@ function syncServerState(options = {}) {
     return Promise.resolve(false);
   }
 
+  const context = captureAppContext();
+  const editRevision = Number(appState.editRevision) || 0;
   persistCurrentStateToLocalStorage();
 
   if (!BACKEND_ENABLED) {
@@ -1039,7 +1110,7 @@ function syncServerState(options = {}) {
     return Promise.resolve(false);
   }
   if (serverSyncInFlight) {
-    return serverSyncInFlight.catch(() => false).then(() => syncServerState(options));
+    return serverSyncInFlight.catch(() => false).then(() => isAppContextCurrent(context) ? syncServerState(options) : false);
   }
   const syncOptions = {
     ...options,
@@ -1065,18 +1136,13 @@ function syncServerState(options = {}) {
       throw createServerSyncError(`STATE_LOAD_${res.status}`, res.status);
     })
     .then((data) => {
+      if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
       serverStateVersion = Number(data?.version) || serverStateVersion || 1;
       return postServerStateSnapshot(data?.state || null, serverStateVersion, syncOptions);
     })
-    .catch((error) => {
-      if (error?.code === "VERSION_CONFLICT" && error.latest) {
-        const latestVersion = Number(error.latest.version) || serverStateVersion || 1;
-        serverStateVersion = latestVersion;
-        return postServerStateSnapshot(error.latest.state || null, latestVersion, syncOptions);
-      }
-      throw error;
-    })
     .then((payload) => {
+      if (!isAppContextCurrent(context)) return false;
+      if (!payload || !Number.isFinite(Number(payload.version))) throw new Error("STATE_SAVE_UNCONFIRMED");
       serverStateVersion = Number(payload?.version) || serverStateVersion || 1;
       setLastEditedMeta({
         by: appState.currentUser || null,
@@ -1084,7 +1150,7 @@ function syncServerState(options = {}) {
         at: payload?.updatedAt || new Date().toISOString(),
       });
       renderLastEditedInfo();
-      if (markAsClean) markClean();
+      if (markAsClean && editRevision === (Number(appState.editRevision) || 0)) markClean();
       if (!appState.hasUnsavedChanges && !tidplanDataChanged) {
         localEditKeys.clear();
       }
@@ -1100,19 +1166,19 @@ function syncServerState(options = {}) {
       return true;
     })
     .catch((error) => {
-      if (error?.status === 401 || error?.code === "STATE_LOAD_401") {
+      if (!isAppContextCurrent(context) || error?.status === 401 || error?.code === "STATE_LOAD_401") {
         return false;
       }
       if (error?.code === "VERSION_CONFLICT" && typeof showServerConflictNotice === "function") {
         showServerConflictNotice();
       }
       console.error("Server sync failed:", error);
-      if (showSuccess) showToast("Server save failed.", "error");
+      showToast("Server save failed. Your changes are not saved.", "error");
       if (token) CMAX_PERF.end(token, { success: false, error: error?.code || error?.message || "SYNC_FAILED" });
       return false;
     })
     .finally(() => {
-      serverSyncInFlight = null;
+      if (isAppContextCurrent(context)) serverSyncInFlight = null;
     });
   return serverSyncInFlight;
 }

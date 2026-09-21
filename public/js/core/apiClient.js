@@ -30,6 +30,7 @@ function callIfDefined(functionName) {
 }
 
 function resetAuthStateLocal() {
+  invalidateAppContext();
   appState.isAdmin = false;
   appState.isSuperAdmin = false;
   appState.isReadonly = false;
@@ -39,6 +40,12 @@ function resetAuthStateLocal() {
   appState.adminLevel = 1;
   appState.permissions = normalizePermissions({});
   appState.guestPermissions = getGuestPermissions();
+  appState.dailyData = {};
+  appState.binsData = {};
+  appState.hasUnsavedChanges = false;
+  tidplanDataChanged = false;
+  tidplanData = [];
+  warehouseData = null;
 }
 
 function handleApiUnauthorized() {
@@ -63,16 +70,18 @@ function handleApiUnauthorized() {
 
 function applyAuthData(authData) {
   if (!authData) return;
+  if (appState.currentUser !== authData.email) invalidateAppContext();
   sessionExpiredHandled = false;
   localStorage.setItem(AUTH_KEY, JSON.stringify(authData));
-  appState.isAdmin = authData.isAdmin;
-  appState.isSuperAdmin = authData.isSuperAdmin;
-  appState.isReadonly = authData.isReadonly;
+  appState.isAdmin = !!authData.isAdmin;
+  appState.isSuperAdmin = !!authData.isSuperAdmin;
+  appState.isReadonly = !!authData.isReadonly;
   appState.currentUser = authData.email;
   appState.currentUserName = authData.fullName || "";
   appState.currentUserFunctions = Array.isArray(authData.storeRoles) ? authData.storeRoles : [];
   appState.adminLevel = authData.level || 1;
-  appState.permissions = authData.permissions || normalizePermissions({});
+  appState.permissions = Object.fromEntries(Object.keys(DEFAULT_PERMISSIONS).map((key) => [key,
+    authData.isSuperAdmin === true || authData.permissions?.[key] === true]));
   appState.guestPermissions = getGuestPermissions();
 }
 
@@ -81,10 +90,13 @@ window.fetch = function patchedFetch(resource, options = {}) {
   const requestUrl = typeof resource === "string" ? resource : resource?.url || "";
   const nextOptions = { ...options };
   nextOptions.credentials = nextOptions.credentials || "same-origin";
-  const method = (nextOptions.method || "GET").toUpperCase();
-  const isApiRequest = requestUrl.startsWith("/api/");
+  const method = (nextOptions.method || resource?.method || "GET").toUpperCase();
+  const parsedUrl = new URL(requestUrl, window.location.href);
+  const isApiRequest = parsedUrl.origin === window.location.origin && parsedUrl.pathname.startsWith("/api/");
+  const context = captureAppContext();
   if (isApiRequest) {
-    nextOptions.headers = new Headers(nextOptions.headers || {});
+    nextOptions.cache = "no-store";
+    nextOptions.headers = new Headers(nextOptions.headers || resource?.headers || {});
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && !requestUrl.includes("/api/login")) {
       const csrfToken = getCsrfToken();
       if (csrfToken && !nextOptions.headers.has("x-csrf-token")) {
@@ -93,7 +105,7 @@ window.fetch = function patchedFetch(resource, options = {}) {
     }
   }
   return originalFetch(resource, nextOptions).then((response) => {
-    if (isApiRequest && response.status === 401 && !requestUrl.includes("/api/login")) {
+    if (isApiRequest && response.status === 401 && !requestUrl.includes("/api/login") && isAppContextCurrent(context, false)) {
       handleApiUnauthorized();
     }
     return response;

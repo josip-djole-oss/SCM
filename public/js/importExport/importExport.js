@@ -1,5 +1,6 @@
 function markDirty() {
   appState.hasUnsavedChanges = true;
+  appState.editRevision = (Number(appState.editRevision) || 0) + 1;
   trackEditActivity();
   // Show Save button
   const btnSave = document.getElementById("btnSave");
@@ -18,16 +19,25 @@ function markClean() {
   }
 }
 
-function saveAllData() {
-  if (currentView === "bins") {
-    saveBinsData();
-  } else if (currentView === "tidplan") {
-    saveTidplanData();
-  } else {
-    saveData();
+async function saveAllData({ silent = false } = {}) {
+  if (appState.isReadonly || !appState.currentUser || !freshServerDataLoaded) return false;
+  const context = captureAppContext();
+  const editRevision = Number(appState.editRevision) || 0;
+  const target = currentView === "bins" ? "bins" : currentView === "tidplan" ? "tidplan" : "planner";
+  persistCurrentStateToLocalStorage();
+  const key = `${target}:${currentSite}`;
+  if (moduleSyncTimeouts[key]) clearTimeout(moduleSyncTimeouts[key]);
+  delete moduleSyncTimeouts[key];
+  delete pendingModuleSaves[key];
+  const saved = BACKEND_ENABLED ? await syncModuleState(target) : true;
+  if (!isAppContextCurrent(context)) return false;
+  if (!saved) return false;
+  if (editRevision === (Number(appState.editRevision) || 0)) {
+    markClean();
+    if (target === "tidplan") tidplanDataChanged = false;
   }
-  if (typeof markClean === "function") markClean();
-  showToast(t("dataSaved"), "success");
+  if (!silent) showToast(t("dataSaved"), "success");
+  return true;
 }
 
 function stopAutoSave() {
@@ -37,20 +47,11 @@ function stopAutoSave() {
 
 function startAutoSave() {
   stopAutoSave();
-  // Auto-save every 5 minutes
   autoSaveInterval = setInterval(() => {
-    if (!appState.isReadonly && appState.currentUser && freshServerDataLoaded) {
-      if (currentView === "bins") {
-        saveBinsData();
-      } else if (currentView === "tidplan") {
-        saveTidplanData();
-      } else if (currentView === "main") {
-        saveData();
-      }
-      if (typeof markClean === "function") markClean();
-      console.log("Auto-saved at", new Date().toLocaleTimeString());
+    if (!appState.isReadonly && appState.currentUser && freshServerDataLoaded && (appState.hasUnsavedChanges || tidplanDataChanged)) {
+      saveAllData({ silent: true }).catch((error) => console.error("Autosave failed:", error));
     }
-  }, 300000); // 5 minutes
+  }, 300000);
 }
 
 /* ==================== HANDLE PRINT/EXPORT WITH VIEW ==================== */
@@ -578,11 +579,14 @@ function deleteReport(reportId) {
       );
     }
     reports = reports.filter((r) => r.id !== reportId);
-    saveReports(reports);
-    trackEditActivity();
-    renderReportsList(currentReportFilter);
-    updateNotifBadge();
-    showToast(t("reportDeleted"), "success");
+    saveReports(reports)
+      .then(() => {
+        trackEditActivity();
+        renderReportsList(currentReportFilter);
+        updateNotifBadge();
+        showToast(t("reportDeleted"), "success");
+      })
+      .catch((error) => showToast(`Report nije obrisan: ${error.message}`, "error"));
   });
 }
 

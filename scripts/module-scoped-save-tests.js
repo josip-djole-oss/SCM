@@ -302,7 +302,10 @@ async function main() {
     const surveysPayload = await api(superSession, "/api/surveys?site=Site%20A");
     assert(Array.isArray(surveysPayload.payload.surveys) && surveysPayload.payload.surveys.length === 1, "Survey was not saved");
     const notificationsPayload = await api(superSession, "/api/notifications?site=Site%20A");
-    assert(Array.isArray(notificationsPayload.payload.notifications) && notificationsPayload.payload.notifications.length === 1, "Notification was not saved");
+    assert(
+      Array.isArray(notificationsPayload.payload.notifications) && notificationsPayload.payload.notifications.length === 1,
+      `Notification was not saved: ${notificationsPayload.status} ${JSON.stringify(notificationsPayload.payload)}`,
+    );
     state = (await api(superSession, "/api/state")).payload.state;
     assert(state.siteData["Site A"].warehouse.stock.itm1.current === 10, "Survey/notification flow changed Warehouse");
     assert(state.siteData["Site A"].planner.dailyData["2026-05-21"].planningRows[0].komentar === "planner A", "Survey/notification flow changed Planner");

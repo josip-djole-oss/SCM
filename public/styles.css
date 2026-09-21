@@ -11298,3 +11298,12 @@ body.account-notifications-open .account-notifications-panel {
     font-size: 1.35rem;
   }
 }
+/* Project availability is resolved before the application is displayed. */
+.project-module-disabled { display: none !important; }
+.project-modules-admin { margin: 0 0 24px; padding: 20px; border: 1px solid var(--border-color, #d1d5db); border-radius: 12px; }
+.project-modules-admin[hidden] { display: none; }
+.project-modules-admin > select { display: block; width: min(100%, 420px); margin: 8px 0 16px; padding: 10px; }
+.project-module-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin: 16px 0; }
+.project-module-option { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px; border: 1px solid var(--border-color, #d1d5db); border-radius: 8px; }
+.project-module-option input { width: 20px; height: 20px; }
+.project-module-option small { flex-basis: 100%; }

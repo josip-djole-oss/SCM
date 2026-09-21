@@ -1096,6 +1096,11 @@
   }
 
   function invokeAction(path, args) {
+    const moduleName = path === "tidplan.showPlanner" ? "planner" : path.split(".")[0];
+    const definition = global.SCMModuleRegistry?.get(moduleName);
+    if (definition && CMAX.projectModules && !CMAX.projectModules.isEnabled(definition.id)) {
+      throw new Error("Ovaj modul nije dostupan za trenutno gradiliste.");
+    }
     const fn = resolveAction(path);
     if (typeof fn !== "function") {
       throw new Error(`CMAX action is missing: ${path}`);
@@ -1166,6 +1171,9 @@
     }
     try {
       await Promise.resolve(CMAX.events.dispatch(el.getAttribute("data-cmax-action"), el, event));
+    } catch (error) {
+      console.error("Application action failed", error);
+      if (typeof showToast === "function") showToast(error?.message || "Radnja nije uspjela. Pokusajte ponovno.", "error");
     } finally {
       if (isServerAction) {
         setDelegatedActionBusy(el, false);

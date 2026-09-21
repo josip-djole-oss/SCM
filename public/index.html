@@ -10,7 +10,7 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css"
+      href="vendor/flatpickr.min.css"
     />
     <link rel="stylesheet" href="styles.css" />
   </head>
@@ -723,6 +723,14 @@
 
         <!-- Tab: Settings -->
         <div id="tabSettings" class="tab-content">
+          <section id="projectModulesAdmin" class="project-modules-admin" hidden aria-labelledby="projectModulesTitle">
+            <h3 id="projectModulesTitle">Moduli po gradilistu</h3>
+            <label for="projectModulesSite">Gradiliste</label>
+            <select id="projectModulesSite"></select>
+            <div id="projectModuleOptions" class="project-module-options"></div>
+            <button id="saveProjectModules" class="btn btn-success" type="button" disabled>Spremi module</button>
+            <p id="projectModulesStatus" role="status" aria-live="polite"></p>
+          </section>
           <!-- Dark mode -->
           <div class="admin-settings-section">
             <h4 id="settingsDarkModeTitle">Tamna tema</h4>
@@ -2904,17 +2912,19 @@
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/hr.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/sv.js"></script>
+    <script src="vendor/jspdf.umd.min.js"></script>
+    <script src="vendor/jspdf.plugin.autotable.min.js"></script>
+    <script src="vendor/flatpickr.min.js"></script>
+    <script src="vendor/flatpickr-hr.js"></script>
+    <script src="vendor/flatpickr-sv.js"></script>
     <script src="js/i18n/i18n.js"></script>
     <script src="js/core/config.js"></script>
     <script src="js/utils/storage.js"></script>
     <script src="js/core/state.js"></script>
     <script src="js/core/appState.js"></script>
     <script src="js/core/apiClient.js"></script>
+    <script src="js/core/moduleRegistry.js"></script>
+    <script src="js/core/projectModules.js"></script>
     <script src="js/core/permissions.js"></script>
     <script src="js/core/routing.js"></script>
     <script src="js/utils/tooltips.js"></script>
@@ -2932,6 +2942,7 @@
     <script src="js/core/conflicts.js"></script>
     <script src="js/planner/planner.js"></script>
     <script src="js/admin/admin.js"></script>
+    <script src="js/admin/projectModulesAdmin.js"></script>
     <script src="js/admin/audit.js"></script>
     <script src="js/admin/backups.js"></script>
     <script src="js/reports/reports.js"></script>

@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const { atomicWriteJson, isWithin } = require('./atomic-file');
 
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -8,7 +10,52 @@ function ensureDir(dirPath) {
 }
 
 function normalizeSiteKey(site) {
+  const value = String(site || 'default').trim() || 'default';
+  return /^[a-zA-Z0-9_-]+$/.test(value) ? value : `site~${crypto.createHash('sha256').update(value).digest('hex')}`;
+}
+
+function legacySiteKey(site) {
   return String(site || 'default').trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'default';
+}
+
+function createSitePaths(dataDir) {
+  const targets = new Map();
+  return {
+    targets,
+    get(kind, site) {
+      const originalSite = String(site || 'default').trim() || 'default';
+      const current = path.join(dataDir, `${kind}_${normalizeSiteKey(originalSite)}.json`);
+      targets.set(path.normalize(current), {
+        originalSite, legacySite: legacySiteKey(originalSite),
+        legacyPath: path.join(dataDir, `${kind}_${legacySiteKey(originalSite)}.json`),
+      });
+      return current;
+    },
+  };
+}
+
+function assertUnambiguousLegacySite(target, state) {
+  const sites = Array.isArray(state?.sites) ? state.sites : [];
+  const collisions = sites.map(String).filter((site) => legacySiteKey(site) === target.legacySite && site.trim() !== target.originalSite);
+  if (collisions.length) {
+    const error = new Error('Legacy project documents have ambiguous file keys; preserve the originals and explicitly assign their project before migration.');
+    error.code = 'AMBIGUOUS_LEGACY_SITE_KEY';
+    throw error;
+  }
+}
+
+function exportSiteDocuments(documents, state) {
+  const result = {};
+  const sites = Array.isArray(state?.sites) ? state.sites.map(String) : [];
+  for (const [key, value] of Object.entries(documents)) {
+    const exact = sites.find((site) => normalizeSiteKey(site) === key);
+    const legacy = sites.filter((site) => legacySiteKey(site) === key);
+    const original = exact || (legacy.length === 1 ? legacy[0] : key);
+    // A newer document under the collision-safe key wins over its preserved legacy copy.
+    if (!exact && original !== key && Object.hasOwn(documents, normalizeSiteKey(original))) continue;
+    result[original] = value;
+  }
+  return result;
 }
 
 function createFileMap(dataDir) {
@@ -132,6 +179,7 @@ function createJsonStorage(options = {}) {
   const backupsDir = options.backupsDir || path.join(dataDir, 'backups');
   const files = createFileMap(dataDir);
   const documentLocks = new Map();
+  const sitePaths = createSitePaths(dataDir);
 
   function listBackupFiles() {
     if (!fs.existsSync(backupsDir)) return [];
@@ -155,17 +203,24 @@ function createJsonStorage(options = {}) {
     const lockKey = path.normalize(filePath);
     const previous = documentLocks.get(lockKey) || Promise.resolve();
     const next = previous.catch(() => {}).then(operation);
-    documentLocks.set(lockKey, next.finally(() => {
-      if (documentLocks.get(lockKey) === next) {
+    const tail = next.then(() => undefined, () => undefined).finally(() => {
+      if (documentLocks.get(lockKey) === tail) {
         documentLocks.delete(lockKey);
       }
-    }));
+    });
+    documentLocks.set(lockKey, tail);
     return next;
   }
 
   async function readRawFile(filePath) {
-    if (!fs.existsSync(filePath)) return undefined;
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const target = sitePaths.targets.get(path.normalize(filePath));
+    const actual = fs.existsSync(filePath) ? filePath : target?.legacyPath;
+    if (!actual || !fs.existsSync(actual)) return undefined;
+    if (target && path.normalize(actual) === path.normalize(target.legacyPath)) {
+      const rawState = fs.existsSync(files.state) ? JSON.parse(fs.readFileSync(files.state, 'utf8')) : null;
+      assertUnambiguousLegacySite(target, normalizeDocument(rawState, null).data);
+    }
+    return JSON.parse(fs.readFileSync(actual, 'utf8'));
   }
 
   async function readDocument(filePath, fallbackValue) {
@@ -190,7 +245,7 @@ function createJsonStorage(options = {}) {
 
       const nextVersion = current.exists ? current.version + 1 : 1;
       const envelope = createEnvelope(value, nextVersion);
-      fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2));
+      atomicWriteJson(filePath, envelope);
       return envelope;
     });
   }
@@ -208,7 +263,7 @@ function createJsonStorage(options = {}) {
       }
       const nextVersion = current.exists ? current.version + 1 : 1;
       const envelope = createEnvelope(nextData, nextVersion);
-      fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2));
+      atomicWriteJson(filePath, envelope);
       return envelope;
     });
   }
@@ -221,6 +276,7 @@ function createJsonStorage(options = {}) {
   async function exportAll() {
     const reports = {};
     const notifications = {};
+    const state = await readJson(files.state, null);
 
     if (fs.existsSync(dataDir)) {
       for (const entry of fs.readdirSync(dataDir)) {
@@ -240,9 +296,9 @@ function createJsonStorage(options = {}) {
       storageType: 'json',
       exportedAt: new Date().toISOString(),
       admins: await readJson(files.admins, []),
-      state: await readJson(files.state, null),
-      reports,
-      notifications,
+      state,
+      reports: exportSiteDocuments(reports, state),
+      notifications: exportSiteDocuments(notifications, state),
       logs: await readJson(files.logs, []),
       warehouse: await readJson(files.warehouse, null),
       warehouseLogs: await readJson(files.warehouseLogs, []),
@@ -268,10 +324,9 @@ function createJsonStorage(options = {}) {
       ensureDir(backupsDir);
     },
     async ensureJsonFile(filePath, defaultValue) {
-      if (!fs.existsSync(filePath)) {
-        const envelope = createEnvelope(defaultValue, 1);
-        fs.writeFileSync(filePath, JSON.stringify(envelope, null, 2));
-      }
+      return withDocumentLock(filePath, async () => {
+        if (!fs.existsSync(filePath)) atomicWriteJson(filePath, createEnvelope(defaultValue, 1));
+      });
     },
     async readJson(filePath, fallbackValue) {
       return readJson(filePath, fallbackValue);
@@ -310,9 +365,9 @@ function createJsonStorage(options = {}) {
       ensureDir(backupsDir);
       const safeLabel = String(metadata.label || 'manual').replace(/[^a-zA-Z0-9_-]/g, '_') || 'manual';
       const createdAt = new Date().toISOString();
-      const filename = `${safeLabel}-${Date.now()}.json`;
+      const filename = `${safeLabel}-${Date.now()}-${crypto.randomUUID()}.json`;
       const filePath = path.join(backupsDir, filename);
-      fs.writeFileSync(filePath, JSON.stringify(snapshot, null, 2), 'utf8');
+      atomicWriteJson(filePath, snapshot);
       return {
         id: filename,
         filename,
@@ -328,7 +383,7 @@ function createJsonStorage(options = {}) {
       }
       const backupRoot = path.resolve(backupsDir);
       const filePath = path.resolve(backupsDir, safeIdentifier);
-      if (!filePath.startsWith(backupRoot) || !fs.existsSync(filePath)) {
+      if (!isWithin(backupRoot, filePath) || !fs.existsSync(filePath)) {
         throw new Error('BACKUP_NOT_FOUND');
       }
       return JSON.parse(fs.readFileSync(filePath, 'utf8'));
@@ -341,10 +396,10 @@ function createJsonStorage(options = {}) {
       return listBackupFiles().slice(0, Math.max(0, Number(limit) || 0));
     },
     getReportsFilePath(site) {
-      return path.join(dataDir, `reports_${normalizeSiteKey(site)}.json`);
+      return sitePaths.get('reports', site);
     },
     getNotificationsFilePath(site) {
-      return path.join(dataDir, `notifications_${normalizeSiteKey(site)}.json`);
+      return sitePaths.get('notifications', site);
     },
   };
 }
@@ -356,21 +411,25 @@ function createPostgresStorage(options = {}) {
   const uploadsDir = options.uploadsDir;
   const backupsDir = options.backupsDir || path.join(dataDir, 'backups');
   const files = createFileMap(dataDir);
+  const sitePaths = createSitePaths(dataDir);
 
   if (!options.databaseUrl) {
     throw new Error('DATABASE_URL is required when STORAGE_TYPE=postgres.');
   }
 
-  const useSsl = String(process.env.PGSSL || process.env.PGSSLMODE || '')
-    .toLowerCase()
-    .includes('require');
+  const sslMode = String(process.env.PGSSL || process.env.PGSSLMODE || '').toLowerCase();
+  const useSsl = ['true', 'require', 'verify-ca', 'verify-full'].includes(sslMode);
 
   const pool = new Pool({
     connectionString: options.databaseUrl,
-    ssl: useSsl ? { rejectUnauthorized: false } : false,
+    ...(sslMode ? { ssl: useSsl ? { rejectUnauthorized: process.env.PGSSL_REJECT_UNAUTHORIZED !== 'false' } : false } : {}),
     max: Number(process.env.PGPOOL_MAX) || 10,
     idleTimeoutMillis: Number(process.env.PG_IDLE_TIMEOUT_MS) || 30000,
     connectionTimeoutMillis: Number(process.env.PG_CONNECT_TIMEOUT_MS) || 10000,
+  });
+  pool.on('error', (error) => {
+    // Idle-client errors otherwise become uncaught exceptions. Avoid logging credentials/SQL.
+    console.error(JSON.stringify({ event: 'postgres_idle_connection_error', code: error.code || 'CONNECTION_ERROR' }));
   });
 
   function resolveTarget(filePath) {
@@ -385,10 +444,10 @@ function createPostgresStorage(options = {}) {
 
     const baseName = path.basename(normalized, '.json');
     if (baseName.startsWith('reports_')) {
-      return { table: 'reports', site: baseName.slice('reports_'.length) || 'default' };
+      return { table: 'reports', site: baseName.slice('reports_'.length) || 'default', ...sitePaths.targets.get(normalized) };
     }
     if (baseName.startsWith('notifications_')) {
-      return { table: 'notifications', site: baseName.slice('notifications_'.length) || 'default' };
+      return { table: 'notifications', site: baseName.slice('notifications_'.length) || 'default', ...sitePaths.targets.get(normalized) };
     }
 
     throw new Error(`Unsupported postgres storage target for path: ${filePath}`);
@@ -426,6 +485,18 @@ function createPostgresStorage(options = {}) {
   }
 
   async function readTargetData(client, target, fallbackValue) {
+    if (target.table === 'reports' || target.table === 'notifications') {
+      let result = await client.query(`SELECT data FROM ${target.table} WHERE site = $1`, [target.site]);
+      if (target.legacySite && (!result.rowCount || target.site === target.legacySite)) {
+        const legacy = target.site === target.legacySite ? result : await client.query(`SELECT data FROM ${target.table} WHERE site = $1`, [target.legacySite]);
+        if (legacy.rowCount) {
+          const stateResult = await client.query('SELECT data FROM state WHERE key = $1', ['default']);
+          assertUnambiguousLegacySite(target, stateResult.rows[0]?.data);
+          result = legacy;
+        }
+      }
+      return { exists: result.rowCount > 0, data: result.rowCount > 0 ? result.rows[0].data : fallbackValue };
+    }
     if (target.table === 'admins') {
       const result = await client.query('SELECT data FROM admins ORDER BY email ASC');
       return {
@@ -566,12 +637,13 @@ function createPostgresStorage(options = {}) {
   async function readDocument(filePath, fallbackValue) {
     const client = await pool.connect();
     try {
+      await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const target = resolveTarget(filePath);
       const documentKey = getDocumentKey(target);
-      const [dataSnapshot, versionRow] = await Promise.all([
-        readTargetData(client, target, fallbackValue),
-        getVersionRow(client, documentKey, false),
-      ]);
+      const dataSnapshot = await readTargetData(client, target, fallbackValue);
+      const versions = await client.query('SELECT version, updated_at FROM document_versions WHERE document_key = $1', [documentKey]);
+      const versionRow = versions.rows[0] || { version: 1, updated_at: null };
+      await client.query('COMMIT');
       return {
         exists: dataSnapshot.exists,
         version: Math.max(1, Number(versionRow.version) || 1),
@@ -580,6 +652,9 @@ function createPostgresStorage(options = {}) {
           : versionRow.updated_at || null,
         data: dataSnapshot.data,
       };
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_) { /* Keep the original database error. */ }
+      throw error;
     } finally {
       client.release();
     }
@@ -593,6 +668,10 @@ function createPostgresStorage(options = {}) {
       const documentKey = getDocumentKey(target);
       const versionRow = await getVersionRow(client, documentKey, true);
       const current = await readTargetData(client, target, options.fallbackValue);
+      if (options.onlyIfMissing && current.exists) {
+        await client.query('COMMIT');
+        return { version: Number(versionRow.version) || 1, updatedAt: versionRow.updated_at, data: current.data };
+      }
 
       if (
         options.lastKnownVersion !== undefined &&
@@ -625,7 +704,7 @@ function createPostgresStorage(options = {}) {
         data: value,
       };
     } catch (error) {
-      await client.query('ROLLBACK');
+      try { await client.query('ROLLBACK'); } catch (_) { /* Keep the original database error. */ }
       throw error;
     } finally {
       client.release();
@@ -668,7 +747,7 @@ function createPostgresStorage(options = {}) {
         data: nextData,
       };
     } catch (error) {
-      await client.query('ROLLBACK');
+      try { await client.query('ROLLBACK'); } catch (_) { /* Keep the original database error. */ }
       throw error;
     } finally {
       client.release();
@@ -706,8 +785,8 @@ function createPostgresStorage(options = {}) {
       exportedAt: new Date().toISOString(),
       admins: adminsDoc.data,
       state: stateDoc.data,
-      reports,
-      notifications,
+      reports: exportSiteDocuments(reports, stateDoc.data),
+      notifications: exportSiteDocuments(notifications, stateDoc.data),
       logs: logGroups.logs || [],
       warehouse: warehouseDoc.data,
       warehouseLogs: logGroups.warehouse_logs || [],
@@ -804,10 +883,7 @@ function createPostgresStorage(options = {}) {
       ensureDir(backupsDir);
     },
     async ensureJsonFile(filePath, defaultValue) {
-      const current = await readDocument(filePath, defaultValue);
-      if (!current.exists) {
-        await writeDocument(filePath, defaultValue, { fallbackValue: defaultValue });
-      }
+      await writeDocument(filePath, defaultValue, { fallbackValue: defaultValue, onlyIfMissing: true });
     },
     async readJson(filePath, fallbackValue) {
       return readJson(filePath, fallbackValue);
@@ -891,10 +967,10 @@ function createPostgresStorage(options = {}) {
       }));
     },
     getReportsFilePath(site) {
-      return path.join(dataDir, `reports_${normalizeSiteKey(site)}.json`);
+      return sitePaths.get('reports', site);
     },
     getNotificationsFilePath(site) {
-      return path.join(dataDir, `notifications_${normalizeSiteKey(site)}.json`);
+      return sitePaths.get('notifications', site);
     },
   };
 }

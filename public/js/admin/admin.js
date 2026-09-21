@@ -366,7 +366,7 @@ function collectAdminUserWizardStep() {
 function getAdminUserWizardDangerousItems(draft = getAdminUserWizardDraft()) {
   const items = [];
   if (Number(draft.level || 1) >= 5) items.push("Admin level 5+");
-  if (Number(draft.level || 1) >= 6 || draft.isSuperAdmin || (draft.storeRoles || []).includes("superadmin")) {
+  if (draft.isSuperAdmin || (draft.storeRoles || []).includes("superadmin")) {
     items.push("Superadmin");
   }
   Object.keys(draft.permissions || {}).forEach((key) => {
@@ -691,7 +691,7 @@ function toggleAdminWizardAllSites() {
 
 function buildAdminUserFromWizardDraft(draft, existing) {
   const level = Math.max(1, Math.min(6, Number(draft.level) || 1));
-  let guardedPerms = level >= 6 ? { ...DEFAULT_PERMISSIONS } : clampPermissionsToLevel(draft.permissions || {}, level);
+  let guardedPerms = draft.isSuperAdmin ? { ...DEFAULT_PERMISSIONS } : clampPermissionsToLevel(draft.permissions || {}, level);
   if (!appState.isSuperAdmin) {
     Object.keys(guardedPerms).forEach((key) => {
       if (!hasAdminPermission(key)) guardedPerms[key] = false;
@@ -706,7 +706,7 @@ function buildAdminUserFromWizardDraft(draft, existing) {
     email: String(draft.email || "").trim().toLowerCase(),
     active: draft.active !== false,
     isReadonly: Boolean(draft.isReadonly),
-    isSuperAdmin: appState.isSuperAdmin && (level >= 6 || (draft.storeRoles || []).includes("superadmin")),
+    isSuperAdmin: appState.isSuperAdmin && draft.isSuperAdmin === true,
     level,
     permissions: normalizePermissions(guardedPerms),
     storeRoles: normalizeGlobalFunctionKeys(draft.storeRoles || []),
@@ -750,11 +750,13 @@ function saveAdminUserWizard() {
     const nextAdmins = admins.slice();
     if (existingIndex >= 0) nextAdmins[existingIndex] = nextAdmin;
     else nextAdmins.push(nextAdmin);
-    localStorage.setItem(ADMINS_KEY, JSON.stringify(nextAdmins));
     trackEditActivity();
     return syncModuleState("adminUsers", { admins: nextAdmins })
-      .catch(() => {})
-      .finally(() => {
+      .then((saved) => {
+        if (!saved) {
+          showToast("Korisnik nije spremljen na server. Unos je zadrzan za ponovni pokusaj.", "error");
+          return false;
+        }
         const dangerous = getAdminUserWizardDangerousItems(draft);
         addLog(adminUserWizardState.mode === "edit" ? "Admin account updated" : "Admin account created", {
           email,
@@ -767,6 +769,7 @@ function saveAdminUserWizard() {
         updateNotificationsBadge();
         closeAdminUserWizard();
         showToast(adminUserWizardState.mode === "edit" ? t("successPermsSaved") : t("successAdminAdded"), "success");
+        return true;
       });
   };
   if (adminUserWizardState.mode === "edit" && adminUserWizardRightsChanged(adminUserWizardState.original, nextAdmin)) {
@@ -1022,6 +1025,7 @@ function openAdminPanel() {
   if (!canOpenAdminPanelAccess()) return;
   withLoading("loadingAdminPanel", () => {
     ensureSettingsPageMount();
+    window.CMAX?.projectModulesAdmin?.render();
     const settingsSection = document.getElementById("settings-section");
     const homeSection = document.getElementById("home-section");
     const reportsSection = document.getElementById("reports-section");
@@ -1458,7 +1462,6 @@ function saveAdminPerms(email, idx) {
     admins[adminIndex].allowedSites = allSitesSelected ? null : filteredSites;
   }
   admins[adminIndex].storeRoles = readFunctionRoleEditor(`roles_${idx}`);
-  localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
   clearPendingAdminLevel(email);
   clearPendingAdminPerms(email);
   trackEditActivity();
@@ -1474,13 +1477,17 @@ function saveAdminPerms(email, idx) {
   return syncModuleState("adminUsers", {
     admins,
   })
-    .catch(() => {})
-    .finally(() => {
+    .then((saved) => {
+      if (!saved) {
+        showToast("Prava nisu spremljena na server. Promjene su zadrzane za ponovni pokusaj.", "error");
+        return false;
+      }
       addLog("Admin account updated", { email, level: nextLevel, storeRoles: admins[adminIndex].storeRoles || [] });
       renderAdminList();
       populateSiteSelect();
       updateNotificationsBadge();
       showToast(t("successPermsSaved"), "success");
+      return true;
     });
 }
 
@@ -1553,13 +1560,15 @@ function addNewAdmin() {
           : filteredSites
         : filteredSites,
   });
-  localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
   trackEditActivity();
   return syncModuleState("adminUsers", {
     admins,
   })
-    .catch(() => {})
-    .finally(() => {
+    .then((saved) => {
+      if (!saved) {
+        showToast("Korisnik nije spremljen na server. Unos je zadrzan za ponovni pokusaj.", "error");
+        return false;
+      }
       addLog("Admin account created", { email, level, storeRoles: functionRoles });
       document.getElementById("newAdminFirstName").value = "";
       document.getElementById("newAdminLastName").value = "";
@@ -1570,6 +1579,7 @@ function addNewAdmin() {
       renderNewAdminPermissionsPanel();
       renderAdminList();
       showToast(t("successAdminAdded"), "success");
+      return true;
     });
 }
 
@@ -1593,8 +1603,6 @@ function removeAdminAction(email) {
       () => {
         let admins = getAdmins();
         admins = admins.filter((a) => a.email !== email);
-        localStorage.setItem(ADMINS_KEY, JSON.stringify(admins));
-
         const removedByName = appState.currentUserName || appState.currentUser || "";
         setAdminRemovalNotice(email, {
           removedEmail: email,
@@ -1607,10 +1615,15 @@ function removeAdminAction(email) {
         syncModuleState("adminUsers", {
           admins,
           adminRemovalNotices: getCachedStorageJson(ADMIN_REMOVAL_NOTICES_KEY, {}),
-        }).catch(() => {});
-        trackEditActivity();
-        renderAdminList();
-        showToast(t("successAdminRemoved"), "success");
+        }).then((saved) => {
+          if (!saved) {
+            showToast("Korisnik nije uklonjen na serveru. Pokusajte ponovno.", "error");
+            return;
+          }
+          trackEditActivity();
+          renderAdminList();
+          showToast(t("successAdminRemoved"), "success");
+        });
       },
     );
   });

@@ -220,7 +220,7 @@ async function main() {
     if (typeof FormData !== "undefined" && typeof Blob !== "undefined") {
       const form = new FormData();
       form.append("file", new Blob(["bad"], { type: "application/x-msdownload" }), "bad.exe");
-      await superApi("/api/site-chat/Site%20A/upload", { method: "POST", body: form, expectStatus: 400 });
+      await superApi("/api/site-chat/Site%20A/upload", { method: "POST", body: form, expectStatus: 415 });
     }
 
     const html = fs.readFileSync(path.join(process.cwd(), "public/index.html"), "utf8");

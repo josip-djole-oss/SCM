@@ -15,7 +15,12 @@ const PDFDocument = require('pdfkit');
 const { PDFDocument: PDFLibDocument } = require('pdf-lib');
 const { Document, Packer, Paragraph, Table, TableRow, TableCell } = require('docx');
 const { VersionConflictError, createStorage } = require('./services/storage');
+const { resolveStoragePaths } = require('./storage/runtime-paths');
+const { createUploadService } = require('./services/uploads');
 const authHelpers = require('./middleware/auth');
+const projectModules = require('./services/projectModules');
+const { createRealtime } = require('./services/realtime');
+const { registerProjectModuleRoutes, createProjectModuleGuard } = require('./routes/projectModules');
 const { registerPlannerRoutes } = require('./routes/planner');
 const { registerTidplanRoutes } = require('./routes/tidplan');
 const { registerWarehouseRoutes } = require('./routes/warehouse');
@@ -44,9 +49,7 @@ function resolveRuntimePath(value, fallbackPath) {
   return path.isAbsolute(value) ? value : path.resolve(APP_ROOT, value);
 }
 
-const DATA_DIR = resolveRuntimePath(process.env.DATA_PATH, path.join(__dirname, 'data'));
-const UPLOADS_DIR = resolveRuntimePath(process.env.UPLOAD_PATH, path.join(APP_ROOT, 'uploads'));
-const BACKUPS_DIR = resolveRuntimePath(process.env.BACKUP_PATH, path.join(DATA_DIR, 'backups'));
+const { dataDir: DATA_DIR, uploadsDir: UPLOADS_DIR, backupsDir: BACKUPS_DIR } = resolveStoragePaths(APP_ROOT);
 const dataStorage = createStorage({
   storageType: STORAGE_TYPE,
   dataDir: DATA_DIR,
@@ -67,6 +70,7 @@ const warehouseLogsFile = dataStorage.files?.warehouseLogs || path.join(dataDir,
 const toolroomFile = dataStorage.files?.toolroom || path.join(dataDir, 'toolroom.json');
 const siteChatFile = dataStorage.files?.siteChat || path.join(dataDir, 'site-chat.json');
 const sessions = new Map();
+const realtime = createRealtime({ sessions, canAccessSite: authHelpers.canAccessSite });
 const activePresence = new Map();
 const pendingRestoreApprovals = new Map();
 const storageRuntime = {
@@ -263,14 +267,15 @@ function sanitizeString(value, maxLength = 5000) {
 }
 
 function sanitizeObject(value, depth = 0) {
-  if (depth > 8) return null;
+  if (depth > 32) throw projectModules.accessError('PAYLOAD_NESTING_TOO_DEEP', 400);
   if (Array.isArray(value)) {
-    return value.slice(0, 500).map((entry) => sanitizeObject(entry, depth + 1));
+    return value.map((entry) => sanitizeObject(entry, depth + 1));
   }
   if (value && typeof value === 'object') {
     const result = {};
     Object.entries(value).forEach(([key, entry]) => {
       const safeKey = sanitizeString(key, 120);
+      if (['__proto__', 'prototype', 'constructor'].includes(safeKey)) throw projectModules.accessError('INVALID_OBJECT_KEY', 400);
       result[safeKey] = sanitizeObject(entry, depth + 1);
     });
     return result;
@@ -307,11 +312,11 @@ function sanitizeSiteKey(site) {
 }
 
 function getReportsFilePath(site) {
-  return dataStorage.getReportsFilePath(sanitizeSiteKey(site));
+  return dataStorage.getReportsFilePath(sanitizeString(site || 'default', 80) || 'default');
 }
 
 function getNotificationsFilePath(site) {
-  return dataStorage.getNotificationsFilePath(sanitizeSiteKey(site));
+  return dataStorage.getNotificationsFilePath(sanitizeString(site || 'default', 80) || 'default');
 }
 
 async function readJsonFile(filePath, fallbackValue) {
@@ -319,7 +324,7 @@ async function readJsonFile(filePath, fallbackValue) {
     return await dataStorage.readJson(filePath, fallbackValue);
   } catch (error) {
     logServerError(error, `read:${path.basename(filePath)}`);
-    return fallbackValue;
+    throw error;
   }
 }
 
@@ -353,7 +358,9 @@ function sendVersionConflict(res, latestPayloadBuilder) {
 }
 
 function normalizePermissions(permissions, fallback = DEFAULT_PERMISSIONS) {
-  return { ...fallback, ...(permissions || {}) };
+  return Object.fromEntries(Object.keys(fallback).sort().map((key) => [key,
+    typeof permissions?.[key] === 'boolean' ? permissions[key] : fallback[key] === true,
+  ]));
 }
 
 function getAdminLevel(admin) {
@@ -375,7 +382,7 @@ function normalizeAdminRecord(admin) {
     firstName,
     lastName,
     fullName,
-    isSuperAdmin: Boolean(admin?.isSuperAdmin),
+    isSuperAdmin: admin?.isSuperAdmin === true,
     isReadonly: Boolean(admin?.isReadonly),
     active: admin?.active !== false,
     level: getAdminLevel(admin),
@@ -574,14 +581,19 @@ async function extractPdfText(filePath) {
   const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   const data = new Uint8Array(fs.readFileSync(filePath));
   const loadingTask = pdfjs.getDocument({ data, useWorkerFetch: false, isEvalSupported: false, disableFontFace: true });
-  const pdf = await loadingTask.promise;
-  const pages = [];
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
-    const page = await pdf.getPage(pageNum);
-    const content = await page.getTextContent();
-    pages.push(content.items.map((item) => item.str || '').join('\n'));
+  try {
+    const pdf = await loadingTask.promise;
+    const pages = [];
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum += 1) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+      pages.push(content.items.map((item) => item.str || '').join('\n'));
+      page.cleanup();
+    }
+    return pages.join('\n');
+  } finally {
+    await loadingTask.destroy();
   }
-  return pages.join('\n');
 }
 
 function parseModulePayloadFromPdfText(text, expectedModule) {
@@ -1363,6 +1375,8 @@ function assertActorCanSubmitAdminList(actorSession, existingAdmins, submittedAd
     const changed = submitted && stableJson(redactAdminRecord(existing)) !== stableJson(redactAdminRecord(submitted));
     if (!removed && !changed) continue;
     if (email === actorEmail) {
+      if (removed) throw projectModules.accessError('SELF_REMOVAL_FORBIDDEN');
+      if (changed) throw projectModules.accessError('SELF_AUTHORIZATION_CHANGE_FORBIDDEN');
       continue;
     }
     if (!canActorManageAdmin(actorSession, existing)) {
@@ -1374,7 +1388,7 @@ function assertActorCanSubmitAdminList(actorSession, existingAdmins, submittedAd
 
   for (const [email, submitted] of submittedByEmail.entries()) {
     const existing = existingByEmail.get(email);
-    if (existing) continue;
+    if (existing && !canActorManageAdmin(actorSession, existing)) continue;
     if (email === actorEmail) {
       const error = new Error('Admins cannot create or modify themselves');
       error.statusCode = 403;
@@ -1428,7 +1442,8 @@ async function persistAdmins(adminsInput, actorSession = null) {
 
   for (const candidate of Array.isArray(adminsInput) ? adminsInput : []) {
     const normalized = normalizeAdminRecord(candidate);
-    if (!normalized.email || !isValidEmail(normalized.email)) continue;
+    if (!normalized.email || !isValidEmail(normalized.email)) throw projectModules.accessError('INVALID_ADMIN_EMAIL', 400);
+    if (submittedEmails.has(normalized.email)) throw projectModules.accessError('DUPLICATE_ADMIN_EMAIL', 400);
     submittedEmails.add(normalized.email);
     const existing = existingByEmail.get(normalized.email);
     if (actorSession && !canActorManageAdmin(actorSession, existing)) {
@@ -1445,7 +1460,7 @@ async function persistAdmins(adminsInput, actorSession = null) {
     nextAdmins.push(clampAdminForActor(normalized, existing, actorSession));
   }
 
-  if (actorSession && !actorSession.isSuperAdmin) {
+  if (actorSession) {
     existingAdmins.forEach((existing) => {
       if (!submittedEmails.has(existing.email) && !canActorManageAdmin(actorSession, existing)) {
         nextAdmins.push(existing);
@@ -1453,6 +1468,10 @@ async function persistAdmins(adminsInput, actorSession = null) {
     });
   }
 
+  if (existingAdmins.some((admin) => admin.isSuperAdmin && admin.active !== false) &&
+      !nextAdmins.some((admin) => admin.isSuperAdmin && admin.active !== false && !admin.isReadonly)) {
+    throw projectModules.accessError('LAST_SUPER_ADMIN_PROTECTED');
+  }
   await writeVersionedJsonFile(adminsFile, nextAdmins, { fallbackValue: [] });
   syncActiveSessionsWithAdmins(nextAdmins);
   return nextAdmins;
@@ -1466,17 +1485,34 @@ function syncActiveSessionsWithAdmins(admins) {
     if (!session || session.role !== 'admin') continue;
     const admin = adminsByEmail.get(String(session.email || '').toLowerCase());
     if (!admin || admin.active === false) {
+      realtime.publish('session-revoked', {}, { email: session.email });
       sessions.delete(sessionId);
       continue;
     }
+    const before = effectiveAuthorizationSignature(session);
     session.fullName = admin.fullName || session.fullName || '';
     session.isSuperAdmin = admin.isSuperAdmin === true;
     session.isReadonly = admin.isReadonly === true;
-    session.permissions = admin.isSuperAdmin ? { ...DEFAULT_PERMISSIONS } : normalizePermissions(admin.permissions || {});
+    session.permissions = normalizePermissions(admin.permissions || {});
     session.level = getAdminLevel(admin);
     session.allowedSites = Array.isArray(admin.allowedSites) ? admin.allowedSites.slice() : null;
-    session.authzUpdatedAt = new Date().toISOString();
+    session.storeRoles = admin.storeRoles.slice();
+    if (before !== effectiveAuthorizationSignature(session)) {
+      session.authzUpdatedAt = new Date().toISOString();
+      realtime.publish('permissions-changed', { email: session.email, updatedAt: session.authzUpdatedAt }, { email: session.email });
+    }
   }
+}
+
+function effectiveAuthorizationSignature(session) {
+  return stableChecksum({
+    isSuperAdmin: session?.isSuperAdmin === true,
+    isReadonly: session?.isReadonly === true,
+    permissions: Object.fromEntries(Object.keys(DEFAULT_PERMISSIONS).sort().map((key) => [key, sessionHasPermission(session, key)])),
+    allowedSites: session?.isSuperAdmin ? null : Array.isArray(session?.allowedSites) ? [...new Set(session.allowedSites)].sort() : null,
+    storeRoles: [...new Set(session?.storeRoles || [])].sort(),
+    level: getSessionLevel(session),
+  });
 }
 
 function getEnabledPermissionKeys(permissions) {
@@ -1777,7 +1813,7 @@ async function buildPublicStatePayload(document, session) {
   }
 
   return {
-    state: responseState,
+    state: responseState ? projectModules.filterState(responseState, session, canAccessSite) : null,
     version: document?.version || 1,
     updatedAt: document?.updatedAt || null,
   };
@@ -1872,6 +1908,8 @@ function buildPublicAuthPayload(session) {
     permissions: session.permissions,
     level: session.level,
     storeRoles: Array.isArray(session.storeRoles) ? session.storeRoles : [],
+    allowedSites: Array.isArray(session.allowedSites) ? session.allowedSites : null,
+    authorizationVersion: effectiveAuthorizationSignature(session),
   };
 }
 
@@ -1984,6 +2022,11 @@ function requireStorageReady(req, res, next) {
 
 function canAccessSite(session, site) {
   return authHelpers.canAccessSite(session, site || 'default');
+}
+
+async function requireProjectModule(req, site, moduleId) {
+  const state = await getState();
+  projectModules.assertEnabled(state, req.session, site, moduleId, canAccessSite);
 }
 
 function requirePermission(permissionKey) {
@@ -3566,7 +3609,7 @@ function isPastDateString(dateValue) {
 }
 
 function canUnlockPastDays(session) {
-  return Boolean(session?.isSuperAdmin || Number(session?.level) >= 6 || session?.permissions?.canUnlockPastDays === true);
+  return Boolean(session?.isSuperAdmin || session?.permissions?.canUnlockPastDays === true);
 }
 
 function getSessionDisplayName(session) {
@@ -3973,8 +4016,19 @@ function normalizeToolroomDocument(doc) {
   };
 }
 
-async function getToolroomDocument() {
-  return normalizeToolroomDocument(await readJsonFile(toolroomFile, createEmptyToolroomDocument()));
+async function getToolroomDocument(session = null) {
+  const document = normalizeToolroomDocument(await readJsonFile(toolroomFile, createEmptyToolroomDocument()));
+  if (!session) return document;
+  const state = await getState();
+  const allowed = (site) => !site || (canAccessSite(session, site) && projectModules.isEnabled(state, site, 'toolroom'));
+  const items = document.items.filter((item) => allowed(item.currentHolderSiteId));
+  const ids = new Set(items.map((item) => item.id));
+  return { ...document, items,
+    assignments: document.assignments.filter((row) => ids.has(row.toolId) && allowed(row.holderSiteId)),
+    faults: document.faults.filter((row) => ids.has(row.toolId) && allowed(row.reporterSite)),
+    serviceRecords: (document.serviceRecords || []).filter((row) => ids.has(row.toolId)),
+    history: document.history.filter((row) => (!row.entityId || ids.has(row.entityId)) && allowed(row.before?.currentHolderSiteId) && allowed(row.after?.currentHolderSiteId)),
+  };
 }
 
 function pushToolroomHistory(doc, event) {
@@ -4306,6 +4360,7 @@ function normalizeRuntimeState(rawState) {
   next.version = 2;
   next.accountNotifications = isPlainObject(source.accountNotifications) ? source.accountNotifications : {};
   next.moduleVersions = isPlainObject(source.moduleVersions) ? source.moduleVersions : {};
+  next.projectModules = isPlainObject(source.projectModules) ? source.projectModules : {};
   next.guestPermissions = isPlainObject(source.guestPermissions)
     ? source.guestPermissions
     : { ...DEFAULT_GUEST_PERMISSIONS };
@@ -4325,6 +4380,9 @@ function normalizeRuntimeState(rawState) {
   const siteData = {};
   derivedSites.forEach((site) => {
     siteData[site] = isPlainObject(sourceSiteData[site]) ? { ...sourceSiteData[site] } : {};
+    if (Array.isArray(siteData[site].store?.passwordResetRequests)) {
+      siteData[site].store = { ...siteData[site].store, passwordResetRequests: siteData[site].store.passwordResetRequests.map(({ generatedPassword, ...request }) => request) };
+    }
   });
 
   const hasLegacyTopLevelData =
@@ -4524,7 +4582,6 @@ function sanitizeStorePasswordResetRequest(request) {
     approvedBy: sanitizeString(source.approvedBy || '', 160).toLowerCase(),
     rejectedAt: sanitizeString(source.rejectedAt || '', 80),
     rejectedBy: sanitizeString(source.rejectedBy || '', 160).toLowerCase(),
-    generatedPassword: sanitizeString(source.generatedPassword || '', 180),
   };
 }
 
@@ -4727,6 +4784,7 @@ function mergeStoreStateForSession(previousStore, submittedStore, session, site)
 function mergeStateForSession(previousState, submittedState, session) {
   const previous = previousState && typeof previousState === 'object' ? previousState : {};
   const submitted = submittedState && typeof submittedState === 'object' ? submittedState : {};
+  projectModules.protectSubmittedState(previous, submitted, session, canAccessSite);
   const merged = {
     ...previous,
     version: Number(submitted.version) || Number(previous.version) || 2,
@@ -5005,25 +5063,62 @@ async function startStorageInitialization() {
   }
 }
 
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    const today = new Date().toISOString().slice(0, 10);
-    const uploadPath = path.join(uploadsDir, today);
-    ensureDir(uploadPath);
-    cb(null, uploadPath);
+const uploadService = createUploadService({
+  uploadsDir,
+  maxBytes: Number(process.env.UPLOAD_MAX_BYTES || process.env.MAX_UPLOAD_SIZE_BYTES) || 10 * 1024 * 1024,
+  async authorize(req, metadata, download = false) {
+    await requireProjectModule(req, metadata.site, metadata.module);
+    const definition = require('../public/js/core/moduleRegistry').get(metadata.module);
+    if (!definition || !definition.accessPermissions.some((key) => sessionHasPermission(req.session, key))) {
+      throw Object.assign(new Error('FILE_ACCESS_DENIED'), { statusCode: 403 });
+    }
+    if (!download && req.path === '/upload') {
+      const writePermissions = {
+        notifications: ['canManageNotifications'], surveys: ['canCreateSurveys'], reports: ['canCreateReports'],
+        store: ['canManageStore', 'canManageWorkwear'], planner: ['canManagePlans'], tidplan: ['canManageTidplan'],
+        bins: ['canEditBinsData'], chat: ['canAccessSiteChat'], warehouse: ['canManageWarehouse'], toolroom: ['canManageToolroom'],
+      };
+      if (!(writePermissions[definition.id] || []).some((key) => sessionHasPermission(req.session, key))) {
+        throw Object.assign(new Error('FILE_ACCESS_DENIED'), { statusCode: 403 });
+      }
+    }
+    if (download && metadata.module === 'surveys' && metadata.owner !== req.session.email) {
+      const state = await getState();
+      const url = `/uploads/${metadata.relative}`;
+      const survey = getSurveyListFromState(state, metadata.site).find((item) => item.imageUrl === url);
+      if (!survey || !userCanReceiveSurvey(req.session, survey, metadata.site)) {
+        throw Object.assign(new Error('FILE_ACCESS_DENIED'), { statusCode: 403 });
+      }
+    }
   },
-  filename(req, file, cb) {
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+  async authorizeLegacy(req, url) {
+    const state = await getState();
+    const registry = require('../public/js/core/moduleRegistry');
+    const contains = (value) => {
+      if (typeof value === 'string') return value === url;
+      if (!value || typeof value !== 'object') return false;
+      return Object.values(value).some(contains);
+    };
+    for (const site of getAccessibleSiteListFromState(state, req.session)) {
+      for (const definition of registry.list) {
+        if (!definition.accessPermissions.some((key) => sessionHasPermission(req.session, key))) continue;
+        try { await requireProjectModule(req, site, definition.id); } catch (error) { if (error.statusCode === 403) continue; throw error; }
+        const entry = state.siteData?.[site] || {};
+        if (definition.id === 'surveys') {
+          if (getSurveyListFromState(state, site).some((survey) => survey.imageUrl === url && userCanReceiveSurvey(req.session, survey, site))) return true;
+        } else if (definition.stateKeys.some((key) => contains(entry[key]))) return true;
+        if (definition.id === 'notifications' && contains(await readJsonFile(getNotificationsFilePath(site), []))) return true;
+        if (definition.id === 'reports' && contains(await readJsonFile(getReportsFilePath(site), []))) return true;
+        if (definition.id === 'chat') {
+          const chat = await getSiteChatDocument();
+          if (contains(chat.sites?.[site])) return true;
+        }
+      }
+    }
+    return false;
   },
 });
-
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: Number(process.env.UPLOAD_MAX_BYTES || process.env.MAX_UPLOAD_SIZE_BYTES) || 10 * 1024 * 1024,
-  },
-});
+const upload = uploadService.upload;
 
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
@@ -5076,12 +5171,20 @@ app.use(cors((req, callback) => {
 
 app.use(express.json({ limit: API_BODY_LIMIT }));
 app.use(express.urlencoded({ extended: true, limit: API_BODY_LIMIT }));
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  if (req.path === '/health') return next();
+  return requireStorageReady(req, res, next);
+});
 
 /**
  * Request timeout handler
  */
 app.use((req, res, next) => {
-  res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+  const timeoutMs = req.is('multipart/form-data')
+    ? Math.max(REQUEST_TIMEOUT_MS, Number(process.env.UPLOAD_TIMEOUT_MS) || 120000)
+    : REQUEST_TIMEOUT_MS;
+  res.setTimeout(timeoutMs, () => {
     if (!res.headersSent) {
       res.status(503).json({ error: 'Request timeout' });
     }
@@ -5205,24 +5308,15 @@ app.use(
   }),
 );
 
-app.get('/uploads/*', requireAuth, (req, res) => {
-  const relativePath = req.params[0];
-  const resolvedPath = path.resolve(uploadsDir, relativePath || '');
-  if (!resolvedPath.startsWith(path.resolve(uploadsDir))) {
-    return res.status(400).json({ error: 'Invalid file path' });
-  }
-  if (!fs.existsSync(resolvedPath) || !fs.statSync(resolvedPath).isFile()) {
-    return res.status(404).json({ error: 'File not found' });
-  }
-  return res.sendFile(resolvedPath);
-});
+app.get('/uploads/*', requireAuth, uploadService.download);
 
 app.get('/api/health', (req, res) => {
   const storage = getStorageStatusPayload();
-  res.json({
-    ok: true,
+  const { lastError: _privateStorageError, ...publicStorage } = storage;
+  res.status(storage.ready ? 200 : 503).json({
+    ok: storage.ready,
     storageReady: storage.ready,
-    storage,
+    storage: publicStorage,
     timestamp: new Date().toISOString(),
   });
 });
@@ -5230,12 +5324,37 @@ app.get('/api/health', (req, res) => {
 const apiRouter = express.Router();
 apiRouter.use(requireAuth);
 apiRouter.use(requireCsrf);
+apiRouter.use(createProjectModuleGuard({ getState, canAccessSite, realtime, getToolroomDocument }));
+registerProjectModuleRoutes(apiRouter, { getState, stateFile, mutateVersionedJsonFile, canAccessSite, requireSuperAdmin, realtime, logActivity });
+
+apiRouter.post('/account/password', async (req, res, next) => {
+  try {
+    const oldPassword = String(req.body?.oldPassword || '');
+    const newPassword = String(req.body?.newPassword || '');
+    if (req.session.role !== 'admin') throw projectModules.accessError('AUTHENTICATED_ACCOUNT_REQUIRED');
+    if (newPassword.length < 12 || Buffer.byteLength(newPassword, 'utf8') > 72 || oldPassword.length > 200) {
+      throw projectModules.accessError('PASSWORD_MUST_BE_12_TO_72_BYTES', 400);
+    }
+    await mutateVersionedJsonFile(adminsFile, [], async (admins) => {
+      const index = admins.findIndex((admin) => admin.email === req.session.email);
+      if (index < 0 || !await bcrypt.compare(oldPassword, admins[index].password || '')) throw projectModules.accessError('CURRENT_PASSWORD_INCORRECT');
+      const next = admins.map((admin) => ({ ...admin }));
+      next[index].password = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+      return next;
+    });
+    for (const [id, session] of sessions) {
+      if (session.email === req.session.email && id !== req.session.id) sessions.delete(id);
+    }
+    await logActivity(req.session.email, 'password_changed', {});
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+});
 
 apiRouter.get('/site-chat/sites', async (req, res, next) => {
   try {
     if (!canAccessSiteChat(req.session)) return res.status(403).json({ error: 'Forbidden' });
     const state = await getState();
-    const accessibleSites = getAccessibleSiteListFromState(state, req.session);
+    const accessibleSites = getAccessibleSiteListFromState(state, req.session).filter((site) => projectModules.isEnabled(state, site, 'chat'));
     const doc = await getSiteChatDocument();
     const sitesPayload = accessibleSites.map((site) => buildSiteChatListEntry(site, ensureSiteChatSite(doc, site), req.session));
     return res.json({
@@ -5253,7 +5372,7 @@ apiRouter.get('/site-chat/unread', async (req, res, next) => {
   try {
     if (!canAccessSiteChat(req.session)) return res.status(403).json({ error: 'Forbidden' });
     const state = await getState();
-    const accessibleSites = getAccessibleSiteListFromState(state, req.session);
+    const accessibleSites = getAccessibleSiteListFromState(state, req.session).filter((site) => projectModules.isEnabled(state, site, 'chat'));
     const doc = await getSiteChatDocument();
     const unread = {};
     accessibleSites.forEach((site) => {
@@ -5986,7 +6105,7 @@ apiRouter.get('/store/export/:format(csv|excel|pdf)', requireAnyPermission(['can
     const scopedSites = canManageAll
       ? targetSites
       : [site].filter((siteId) => canAccessSite(req.session, siteId));
-    const allRows = scopedSites.flatMap((siteId) => {
+    const allRows = scopedSites.filter((siteId) => projectModules.isEnabled(state, siteId, 'store')).flatMap((siteId) => {
       const siteEntry = state?.siteData?.[siteId] && typeof state.siteData[siteId] === 'object' ? state.siteData[siteId] : {};
       const store = siteEntry?.store && typeof siteEntry.store === 'object' ? siteEntry.store : {};
       return buildStoreExportRows(store.orders, {
@@ -6137,6 +6256,8 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
       nextState.moduleVersions = nextState.moduleVersions && typeof nextState.moduleVersions === 'object'
         ? { ...nextState.moduleVersions }
         : {};
+      const guardedModule = projectModules.registry.get(/^store/.test(target) ? 'store' : target);
+      if (guardedModule) projectModules.assertEnabled(nextState, req.session, site, guardedModule.id, canAccessSite);
       const currentModuleVersion = getModuleStateVersion(nextState, target, site);
       if (Number(baseVersion) !== Number(currentModuleVersion)) {
         throw createModuleConflictError(target, site, currentModuleVersion, baseVersion);
@@ -6156,7 +6277,7 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
           const previousAdmins = await readAdmins();
           updatedAdmins = await persistAdmins(payload.admins, req.session);
           await logAdminAuditChanges(req.session.email, previousAdmins, updatedAdmins);
-          nextState.admins = updatedAdmins;
+          nextState.admins = updatedAdmins.map(redactAdminRecord);
         } else if (Array.isArray(payload.admins)) {
           const error = new Error('FORBIDDEN_MODULE_TARGET');
           error.statusCode = 403;
@@ -6272,7 +6393,7 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
       moduleVersion: nextModuleVersion,
       version: savedDocument.version || 1,
       updatedAt: savedDocument.updatedAt || null,
-      admins: updatedAdmins || undefined,
+      admins: updatedAdmins ? updatedAdmins.map(redactAdminRecord) : undefined,
     });
   } catch (error) {
     if (error?.code === 'MODULE_VERSION_CONFLICT' || error?.message === 'MODULE_VERSION_CONFLICT') {
@@ -6423,9 +6544,9 @@ apiRouter.patch('/tidplan/:siteId/activities/:activityId', requireAdmin, async (
 });
 
 apiRouter.post('/state', requireAdmin, async (req, res, next) => {
+  const moduleKey = sanitizeString(req.body?.module || req.body?.section || 'state', 80);
   try {
     const state = sanitizeObject(req.body?.state);
-    const moduleKey = sanitizeString(req.body?.module || req.body?.section || 'state', 80);
     const lastKnownVersion = Number(req.body?.lastKnownVersion);
     if (!validateStatePayload(state)) {
       return res.status(400).json({ error: 'Invalid state payload' });
@@ -6440,6 +6561,9 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     }
 
     const currentDocument = await getStateDocument();
+    if (Number(currentDocument.version) !== lastKnownVersion) {
+      return sendVersionConflict(res, async () => buildPublicStatePayload(currentDocument, req.session));
+    }
     const mergedState = mergeStateForSession(currentDocument.data, state, req.session);
     const storeSecurityEvents = Array.isArray(mergedState.__storeSecurityEvents) ? mergedState.__storeSecurityEvents.slice() : [];
     delete mergedState.__storeSecurityEvents;
@@ -6559,8 +6683,9 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
 
     if (canWriteStateField(req.session, 'canManageAdmins') && Array.isArray(mergedState.admins)) {
       const previousAdmins = await readAdmins();
-      mergedState.admins = await persistAdmins(mergedState.admins, req.session);
-      await logAdminAuditChanges(req.session.email, previousAdmins, mergedState.admins);
+      const savedAdmins = await persistAdmins(mergedState.admins, req.session);
+      await logAdminAuditChanges(req.session.email, previousAdmins, savedAdmins);
+      mergedState.admins = savedAdmins.map(redactAdminRecord);
     }
     
     const updatedAt = new Date().toISOString();
@@ -6574,7 +6699,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       updatedByName: getSessionDisplayName(req.session),
       module: moduleKey,
     }, {
-      lastKnownVersion: Number(currentDocument.version) || lastKnownVersion,
+      lastKnownVersion,
       fallbackValue: null,
     });
     if (storeSecurityEvents.some((entry) => entry?.type === 'store_applied')) {
@@ -6837,24 +6962,7 @@ apiRouter.post('/upload', requireAdmin, upload.single('file'), async (req, res, 
   }
 });
 
-apiRouter.get('/files', requireAdmin, (req, res) => {
-  const files = [];
-  const today = new Date().toISOString().slice(0, 10);
-  const todayDir = path.join(uploadsDir, today);
-  if (fs.existsSync(todayDir)) {
-    for (const filename of fs.readdirSync(todayDir)) {
-      const filePath = path.join(todayDir, filename);
-      const stats = fs.statSync(filePath);
-      files.push({
-        filename,
-        path: getUploadUrl(filePath),
-        size: stats.size,
-        uploadDate: stats.mtime.toISOString(),
-      });
-    }
-  }
-  res.json({ files });
-});
+apiRouter.get('/files', requireAdmin, uploadService.list);
 
 apiRouter.get('/reports', requirePermission('canViewReports'), async (req, res, next) => {
   try {
@@ -6905,7 +7013,7 @@ function mergeReportsById(existingReports, submittedReports) {
   return merged;
 }
 
-apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, res, next) => {
+apiRouter.post('/reports', requireAnyPermission(['canCreateReports', 'canApproveReports', 'canDeleteReports']), async (req, res, next) => {
   try {
   if (req.session.isReadonly) {
     return res.status(403).json({ error: 'Read-only users cannot modify reports' });
@@ -6919,18 +7027,19 @@ apiRouter.post('/reports', requirePermission('canCreateReports'), async (req, re
   if (!Array.isArray(reports)) {
     return res.status(400).json({ error: 'Invalid reports payload' });
   }
-  const canProcessReports =
-    sessionHasPermission(req.session, 'canApproveReports') ||
-    sessionHasPermission(req.session, 'canDeleteReports');
   const savedDocument = await mutateVersionedJsonFile(getReportsFilePath(site), [], (existingReports, documentInfo) => {
-    const hasFreshProcessVersion =
-      canProcessReports &&
-      Number.isFinite(lastKnownVersion) &&
-      lastKnownVersion >= 1 &&
-      Number(documentInfo?.version) === lastKnownVersion;
-    if (hasFreshProcessVersion) return reports;
-    if (canProcessReports) return mergeReportsById(existingReports, reports);
-    return mergeCreatedReports(existingReports, reports);
+    if (!Number.isInteger(lastKnownVersion) || lastKnownVersion < 1) throw projectModules.accessError('VERSION_REQUIRED', 400);
+    if (Number(documentInfo.version) !== lastKnownVersion) throw new VersionConflictError(documentInfo);
+    const previousById = new Map((existingReports || []).map((report) => [String(report?.id || ''), report]));
+    const nextIds = new Set(reports.map((report) => String(report?.id || '')));
+    if (nextIds.size !== reports.length || nextIds.has('')) throw projectModules.accessError('INVALID_REPORT_IDS', 400);
+    if ([...previousById.keys()].some((id) => !nextIds.has(id)) && !sessionHasPermission(req.session, 'canDeleteReports')) throw projectModules.accessError('REPORT_DELETE_FORBIDDEN');
+    for (const report of reports) {
+      const previous = previousById.get(String(report.id));
+      if (!previous && !sessionHasPermission(req.session, 'canCreateReports')) throw projectModules.accessError('REPORT_CREATE_FORBIDDEN');
+      if (previous && stableChecksum(previous) !== stableChecksum(report) && !sessionHasPermission(req.session, 'canApproveReports')) throw projectModules.accessError('REPORT_EDIT_FORBIDDEN');
+    }
+    return reports;
   });
   await logActivity(req.session.email, 'save_reports', { count: reports.length, site });
   res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt });
@@ -7013,6 +7122,8 @@ apiRouter.post('/notifications', requireAnyPermission(['canManageNotifications',
     getNotificationsFilePath(site),
     [],
     (existingNotifications, documentInfo) => {
+      if (!Number.isInteger(lastKnownVersion) || lastKnownVersion < 1) throw projectModules.accessError('VERSION_REQUIRED', 400);
+      if (Number(documentInfo.version) !== lastKnownVersion) throw new VersionConflictError(documentInfo);
       if (
         !sessionHasPermission(req.session, 'canManageNotifications') &&
         !isDeleteOnlyNotificationsChange(existingNotifications, notifications)
@@ -7021,14 +7132,10 @@ apiRouter.post('/notifications', requireAnyPermission(['canManageNotifications',
         error.statusCode = 403;
         throw error;
       }
-      if (
-        Number.isFinite(lastKnownVersion) &&
-        lastKnownVersion >= 1 &&
-        Number(lastKnownVersion) === Number(documentInfo.version)
-      ) {
-        return notifications;
-      }
-      return mergeNotificationsById(existingNotifications, notifications);
+      const nextIds = new Set(notifications.map((item) => String(item?.id || '')));
+      if (nextIds.size !== notifications.length || nextIds.has('')) throw projectModules.accessError('INVALID_NOTIFICATION_IDS', 400);
+      if ((existingNotifications || []).some((item) => !nextIds.has(String(item.id))) && !sessionHasPermission(req.session, 'canDeleteNotifications')) throw projectModules.accessError('NOTIFICATION_DELETE_FORBIDDEN');
+      return notifications;
     },
   );
   await logActivity(req.session.email, 'save_notifications', { count: notifications.length, site });
@@ -7086,7 +7193,7 @@ function userCanReceiveSurvey(session, survey, site) {
 
 function canViewSurveyVoters(session, survey) {
   if (!session || !survey) return false;
-  if (session.isSuperAdmin || Number(session.level) >= 6) return true;
+  if (session.isSuperAdmin) return true;
   if (survey.privacy === 'anonymous') {
     return sessionHasPermission(session, 'canViewAnonymousSurveyVoters');
   }
@@ -7120,7 +7227,7 @@ function redactSurveyForSession(survey, session, site) {
   const active = isSurveyActive(survey);
   const finished = isSurveyFinished(survey);
   const canViewResults = sessionHasPermission(session, 'canViewSurveyResults');
-  const canSeeResults = finished || canViewResults || session?.isSuperAdmin || Number(session?.level) >= 6;
+  const canSeeResults = finished || canViewResults || session?.isSuperAdmin;
   const userEmail = sanitizeString(session?.email || '', 160).toLowerCase();
   const ownVote = Array.isArray(survey.votes)
     ? survey.votes.find((vote) => vote.email === userEmail)
@@ -7580,7 +7687,7 @@ apiRouter.get('/warehouse/admin-assignments', requirePermission('canViewWarehous
 apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManageToolroom', 'canEditToolPresets', 'canViewToolHistory', 'canAssignTools', 'canReturnTools', 'canViewMyTools', 'canReportToolFault', 'canHandleToolService', 'canWriteOffTools', 'canExportToolroom']), async (req, res, next) => {
   try {
     if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
-    const toolroom = await getToolroomDocument();
+    const toolroom = await getToolroomDocument(req.session);
     res.json({
       ok: true,
       toolroom,
@@ -7606,7 +7713,7 @@ apiRouter.get('/toolroom', requireAnyPermission(['canAccessToolroom', 'canManage
 apiRouter.get('/toolroom/assignments', requireAnyPermission(['canManageToolroom', 'canAssignTools', 'canReturnTools', 'canViewToolHistory']), async (req, res, next) => {
   try {
     if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
-    const toolroom = await getToolroomDocument();
+    const toolroom = await getToolroomDocument(req.session);
     res.json({ ok: true, assignments: toolroom.assignments || [] });
   } catch (error) {
     next(error);
@@ -7618,7 +7725,7 @@ apiRouter.get('/toolroom/my-tools', requireAnyPermission(['canViewMyTools', 'can
     if (!canViewOwnToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
     const activeSite = sanitizeString(req.query.site || req.session.currentSite || '', 220);
     const email = sanitizeString(req.session.email || '', 160).toLowerCase();
-    const toolroom = await getToolroomDocument();
+    const toolroom = await getToolroomDocument(req.session);
     const direct = toolroom.items.filter((item) => !item.archived && item.currentHolderType === 'worker' && item.currentHolderUserEmail === email);
     const siteTools = toolroom.items.filter((item) =>
       !item.archived &&
@@ -7903,7 +8010,7 @@ apiRouter.get('/toolroom/faults', requireAnyPermission(['canReportToolFault', 'c
     if (!canAccessToolroom(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
     const activeSite = sanitizeString(req.query.site || req.session.currentSite || '', 220);
     const email = sanitizeString(req.session.email || '', 160).toLowerCase();
-    const toolroom = await getToolroomDocument();
+    const toolroom = await getToolroomDocument(req.session);
     const faults = canHandleToolService(req.session)
       ? toolroom.faults
       : toolroom.faults.filter((fault) => {
@@ -8104,7 +8211,7 @@ apiRouter.patch('/toolroom/faults/:id', requireAnyPermission(['canHandleToolServ
 apiRouter.get('/toolroom/service', requireAnyPermission(['canHandleToolService', 'canManageToolroom']), async (req, res, next) => {
   try {
     if (!canHandleToolService(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
-    const toolroom = await getToolroomDocument();
+    const toolroom = await getToolroomDocument(req.session);
     res.json({ ok: true, serviceRecords: toolroom.serviceRecords || [] });
   } catch (error) {
     next(error);
@@ -8388,7 +8495,7 @@ apiRouter.get('/toolroom/export/:format(csv|excel|pdf)', requireAnyPermission(['
       untilDate: sanitizeString(req.query.untilDate || '', 20),
     };
     if (filters.site && !canAccessSite(req.session, filters.site)) return res.status(403).json({ error: 'FORBIDDEN' });
-    const toolroom = await getToolroomDocument();
+    const toolroom = await getToolroomDocument(req.session);
     const rows = buildToolroomExportRows(toolroom, filters);
     const generatedAt = new Date().toISOString();
     const exportLabel = `toolroom-${filters.scope || 'all'}-${generatedAt.slice(0, 10)}`;
@@ -9509,6 +9616,9 @@ app.get(['/', '/login', '/home', '/planner', '/tidplan', '/bins', '/kante', '/wa
 app.use((error, req, res, next) => {
   logServerError(error, req?.path || 'middleware');
   if (res.headersSent) return next(error);
+  if (Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 500) {
+    return res.status(error.statusCode).json({ error: error.code || error.message });
+  }
   if (error?.type === 'entity.too.large' || Number(error?.status) === 413) {
     return res.status(413).json({
       error: 'PAYLOAD_TOO_LARGE',
@@ -9519,7 +9629,7 @@ app.use((error, req, res, next) => {
     return res.status(400).json({ error: 'INVALID_JSON' });
   }
   if (error instanceof multer.MulterError) {
-    return res.status(400).json({ error: 'Invalid upload request' });
+    return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ error: error.code || 'INVALID_UPLOAD_REQUEST' });
   }
   if (error && /cors/i.test(error.message || '')) {
     return res.status(403).json({ error: 'CORS blocked', origin: sanitizeString(req.headers.origin || '', 200) || null });

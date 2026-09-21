@@ -35,7 +35,7 @@ function showWorkwear() {
     return;
   }
 
-  const openWorkwearView = () => {
+  const openWorkwearView = async () => {
     const plannerSection = document.getElementById("planner-section");
     const listsContainer = document.querySelector(".lists-container");
     const binsSection = document.getElementById("binsSection");
@@ -78,11 +78,8 @@ function showWorkwear() {
     loadWorkwearState(currentSite);
     ensureWorkerWorkwearProfile(appState.currentUser || "guest");
     if (typeof workwearApiListOrders === "function") {
-      workwearApiListOrders()
-        .catch(() => [])
-        .finally(() => {
-          renderWorkwearModule();
-        });
+      await workwearApiListOrders();
+      renderWorkwearModule();
     } else {
       renderWorkwearModule();
     }
@@ -95,13 +92,7 @@ function showWorkwear() {
   };
 
   if (typeof loadFreshDataForView === "function") {
-    return loadFreshDataForView("loadingDefault", openWorkwearView).then((ok) => {
-      if (ok === false) {
-        // Fallback: keep module reachable even when fresh backend pull fails.
-        openWorkwearView();
-      }
-      return ok;
-    });
+    return loadFreshDataForView("loadingDefault", openWorkwearView);
   }
 
   return withLoading("loadingDefault", openWorkwearView);

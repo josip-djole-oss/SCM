@@ -1,4 +1,5 @@
 function hasPermission(key) {
+  if (window.CMAX?.projectModules && !window.CMAX.projectModules.allowsPermission(key)) return false;
   if (appState.isSuperAdmin) return true;
   if (appState.isReadonly) {
     return appState.guestPermissions[key] !== false;
@@ -7,6 +8,7 @@ function hasPermission(key) {
 }
 
 function hasAdminPermission(key) {
+  if (window.CMAX?.projectModules && !window.CMAX.projectModules.allowsPermission(key)) return false;
   return appState.isSuperAdmin || (!appState.isReadonly && appState.permissions[key] !== false);
 }
 
@@ -18,6 +20,7 @@ function canExportPlanner() { return hasPermission("canExportPlanner"); }
 function canImportPlanner() { return hasPermission("canImportPlanner"); }
 
 function canAccessTidplanModule() {
+  if (window.CMAX?.projectModules && !window.CMAX.projectModules.isEnabled("tidplan")) return false;
   return appState.isReadonly
     ? hasPermission("canAccessTidplan")
     : appState.isSuperAdmin || appState.permissions.canAccessTidplan !== false;
@@ -108,7 +111,7 @@ function canAccessSiteChatModule() {
 }
 
 function canModerateSiteChatAccess() {
-  return !appState.isReadonly && (appState.isSuperAdmin || Number(appState.adminLevel || 0) >= 5 || hasPermission("canModerateSiteChat"));
+  return canAccessSiteChatModule() && !appState.isReadonly && (appState.isSuperAdmin || Number(appState.adminLevel || 0) >= 5 || hasPermission("canModerateSiteChat"));
 }
 
 function canManageNotificationsAccess() {
@@ -162,6 +165,7 @@ function canManageWorkwearModule() {
 }
 
 function canViewWorkwearAnalyticsModule() {
+  if (!canAccessWorkwearModule()) return false;
   if (appState.isReadonly) return false;
   return (
     appState.isSuperAdmin ||

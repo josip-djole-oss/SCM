@@ -242,6 +242,8 @@ function smokeScript() {
       ensureBinsDataForDate(appState.currentDate);
       persistCurrentStateToLocalStorage();
       await syncServerState({ includeSites: true, markAsClean: true, skipLog: true });
+      await CMAX.projectModules.load(currentSite);
+      CMAX.projectModules.updateVisibility();
       stopServerSync();
 
       document.getElementById("btnWarehouse").click();
@@ -280,7 +282,7 @@ function smokeScript() {
       assert(warehouseData.stockForm.quantity === 2, "stock form quantity delegated change failed");
       assert(warehouseData.stockForm.comment === "pending-cancel", "stock form comment delegated change failed");
 
-      document.querySelector('#warehouse-section [data-cmax-action="tidplan.showPlanner"]').click();
+      document.getElementById("navPlannerBtn").click();
       await wait(() => currentView === "main", "back to planner from warehouse");
       document.getElementById("btnWarehouse").click();
       await wait(() => currentView === "warehouse", "warehouse reopen");

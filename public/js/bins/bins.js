@@ -30,9 +30,10 @@ function saveBinPermissions() {
   });
 }
 
-function saveBinsData() {
+async function saveBinsData() {
   localStorage.setItem(BINS_KEY, JSON.stringify(appState.binsData));
   scheduleModuleSync("bins", 600, { bins: appState.binsData || {} });
+  return flushPendingModuleSaves();
 }
 
 function ensureBinsDataForDate(date) {
@@ -422,7 +423,7 @@ function applyBinColors() {
   });
 }
 
-function addBinPlan() {
+async function addBinPlan() {
   if (!(appState.isSuperAdmin || hasAdminPermission("canManageBinsPlans"))) return;
   const binsData = getBinsDataForDate(appState.currentDate);
   const newPlanNum = binsData.planCount + 1;
@@ -437,7 +438,10 @@ function addBinPlan() {
     });
   }
   binsData.planCount = newPlanNum;
-  saveBinsData();
+  if (!await saveBinsData()) {
+    showToast("Plan nije spremljen na server. Promjena je zadrzana za ponovni pokusaj.", "error");
+    return;
+  }
   markDirty();
   renderBinsTable();
   addLog("Added bin plan", `Plan ${newPlanNum}`);
@@ -451,10 +455,13 @@ function removeBinPlan() {
     showToast("⚠️ Ne možete ukloniti sve planove!", "error");
     return;
   }
-  showConfirm(`Ukloniti Plan ${binsData.planCount}?`, null, "⚠️", () => {
+  showConfirm(`Ukloniti Plan ${binsData.planCount}?`, null, "⚠️", async () => {
     binsData.rows.splice(-4, 4); // Remove last 4 rows (1 plan)
     binsData.planCount--;
-    saveBinsData();
+    if (!await saveBinsData()) {
+      showToast("Plan nije spremljen na server. Promjena je zadržana za ponovni pokušaj.", "error");
+      return;
+    }
     markDirty();
     renderBinsTable();
     addLog("Removed bin plan", `Plan ${binsData.planCount + 1}`);

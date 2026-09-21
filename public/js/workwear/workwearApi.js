@@ -2,7 +2,7 @@ var workwearOrdersListAbortController = null;
 
 function workwearApiParseResponse(response, fallbackError) {
   if (response.ok) {
-    return response.json().catch(() => ({}));
+    return response.json();
   }
   return response.json()
     .catch(() => ({}))
@@ -28,42 +28,38 @@ function workwearApiListProducts() {
   return Promise.resolve((state.products || []).slice());
 }
 
-function workwearApiSaveProduct(product) {
+async function workwearApiSaveProduct(product) {
   const state = getWorkwearState();
   const normalized = normalizeStoreProduct(product);
   const idx = state.products.findIndex((entry) => entry.id === normalized.id);
   if (idx >= 0) state.products[idx] = normalized;
   else state.products.push(normalized);
-  saveWorkwearState();
-  return Promise.resolve(normalized);
+  if (!await persistWorkwearState()) throw new Error("STORE_PRODUCT_NOT_SAVED");
+  return normalized;
 }
 
 function workwearApiListOrders() {
   if (typeof BACKEND_ENABLED !== "undefined" && BACKEND_ENABLED) {
     const site = String(currentSite || "default").trim() || "default";
+    const context = captureAppContext();
     if (workwearOrdersListAbortController) workwearOrdersListAbortController.abort();
-    workwearOrdersListAbortController = typeof AbortController === "function" ? new AbortController() : null;
+    const controller = typeof AbortController === "function" ? new AbortController() : null;
+    workwearOrdersListAbortController = controller;
     return fetch(`/api/store/orders?site=${encodeURIComponent(site)}`, {
       cache: "no-store",
       signal: workwearOrdersListAbortController?.signal,
     })
       .then((res) => workwearApiParseResponse(res, "STORE_ORDERS_LOAD_FAILED"))
       .then((payload) => {
+        if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
+        if (!Array.isArray(payload.orders)) throw new Error("STORE_ORDERS_INVALID_RESPONSE");
         const state = getWorkwearState(site);
         state.orders = Array.isArray(payload?.orders) ? payload.orders : [];
         saveWorkwearState(site, { track: false });
         return (state.orders || []).slice();
       })
-      .catch((error) => {
-        if (error?.name === "AbortError") {
-          const state = getWorkwearState(site);
-          return (state.orders || []).slice();
-        }
-        const state = getWorkwearState(site);
-        return (state.orders || []).slice();
-      })
       .finally(() => {
-        workwearOrdersListAbortController = null;
+        if (workwearOrdersListAbortController === controller) workwearOrdersListAbortController = null;
       });
   }
   const state = getWorkwearState();
@@ -80,24 +76,20 @@ function workwearApiSaveOrder(order) {
     })
       .then((res) => workwearApiParseResponse(res, "STORE_ORDER_SAVE_FAILED"))
       .then((payload) => {
-        const saved = payload?.order || order;
+        const saved = payload?.order;
+        if (!saved?.id) throw new Error("STORE_ORDER_SAVE_UNCONFIRMED");
         if (saved && payload?.budget) {
           saved.__budgetSnapshot = payload.budget;
         }
         return workwearApiUpsertOrderLocal(saved, site);
       });
   }
-  const state = getWorkwearState();
-  const idx = state.orders.findIndex((entry) => entry.id === order.id);
-  if (idx >= 0) state.orders[idx] = order;
-  else state.orders.push(order);
-  saveWorkwearState();
-  return Promise.resolve(order);
+  return Promise.reject(new Error("STORE_BACKEND_REQUIRED"));
 }
 
 function workwearApiUpdateOrderStatus(orderId, status, extra = {}) {
   if (typeof BACKEND_ENABLED === "undefined" || !BACKEND_ENABLED) {
-    return Promise.resolve(null);
+    return Promise.reject(new Error("STORE_BACKEND_REQUIRED"));
   }
   const site = String(currentSite || "default").trim() || "default";
   return fetch(`/api/store/orders/${encodeURIComponent(orderId)}/status`, {
@@ -114,6 +106,7 @@ function workwearApiUpdateOrderStatus(orderId, status, extra = {}) {
     .then((res) => workwearApiParseResponse(res, "STORE_ORDER_STATUS_UPDATE_FAILED"))
     .then((payload) => {
       const updated = payload?.order || null;
+      if (!updated?.id) throw new Error("STORE_ORDER_UPDATE_UNCONFIRMED");
       if (updated && payload?.budget) {
         updated.__budgetSnapshot = payload.budget;
       }

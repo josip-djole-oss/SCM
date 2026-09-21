@@ -11,14 +11,17 @@ function workwearSetCheckoutBusy(isBusy) {
 function workwearApplyBudgetSnapshot(workerId, snapshot) {
   if (!snapshot) return;
   const profile = ensureWorkerWorkwearProfile(workerId);
-  profile.creditBalance = Math.max(0, Number(snapshot.creditBalance || profile.creditBalance || 0));
-  profile.reservedCredit = Math.max(0, Number(snapshot.reservedCredit || profile.reservedCredit || 0));
+  profile.creditBalance = Math.max(0, Number(snapshot.creditBalance ?? profile.creditBalance ?? 0));
+  profile.reservedCredit = Math.max(0, Number(snapshot.reservedCredit ?? profile.reservedCredit ?? 0));
 }
 
 function workwearRefreshOrdersView() {
   if (typeof workwearApiListOrders === "function") {
-    return workwearApiListOrders().catch(() => []).finally(() => {
+    return workwearApiListOrders().then(() => {
       renderWorkwearModule();
+    }).catch((error) => {
+      showToast("Promjena je spremljena, ali osvjezavanje narudzbi nije uspjelo. Pokusajte ponovno.", "error");
+      return false;
     });
   }
   renderWorkwearModule();
@@ -204,7 +207,7 @@ function workwearNextProductImage() {
   renderWorkwearImageViewer();
 }
 
-function workwearAddToCart(productId) {
+async function workwearAddToCart(productId) {
   const product = getWorkwearProductById(productId);
   if (!product) return;
   if (product.active === false) {
@@ -256,7 +259,7 @@ function workwearAddToCart(productId) {
     });
   }
   cart.updatedAt = new Date().toISOString();
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("cart_item_added", {
     entityType: "cart",
     entityId: String(productId),
@@ -267,20 +270,20 @@ function workwearAddToCart(productId) {
   showToast(t("addToCart") || "Add to cart", "success");
 }
 
-function workwearRemoveCartItem(index) {
+async function workwearRemoveCartItem(index) {
   const cart = getWorkwearCartForCurrentUser();
   cart.items.splice(Number(index) || 0, 1);
   cart.updatedAt = new Date().toISOString();
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   renderWorkwearCart();
   renderWorkwearCartBadge();
 }
 
-function workwearSaveDraft() {
+async function workwearSaveDraft() {
   const cart = getWorkwearCartForCurrentUser();
   cart.comment = (document.getElementById("workwearCartComment")?.value || "").trim();
   cart.urgent = document.getElementById("workwearCartUrgent")?.checked === true;
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("cart_draft_saved", { entityType: "cart", entityId: String(appState.currentUser || "guest") });
   showToast(t("dataSaved") || "Saved", "success");
 }
@@ -448,12 +451,13 @@ function finalizeOrderSubmission(cart) {
   };
   const savePromise = (typeof workwearApiSaveOrder === "function")
     ? workwearApiSaveOrder(orderDraft)
-    : Promise.resolve(fallbackOrder);
+    : Promise.reject(new Error("STORE_BACKEND_REQUIRED"));
   workwearSetCheckoutBusy(true);
   if (typeof showLoading === "function") showLoading("loadingStoreCheckout");
   return savePromise
     .then((savedOrder) => {
-      const persistedOrder = savedOrder && typeof savedOrder === "object" ? savedOrder : fallbackOrder;
+      if (!savedOrder?.id) throw new Error("STORE_ORDER_SAVE_UNCONFIRMED");
+      const persistedOrder = savedOrder;
       const isBackend = (typeof BACKEND_ENABLED !== "undefined" && BACKEND_ENABLED);
       if (!isBackend) {
         if (state.settings.reserveOnPending || fallbackStatus === "Approved") {
@@ -897,7 +901,7 @@ function workwearEditProductWizard(productId) {
   renderWorkwearModule();
 }
 
-function workwearRemoveOrArchiveProduct(productId) {
+async function workwearRemoveOrArchiveProduct(productId) {
   if (!canManageWorkwearModule()) return;
   const id = String(productId || "").trim();
   if (!id) return;
@@ -909,7 +913,7 @@ function workwearRemoveOrArchiveProduct(productId) {
   const archiveNote = hasOrderHistory
     ? "\n\nOvaj artikal ima historiju narudzbi i bit ce arhiviran umjesto trajno obrisan."
     : "";
-  showConfirm(`${baseMessage}${archiveNote}`, "Potvrda", "⚠️", () => {
+  showConfirm(`${baseMessage}${archiveNote}`, "Potvrda", "⚠️", async () => {
     if (hasOrderHistory) {
       state.products = (state.products || []).map((entry) => {
         const normalized = normalizeStoreProduct(entry);
@@ -936,7 +940,7 @@ function workwearRemoveOrArchiveProduct(productId) {
       });
     }
     delete workwearBulkSelection[id];
-    saveWorkwearState();
+    if (!await persistWorkwearState()) return false;
     workwearEditingProductId = workwearEditingProductId === id ? "" : workwearEditingProductId;
     workwearResetProductWizard(null);
     renderWorkwearModule();
@@ -956,12 +960,12 @@ function workwearUpdateWizardCategory(el) {
   renderWorkwearModule();
 }
 
-function workwearQuickAddWizardCategory() {
+async function workwearQuickAddWizardCategory() {
   const input = document.getElementById("workwearWizardQuickCategory");
   const name = String(input?.value || "").trim();
   if (!name) return;
   ensureStoreCategory(name);
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("category_added", { entityType: "category", entityId: name });
   const wizard = workwearReadWizardFormState();
   wizard.category = name;
@@ -971,14 +975,14 @@ function workwearQuickAddWizardCategory() {
   renderWorkwearModule();
 }
 
-function workwearQuickAddWizardSubcategory() {
+async function workwearQuickAddWizardSubcategory() {
   const wizard = workwearReadWizardFormState();
   const category = String(wizard.category || "").trim();
   const input = document.getElementById("workwearWizardQuickSubcategory");
   const name = String(input?.value || "").trim();
   if (!category || !name) return;
   ensureStoreSubcategory(category, name);
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("subcategory_added", { entityType: "subcategory", entityId: `${category}:${name}` });
   wizard.subcategory = name;
   workwearProductWizardSeed = wizard;
@@ -1106,20 +1110,20 @@ function workwearClearProductLinkPreview() {
   renderWorkwearModule();
 }
 
-function workwearAddCategory() {
+async function workwearAddCategory() {
   if (!canManageWorkwearModule()) return;
   const input = document.getElementById("workwearNewCategoryName");
   const name = String(input?.value || "").trim();
   if (!name) return;
   ensureStoreCategory(name);
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("category_added", { entityType: "category", entityId: name });
   if (input) input.value = "";
   renderWorkwearCategoriesPanel();
   renderWorkwearAdminPanel();
 }
 
-function workwearRenameCategory(currentName) {
+async function workwearRenameCategory(currentName) {
   if (!canManageWorkwearModule()) return;
   const currentKey = String(currentName || "").trim();
   if (!currentKey) return;
@@ -1141,12 +1145,12 @@ function workwearRenameCategory(currentName) {
     if (String(product.category || "").trim() === currentKey) product.category = nextKey;
     return product;
   });
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("category_renamed", { entityType: "category", entityId: currentKey, metadata: { nextKey } });
   renderWorkwearModule();
 }
 
-function workwearArchiveCategory(categoryName) {
+async function workwearArchiveCategory(categoryName) {
   if (!canManageWorkwearModule()) return;
   const key = String(categoryName || "").trim();
   if (!key) return;
@@ -1157,7 +1161,7 @@ function workwearArchiveCategory(categoryName) {
       : `Kategorija "${key}" ce biti obrisana.`,
     "Potvrda",
     "⚠️",
-    () => {
+    async () => {
       const catalog = getStoreCategoryCatalogState();
       if (!catalog[key]) return;
       if (used) {
@@ -1165,28 +1169,28 @@ function workwearArchiveCategory(categoryName) {
       } else {
         delete catalog[key];
       }
-      saveWorkwearState();
+      if (!await persistWorkwearState()) return false;
       pushWorkwearAudit(used ? "category_archived" : "category_deleted", { entityType: "category", entityId: key });
       renderWorkwearModule();
     },
   );
 }
 
-function workwearAddSubcategory(categoryName) {
+async function workwearAddSubcategory(categoryName) {
   if (!canManageWorkwearModule()) return;
   const category = String(categoryName || "").trim();
   const input = document.getElementById(`workwearAddSubcategory_${sanitizeSiteId(category)}`);
   const name = String(input?.value || "").trim();
   if (!category || !name) return;
   ensureStoreSubcategory(category, name);
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("subcategory_added", { entityType: "subcategory", entityId: `${category}:${name}` });
   if (input) input.value = "";
   renderWorkwearCategoriesPanel();
   renderWorkwearAdminPanel();
 }
 
-function workwearRenameSubcategory(categoryName, subcategoryName) {
+async function workwearRenameSubcategory(categoryName, subcategoryName) {
   if (!canManageWorkwearModule()) return;
   const category = String(categoryName || "").trim();
   const currentSub = String(subcategoryName || "").trim();
@@ -1211,12 +1215,12 @@ function workwearRenameSubcategory(categoryName, subcategoryName) {
     }
     return product;
   });
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("subcategory_renamed", { entityType: "subcategory", entityId: `${category}:${currentSub}`, metadata: { nextKey } });
   renderWorkwearModule();
 }
 
-function workwearArchiveSubcategory(categoryName, subcategoryName) {
+async function workwearArchiveSubcategory(categoryName, subcategoryName) {
   if (!canManageWorkwearModule()) return;
   const category = String(categoryName || "").trim();
   const subcategory = String(subcategoryName || "").trim();
@@ -1228,7 +1232,7 @@ function workwearArchiveSubcategory(categoryName, subcategoryName) {
       : `Podkategorija "${subcategory}" ce biti obrisana.`,
     "Potvrda",
     "⚠️",
-    () => {
+    async () => {
       const catalog = getStoreCategoryCatalogState();
       const categoryEntry = catalog[category];
       if (!categoryEntry || !categoryEntry.subcategories || !categoryEntry.subcategories[subcategory]) return;
@@ -1237,7 +1241,7 @@ function workwearArchiveSubcategory(categoryName, subcategoryName) {
       } else {
         delete categoryEntry.subcategories[subcategory];
       }
-      saveWorkwearState();
+      if (!await persistWorkwearState()) return false;
       pushWorkwearAudit(used ? "subcategory_archived" : "subcategory_deleted", { entityType: "subcategory", entityId: `${category}:${subcategory}` });
       renderWorkwearModule();
     },
@@ -1260,7 +1264,7 @@ function workwearUpdateWizardSizePreset(el) {
   renderWorkwearModule();
 }
 
-function workwearSaveWizardSizePreset() {
+async function workwearSaveWizardSizePreset() {
   if (!canManageWorkwearModule()) return;
   const nameInput = document.getElementById("workwearWizardCustomPresetName");
   const sizesInput = document.getElementById("workwearWizardCustomPresetSizes");
@@ -1284,7 +1288,7 @@ function workwearSaveWizardSizePreset() {
     showToast("Preset nije spremljen.", "error");
     return;
   }
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("size_preset_saved", {
     entityType: "size_preset",
     entityId: key,
@@ -1299,7 +1303,7 @@ function workwearSaveWizardSizePreset() {
   showToast("Preset velicina je spremljen.", "success");
 }
 
-function workwearAddManagerSizePreset() {
+async function workwearAddManagerSizePreset() {
   if (!canManageWorkwearModule()) return;
   const nameInput = document.getElementById("workwearManagerSizePresetName");
   const sizesInput = document.getElementById("workwearManagerSizePresetSizes");
@@ -1312,14 +1316,14 @@ function workwearAddManagerSizePreset() {
     return;
   }
   const key = ensureStoreSizePreset(label, sizes);
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("size_preset_saved", { entityType: "size_preset", entityId: key, metadata: { label, sizes, source: "manager_tab" } });
   renderWorkwearCategoriesPanel();
   renderWorkwearAdminPanel();
   showToast("Preset velicina je dodan.", "success");
 }
 
-function workwearUpdateManagerSizePreset(presetKey) {
+async function workwearUpdateManagerSizePreset(presetKey) {
   if (!canManageWorkwearModule()) return;
   const key = String(presetKey || "").trim();
   if (!key) return;
@@ -1333,14 +1337,14 @@ function workwearUpdateManagerSizePreset(presetKey) {
     return;
   }
   const nextKey = updateStoreSizePreset(key, name, sizes);
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("size_preset_updated", { entityType: "size_preset", entityId: nextKey || key, metadata: { previousKey: key, label: name, sizes } });
   renderWorkwearCategoriesPanel();
   renderWorkwearAdminPanel();
   showToast("Preset velicina je spremljen.", "success");
 }
 
-function workwearArchiveManagerSizePreset(presetKey) {
+async function workwearArchiveManagerSizePreset(presetKey) {
   if (!canManageWorkwearModule()) return;
   const key = String(presetKey || "").trim();
   if (!key) return;
@@ -1351,9 +1355,9 @@ function workwearArchiveManagerSizePreset(presetKey) {
       : `Custom preset "${preset?.label || key}" ce biti obrisan.`,
     "Potvrda",
     "⚠️",
-    () => {
+    async () => {
       const result = archiveStoreSizePreset(key);
-      saveWorkwearState();
+      if (!await persistWorkwearState()) return false;
       pushWorkwearAudit(result === "archived" ? "size_preset_archived" : "size_preset_deleted", {
         entityType: "size_preset",
         entityId: key,
@@ -1371,11 +1375,11 @@ function workwearArchiveManagerSizePreset(presetKey) {
   );
 }
 
-function workwearRestoreManagerSizePreset(presetKey) {
+async function workwearRestoreManagerSizePreset(presetKey) {
   if (!canManageWorkwearModule()) return;
   const key = restoreStoreSizePreset(presetKey);
   if (!key) return;
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("size_preset_restored", { entityType: "size_preset", entityId: key });
   renderWorkwearModule();
   showToast("Preset je aktiviran.", "success");
@@ -1687,7 +1691,7 @@ function workwearSaveProduct() {
     showToast("Saved", "success");
   });
 }
-function workwearApplyBulkEdit() {
+async function workwearApplyBulkEdit() {
   if (!canManageWorkwearModule()) return;
   const state = getWorkwearState();
   const selectedIds = Object.keys(workwearBulkSelection).filter((id) => workwearBulkSelection[id] === true);
@@ -1733,7 +1737,7 @@ function workwearApplyBulkEdit() {
     return product;
   });
 
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("bulk_edit_applied", {
     entityType: "product",
     metadata: {
@@ -1753,7 +1757,7 @@ function workwearApplyBulkEdit() {
   showToast("Bulk edit applied.", "success");
   return Promise.resolve(true);
 }
-function workwearAdjustBudget() {
+async function workwearAdjustBudget() {
   if (!canManageWorkwearCredits()) return;
   const workerId = String(document.getElementById("workwearBudgetWorker")?.value || "").trim().toLowerCase();
   const delta = Number(document.getElementById("workwearBudgetDelta")?.value || 0);
@@ -1781,7 +1785,7 @@ function workwearAdjustBudget() {
     date: new Date().toISOString(),
     changedBy: appState.currentUser || "system",
   });
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
 
   addWorkwearNotification(
     `Vas Store budzet je promijenjen za ${delta > 0 ? "+" : ""}${workwearFormatCurrency(delta)} (${reason}).`,
@@ -1798,7 +1802,7 @@ function workwearAdjustBudget() {
   return Promise.resolve(true);
 }
 
-function workwearSaveGlobalRules() {
+async function workwearSaveGlobalRules() {
   if (!canManageWorkwearSettings()) return;
   const state = getWorkwearState();
   state.settings = {
@@ -1810,7 +1814,7 @@ function workwearSaveGlobalRules() {
     creditRenewalAmount: Math.max(0, Number(document.getElementById("workwearSettingsRenewalAmount")?.value || 2500)),
     creditRenewalPeriodMonths: Math.max(1, Number(document.getElementById("workwearSettingsRenewalMonths")?.value || 6)),
   };
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("store_rules_saved", { entityType: "settings", after: state.settings });
   showToast("Store pravila spremljena.", "success");
   return Promise.resolve(true);
@@ -1874,9 +1878,10 @@ function workwearSaveStoreUser() {
     showToast("Ime i validan email su obavezni.", "error");
     return;
   }
-  const roleKeys = normalizeStoreRoleList(
+  let roleKeys = normalizeStoreRoleList(
     Array.from(document.querySelectorAll("#workwearUsersPanel input[data-cmax-role-checkbox]:checked")).map((el) => el.value),
   );
+  if (!appState.isSuperAdmin) roleKeys = roleKeys.filter((role) => role !== "superadmin");
   if (!roleKeys.length) {
     showToast("Odaberi barem jednu funkciju/level.", "error");
     return;
@@ -1913,20 +1918,23 @@ function workwearSaveStoreUser() {
 
   if (existingIndex >= 0) users[existingIndex] = { ...users[existingIndex], ...nextUser };
   else users.push(nextUser);
-  localStorage.setItem(ADMINS_KEY, JSON.stringify(users));
-  pushWorkwearAudit(existingIndex >= 0 ? "store_user_updated" : "store_user_created", {
-    entityType: "user",
-    entityId: email,
-    metadata: { roles: roleKeys, active },
-  });
-  workwearEditingStoreUserEmail = "";
   return syncModuleState("adminUsers", {
     admins: users,
   })
-    .catch(() => {})
-    .finally(() => {
+    .then((saved) => {
+      if (!saved) {
+        showToast("Korisnik nije spremljen na server. Unos je zadrzan za ponovni pokusaj.", "error");
+        return false;
+      }
+      pushWorkwearAudit(existingIndex >= 0 ? "store_user_updated" : "store_user_created", {
+        entityType: "user",
+        entityId: email,
+        metadata: { roles: roleKeys, active },
+      });
+      workwearEditingStoreUserEmail = "";
       renderWorkwearUsersPanel();
       showToast(existingIndex >= 0 ? "Korisnik azuriran." : "Korisnik kreiran.", "success");
+      return true;
     });
 }
 
@@ -1940,7 +1948,7 @@ function workwearCancelStoreUserEdit() {
   renderWorkwearUsersPanel();
 }
 
-function workwearRequestPasswordReset(email) {
+async function workwearRequestPasswordReset(email) {
   if (!canManageStoreUserAccounts()) return;
   const target = String(email || "").trim().toLowerCase();
   if (!target) return;
@@ -1953,7 +1961,7 @@ function workwearRequestPasswordReset(email) {
     requestedAt: new Date().toISOString(),
     requestedBy: String(appState.currentUser || "").trim().toLowerCase(),
   });
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("password_reset_requested", { entityType: "user", entityId: target });
   addWorkwearNotification(`Za korisnika ${target} kreiran je zahtjev za reset lozinke.`, {
     title: "Password reset zahtjev",
@@ -1973,7 +1981,7 @@ function workwearGenerateTemporaryPassword() {
   return password;
 }
 
-function workwearApprovePasswordReset(requestId) {
+async function workwearApprovePasswordReset(requestId) {
   if (!appState.isSuperAdmin) return;
   const state = getWorkwearState();
   const requests = Array.isArray(state.passwordResetRequests) ? state.passwordResetRequests : [];
@@ -1988,12 +1996,16 @@ function workwearApprovePasswordReset(requestId) {
     return;
   }
   users[targetIndex].password = tempPassword;
-  localStorage.setItem(ADMINS_KEY, JSON.stringify(users));
+  const confirmed = await syncModuleState("adminUsers", { admins: users });
+  if (confirmed !== true) return false;
   request.status = "approved";
   request.approvedAt = new Date().toISOString();
   request.approvedBy = String(appState.currentUser || "").trim().toLowerCase();
-  request.generatedPassword = tempPassword;
-  saveWorkwearState();
+  delete request.generatedPassword;
+  if (!await persistWorkwearState()) {
+    showAlert(`Lozinka je promijenjena, ali status zahtjeva nije spremljen. Privremena lozinka: ${tempPassword}`, "!");
+    return false;
+  }
   pushWorkwearAudit("password_reset_approved", {
     entityType: "user",
     entityId: request.userEmail,
@@ -2004,17 +2016,12 @@ function workwearApprovePasswordReset(requestId) {
     targetUsers: [request.userEmail],
     metadata: { requestId: request.id, status: "approved" },
   });
-  return syncModuleState("adminUsers", {
-    admins: users,
-  })
-    .catch(() => {})
-    .finally(() => {
-      renderWorkwearUsersPanel();
-      showToast(`Reset odobren. Nova lozinka: ${tempPassword}`, "success");
-    });
+  renderWorkwearUsersPanel();
+  showAlert(`Reset odobren. Nova lozinka: ${tempPassword}`, "OK");
+  return true;
 }
 
-function workwearRejectPasswordReset(requestId) {
+async function workwearRejectPasswordReset(requestId) {
   if (!appState.isSuperAdmin) return;
   const state = getWorkwearState();
   const requests = Array.isArray(state.passwordResetRequests) ? state.passwordResetRequests : [];
@@ -2023,7 +2030,7 @@ function workwearRejectPasswordReset(requestId) {
   request.status = "rejected";
   request.rejectedAt = new Date().toISOString();
   request.rejectedBy = String(appState.currentUser || "").trim().toLowerCase();
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("password_reset_rejected", { entityType: "user", entityId: request.userEmail, metadata: { requestId: request.id } });
   addWorkwearNotification(`Reset lozinke za ${request.userEmail} je odbijen.`, {
     title: "Password reset odbijen",
@@ -2039,7 +2046,7 @@ function workwearApplyFilters() {
   renderWorkwearProducts();
 }
 
-function workwearSaveSizes() {
+async function workwearSaveSizes() {
   const profile = getCurrentWorkerWorkwearProfile();
   ["Tshirt", "Hoodie", "Jacket", "Pants", "Shoes", "Gloves", "Helmet"].forEach((key) => {
     const input = document.getElementById(`workwearSize${key}`);
@@ -2047,7 +2054,7 @@ function workwearSaveSizes() {
       profile.savedSizes[key.toLowerCase()] = input.value.trim();
     }
   });
-  saveWorkwearState();
+  if (!await persistWorkwearState()) return false;
   pushWorkwearAudit("sizes_saved", { entityType: "profile", entityId: String(appState.currentUser || "guest") });
   showToast("Saved", "success");
 }
@@ -2225,17 +2232,17 @@ function workwearOpenImport() {
   if (input) input.click();
 }
 
-function workwearImportDataFromEvent(event) {
+async function workwearImportDataFromEvent(event) {
   const file = event?.target?.files?.[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const parsed = safeParseStoredJson(String(reader.result || "{}"), null);
       if (!parsed || !parsed.workwear) throw new Error("WORKWEAR_IMPORT_INVALID");
       const imported = normalizeWorkwearState(parsed.workwear);
       workwearStateCacheBySite[currentSite] = imported;
-      saveWorkwearState();
+      if (!await persistWorkwearState()) return false;
       pushWorkwearAudit("data_imported", { entityType: "state", entityId: currentSite });
       renderWorkwearModule();
       showToast("Store data imported.", "success");

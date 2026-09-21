@@ -8,7 +8,10 @@ function createServerSyncError(message, status, payload = {}) {
 
 function parseServerSyncResponse(response, fallbackMessage) {
   if (response.ok) {
-    return response.json().catch(() => ({}));
+    return response.json().then((payload) => {
+      if (!payload || !Number.isFinite(Number(payload.version)) || Number(payload.version) < 1) throw createServerSyncError("STATE_SAVE_UNCONFIRMED", response.status);
+      return payload;
+    });
   }
   return response.json()
     .catch(() => ({}))

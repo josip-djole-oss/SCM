@@ -13,8 +13,6 @@ var CURRENT_SITE_KEY = "cmax_current_site";
 var CURRENT_VIEW_KEY = "cmax_current_view";
 var NOTIFICATIONS_COUNTER_KEY = "cmax_notifications_counter";
 var CSRF_TOKEN_KEY = "cmax_csrf_token";
-var SUPER_ADMIN_EMAIL = "admin@cmax.se";
-var SUPER_ADMIN_PASSWORD = "cmax2026";
 
 function getCurrentSiteUserKey() {
   const fromAppState = typeof appState !== "undefined" && appState?.currentUser ? appState.currentUser : "";

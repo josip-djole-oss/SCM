@@ -1,80 +1,31 @@
-function checkAuth(options = {}) {
+async function checkAuth(options = {}) {
   const { deferShow = false } = options;
-  const authData = localStorage.getItem(AUTH_KEY);
-  if (!authData) {
-    showLogin();
-    return Promise.resolve(false);
-  }
-  const auth = safeParseStoredJson(authData, null);
-  if (!auth) {
-    showLogin();
-    return Promise.resolve(false);
-  }
-  const now = new Date().getTime();
-  if (now - auth.timestamp > 24 * 60 * 60 * 1000) {
-    showLogin();
-    return Promise.resolve(false);
-  }
-  appState.isAdmin = auth.isAdmin;
-  appState.isSuperAdmin = auth.isSuperAdmin;
-  appState.isReadonly = auth.isReadonly;
-  appState.currentUser = auth.email;
-  if (!BACKEND_ENABLED && appState.isAdmin && !appState.isReadonly && !appState.isSuperAdmin) {
-    const stillExists = getAdmins().some(
-      (admin) => admin.email === auth.email,
-    );
-    if (!stillExists) {
-      handleAdminRemoval(getAdminRemovalNotice(auth.email));
-      return Promise.resolve(false);
+  if (BACKEND_ENABLED) {
+    // The HttpOnly session is authoritative; localStorage is only a preference cache.
+    try {
+      const response = await fetch("/api/session", { cache: "no-store" });
+      if (!response.ok) throw new Error("SESSION_INVALID");
+      const data = await response.json();
+      if (!data?.auth?.email) throw new Error("SESSION_INVALID");
+      setCsrfToken(data.csrfToken || "");
+      applyAuthData({ ...data.auth, timestamp: Date.now() });
+      if (!deferShow && freshServerDataLoaded) showMainApp();
+      return true;
+    } catch (error) {
+      clearAuthSessionLocal();
+      resetAuthStateLocal();
+      showLogin();
+      return false;
     }
   }
-  const matchedAdmin = normalizeAdminRecord(
-    getAdmins().find((admin) => admin.email === auth.email) || {},
-  );
-  const resolvedLevel =
-    Number(auth.level) ||
-    matchedAdmin.level ||
-    deriveLevelFromPermissions(auth.permissions || {});
-  appState.adminLevel = resolvedLevel;
-  appState.currentUserName =
-    auth.fullName || matchedAdmin.fullName || "";
-  appState.currentUserFunctions = Array.isArray(auth.storeRoles) && auth.storeRoles.length
-    ? auth.storeRoles
-    : (Array.isArray(matchedAdmin.storeRoles) ? matchedAdmin.storeRoles : []);
-  appState.permissions = auth.isSuperAdmin
-    ? { ...DEFAULT_PERMISSIONS }
-    : clampPermissionsToLevel(auth.permissions || {}, resolvedLevel);
-  appState.guestPermissions = getGuestPermissions();
-  if (BACKEND_ENABLED) {
-    return fetch("/api/session", { cache: "no-store" })
-      .then((res) => {
-        if (!res.ok) throw new Error("SESSION_INVALID");
-        return res.json();
-      })
-      .then((data) => {
-        if (data?.csrfToken) setCsrfToken(data.csrfToken);
-        if (data?.auth) {
-          const nextAuth = {
-            ...auth,
-            ...data.auth,
-            permissions: data.auth.permissions || auth.permissions || {},
-            level: data.auth.level || auth.level || resolvedLevel,
-            storeRoles: data.auth.storeRoles || auth.storeRoles || [],
-            timestamp: new Date().getTime(),
-          };
-          applyAuthData(nextAuth);
-        }
-        if (!deferShow) showMainApp();
-        return true;
-      })
-      .catch(() => {
-        clearAuthSessionLocal();
-        showLogin();
-        return false;
-      });
+  const auth = safeParseStoredJson(localStorage.getItem(AUTH_KEY), null);
+  if (!auth || Date.now() - Number(auth.timestamp || 0) > 86400000) {
+    showLogin();
+    return false;
   }
+  applyAuthData(auth);
   if (!deferShow) showMainApp();
-  return Promise.resolve(true);
+  return true;
 }
 
 function showLogin() {
@@ -89,10 +40,14 @@ function showLogin() {
   stopSiteMetaRefresh();
   stopPermissionRefresh();
   stopSharedDataRefresh();
+  stopServerSync();
+  if (window.CMAX?.projectModules?.reset) CMAX.projectModules.reset();
   updateLangButtons();
 }
 
 function showMainApp() {
+  if (BACKEND_ENABLED && !freshServerDataLoaded) return;
+  document.getElementById("appDataLoadError")?.remove();
   if (window.location.pathname === "/login") {
     pushRouteForView("home", { path: "/home", replace: true });
   }
@@ -106,7 +61,7 @@ function showMainApp() {
   startSiteMetaRefresh();
   startPermissionRefresh();
   startSharedDataRefresh();
-  if (hasPermission("canViewSurveys")) {
+  if (hasPermission("canViewSurveys") && isSiteModuleEnabled("surveys")) {
     getSurveysList().catch(() => {});
   } else {
     updateSurveysBadge();
@@ -243,6 +198,7 @@ function setElVisibility(id, v) {
 }
 
 function showLoading(messageKey = "loadingDefault") {
+  appLoadingDepth += 1;
   const overlay = document.getElementById("loadingOverlay");
   const text = document.getElementById("loadingText");
   if (text) text.textContent = t(messageKey);
@@ -250,21 +206,18 @@ function showLoading(messageKey = "loadingDefault") {
 }
 
 function hideLoading() {
+  appLoadingDepth = Math.max(0, appLoadingDepth - 1);
+  if (appLoadingDepth > 0) return;
   const overlay = document.getElementById("loadingOverlay");
   if (overlay) overlay.style.display = "none";
 }
 
 function withLoading(messageKey, callback) {
-  showLoading(messageKey);
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      try {
-        callback();
-      } finally {
-        hideLoading();
-      }
-    });
-  });
+  return withLoadingPromise(messageKey, () => new Promise((resolve, reject) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      Promise.resolve().then(callback).then(resolve, reject);
+    }));
+  }));
 }
 
 function withLoadingPromise(messageKey, callback) {
@@ -277,11 +230,20 @@ function withLoadingPromise(messageKey, callback) {
 }
 
 function loadFreshDataForView(messageKey, callback) {
-  const run = () => {
+  const run = async () => {
     if (!BACKEND_ENABLED) return Promise.resolve(callback());
-    return loadAllData({ strict: true }).then(callback);
+    if (!(await flushPendingModuleSaves())) {
+      showToast("Spremanje promjena nije potvrdjeno. Pokusajte ponovno prije otvaranja drugog modula.", "error");
+      return false;
+    }
+    if (appState.hasUnsavedChanges || tidplanDataChanged) {
+      if (!(await saveAllData({ silent: true }))) return false;
+    }
+    await loadAllData({ strict: true });
+    return callback();
   };
   return withLoadingPromise(messageKey || "loadingDefault", run).catch((error) => {
+    if (error?.message === "STALE_APP_CONTEXT") return false;
     appDataLoadError = error?.message || "DATA_LOAD_FAILED";
     showDataLoadError(appDataLoadError);
     showToast(t("freshDataLoadFailed"), "error");
@@ -305,7 +267,7 @@ function applyPermissionVisibility() {
   const canExportTidplanAccess = canExportTidplan();
   const canImportTidplanAccess = canImportTidplan();
   const canAdminPanel = canOpenAdminPanelAccess();
-  const canManagePlannerRows = !appState.isReadonly && appState.isAdmin;
+  const canManagePlannerRows = canPlanner && !appState.isReadonly && appState.isAdmin;
 
   setVisibility("btnPrint", hasPermission("canPrint"));
   setVisibility("btnExport", hasPermission("canExport"));
@@ -330,7 +292,7 @@ function applyPermissionVisibility() {
   setVisibility("topbarLogoutBtn", !appState.isReadonly);
   setVisibility("btnAddRow", canManagePlannerRows);
   setVisibility("btnRemoveRow", canManagePlannerRows);
-  setVisibility("btnUseTidplanScheme", canManagePlannerRows);
+  setVisibility("btnUseTidplanScheme", canManagePlannerRows && canTidplan);
   hide("btnSave");
 
   setElVisibility("workersControls", !appState.isReadonly && hasPermission("canManageWorkers"));
@@ -601,20 +563,28 @@ function reinitFlatpickr() {
 }
 
 function showDataLoadError(message) {
+  freshServerDataLoaded = false;
   const main = document.getElementById("mainContainer");
   const login = document.getElementById("loginOverlay");
+  if (main) main.style.display = "none";
   if (login) login.style.display = "none";
-  if (main) {
-    main.style.display = "block";
-    main.innerHTML = `
-      <div style="padding:24px;max-width:760px;margin:40px auto;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;">
-        <h2>Ne mogu ucitati najnovije podatke</h2>
-        <p>Backend nije vratio svjeze podatke, pa aplikacija nece prikazati stare lokalne podatke.</p>
-        <p style="color:var(--text-light);">${escapeHtml(message || "DATA_LOAD_FAILED")}</p>
-        <button class="btn" data-cmax-action="utils.reloadPage">Pokusaj ponovo</button>
-      </div>
-    `;
+  let errorPanel = document.getElementById("appDataLoadError");
+  if (!errorPanel) {
+    errorPanel = document.createElement("div");
+    errorPanel.id = "appDataLoadError";
+    errorPanel.setAttribute("role", "alert");
+    document.body.appendChild(errorPanel);
   }
+  errorPanel.innerHTML = `
+    <div style="padding:24px;max-width:760px;margin:40px auto;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;">
+      <h2>Ne mogu ucitati najnovije podatke</h2>
+      <p>Provjerite vezu i pokusajte ponovno. Vasi nespremljeni unosi ostaju sacuvani u ovoj sesiji.</p>
+      <p style="color:var(--text-light);">${escapeHtml(message || "DATA_LOAD_FAILED")}</p>
+      <button class="btn" id="retryAppSynchronization">Pokusaj ponovo</button>
+    </div>`;
+  document.getElementById("retryAppSynchronization")?.addEventListener("click", () => {
+    resynchronizeApplication({ notifyPermissions: false }).catch(() => {});
+  });
 }
 
 async function fetchBackendHealth() {
@@ -633,7 +603,9 @@ async function loadFreshBackendData() {
     return true;
   }
 
+  const context = captureAppContext();
   await fetchBackendHealth();
+  if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
   await loadAllData({ strict: true });
   return true;
 }
@@ -778,13 +750,7 @@ function handleLogin() {
       if (!data || !data.auth) throw new Error("LOGIN_FAILED");
       const auth = data.auth;
       const level = Number(auth.level) || deriveLevelFromPermissions(auth.permissions || {});
-      const perms = auth.permissions
-        ? auth.isSuperAdmin
-          ? { ...DEFAULT_PERMISSIONS }
-          : clampPermissionsToLevel(auth.permissions || {}, level)
-        : auth.isSuperAdmin
-          ? { ...DEFAULT_PERMISSIONS }
-          : clampPermissionsToLevel(appState.permissions || {}, level);
+      const perms = auth.permissions || {};
       const authData = {
         email: auth.email,
         fullName: auth.fullName || "",
@@ -797,11 +763,13 @@ function handleLogin() {
       };
       setCsrfToken(data.csrfToken || "");
       applyAuthData(authData);
-      addLog("Logged in");
+      showLoading("loadingDefault");
       pushRouteForView("main", { path: "/home", replace: true });
       return loadFreshBackendData().then(() => {
         freshServerDataLoaded = true;
+        renderAll();
         showMainApp();
+        if (typeof showHomeDashboard === "function") showHomeDashboard({ fresh: false, replaceRoute: true });
         startAutoSave();
       });
     })
@@ -823,6 +791,11 @@ function handleLogin() {
         : t("errWrongCredentials");
       console.warn("Login failed:", message);
       showLoginError(message);
+    }).finally(() => {
+      hideLoading();
+      loginEmail.disabled = loginPassword.disabled = loginBtn.disabled = guestBtn.disabled = false;
+      if (btnText) btnText.style.display = "inline";
+      if (btnSpinner) btnSpinner.style.display = "none";
     });
 }
 
@@ -866,11 +839,13 @@ function enterReadonlyMode() {
       };
       setCsrfToken(data.csrfToken || "");
       applyAuthData(authData);
-      addLog("Entered read-only mode");
+      showLoading("loadingDefault");
       pushRouteForView("main", { path: "/home", replace: true });
       return loadFreshBackendData().then(() => {
         freshServerDataLoaded = true;
+        renderAll();
         showMainApp();
+        if (typeof showHomeDashboard === "function") showHomeDashboard({ fresh: false, replaceRoute: true });
         startAutoSave();
       });
     })
@@ -888,32 +863,29 @@ function enterReadonlyMode() {
       if (guestBtnSpinner) guestBtnSpinner.style.display = "none";
 
       showLoginError(t("errReadonlyFailed") || "Read-only prijava nije uspjela.");
+    }).finally(() => {
+      hideLoading();
+      loginEmail.disabled = loginPassword.disabled = loginBtn.disabled = guestBtn.disabled = false;
+      if (guestBtnText) guestBtnText.style.display = "inline";
+      if (guestBtnSpinner) guestBtnSpinner.style.display = "none";
     });
 }
 
 function switchToLogin() {
   sendPresence(false, true).catch(() => {});
-  document.getElementById("loginOverlay").style.display = "flex";
-  document.getElementById("mainContainer").style.display = "none";
+  resetAuthStateLocal();
+  showLogin();
   document.getElementById("loginEmail").value = "";
   document.getElementById("loginPassword").value = "";
   clearLoginError();
-  updateLangButtons();
 }
 
 function logout() {
-  showConfirm(t("confirmLogout"), t("confirmLogoutTitle"), "🚪", () => {
+  showConfirm(t("confirmLogout"), t("confirmLogoutTitle"), "", () => {
     sendPresence(false, true).catch(() => {});
     fetch("/api/logout", { method: "POST" }).catch(() => {});
     clearAuthSessionLocal();
-    appState.isAdmin = false;
-    appState.isSuperAdmin = false;
-    appState.isReadonly = false;
-    appState.currentUser = null;
-    appState.currentUserName = "";
-    appState.adminLevel = 1;
-    appState.permissions = normalizePermissions({});
-    appState.guestPermissions = getGuestPermissions();
+    resetAuthStateLocal();
     showLogin();
   });
 }

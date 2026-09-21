@@ -5,6 +5,7 @@
   const ACCOUNT_NOTIFICATION_CHAT_TRACKER_PREFIX = "cmax_account_notification_chat_tracker_";
   let chatNotificationSyncInFlight = false;
   let chatNotificationLastSyncAt = 0;
+  let permissionSessionBaseline = null;
 
   function getAccountNotificationUserKey() {
     return String(appState.currentUser || "guest").trim().toLowerCase();
@@ -51,13 +52,27 @@
   }
 
   function getAccountNotificationPermissionSignature() {
-    return JSON.stringify({
-      user: appState.currentUser || "",
-      readonly: appState.isReadonly === true,
-      superAdmin: appState.isSuperAdmin === true,
-      level: Number(appState.adminLevel) || 0,
-      permissions: appState.permissions || {},
-    });
+    return effectivePermissionSignature();
+  }
+
+  function baselineAccountNotificationPermissions() {
+    permissionSessionBaseline = getAccountNotificationPermissionSignature();
+    localStorage.setItem(getAccountNotificationPermissionsKey(), permissionSessionBaseline);
+  }
+
+  function resetAccountNotificationSession() {
+    permissionSessionBaseline = null;
+    chatNotificationLastSyncAt = 0;
+    chatNotificationSyncInFlight = false;
+    closeAccountNotificationsPanel();
+  }
+
+  function isAccountNotificationAvailable(item) {
+    const moduleByView = { workwear: "store", store: "store", siteChat: "chat", notifications: "notifications", reports: "reports", surveys: "surveys" };
+    const moduleId = moduleByView[item.targetView];
+    if (!moduleId) return true;
+    if (item.site && item.site !== currentSite) return false;
+    return isSiteModuleEnabled(moduleId);
   }
 
   function formatAccountNotificationPreview(text) {
@@ -87,7 +102,7 @@
   }
 
   function getUnreadAccountNotificationsCount() {
-    return getAccountNotifications().filter((item) => !item.readAt).length;
+    return getAccountNotifications().filter((item) => !item.readAt && isAccountNotificationAvailable(item)).length;
   }
 
   function updateAccountNotificationsBadge() {
@@ -138,7 +153,7 @@
   function renderAccountNotificationsPanel() {
     const list = document.getElementById("accountNotificationsList");
     if (!list) return;
-    const items = getAccountNotifications();
+    const items = getAccountNotifications().filter(isAccountNotificationAvailable);
     if (!items.length) {
       list.innerHTML = '<div class="account-notification-empty">Nema account obavijesti.</div>';
       updateAccountNotificationsBadge();
@@ -205,7 +220,7 @@
 
   function openAccountNotificationItem(itemId) {
     const item = getAccountNotifications().find((entry) => entry.id === itemId);
-    if (!item) return;
+    if (!item || !isAccountNotificationAvailable(item)) return;
     markAccountNotificationRead(itemId);
     closeAccountNotificationsPanel();
     if (item.type === "site-notification") {
@@ -243,7 +258,8 @@
     if (!appState.currentUser) return;
     const signature = getAccountNotificationPermissionSignature();
     const key = getAccountNotificationPermissionsKey();
-    const previous = localStorage.getItem(key);
+    const previous = permissionSessionBaseline;
+    permissionSessionBaseline = signature;
     if (!previous) {
       localStorage.setItem(key, signature);
       return;
@@ -251,7 +267,7 @@
     if (previous === signature) return;
     localStorage.setItem(key, signature);
     appendAccountNotification({
-      uniqueKey: `permissions:${signature}`,
+      uniqueKey: `permissions:${Date.now()}:${signature}`,
       type: "permissions",
       title: "Ovlasti su azurirane",
       description: "Dodijeljene ili promijenjene su vam ovlasti na ovom accountu.",
@@ -291,12 +307,12 @@
   }
 
   function syncAccountNotifications() {
-    if (!appState.currentUser) {
+    if (!appState.currentUser || !freshServerDataLoaded) {
       updateAccountNotificationsBadge();
       return;
     }
     syncPermissionAccountNotifications();
-    if (typeof syncWorkwearAccountNotifications === "function") {
+    if (isSiteModuleEnabled("store") && typeof syncWorkwearAccountNotifications === "function") {
       syncWorkwearAccountNotifications();
     }
     syncSiteChatAccountNotifications();
@@ -311,13 +327,16 @@
     if (now - chatNotificationLastSyncAt < 15000) return;
     chatNotificationLastSyncAt = now;
     chatNotificationSyncInFlight = true;
+    const context = captureAppContext();
     fetch("/api/site-chat/unread", { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((payload) => {
+        if (!isAppContextCurrent(context) || !payload) return;
         const unread = payload?.unread && typeof payload.unread === "object" ? payload.unread : {};
         const tracker = getAccountNotificationChatTracker();
         const nextTracker = { ...tracker };
         Object.entries(unread).forEach(([site, countRaw]) => {
+          if (site !== currentSite || !isSiteModuleEnabled("chat")) return;
           const count = Number(countRaw) || 0;
           const previous = Number(tracker[site]) || 0;
           nextTracker[site] = count;
@@ -338,7 +357,7 @@
       })
       .catch(() => {})
       .finally(() => {
-        chatNotificationSyncInFlight = false;
+        if (isAppContextCurrent(context)) chatNotificationSyncInFlight = false;
       });
   }
 
@@ -361,6 +380,8 @@
     });
   }
 
+  window.resetAccountNotificationSession = resetAccountNotificationSession;
+  window.baselineAccountNotificationPermissions = baselineAccountNotificationPermissions;
   window.syncAccountNotifications = syncAccountNotifications;
   window.renderAccountNotificationsPanel = renderAccountNotificationsPanel;
   window.toggleAccountNotificationsPanel = toggleAccountNotificationsPanel;

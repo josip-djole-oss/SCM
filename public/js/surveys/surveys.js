@@ -48,9 +48,11 @@ function updateSurveysBadge() {
 
 function getSurveysList(options = {}) {
   const { strict = false } = options;
+  const context = captureAppContext();
   if (!BACKEND_ENABLED) return Promise.resolve(surveysCache);
   if (surveysListAbortController) surveysListAbortController.abort();
-  surveysListAbortController = typeof AbortController === "function" ? new AbortController() : null;
+  const controller = typeof AbortController === "function" ? new AbortController() : null;
+  surveysListAbortController = controller;
 
   return fetch(`/api/surveys?site=${encodeURIComponent(currentSite)}`, {
     cache: "no-store",
@@ -58,19 +60,20 @@ function getSurveysList(options = {}) {
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((data) => {
+      if (!isAppContextCurrent(context)) throw new Error("STALE_APP_CONTEXT");
       const surveys = Array.isArray(data.surveys) ? data.surveys : [];
       surveysCache = surveys;
       updateSurveysBadge();
       return surveys;
     })
     .catch((error) => {
-      if (error?.name === "AbortError") return surveysCache;
-      if (strict) throw error;
+      if (error?.name === "AbortError" || error?.message === "STALE_APP_CONTEXT") throw error;
+      surveysCache = [];
       updateSurveysBadge();
-      return surveysCache;
+      throw error || new Error("SURVEYS_LOAD_FAILED");
     })
     .finally(() => {
-      surveysListAbortController = null;
+      if (surveysListAbortController === controller) surveysListAbortController = null;
     });
 }
 

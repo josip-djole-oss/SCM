@@ -51,6 +51,12 @@ function pushRouteForView(view = currentView, options = {}) {
 function applyRouteFromPath(pathname = window.location.pathname) {
   const view = viewFromPath(pathname);
   if (!view) return false;
+  if (window.CMAX?.projectModules && !window.CMAX.projectModules.allowsView(view)) {
+    CMAX.core.showHome();
+    pushRouteForView("home", { replace: true });
+    showToast("Ovaj modul nije dostupan za trenutno gradiliste.", "info");
+    return true;
+  }
   suppressRoutePush = true;
   try {
     if (view === "login") {
@@ -87,6 +93,10 @@ function applyRouteFromPath(pathname = window.location.pathname) {
 function restoreLastView() {
   if (applyRouteFromPath(window.location.pathname)) return;
   const savedView = localStorage.getItem(CURRENT_VIEW_KEY) || "home";
+  if (window.CMAX?.projectModules && !window.CMAX.projectModules.allowsView(savedView)) {
+    CMAX.core.showHome();
+    return;
+  }
   if (savedView === "home") {
     CMAX.core.showHome();
     return;

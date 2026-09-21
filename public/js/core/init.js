@@ -22,6 +22,7 @@ async function initApp() {
   initAdmins();
   appState.guestPermissions = getGuestPermissions();
   setupEventListeners();
+  installRealtimeSynchronization();
   const authenticated = await checkAuth({ deferShow: true });
   if (!authenticated) {
     hideLoading();
@@ -55,14 +56,16 @@ async function initApp() {
   }
   window.addEventListener("focus", () => {
     if (!freshServerDataLoaded) return;
-    refreshSiteMetadata()
+    refreshCurrentSessionPermissions({ notify: false })
+      .then(() => refreshSiteMetadata())
       .then(() => refreshSharedDataIfSafe())
       .catch(() => {});
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {
       if (!freshServerDataLoaded) return;
-      refreshSiteMetadata()
+      refreshCurrentSessionPermissions({ notify: false })
+        .then(() => refreshSiteMetadata())
         .then(() => refreshSharedDataIfSafe())
         .catch(() => {});
     }

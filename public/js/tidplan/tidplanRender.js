@@ -1252,7 +1252,7 @@ function syncTidplanTableToState() {
   });
 }
 
-function saveTidplanData() {
+async function saveTidplanData() {
   if (!canEditTidplan()) return;
   syncTidplanTableToState();
   tidplanData = (tidplanData || []).map((activity, index) => ensureTidplanActivityIdentity(activity, index));
@@ -1261,44 +1261,37 @@ function saveTidplanData() {
     JSON.stringify(tidplanData),
   );
   saveTidplanZones();
-  tidplanDataChanged = false;
-
-  // Flash success state
-  const saveBtn = document.getElementById("btnSaveTidplan");
-  if (saveBtn) {
-    const originalBg = saveBtn.style.background;
-    const originalOpacity = saveBtn.style.opacity;
-    saveBtn.style.background =
-      "linear-gradient(135deg, #27ae60, #2ecc71)";
-    saveBtn.style.opacity = "1";
-    saveBtn.disabled = true;
-    saveBtn.style.cursor = "not-allowed";
-
-    setTimeout(() => {
-      saveBtn.style.background = originalBg;
-      saveBtn.style.opacity = originalOpacity;
-    }, 2000);
-  }
-
   const changedIds = Array.from(window.tidplanChangedActivityIds || []);
   const patchTargets = changedIds.length
     ? changedIds.map((id) => (tidplanData || []).find((activity) => activity.id === id)).filter(Boolean)
     : [];
+  let saved = false;
   if (patchTargets.length) {
-    Promise.all(patchTargets.map((activity) => patchTidplanActivity(activity, activity.__changedFields || { komentar: activity.komentar || "" }, {
+    const results = await Promise.all(patchTargets.map((activity) => patchTidplanActivity(activity, activity.__changedFields || { komentar: activity.komentar || "" }, {
       baseFieldVersions: activity.__baseFieldVersions || activity.fieldVersions || {},
-    })))
-      .finally(() => {
-        window.tidplanChangedActivityIds = new Set();
-        (tidplanData || []).forEach((activity) => {
-          delete activity.__changedFields;
-          delete activity.__baseFieldVersions;
-        });
-      });
+    })));
+    saved = results.every(Boolean);
   } else {
-    syncModuleState("tidplan", { tidplan: tidplanData || [], tidplanZones: tidplanZones || [] }).catch(() => {});
+    saved = await syncModuleState("tidplan", { tidplan: tidplanData || [], tidplanZones: tidplanZones || [] });
+  }
+  if (!saved) {
+    tidplanDataChanged = true;
+    showToast("Tidplan nije spremljen na server. Promjene su zadrzane za ponovni pokusaj.", "error");
+    return false;
+  }
+  window.tidplanChangedActivityIds = new Set();
+  (tidplanData || []).forEach((activity) => {
+    delete activity.__changedFields;
+    delete activity.__baseFieldVersions;
+  });
+  tidplanDataChanged = false;
+  const saveBtn = document.getElementById("btnSaveTidplan");
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.style.cursor = "not-allowed";
   }
   showToast("✅ Plan je uspješno spremljen!", "success");
+  return true;
 }
 
 function markTidplanChanged(activityIndex = null, fieldName = "") {

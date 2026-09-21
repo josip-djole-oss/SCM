@@ -184,15 +184,17 @@ function refreshPresence() {
     return Promise.resolve();
   }
 
+  const context = captureAppContext();
   return fetch(`/api/presence?site=${encodeURIComponent(currentSite)}`, {
     cache: "no-store",
   })
     .then((res) => (res.ok ? res.json() : Promise.reject()))
     .then((data) => {
+      if (!isAppContextCurrent(context)) return;
       renderPresence(Array.isArray(data.users) ? data.users : []);
     })
     .catch(() => {
-      renderPresence([]);
+      if (isAppContextCurrent(context)) renderPresence([]);
     });
 }
 
