@@ -27,8 +27,6 @@ export default defineRailway(() => {
       AUTO_BACKUP_INTERVAL_MS: preserve(),
       BACKUP_RATE_LIMIT_MAX: preserve(),
       BCRYPT_ROUNDS: preserve(),
-      BOOTSTRAP_ADMIN_EMAIL: preserve(),
-      BOOTSTRAP_ADMIN_PASSWORD: preserve(),
       CORS_ORIGINS: preserve(),
       DATABASE_URL: preserve(),
       LOGIN_RATE_LIMIT_MAX: preserve(),

@@ -29,7 +29,7 @@ Feature modules are Planner, Sompturnor (`bins`), Tidplan, Store (`workwear`), C
 
 ## Verification record
 
-`npm run check` passed: production asset build, 43 Node tests and `npm audit` with 0 vulnerabilities. The Node suites cover frontend context synchronization and persistence, atomic storage, Unicode project-key collisions, upload authorization/restart behavior, dependency pinning, module configuration, API guards, Super Admin separation, password persistence and session revocation.
+`npm run check` passed: production asset build, 47 Node tests and `npm audit` with 0 vulnerabilities. The Node suites cover frontend context synchronization and persistence, atomic storage, Unicode project-key collisions, upload authorization/restart behavior, dependency pinning, module configuration, API guards, Super Admin separation, password persistence and session revocation.
 
 `npm run test:browser` passed against a temporary live server and headless Chrome. It verified project A/B switching with no stale flash, disabled Store API returning 403, live module revocation redirecting the open view, disabled routes remaining closed, session reload and reconnect without false permission notifications.
 
@@ -53,19 +53,35 @@ No destructive migration was added. Existing projects default to enabled modules
 
 Local verification cannot prove Railway volume retention across a real redeploy, managed PostgreSQL failover, backup restoration from production data, or behavior under multiple application replicas. The current SSE subscriber list and default session store are process-local, so production should run one application replica until shared session and event infrastructure is introduced. Deployment variables, persistent-volume requirements, health checks and rollback steps are documented in `RAILWAY_DEPLOYMENT.md`.
 
-## Railway production validation — in progress
+## Railway production validation — 2026-09-21
 
-Validation started 2026-09-21 against Railway project `hospitable-wisdom`, environment `production`, service `SCM`.
+Validation was executed against Railway project `hospitable-wisdom`, environment `production`, service `SCM`, at `https://scm-production-f9fc.up.railway.app`. Records were confined to projects and accounts prefixed `SCM-VALIDATION`. Existing production records were not edited or deleted.
 
-- **PASS:** the service has exactly one running replica.
-- **PASS:** production uses PostgreSQL; two read-only connections succeeded from inside the SCM container. PostgreSQL 18.6 is primary, all ten expected tables exist and the runtime role has schema usage/create rights.
-- **PASS:** a production backup was created through the authenticated Super Admin API before infrastructure changes. No restore was run against production.
-- **PASS:** a dedicated 5 GB `scm-volume` is attached to SCM at `/data`.
-- **REMEDIATION PENDING DEPLOY:** the previously deployed commit wrote uploads to ephemeral `/app/uploads` and had no Railway health-check path. The pending release uses `/data/uploads` and returns HTTP 503 until storage is ready.
-- **NOT VERIFIED:** upload persistence through restart and the application feature matrix remain pending until the audited release is deployed.
+| Production item | Status | Executed evidence |
+| --- | --- | --- |
+| Build and startup | **PASS** | Deployment `1bdc8e1c-a75f-455e-b5a4-3beb55289a1c` built commit `3527d06` with `npm ci && npm run build`, started with `npm start`, and reached `SUCCESS`. Build reported 71 checked JavaScript files, six copied browser assets and zero npm vulnerabilities. |
+| Variables and replica count | **PASS** | The runtime configuration check passed for production/PostgreSQL, HTTPS CORS, session and request limits, bcrypt cost, and upload limits. Exactly one SCM replica was running in `europe-west4-drams3a`; it was not increased. |
+| PostgreSQL and migrations | **PASS** | PostgreSQL 18.6 accepted two fresh read-only connections from the SCM container. It was primary, all ten required tables existed, schema privileges were valid, and repeated application starts completed storage initialization on attempt 1 without losing existing records. |
+| Persistent upload volume | **PASS** | `scm-volume` is a ready 5 GB Railway volume mounted at `/data`. Runtime logs confirmed `/data/data` and `/data/uploads`. |
+| Health check | **PASS** | Railway uses `/api/health` with a 120 second window. It returned 503 while storage initialized, then 200 with `ok`, `storageReady` and database connectivity true. Internal error text is excluded from the response. |
+| Login and session | **PASS** | Super Admin and dedicated users logged in through the production API; the UI login also completed. Cookie-only browser restart retained the active session. An application restart invalidated process-local sessions as designed; a fresh login succeeded and restored authoritative state. |
+| Project switching and stale-data protection | **PASS** | Headless Chrome switched between dedicated A/B projects, rendered each authoritative state, rejected an injected stale local cache on reload, and restored authoritative state after browser-context restart. |
+| Project module ON/OFF protection | **PASS** | Store was ON for A and OFF for B. B hid and blocked the frontend view, direct `/store` did not open Store, and `/api/store/orders?site=B` returned `403 MODULE_DISABLED`. Cross-project and missing-permission API requests also returned 403. |
+| Realtime module changes | **PASS** | An API SSE subscriber and a second isolated authenticated Chrome session received `project-modules-changed`. Disabling Store while open redirected the second session away; re-enabling restored access. |
+| Planner / Tidplan / Sompturnor / Warehouse | **PASS** | Dedicated markers were saved through their production APIs, confirmed in authoritative state, reloaded, and remained present after the Railway restart and fresh login. |
+| Store | **PASS** | A dedicated catalog item and server-priced order were created for A, read by the authorized user, reloaded, and remained present after restart. B remained protected while Store was disabled. |
+| Chat | **PASS** | A dedicated message was accepted, returned by the authoritative chat API, and remained present after restart. |
+| Reports and Notifications | **PASS** | Versioned dedicated records were created, reloaded from their independent PostgreSQL documents, and remained present after restart. |
+| Permission matrix / Super Admin | **PASS** | Only the explicit Super Admin could change project modules and create test accounts. A site-limited user was denied project A, a permission-limited user was denied Reports, and a non-Super Admin was denied module configuration. |
+| Upload/download authorization and persistence | **PASS** | A 68-byte text file completed the full chain: server accepted it; `/data/uploads/...` contained the file; hashed metadata existed under `/data/uploads/.metadata`; uploader and authorized second session retrieved identical bytes; site-unauthorized user received 403; anonymous access received 401; after Railway restart the metadata, bytes and authorization results were unchanged. |
+| Backup procedure | **PASS** | Authenticated Super Admin creation produced PostgreSQL backup ID `301`; listing succeeded and restore dry-run returned a short-lived token and module diff. |
+| Restore execution | **NOT VERIFIED / BLOCKED** | An actual restore was intentionally not executed against the only production environment because it would replace real production state. No isolated Railway staging environment was available. Local restore/integrity regression tests pass. |
+| PostgreSQL reconnect | **PASS** | Fresh connections, multiple application restarts, health transitions, and post-restart state reads all succeeded. |
+| PostgreSQL forced outage/failover | **NOT VERIFIED / BLOCKED** | Deliberately disconnecting or restarting the only production PostgreSQL service could affect real users and data; there was no staging database on which to inject this failure. Local unavailable-database tests prove 503 health and retry behavior. |
+| Application restart | **PASS** | The only SCM replica was restarted through Railway. Health recovered after storage initialization; PostgreSQL module data, reports, notifications, chat, Store order, upload metadata and upload bytes remained available. Old process-local sessions were invalid and re-login succeeded. |
 
-Production results are not inferred from local tests. The final status table will record each executed Railway check and any blocked item after deployment.
+Railway logs were inspected after the frontend/API run and after restart. No unexplained application 5xx was found. The observed 503 entries occurred only during controlled restart/storage initialization. Expected authorization denials were functionally correct; their stack traces exposed noisy error-level logging, which was corrected so handled 4xx responses no longer obscure real server errors.
 
-## Owner decisions
+## Remaining production boundary
 
-No code-level decision is blocked. Before production release, the owner must choose and provision the Railway persistent volume/database described in `RAILWAY_DEPLOYMENT.md`, then perform the documented staging backup/restore and restart checks.
+The live validation establishes the current single-replica architecture. Sessions and SSE subscribers remain process-local, so SCM must stay at one replica until both use shared infrastructure. Production restore and destructive PostgreSQL failure injection remain blocked until an isolated Railway staging environment is provisioned.

@@ -9614,7 +9614,6 @@ app.get(['/', '/login', '/home', '/planner', '/tidplan', '/bins', '/kante', '/wa
 });
 
 app.use((error, req, res, next) => {
-  logServerError(error, req?.path || 'middleware');
   if (res.headersSent) return next(error);
   if (Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 500) {
     return res.status(error.statusCode).json({ error: error.code || error.message });
@@ -9634,6 +9633,7 @@ app.use((error, req, res, next) => {
   if (error && /cors/i.test(error.message || '')) {
     return res.status(403).json({ error: 'CORS blocked', origin: sanitizeString(req.headers.origin || '', 200) || null });
   }
+  logServerError(error, req?.path || 'middleware');
   return res.status(500).json({ error: 'Internal server error' });
 });
 

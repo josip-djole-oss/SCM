@@ -12,3 +12,4 @@ tmp/site-chat-proof-*/
 tmp/store-editor-wizard-proof-*/
 tmp/multi-user-concurrency-*/
 tmp/release-stability-*/
+tmp/railway-*.json

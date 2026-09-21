@@ -32,7 +32,7 @@ async function main() {
   const result = {
     loginStatus: login.status,
     authenticated: login.ok && Boolean(cookie && csrf),
-    role: loginAuth.role || null,
+    accountType: loginAuth.isAdmin === true ? "admin" : (loginAuth.isReadonly === true ? "readonly" : "user"),
     isSuperAdmin: loginAuth.isSuperAdmin === true,
   };
   if (!result.authenticated) {
@@ -52,7 +52,7 @@ async function main() {
   const session = await request("/api/session");
   const sessionAuth = session.payload.auth || session.payload;
   result.sessionStatus = session.response.status;
-  result.sessionPersisted = session.response.ok && sessionAuth.role === result.role && sessionAuth.isSuperAdmin === result.isSuperAdmin;
+  result.sessionPersisted = session.response.ok && sessionAuth.isAdmin === loginAuth.isAdmin && sessionAuth.isSuperAdmin === result.isSuperAdmin;
   const backups = await request("/api/backups");
   result.backupListStatus = backups.response.status;
   result.backupCount = backups.response.ok && Array.isArray(backups.payload.backups) ? backups.payload.backups.length : null;

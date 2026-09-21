@@ -108,6 +108,7 @@ test('module configuration, project isolation, persistence, SSE and authorizatio
     const raw = JSON.parse(fs.readFileSync(path.join(data, 'state.json'), 'utf8'));
     assert.equal(raw.data.siteData.A.bins.retained, 'A');
     assert.equal(raw.data.siteData.A.store.products[0].name, 'Product A');
+    assert.doesNotMatch(logs, /Error: (MODULE_DISABLED|SITE_ACCESS_DENIED|MODULE_ACCESS_DENIED)/);
   });
 
   await t.test('configuration conflict and repeat save are safe', async () => {
