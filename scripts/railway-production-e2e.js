@@ -320,7 +320,45 @@ async function verify() {
   process.stdout.write(`${JSON.stringify({ ok: true, phase: "verify", runId: ctx.runId, checks: { priorSessionsInvalidated: true, relogin: true, postgresStatePersistence: true, projectModulesPersistence: true, plannerTidplanBinsWarehousePersistence: true, storePersistence: true, chatPersistence: true, reportsPersistence: true, notificationsPersistence: true, uploadBytesAndMetadataPersistence: true, uploadAuthorizationAfterRestart: true, healthAndReconnect: true } }, null, 2)}\n`);
 }
 
-(PHASE === "prepare" ? prepare() : verify()).catch((error) => {
+async function lifecycle() {
+  const ctx = JSON.parse(fs.readFileSync(CONTEXT_FILE, "utf8"));
+  const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", headless: true });
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  try {
+    await loginInPage(page, ctx.collaborator.email, ctx.collaborator.password);
+    await page.evaluate((site) => switchSiteFromLocal(site), ctx.siteA);
+    const markerPresentBefore = await page.evaluate((marker) => JSON.stringify(appState).includes(marker), ctx.marker);
+    assert(markerPresentBefore, "Authoritative marker missing before logout");
+    const staleMarker = `STALE-LOGOUT-${ctx.runId}`;
+    const logoutStatus = await page.evaluate(async ({ site, staleMarker }) => {
+      localStorage.setItem("cmax_planner_data_" + site, JSON.stringify({ workers: [staleMarker] }));
+      const response = await fetch("/api/logout", { method: "POST" });
+      clearAuthSessionLocal(); resetAuthStateLocal(); showLogin();
+      return response.status;
+    }, { site: ctx.siteA, staleMarker });
+    assert(logoutStatus === 200, `Frontend logout endpoint returned ${logoutStatus}`);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.waitForFunction(() => document.getElementById("loginEmail")?.offsetParent !== null, null, { timeout: 20000 });
+    await page.locator("#loginEmail").fill(ctx.collaborator.email);
+    await page.locator("#loginPassword").fill(ctx.collaborator.password);
+    await page.evaluate(() => handleLogin());
+    await page.waitForFunction(() => window.freshServerDataLoaded === true && Boolean(window.appState?.currentUser), null, { timeout: 30000 });
+    await page.evaluate((site) => switchSiteFromLocal(site), ctx.siteA);
+    const result = await page.evaluate(({ marker, staleMarker }) => ({ markerPresent: JSON.stringify(appState).includes(marker), staleAbsent: !JSON.stringify(appState).includes(staleMarker), user: appState.currentUser }), { marker: ctx.marker, staleMarker });
+    assert(result.markerPresent && result.staleAbsent && result.user === ctx.collaborator.email, `Logout/login freshness failed: ${JSON.stringify(result)}`);
+    assert(pageErrors.length === 0, `Browser errors: ${pageErrors.join(" | ")}`);
+    process.stdout.write(`${JSON.stringify({ ok: true, phase: "lifecycle", checks: { frontendLogoutRevokedSession: true, frontendRelogin: true, savedValueAfterRelogin: true, staleDataRejectedAfterRelogin: true } }, null, 2)}\n`);
+  } finally {
+    await context.close();
+    await browser.close();
+  }
+}
+
+const phaseRunner = PHASE === "prepare" ? prepare : PHASE === "verify" ? verify : lifecycle;
+phaseRunner().catch((error) => {
   process.stderr.write(`${error.stack || error.message}\n`);
   process.exitCode = 1;
 });

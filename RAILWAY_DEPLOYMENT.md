@@ -75,7 +75,7 @@ The checklist above was executed on 2026-09-21 against `https://scm-production-f
 
 - **PASS:** build, start command, one-replica setting, health check and `/data` volume mount.
 - **PASS:** production variable validation and PostgreSQL 18.6 schema/readiness checks.
-- **PASS:** login, cookie session, project switching, stale-cache rejection and fresh login after application restart.
+- **PASS:** login, cookie session, project switching, explicit UI logout/re-login, stale-cache rejection, browser-context restart and fresh login after application restart.
 - **PASS:** A/B module isolation in navigation, direct URL, backend API and realtime updates across two isolated browser sessions.
 - **PASS:** Planner, Tidplan, Sompturnor, Warehouse, Store, Chat, Reports and Notifications saves were confirmed by backend reads and remained after restart.
 - **PASS:** upload bytes and metadata existed physically on `/data`, authorized and unauthorized access behaved correctly, and both remained correct after restart.

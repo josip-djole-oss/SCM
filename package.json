@@ -14,6 +14,7 @@
     "validate:postgres": "node scripts/postgres-readiness-check.js",
     "validate:railway-production:prepare": "node scripts/railway-production-e2e.js prepare",
     "validate:railway-production:verify": "node scripts/railway-production-e2e.js verify",
+    "validate:railway-production:lifecycle": "node scripts/railway-production-e2e.js lifecycle",
     "check": "npm run build && npm run test:core && npm audit --audit-level=high",
     "install-deps": "npm install",
     "audit:dead-code": "node scripts/dead-code-audit.js"
