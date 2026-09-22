@@ -176,12 +176,12 @@ async function runStoreAllSitesApi() {
   const worker = await loginApi(WORKER);
   let res = await api(worker, "/api/store/orders", {
     method: "POST",
-    json: { site: SITE_B, order: { workerComment: "all sites order", items: [{ productId: "all-sites-product", size: "M", quantity: 1 }] } },
+    json: { site: SITE_B, operationId: "all-sites-order", order: { operationId: "all-sites-order", workerComment: "all sites order", items: [{ productId: "all-sites-product", size: "M", quantity: 1 }] } },
   });
   assert(res.status === 201, `All-sites product should order on Site B, got ${res.status} ${JSON.stringify(res.payload)}`);
   res = await api(worker, "/api/store/orders", {
     method: "POST",
-    json: { site: SITE_B, order: { workerComment: "blocked order", items: [{ productId: "site-a-only-product", size: "42", quantity: 1 }] } },
+    json: { site: SITE_B, operationId: "blocked-site-order", order: { operationId: "blocked-site-order", workerComment: "blocked order", items: [{ productId: "site-a-only-product", size: "42", quantity: 1 }] } },
   });
   assert(res.status === 403 && res.payload.error === "STORE_PRODUCT_SITE_BLOCKED", `Restricted product should be blocked on Site B, got ${res.status} ${JSON.stringify(res.payload)}`);
 }

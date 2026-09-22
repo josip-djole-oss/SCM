@@ -11,6 +11,7 @@ var toolroomState = {
   data: { items: [], categories: [], presets: [], assignments: [], faults: [], serviceRecords: [], history: [] },
   permissions: {},
 };
+var toolroomMutationOperations = {};
 
 function toolroomEscape(value) {
   return typeof escapeHtml === "function" ? escapeHtml(value) : String(value || "");
@@ -18,6 +19,20 @@ function toolroomEscape(value) {
 
 function toolroomApi(path, options = {}) {
   const nextOptions = { ...options };
+  const method = String(nextOptions.method || "GET").toUpperCase();
+  let operationId = "";
+  if (!["GET", "HEAD", "OPTIONS"].includes(method) && typeof nextOptions.body === "string") {
+    try {
+      const body = JSON.parse(nextOptions.body);
+      const fingerprint = JSON.stringify({ path, body });
+      const previous = toolroomMutationOperations[path];
+      operationId = previous?.fingerprint === fingerprint
+        ? previous.operationId
+        : (globalThis.crypto?.randomUUID?.() || `toolroom_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+      toolroomMutationOperations[path] = { fingerprint, operationId };
+      nextOptions.body = JSON.stringify({ ...body, operationId });
+    } catch (_) { /* Non-JSON toolroom requests keep their original body. */ }
+  }
   nextOptions.headers = new Headers(nextOptions.headers || {});
   if (nextOptions.body && !nextOptions.headers.has("Content-Type")) {
     nextOptions.headers.set("Content-Type", "application/json");
@@ -30,6 +45,7 @@ function toolroomApi(path, options = {}) {
       error.payload = payload;
       throw error;
     }
+    if (operationId && toolroomMutationOperations[path]?.operationId === operationId) delete toolroomMutationOperations[path];
     return payload;
   });
 }

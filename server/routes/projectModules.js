@@ -26,8 +26,10 @@ function registerProjectModuleRoutes(router, deps) {
       await mutateVersionedJsonFile(stateFile, null, async (state) => {
         if (!state?.sites?.includes(site)) throw modules.accessError('PROJECT_NOT_FOUND', 404);
         const current = modules.configFor(state, site);
-        if (current.version !== req.body.baseVersion) throw modules.accessError('MODULE_VERSION_CONFLICT', 409);
         const nextModules = modules.registry.normalize({ ...current.modules, ...submitted });
+        if (current.version !== req.body.baseVersion && JSON.stringify(nextModules) !== JSON.stringify(current.modules)) {
+          throw modules.accessError('MODULE_VERSION_CONFLICT', 409);
+        }
         changed = JSON.stringify(nextModules) !== JSON.stringify(current.modules);
         saved = { site, modules: nextModules, version: current.version + (changed ? 1 : 0), updatedAt: changed ? new Date().toISOString() : current.updatedAt };
         return { ...state, projectModules: { ...state.projectModules, [site]: saved } };
@@ -78,7 +80,11 @@ function createProjectModuleGuard({ getState, canAccessSite, realtime, getToolro
       }
       if (!readOnlyAction && !/^\/projects\//.test(path)) {
         res.once('finish', () => {
-          if (res.statusCode >= 200 && res.statusCode < 300) realtime.publish('state-changed', { site: req.projectSite || null, module: req.projectModule || null }, req.projectSite ? { site: req.projectSite } : {});
+          if (res.statusCode >= 200 && res.statusCode < 300) realtime.publish('state-changed', {
+            site: req.projectSite || null,
+            module: req.projectModule || null,
+            clientInstanceId: String(req.get('x-client-instance-id') || '').slice(0, 120) || null,
+          }, req.projectSite ? { site: req.projectSite } : {});
         });
       }
       next();

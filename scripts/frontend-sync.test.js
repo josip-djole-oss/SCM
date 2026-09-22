@@ -104,6 +104,33 @@ test('module conflict keeps old base version and returns failure', async () => {
   assert.equal(c.getModuleStateVersion('planner', 'A'), 4);
 });
 
+test('module retry after an unknown outcome reuses its operation id and accepts the authoritative version', async () => {
+  const c = harness(['core/dataSync.js']);
+  c.moduleStateVersions = { bins: { A: 1 } };
+  const bodies = [];
+  c.fetch = async (_url, options) => {
+    bodies.push(JSON.parse(options.body));
+    if (bodies.length === 1) throw new Error('response lost after commit');
+    return ok({ operationId: bodies[0].operationId, deduplicated: true, moduleVersion: 2, version: 9 });
+  };
+  const payload = { bins: { value: 'saved once' } };
+  assert.equal(await c.syncModuleState('bins', payload), false);
+  assert.equal(await c.syncModuleState('bins', payload), true);
+  assert.equal(bodies[0].operationId, bodies[1].operationId);
+  assert.equal(c.getModuleStateVersion('bins', 'A'), 2);
+  assert.equal(c.moduleSaveFailures['bins:A'], undefined);
+});
+
+test('an old failure in another module does not poison a later successful flush', async () => {
+  const c = harness(['core/dataSync.js']);
+  c.moduleSaveFailures['planner:A'] = true;
+  c.pendingModuleSaves['bins:A'] = {
+    target: 'bins', payload: { bins: { value: 1 } }, options: { siteId: 'A' }, context: c.captureAppContext(),
+  };
+  c.syncModuleState = async () => true;
+  assert.equal(await c.flushPendingModuleSaves(), true);
+});
+
 test('permission signatures ignore object ordering and role-only changes', () => {
   const c = harness(['core/sync.js']); const first = c.effectivePermissionSignature();
   c.appState.permissions = { write: false, read: true }; c.appState.adminLevel = 6;
@@ -155,4 +182,81 @@ test('overlapping global loaders remain visible until every operation finishes',
   assert.equal(c.document.getElementById('loadingOverlay').style.display, 'flex');
   second.resolve(); await b;
   assert.equal(c.document.getElementById('loadingOverlay').style.display, 'none');
+});
+
+test('warehouse unknown-outcome retry reuses one operation id and never applies optimistic arithmetic', async () => {
+  const c = harness(['warehouse/warehouse.js']);
+  c.stableJson = (value) => JSON.stringify(value);
+  c.canEditWarehouse = () => true;
+  c.getSiteStorageKey = (key, site) => `${key}:${site}`;
+  c.normalizeWarehouseData = (value) => value;
+  c.setCachedStorageJson = () => true;
+  c.setModuleStateVersion = () => {};
+  c.moduleSaveFailures = {};
+  c.flushPendingModuleSaves = async () => true;
+  c.addLog = () => {};
+  c.renderWarehousePage = () => {};
+  c.t = (key) => key;
+  c.warehouseData = {
+    catalog: [{ id: 'material', name: 'Material' }],
+    stock: { material: { current: 0, totalIssued: 0, totalReceived: 0 } },
+    stockForm: { itemId: 'material', quantity: 10, direction: 'in', comment: 'test' },
+    issueDraft: { worker: '', comment: '', slots: [] },
+    logs: [],
+  };
+  const requests = [];
+  c.fetch = async (_url, options) => {
+    requests.push(JSON.parse(options.body));
+    if (requests.length === 1) throw new Error('response lost after commit');
+    return ok({
+      operationId: requests[0].operationId,
+      moduleVersion: 2,
+      version: 3,
+      warehouse: {
+        ...c.warehouseData,
+        stock: { material: { current: 10, totalIssued: 0, totalReceived: 10 } },
+        stockForm: { itemId: 'material', quantity: 1, direction: 'in', comment: '' },
+        logs: [{ id: `wh_${requests[0].operationId}_0` }],
+      },
+    });
+  };
+
+  await c.saveWarehouseStockAdjustment();
+  assert.equal(c.warehouseData.stock.material.current, 0);
+  await c.saveWarehouseStockAdjustment();
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].operationId, requests[1].operationId);
+  assert.equal(c.warehouseData.stock.material.current, 10);
+  assert.equal(c.warehouseData.stock.material.totalReceived, 10);
+});
+
+test('own realtime state event is ignored by the originating browser instance', () => {
+  const listeners = {};
+  const c = harness(['core/sync.js']);
+  c.getClientInstanceId = () => 'this-browser';
+  c.document.addEventListener = (name, listener) => { listeners[name] = listener; };
+  let refreshes = 0;
+  c.refreshSharedDataIfSafe = () => { refreshes += 1; return Promise.resolve(false); };
+  c.installRealtimeSynchronization();
+  listeners['scm:state-changed']({ detail: { clientInstanceId: 'this-browser' } });
+  assert.equal(refreshes, 0);
+  listeners['scm:state-changed']({ detail: { clientInstanceId: 'another-browser' } });
+  assert.equal(refreshes, 1);
+});
+
+test('failed pending save stays local and does not replace the application with the global retry screen', async () => {
+  const c = harness(['core/sync.js']);
+  c.withLoadingPromise = (_label, operation) => operation();
+  c.refreshCurrentSessionPermissions = async () => false;
+  c.pendingModuleSaves = { 'warehouse:A': {} };
+  c.moduleSyncInFlight = {};
+  c.flushPendingModuleSaves = async () => false;
+  let globalErrors = 0;
+  let mainShows = 0;
+  c.showDataLoadError = () => { globalErrors += 1; };
+  c.showMainApp = () => { mainShows += 1; };
+  assert.equal(await c.resynchronizeApplication(), false);
+  assert.equal(globalErrors, 0);
+  assert.equal(mainShows, 1);
+  assert.equal(c.toasts.some(([, kind]) => kind === 'error'), true);
 });

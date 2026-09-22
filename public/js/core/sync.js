@@ -306,6 +306,11 @@ function refreshSharedDataIfSafe() {
         return false;
       }
       if (serverSyncInFlight || Object.keys(moduleSyncInFlight).length || Object.keys(pendingModuleSaves).length) return false;
+      if (snapshot?.savedByClientId && typeof getClientInstanceId === "function" && snapshot.savedByClientId === getClientInstanceId()) {
+        rememberAppliedRemoteState(snapshot, serverStateVersion);
+        lastServerStateSnapshot = cloneStateSnapshot(snapshot);
+        return false;
+      }
       if (canRefreshSharedData()) return applySharedDataRefresh(snapshot, serverStateVersion);
       const editor = getRemoteEditorName(snapshot);
       const time = formatRemoteEditTime(snapshot.savedAt);
@@ -526,7 +531,6 @@ async function resynchronizeApplication({ notifyPermissions = false } = {}) {
   if (applicationResyncInFlight) return applicationResyncInFlight;
   const context = captureAppContext();
   const promise = withLoadingPromise("loadingDefault", async () => {
-    document.getElementById("mainContainer").style.display = "none";
     try {
       await refreshCurrentSessionPermissions({ notify: notifyPermissions });
       if (!isAppContextCurrent(context)) return false;
@@ -540,6 +544,7 @@ async function resynchronizeApplication({ notifyPermissions = false } = {}) {
         }
       }
       freshServerDataLoaded = false;
+      document.getElementById("mainContainer").style.display = "none";
       await loadFreshBackendData();
       if (!isAppContextCurrent(context, false)) return false;
       appState.hasUnsavedChanges = false;
@@ -551,7 +556,14 @@ async function resynchronizeApplication({ notifyPermissions = false } = {}) {
       startAutoSave();
       return true;
     } catch (error) {
-      if (isAppContextCurrent(context, false)) showDataLoadError(error?.message);
+      if (isAppContextCurrent(context, false)) {
+        if (error?.message === "UNSAVED_CHANGES_SYNC_FAILED") {
+          showMainApp();
+          showToast("Spremanje nije potvrđeno. Podaci su ostali na ekranu; ponovni pokušaj koristi istu operaciju.", "error");
+        } else {
+          showDataLoadError(error?.message);
+        }
+      }
       return false;
     }
   });
@@ -563,7 +575,8 @@ async function resynchronizeApplication({ notifyPermissions = false } = {}) {
 function installRealtimeSynchronization() {
   if (window.scmRealtimeSynchronizationInstalled) return;
   window.scmRealtimeSynchronizationInstalled = true;
-  document.addEventListener("scm:state-changed", () => {
+  document.addEventListener("scm:state-changed", (event) => {
+    if (event?.detail?.clientInstanceId && typeof getClientInstanceId === "function" && event.detail.clientInstanceId === getClientInstanceId()) return;
     if (freshServerDataLoaded) refreshSharedDataIfSafe().catch(() => false);
   });
   document.addEventListener("scm:permissions-changed", () => {

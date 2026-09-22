@@ -334,7 +334,9 @@ async function main() {
       },
       body: JSON.stringify({
         site: "default",
+        operationId: "backup-restore-seed-order",
         order: {
+          operationId: "backup-restore-seed-order",
           workerComment: "Backup order seed",
           urgent: false,
           items: [{ productId: "STP-1", size: "M", quantity: 1 }],

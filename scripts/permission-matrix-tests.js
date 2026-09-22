@@ -278,7 +278,9 @@ async function main() {
       method: "POST",
       json: {
         site: "default",
+        operationId: "permission-matrix-seed-order",
         order: {
+          operationId: "permission-matrix-seed-order",
           workerComment: "Permission matrix seed order",
           urgent: false,
           items: [{ productId: "MATRIX-P1", size: "M", quantity: 1 }],

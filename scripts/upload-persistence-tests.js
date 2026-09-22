@@ -38,14 +38,31 @@ async function fixture(t, options = {}) {
   return { root, disabled, ...active, restart: async () => { await close(); return start(); } };
 }
 
-async function upload(base, { content = PNG, name = 'image.png', type = 'image/png', site = 'A', userSite = 'A', module = 'notifications', extraFiles = false, route = '/upload', headers = {} } = {}) {
+async function upload(base, { content = PNG, name = 'image.png', type = 'image/png', site = 'A', userSite = 'A', module = 'notifications', operationId = '', extraFiles = false, route = '/upload', headers = {} } = {}) {
   const form = new FormData();
   form.append('file', new Blob([content], { type }), name);
   form.append('site', site);
   form.append('module', module);
+  if (operationId) form.append('operationId', operationId);
   if (extraFiles) form.append('file', new Blob([content], { type }), name);
   return fetch(`${base}${route}`, { method: 'POST', headers: { 'x-site': userSite, ...headers }, body: form });
 }
+
+test('upload retry with one operation id returns one persistent file', async (t) => {
+  const f = await fixture(t);
+  const operationId = 'lost-upload-response';
+  const first = await upload(f.base, { operationId });
+  assert.equal(first.status, 200);
+  const firstFile = (await first.json()).file;
+  const retry = await upload(f.base, { operationId });
+  assert.equal(retry.status, 200);
+  const retryFile = (await retry.json()).file;
+  assert.equal(retryFile.url, firstFile.url);
+  const list = await (await fetch(f.base + '/files?site=A')).json();
+  assert.equal(list.files.length, 1);
+  const mismatch = await upload(f.base, { operationId, name: 'different.png' });
+  assert.equal(mismatch.status, 409);
+});
 
 test('real multipart Unicode/duplicate names persist and remain retrievable after service restart', async (t) => {
   const f = await fixture(t);

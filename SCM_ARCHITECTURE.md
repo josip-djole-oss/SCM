@@ -22,9 +22,11 @@ Login validates the session, resolves project access and module configuration, f
 
 Mutations validate permissions and module availability, commit authoritative storage, return acknowledgement/version, and only then update confirmed UI state. Unsaved drafts must survive failures. Version conflicts require reconciliation and must not silently overwrite another user's work.
 
+Non-idempotent user intent carries a stable operation ID. For state-backed critical operations, the result receipt is persisted in the same serialized transaction as the business change. A client that loses the response retries the same ID and receives the first authoritative result. Warehouse movement arithmetic runs only on the server against current stock. Whole-document desired-state saves use versions; an exact replay of an already committed value is acknowledged, while different stale content remains a real conflict. The complete contract and endpoint inventory are in `SCM_MUTATION_RELIABILITY.md`.
+
 ## Realtime
 
-Authenticated Server-Sent Events carry invalidation signals for project modules, business data and effective permissions. Clients fetch authoritative state in response. Module configuration also uses periodic reconciliation to recover missed signals. Reconnect must resynchronize; event payloads are not authoritative business snapshots. Sessions and event subscribers are currently process-local, so multiple application replicas require shared sessions/event transport before deployment.
+Authenticated Server-Sent Events carry invalidation signals for project modules, business data and effective permissions. Clients fetch authoritative state in response. Each browser tab supplies a client-instance ID; the server echoes it in mutation invalidations so a tab does not treat its own acknowledgement as an external concurrent edit. Module configuration also uses periodic reconciliation to recover missed signals. Reconnect must resynchronize without replacing the application UI when a pending mutation merely needs a safe retry; event payloads are not authoritative business snapshots. Sessions and event subscribers are currently process-local, so multiple application replicas require shared sessions/event transport before deployment.
 
 ## Operations
 

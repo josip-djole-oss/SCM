@@ -406,7 +406,9 @@ function finalizeOrderSubmission(cart) {
 
   const state = getWorkwearState();
   const createdAt = new Date().toISOString();
+  cart.submissionOperationId = cart.submissionOperationId || globalThis.crypto?.randomUUID?.() || `store_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const orderDraft = {
+    operationId: cart.submissionOperationId,
     workerComment: cart.comment || "",
     urgent: cart.urgent === true,
     passwordConfirmedAt: createdAt,

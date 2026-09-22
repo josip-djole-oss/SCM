@@ -1787,6 +1787,7 @@ async function buildPublicStatePayload(document, session) {
     delete responseState.backups;
     delete responseState.logs;
     delete responseState.warehouseLogs;
+    delete responseState.mutationReceipts;
 
     if (sessionHasPermission(session, 'canManageAdmins')) {
       const admins = await readAdmins();
@@ -3151,6 +3152,7 @@ function normalizeSiteChatMessage(message, siteId = '') {
   const authorEmail = sanitizeString(raw.authorEmail || raw.email || '', 160).toLowerCase();
   return {
     id,
+    clientId: sanitizeString(raw.clientId || '', 120),
     siteId: sanitizeString(raw.siteId || siteId || '', 80),
     authorEmail,
     authorName: sanitizeString(raw.authorName || authorEmail || 'Unknown', 180),
@@ -3616,7 +3618,7 @@ function getSessionDisplayName(session) {
   return sanitizeString(session?.fullName || session?.name || session?.email || '', 180);
 }
 
-function applyStateEditMetadata(state, session, module = 'state') {
+function applyStateEditMetadata(state, session, module = 'state', clientInstanceId = '') {
   const updatedAt = new Date().toISOString();
   state.savedAt = updatedAt;
   state.savedBy = session?.email;
@@ -3625,6 +3627,7 @@ function applyStateEditMetadata(state, session, module = 'state') {
   state.updatedBy = session?.email;
   state.updatedByName = getSessionDisplayName(session);
   state.module = module;
+  state.savedByClientId = sanitizeString(clientInstanceId, 120) || null;
   return state;
 }
 
@@ -3810,6 +3813,91 @@ function rejectUnexpectedModulePayloadKeys(target, payload) {
   return keys.filter((key) => !allowed.has(key));
 }
 
+const MUTATION_RECEIPT_LIMIT = 500;
+const MUTATION_RECEIPT_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+function getMutationReceiptBucket(state, namespace) {
+  if (!isPlainObject(state.mutationReceipts)) state.mutationReceipts = {};
+  const cutoff = Date.now() - MUTATION_RECEIPT_MAX_AGE_MS;
+  const current = Array.isArray(state.mutationReceipts[namespace]) ? state.mutationReceipts[namespace] : [];
+  const retained = current
+    .filter((entry) => entry && new Date(entry.createdAt || 0).getTime() >= cutoff)
+    .slice(-MUTATION_RECEIPT_LIMIT);
+  state.mutationReceipts = { ...state.mutationReceipts, [namespace]: retained };
+  return retained;
+}
+
+function createWarehouseMovementPayload(rawBody) {
+  const operationId = sanitizeString(rawBody?.operationId || '', 120);
+  const direction = rawBody?.direction === 'out' ? 'out' : rawBody?.direction === 'in' ? 'in' : '';
+  const type = rawBody?.type === 'issue' ? 'issue' : rawBody?.type === 'stock' ? 'stock' : '';
+  const worker = sanitizeString(rawBody?.worker || '', 200);
+  const comment = sanitizeString(rawBody?.comment || '', 2000);
+  const rawItems = Array.isArray(rawBody?.items) ? rawBody.items : [];
+  const items = rawItems.map((entry) => ({
+    itemId: sanitizeString(entry?.itemId || '', 120),
+    quantity: Number(entry?.quantity),
+  }));
+  if (!operationId || !direction || !type || !items.length || items.length > 50 || (type === 'issue' && !worker)) {
+    throw projectModules.accessError('INVALID_WAREHOUSE_MOVEMENT', 400);
+  }
+  if (items.some((entry) => !entry.itemId || !Number.isFinite(entry.quantity) || entry.quantity <= 0 || entry.quantity > 1000000000)) {
+    throw projectModules.accessError('INVALID_WAREHOUSE_MOVEMENT', 400);
+  }
+  return { operationId, direction, type, worker, comment, items };
+}
+
+function applyWarehouseMovementToState(warehouse, movement, actor, nowIso) {
+  const nextWarehouse = isPlainObject(warehouse) ? sanitizeObject(warehouse) : {};
+  const catalog = Array.isArray(nextWarehouse.catalog) ? nextWarehouse.catalog : [];
+  const catalogById = new Map(catalog.map((item) => [sanitizeString(item?.id || '', 120), item]));
+  nextWarehouse.stock = isPlainObject(nextWarehouse.stock) ? { ...nextWarehouse.stock } : {};
+  nextWarehouse.logs = Array.isArray(nextWarehouse.logs) ? nextWarehouse.logs.slice() : [];
+
+  movement.items.forEach((entry, index) => {
+    const item = catalogById.get(entry.itemId);
+    if (!item) throw projectModules.accessError('WAREHOUSE_ITEM_NOT_FOUND', 404);
+    const current = isPlainObject(nextWarehouse.stock[entry.itemId]) ? nextWarehouse.stock[entry.itemId] : {};
+    const stock = {
+      current: Number(current.current) || 0,
+      totalIssued: Number(current.totalIssued) || 0,
+      totalReceived: Number(current.totalReceived) || 0,
+    };
+    if (movement.direction === 'out' && stock.current < entry.quantity) {
+      throw projectModules.accessError('WAREHOUSE_INSUFFICIENT_STOCK', 409);
+    }
+    if (movement.direction === 'out') {
+      stock.current -= entry.quantity;
+      stock.totalIssued += entry.quantity;
+    } else {
+      stock.current += entry.quantity;
+      stock.totalReceived += entry.quantity;
+    }
+    nextWarehouse.stock[entry.itemId] = stock;
+    nextWarehouse.logs.push({
+      id: `wh_${movement.operationId}_${index}`,
+      timestamp: nowIso,
+      type: movement.type === 'issue' ? 'issue' : 'stock',
+      worker: movement.worker,
+      itemId: entry.itemId,
+      itemName: sanitizeString(item?.name || '', 300),
+      quantity: entry.quantity,
+      direction: movement.direction,
+      comment: movement.comment,
+      performedBy: actor,
+      balanceAfter: stock.current,
+    });
+  });
+  if (nextWarehouse.logs.length > 3000) nextWarehouse.logs = nextWarehouse.logs.slice(-3000);
+  if (movement.type === 'issue') {
+    nextWarehouse.issueDraft = { worker: '', comment: '', slots: Array.from({ length: 6 }, () => ({ itemId: '', quantity: 1 })) };
+  } else {
+    const currentForm = isPlainObject(nextWarehouse.stockForm) ? nextWarehouse.stockForm : {};
+    nextWarehouse.stockForm = { ...currentForm, quantity: 1, comment: '' };
+  }
+  return nextWarehouse;
+}
+
 function getEntityConflictError({ entityType, entityId, conflicts, serverEntity }) {
   const error = new Error('ENTITY_VERSION_CONFLICT');
   error.statusCode = 409;
@@ -3923,6 +4011,7 @@ function normalizeToolroomDocument(doc) {
       fieldVersions: isPlainObject(item?.fieldVersions) ? { ...item.fieldVersions } : {},
       updatedAt: sanitizeString(item?.updatedAt || now, 80),
       updatedBy: sanitizeString(item?.updatedBy || '', 160),
+      lastOperationId: sanitizeString(item?.lastOperationId || '', 120),
     })).filter((item) => item.id),
     categories: (Array.isArray(source.categories) ? source.categories : fallback.categories).map((category, index) => ({
       id: sanitizeString(category?.id || `category_${index + 1}`, 120),
@@ -4454,10 +4543,12 @@ function mergeEntityFields(entity, changedFields, baseFieldVersions, actorEmail,
     ? baseFieldVersions
     : {};
   const conflicts = [];
+  let appliedChange = false;
   Object.entries(changedFields).forEach(([field, value]) => {
     const serverFieldVersion = Math.max(0, Number(fieldVersions[field] || 0));
     const submittedFieldVersion = Math.max(0, Number(baseVersions[field] || 0));
     if (serverFieldVersion > submittedFieldVersion) {
+      if (stableChecksum(entity[field]) === stableChecksum(value)) return;
       conflicts.push({
         field,
         serverValue: entity[field],
@@ -4467,10 +4558,13 @@ function mergeEntityFields(entity, changedFields, baseFieldVersions, actorEmail,
       });
       return;
     }
+    if (stableChecksum(entity[field]) === stableChecksum(value)) return;
     next[field] = value;
     fieldVersions[field] = serverFieldVersion + 1;
+    appliedChange = true;
   });
   if (conflicts.length) return { conflicts, entity };
+  if (!appliedChange) return { conflicts: [], entity };
   const currentVersion = Math.max(1, Number(entity[versionKey] || entity.rowVersion || entity.activityVersion || 1));
   next[versionKey] = currentVersion + 1;
   if (versionKey === 'rowVersion') next.activityVersion = Math.max(1, Number(next.activityVersion || next[versionKey]));
@@ -5456,6 +5550,7 @@ apiRouter.post('/site-chat/:siteId/messages', siteChatMessageLimiter, async (req
     const draft = normalizeSiteChatDraft(req.body || {});
     let savedMessage = null;
     let replyTo = null;
+    let deduplicated = false;
     await mutateSiteChatDocument((doc) => {
       const siteEntry = ensureSiteChatSite(doc, site);
       if (isSiteChatLockedForWrites(siteEntry, req.session)) {
@@ -5471,9 +5566,24 @@ apiRouter.post('/site-chat/:siteId/messages', siteChatMessageLimiter, async (req
           throw error;
         }
       }
+      if (draft.clientId) {
+        const existing = siteEntry.messages.find((message) =>
+          message.clientId === draft.clientId &&
+          message.authorEmail === sanitizeString(req.session.email || '', 160).toLowerCase()
+        );
+        if (existing) {
+          const existingFingerprint = stableChecksum({ text: existing.text, attachments: existing.attachments, replyToMessageId: existing.replyToMessageId });
+          const draftFingerprint = stableChecksum({ text: draft.text, attachments: draft.attachments, replyToMessageId: draft.replyToMessageId });
+          if (existingFingerprint !== draftFingerprint) throw projectModules.accessError('IDEMPOTENCY_KEY_REUSED', 409);
+          savedMessage = existing;
+          deduplicated = true;
+          return doc;
+        }
+      }
       const now = new Date().toISOString();
       const message = normalizeSiteChatMessage({
         id: `chat_${Date.now()}_${crypto.randomBytes(5).toString('hex')}`,
+        clientId: draft.clientId,
         siteId: site,
         authorEmail: sanitizeString(req.session.email || '', 160).toLowerCase(),
         authorName: sanitizeString(req.session.fullName || currentAdmin?.fullName || req.session.email || 'Unknown', 180),
@@ -5494,10 +5604,10 @@ apiRouter.post('/site-chat/:siteId/messages', siteChatMessageLimiter, async (req
       savedMessage = message;
       return doc;
     });
-    if (savedMessage) {
+    if (savedMessage && !deduplicated) {
       await notifySiteChatRecipients({ site, message: savedMessage, admins, replyTo });
     }
-    return res.status(201).json({ message: buildSafeSiteChatMessage(savedMessage) });
+    return res.status(deduplicated ? 200 : 201).json({ message: buildSafeSiteChatMessage(savedMessage), deduplicated });
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
     return next(error);
@@ -5852,9 +5962,11 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
     const sessionEmail = String(req.session?.email || '').trim().toLowerCase();
     const rawDraft = req.body?.order && typeof req.body.order === 'object' ? req.body.order : req.body;
     const draftPayload = sanitizeStoreOrderDraft(rawDraft, site);
+    const operationId = sanitizeString(req.body?.operationId || rawDraft?.operationId || '', 120);
     if (!sessionEmail || !draftPayload.items.length) {
       return res.status(400).json({ error: 'INVALID_ORDER_PAYLOAD' });
     }
+    if (!operationId) return res.status(400).json({ error: 'STORE_OPERATION_ID_REQUIRED' });
     const admins = await readAdmins();
     const workerAdmin = admins.find((entry) => entry.email === sessionEmail && entry.active !== false);
     if (!workerAdmin && req.session?.role === 'admin') {
@@ -5867,6 +5979,9 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
     let savedOrder = null;
     let budgetSnapshot = null;
     let tamperSignals = [];
+    let deduplicated = false;
+    const fingerprint = stableChecksum({ site, worker: sessionEmail, draft: draftPayload });
+    const receiptKey = `${sessionEmail}:${site}:${operationId}`;
     await mutateVersionedJsonFile(stateFile, {
       version: 2,
       savedAt: new Date().toISOString(),
@@ -5875,6 +5990,22 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
       siteData: {},
     }, async (state) => {
       const nextState = normalizeRuntimeState(state);
+      const receipts = getMutationReceiptBucket(nextState, 'storeOrder');
+      const receipt = receipts.find((entry) => entry.key === receiptKey);
+      if (receipt) {
+        if (receipt.fingerprint !== fingerprint) throw projectModules.accessError('IDEMPOTENCY_KEY_REUSED', 409);
+        const existingStore = nextState.siteData?.[site]?.store || {};
+        savedOrder = (existingStore.orders || []).find((entry) => entry.id === receipt.orderId) || null;
+        if (!savedOrder) throw new Error('STORE_IDEMPOTENCY_RECEIPT_BROKEN');
+        const profile = existingStore.workerProfiles?.[sessionEmail] || {};
+        budgetSnapshot = {
+          workerId: sessionEmail,
+          creditBalance: Math.max(0, Number(profile.creditBalance || 0)),
+          reservedCredit: Math.max(0, Number(profile.reservedCredit || 0)),
+        };
+        deduplicated = true;
+        return nextState;
+      }
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const siteEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object'
         ? { ...nextState.siteData[site] }
@@ -5905,10 +6036,13 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
       savedOrder = calculated.order;
       budgetSnapshot = calculated.budget;
       tamperSignals = calculated.tamperSignals;
+      receipts.push({ key: receiptKey, fingerprint, orderId: calculated.order.id, createdAt: nowIso });
+      if (receipts.length > MUTATION_RECEIPT_LIMIT) receipts.splice(0, receipts.length - MUTATION_RECEIPT_LIMIT);
+      applyStateEditMetadata(nextState, req.session, 'store', req.get('x-client-instance-id'));
       return nextState;
     });
 
-    await logActivity(sessionEmail, 'order_created_server_priced', {
+    if (!deduplicated) await logActivity(sessionEmail, 'order_created_server_priced', {
       site,
       orderId: savedOrder?.id || '',
       workerId: savedOrder?.workerId || '',
@@ -5916,7 +6050,7 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
       itemsCount: Array.isArray(savedOrder?.items) ? savedOrder.items.length : 0,
       budgetImpact: Number(savedOrder?.budgetImpact || 0),
     });
-    if (Number(savedOrder?.creditReserved || 0) > 0) {
+    if (!deduplicated && Number(savedOrder?.creditReserved || 0) > 0) {
       await logActivity(sessionEmail, 'budget_reserved', {
         site,
         orderId: savedOrder?.id || '',
@@ -5924,14 +6058,14 @@ apiRouter.post('/store/orders', requireAnyPermission(['canAccessStore', 'canAcce
         amount: Number(savedOrder?.creditReserved || 0),
       });
     }
-    if (tamperSignals.length > 0) {
+    if (!deduplicated && tamperSignals.length > 0) {
       await logActivity(sessionEmail, 'rejected_invalid_client_price', {
         site,
         orderId: savedOrder?.id || '',
         tamperSignals,
       });
     }
-    return res.status(201).json({ ok: true, site, order: savedOrder, budget: budgetSnapshot, serverPriced: true });
+    return res.status(deduplicated ? 200 : 201).json({ ok: true, site, order: savedOrder, budget: budgetSnapshot, serverPriced: true, operationId, deduplicated });
   } catch (error) {
     if (error?.code === 'STORE_INSUFFICIENT_BUDGET') {
       return res.status(400).json({ error: 'STORE_INSUFFICIENT_BUDGET', details: error?.details || '' });
@@ -6250,12 +6384,24 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
 
     let nextModuleVersion = 1;
     let updatedAdmins = null;
+    let deduplicated = false;
+    const operationId = sanitizeString(req.body?.operationId || '', 120);
+    const operationFingerprint = operationId ? stableChecksum({ target, site: target === 'adminUsers' ? null : site, payload }) : '';
+    const operationReceiptKey = operationId ? `${sanitizeString(req.session.email || '', 180).toLowerCase()}:${target}:${site}:${operationId}` : '';
     const savedDocument = await mutateVersionedJsonFile(stateFile, null, async (state) => {
       const nextState = normalizeRuntimeState(state);
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       nextState.moduleVersions = nextState.moduleVersions && typeof nextState.moduleVersions === 'object'
         ? { ...nextState.moduleVersions }
         : {};
+      const receipts = operationId ? getMutationReceiptBucket(nextState, 'stateModule') : [];
+      const receipt = operationId ? receipts.find((entry) => entry.key === operationReceiptKey) : null;
+      if (receipt) {
+        if (receipt.fingerprint !== operationFingerprint) throw projectModules.accessError('IDEMPOTENCY_KEY_REUSED', 409);
+        deduplicated = true;
+        nextModuleVersion = Math.max(1, Number(receipt.moduleVersion || getModuleStateVersion(nextState, target, site)));
+        return nextState;
+      }
       const guardedModule = projectModules.registry.get(/^store/.test(target) ? 'store' : target);
       if (guardedModule) projectModules.assertEnabled(nextState, req.session, site, guardedModule.id, canAccessSite);
       const currentModuleVersion = getModuleStateVersion(nextState, target, site);
@@ -6377,15 +6523,21 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
       }
 
       nextModuleVersion = bumpModuleStateVersion(nextState, target, site);
-      applyStateEditMetadata(nextState, req.session, target);
+      applyStateEditMetadata(nextState, req.session, target, req.get('x-client-instance-id'));
+      if (operationId) {
+        receipts.push({ key: operationReceiptKey, fingerprint: operationFingerprint, moduleVersion: nextModuleVersion, createdAt: new Date().toISOString() });
+        if (receipts.length > MUTATION_RECEIPT_LIMIT) receipts.splice(0, receipts.length - MUTATION_RECEIPT_LIMIT);
+      }
       return nextState;
     });
 
-    await logActivity(req.session.email, 'module_state_saved', {
-      target,
-      site: target === 'adminUsers' ? null : site,
-      moduleVersion: nextModuleVersion,
-    });
+    if (!deduplicated) {
+      await logActivity(req.session.email, 'module_state_saved', {
+        target,
+        site: target === 'adminUsers' ? null : site,
+        moduleVersion: nextModuleVersion,
+      });
+    }
     res.json({
       ok: true,
       target,
@@ -6394,6 +6546,8 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
       version: savedDocument.version || 1,
       updatedAt: savedDocument.updatedAt || null,
       admins: updatedAdmins ? updatedAdmins.map(redactAdminRecord) : undefined,
+      operationId: operationId || undefined,
+      deduplicated,
     });
   } catch (error) {
     if (error?.code === 'MODULE_VERSION_CONFLICT' || error?.message === 'MODULE_VERSION_CONFLICT') {
@@ -6414,6 +6568,76 @@ apiRouter.post('/state/module', requireAdmin, async (req, res, next) => {
     if (error.statusCode) {
       return res.status(error.statusCode).json({ error: error.message, details: error.details || undefined });
     }
+    next(error);
+  }
+});
+
+apiRouter.post('/warehouse/:siteId/movements', requireAdmin, async (req, res, next) => {
+  const site = sanitizeString(req.params.siteId || req.body?.siteId || req.session.currentSite || 'default', 80) || 'default';
+  try {
+    if (!canAccessSite(req.session, site)) return res.status(403).json({ error: 'Access denied to this site' });
+    if (req.session.isReadonly || !canWriteStateField(req.session, 'canManageWarehouse')) {
+      return res.status(403).json({ error: 'FORBIDDEN_WAREHOUSE_MOVEMENT' });
+    }
+    const movement = createWarehouseMovementPayload(req.body);
+    const actor = sanitizeString(req.session.email || '', 180).toLowerCase();
+    const receiptKey = `${actor}:${site}:${movement.operationId}`;
+    const fingerprint = stableChecksum({
+      site,
+      direction: movement.direction,
+      type: movement.type,
+      worker: movement.worker,
+      comment: movement.comment,
+      items: movement.items,
+    });
+    let deduplicated = false;
+    let savedWarehouse = null;
+    let nextModuleVersion = 1;
+    const savedDocument = await mutateVersionedJsonFile(stateFile, null, async (state) => {
+      const nextState = normalizeRuntimeState(state);
+      nextState.siteData = isPlainObject(nextState.siteData) ? { ...nextState.siteData } : {};
+      const receipts = getMutationReceiptBucket(nextState, 'warehouseMovement');
+      const receipt = receipts.find((entry) => entry.key === receiptKey);
+      if (receipt) {
+        if (receipt.fingerprint !== fingerprint) throw projectModules.accessError('IDEMPOTENCY_KEY_REUSED', 409);
+        deduplicated = true;
+        savedWarehouse = nextState.siteData[site]?.warehouse || {};
+        nextModuleVersion = getModuleStateVersion(nextState, 'warehouse', site);
+        return nextState;
+      }
+
+      const previousEntry = isPlainObject(nextState.siteData[site]) ? nextState.siteData[site] : {};
+      const entry = { ...previousEntry };
+      const nowIso = new Date().toISOString();
+      savedWarehouse = applyWarehouseMovementToState(entry.warehouse, movement, actor, nowIso);
+      entry.warehouse = savedWarehouse;
+      nextState.siteData[site] = entry;
+      nextModuleVersion = bumpModuleStateVersion(nextState, 'warehouse', site);
+      applyStateEditMetadata(nextState, req.session, 'warehouse', req.get('x-client-instance-id'));
+      receipts.push({ key: receiptKey, fingerprint, createdAt: nowIso });
+      if (receipts.length > MUTATION_RECEIPT_LIMIT) receipts.splice(0, receipts.length - MUTATION_RECEIPT_LIMIT);
+      return nextState;
+    });
+
+    if (!deduplicated) {
+      await logActivity(actor, 'warehouse_movement_saved', {
+        site,
+        operationId: movement.operationId,
+        type: movement.type,
+        direction: movement.direction,
+        itemCount: movement.items.length,
+      });
+    }
+    return res.json({
+      ok: true,
+      operationId: movement.operationId,
+      deduplicated,
+      warehouse: savedWarehouse,
+      moduleVersion: nextModuleVersion,
+      version: savedDocument.version || 1,
+    });
+  } catch (error) {
+    if (error?.statusCode) return res.status(error.statusCode).json({ error: error.code || error.message });
     next(error);
   }
 });
@@ -6547,6 +6771,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
   const moduleKey = sanitizeString(req.body?.module || req.body?.section || 'state', 80);
   try {
     const state = sanitizeObject(req.body?.state);
+    const operationId = sanitizeString(req.body?.operationId || '', 120);
     const lastKnownVersion = Number(req.body?.lastKnownVersion);
     if (!validateStatePayload(state)) {
       return res.status(400).json({ error: 'Invalid state payload' });
@@ -6561,6 +6786,26 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     }
 
     const currentDocument = await getStateDocument();
+    const actor = sanitizeString(req.session.email || '', 180).toLowerCase();
+    const operationReceiptKey = operationId ? `${actor}:state:${operationId}` : '';
+    const comparableState = { ...state };
+    ['savedAt', 'savedBy', 'savedByName', 'updatedAt', 'updatedBy', 'updatedByName', 'savedByClientId'].forEach((key) => delete comparableState[key]);
+    const operationFingerprint = operationId ? stableChecksum(comparableState) : '';
+    const existingReceipt = operationId
+      ? getMutationReceiptBucket(currentDocument.data, 'state').find((entry) => entry.key === operationReceiptKey)
+      : null;
+    if (existingReceipt) {
+      if (existingReceipt.fingerprint !== operationFingerprint) return res.status(409).json({ error: 'IDEMPOTENCY_KEY_REUSED' });
+      return res.json({
+        ok: true,
+        version: currentDocument.version,
+        updatedAt: currentDocument.updatedAt,
+        updatedBy: req.session.email,
+        updatedByName: getSessionDisplayName(req.session),
+        operationId,
+        deduplicated: true,
+      });
+    }
     if (Number(currentDocument.version) !== lastKnownVersion) {
       return sendVersionConflict(res, async () => buildPublicStatePayload(currentDocument, req.session));
     }
@@ -6689,6 +6934,11 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
     }
     
     const updatedAt = new Date().toISOString();
+    if (operationId) {
+      const receipts = getMutationReceiptBucket(mergedState, 'state');
+      receipts.push({ key: operationReceiptKey, fingerprint: operationFingerprint, createdAt: updatedAt });
+      if (receipts.length > MUTATION_RECEIPT_LIMIT) receipts.splice(0, receipts.length - MUTATION_RECEIPT_LIMIT);
+    }
     const savedDocument = await writeVersionedJsonFile(stateFile, {
       ...mergedState,
       savedAt: updatedAt,
@@ -6698,6 +6948,7 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       updatedBy: req.session.email,
       updatedByName: getSessionDisplayName(req.session),
       module: moduleKey,
+      savedByClientId: sanitizeString(req.get('x-client-instance-id') || '', 120) || null,
     }, {
       lastKnownVersion,
       fallbackValue: null,
@@ -6715,6 +6966,8 @@ apiRouter.post('/state', requireAdmin, async (req, res, next) => {
       updatedAt: savedDocument.updatedAt,
       updatedBy: req.session.email,
       updatedByName: getSessionDisplayName(req.session),
+      operationId: operationId || undefined,
+      deduplicated: false,
     });
   } catch (error) {
     if (error.statusCode) return res.status(error.statusCode).json({ error: error.message });
@@ -6956,7 +7209,7 @@ apiRouter.post('/upload', requireAdmin, upload.single('file'), async (req, res, 
       filename: fileInfo.originalName,
       size: fileInfo.size,
     });
-    res.json({ success: true, file: fileInfo });
+    res.json({ success: true, file: fileInfo, deduplicated: req.uploadDeduplicated === true });
   } catch (error) {
     next(error);
   }
@@ -7029,7 +7282,7 @@ apiRouter.post('/reports', requireAnyPermission(['canCreateReports', 'canApprove
   }
   const savedDocument = await mutateVersionedJsonFile(getReportsFilePath(site), [], (existingReports, documentInfo) => {
     if (!Number.isInteger(lastKnownVersion) || lastKnownVersion < 1) throw projectModules.accessError('VERSION_REQUIRED', 400);
-    if (Number(documentInfo.version) !== lastKnownVersion) throw new VersionConflictError(documentInfo);
+    if (Number(documentInfo.version) !== lastKnownVersion && stableChecksum(existingReports) !== stableChecksum(reports)) throw new VersionConflictError(documentInfo);
     const previousById = new Map((existingReports || []).map((report) => [String(report?.id || ''), report]));
     const nextIds = new Set(reports.map((report) => String(report?.id || '')));
     if (nextIds.size !== reports.length || nextIds.has('')) throw projectModules.accessError('INVALID_REPORT_IDS', 400);
@@ -7123,7 +7376,7 @@ apiRouter.post('/notifications', requireAnyPermission(['canManageNotifications',
     [],
     (existingNotifications, documentInfo) => {
       if (!Number.isInteger(lastKnownVersion) || lastKnownVersion < 1) throw projectModules.accessError('VERSION_REQUIRED', 400);
-      if (Number(documentInfo.version) !== lastKnownVersion) throw new VersionConflictError(documentInfo);
+      if (Number(documentInfo.version) !== lastKnownVersion && stableChecksum(existingNotifications) !== stableChecksum(notifications)) throw new VersionConflictError(documentInfo);
       if (
         !sessionHasPermission(req.session, 'canManageNotifications') &&
         !isDeleteOnlyNotificationsChange(existingNotifications, notifications)
@@ -7362,6 +7615,20 @@ apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single(
     if (parsed.error) return res.status(400).json({ error: parsed.error });
     const now = new Date().toISOString();
     const creatorEmail = sanitizeString(req.session.email || '', 160).toLowerCase();
+    const operationId = sanitizeString(req.body?.operationId || '', 120);
+    const operationReceiptKey = operationId ? `${creatorEmail}:${site}:${operationId}` : '';
+    const operationFingerprint = operationId ? stableChecksum({
+      site,
+      question: parsed.question,
+      answers: parsed.answers,
+      recipients: parsed.recipients,
+      privacy: parsed.privacy,
+      startAt: parsed.startAt.toISOString(),
+      endAt: parsed.endAt.toISOString(),
+      allowVoteChange: req.body?.allowVoteChange === true || req.body?.allowVoteChange === 'true',
+      imageName: sanitizeString(req.file?.originalname || '', 240),
+      imageSize: Number(req.file?.size || 0),
+    }) : '';
     const creatorRecord = (await readAdmins()).find((admin) => admin.email === creatorEmail);
     const creatorName = sanitizeString(
       creatorRecord?.fullName ||
@@ -7370,7 +7637,7 @@ apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single(
         creatorEmail,
       180,
     );
-    const survey = {
+    let survey = {
       id: `survey_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
       site,
       question: parsed.question,
@@ -7386,8 +7653,19 @@ apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single(
       createdByName: creatorName,
       votes: [],
     };
+    let deduplicated = false;
     const saved = await mutateVersionedJsonFile(stateFile, null, async (state) => {
       const nextState = normalizeRuntimeState(state);
+      const receipts = operationId ? getMutationReceiptBucket(nextState, 'surveyCreate') : [];
+      const receipt = operationId ? receipts.find((entry) => entry.key === operationReceiptKey) : null;
+      if (receipt) {
+        if (receipt.fingerprint !== operationFingerprint) throw projectModules.accessError('IDEMPOTENCY_KEY_REUSED', 409);
+        const existing = getSurveyListFromState(nextState, site).find((entry) => entry.id === receipt.surveyId);
+        if (!existing) throw new Error('SURVEY_IDEMPOTENCY_RECEIPT_BROKEN');
+        survey = existing;
+        deduplicated = true;
+        return nextState;
+      }
       nextState.siteData = nextState.siteData && typeof nextState.siteData === 'object' ? { ...nextState.siteData } : {};
       const currentEntry = nextState.siteData[site] && typeof nextState.siteData[site] === 'object' ? nextState.siteData[site] : {};
       const surveys = getSurveyListFromState(nextState, site).slice();
@@ -7400,10 +7678,15 @@ apiRouter.post('/surveys', requirePermission('canCreateSurveys'), upload.single(
       nextState.updatedBy = req.session.email;
       nextState.updatedByName = getSessionDisplayName(req.session);
       nextState.module = 'surveys';
+      if (operationId) {
+        receipts.push({ key: operationReceiptKey, fingerprint: operationFingerprint, surveyId: survey.id, createdAt: now });
+        if (receipts.length > MUTATION_RECEIPT_LIMIT) receipts.splice(0, receipts.length - MUTATION_RECEIPT_LIMIT);
+      }
       return nextState;
     });
-    await logActivity(req.session.email, 'survey_created', { site, surveyId: survey.id });
-    res.json({ ok: true, survey: redactSurveyForSession(survey, req.session, site), version: saved.version || 1 });
+    if (deduplicated && req.file?.path) fs.promises.unlink(req.file.path).catch(() => {});
+    if (!deduplicated) await logActivity(req.session.email, 'survey_created', { site, surveyId: survey.id });
+    res.json({ ok: true, survey: redactSurveyForSession(survey, req.session, site), version: saved.version || 1, operationId: operationId || undefined, deduplicated });
   } catch (error) {
     if (error instanceof SyntaxError) return res.status(400).json({ error: 'Invalid survey payload' });
     next(error);
@@ -7750,11 +8033,18 @@ apiRouter.post('/toolroom/assignments', requireAnyPermission(['canAssignTools', 
     const assignedAt = sanitizeString(body.assignedAt || new Date().toISOString().slice(0, 10), 80);
     const expectedReturnAt = sanitizeString(body.expectedReturnAt || '', 80);
     const note = sanitizeString(body.note || '', 500);
+    const operationId = sanitizeString(body.operationId || '', 120);
     let savedItem = null;
+    let deduplicated = false;
     await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
       let next = normalizeToolroomDocument(doc);
       const index = next.items.findIndex((item) => item.id === toolId);
       const existing = index >= 0 ? next.items[index] : null;
+      if (operationId && existing?.lastOperationId === operationId) {
+        savedItem = existing;
+        deduplicated = true;
+        return next;
+      }
       ensureToolroomAssignable(existing);
       savedItem = {
         ...existing,
@@ -7770,6 +8060,7 @@ apiRouter.post('/toolroom/assignments', requireAnyPermission(['canAssignTools', 
         itemVersion: Number(existing.itemVersion || 1) + 1,
         updatedAt: new Date().toISOString(),
         updatedBy: sanitizeString(req.session.email || '', 160),
+        lastOperationId: operationId,
       };
       next.items[index] = savedItem;
       next = appendToolroomAssignment(next, {
@@ -7806,17 +8097,17 @@ apiRouter.post('/toolroom/assignments', requireAnyPermission(['canAssignTools', 
       next.updatedAt = new Date().toISOString();
       return next;
     });
-    if (savedItem.currentHolderType === 'worker' && savedItem.currentHolderUserEmail) {
+    if (!deduplicated && savedItem.currentHolderType === 'worker' && savedItem.currentHolderUserEmail) {
       await appendAccountNotificationForUsers([savedItem.currentHolderUserEmail], buildToolroomNotification('assigned', savedItem, `${savedItem.name} je zaduzen na vas.`));
-    } else if (savedItem.currentHolderType === 'site' && savedItem.currentHolderSiteId) {
+    } else if (!deduplicated && savedItem.currentHolderType === 'site' && savedItem.currentHolderSiteId) {
       const siteRecipients = admins
         .map((admin) => normalizeAdminRecord(admin))
         .filter((admin) => admin.email && admin.email !== req.session.email && admin.active !== false && adminHasSiteAccess(admin, savedItem.currentHolderSiteId))
         .map((admin) => admin.email);
       await appendAccountNotificationForUsers(siteRecipients, buildToolroomNotification('assigned', savedItem, `${savedItem.name} je zaduzen na gradiliste ${savedItem.currentHolderSiteId}.`));
     }
-    await logActivity(req.session.email, 'toolroom_tool_assigned', { toolId, holderType: savedItem.currentHolderType, holder: getToolroomHolderLabel(savedItem) });
-    res.json({ ok: true, item: savedItem });
+    if (!deduplicated) await logActivity(req.session.email, 'toolroom_tool_assigned', { toolId, holderType: savedItem.currentHolderType, holder: getToolroomHolderLabel(savedItem) });
+    res.json({ ok: true, item: savedItem, operationId: operationId || undefined, deduplicated });
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);
@@ -7831,15 +8122,22 @@ apiRouter.post('/toolroom/returns', requireAnyPermission(['canReturnTools', 'can
     const condition = sanitizeString(body.condition || 'ok', 80);
     const returnedAt = sanitizeString(body.returnedAt || new Date().toISOString().slice(0, 10), 80);
     const note = sanitizeString(body.note || '', 500);
+    const operationId = sanitizeString(body.operationId || '', 120);
     const allowed = new Set(['ok', 'damaged', 'not_returned', 'lost']);
     if (!allowed.has(condition)) return res.status(400).json({ error: 'TOOLROOM_RETURN_CONDITION_INVALID' });
     let savedItem = null;
     let previousHolderEmail = '';
+    let deduplicated = false;
     await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
       let next = normalizeToolroomDocument(doc);
       const index = next.items.findIndex((item) => item.id === toolId && !item.archived);
       if (index < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
       const existing = next.items[index];
+      if (operationId && existing.lastOperationId === operationId) {
+        savedItem = existing;
+        deduplicated = true;
+        return next;
+      }
       if (!['worker', 'site'].includes(existing.currentHolderType) && !['assigned_worker', 'assigned_site', 'awaiting_return'].includes(existing.status)) {
         const error = new Error('TOOLROOM_ITEM_NOT_ASSIGNED');
         error.statusCode = 400;
@@ -7866,6 +8164,7 @@ apiRouter.post('/toolroom/returns', requireAnyPermission(['canReturnTools', 'can
         itemVersion: Number(existing.itemVersion || 1) + 1,
         updatedAt: new Date().toISOString(),
         updatedBy: sanitizeString(req.session.email || '', 160),
+        lastOperationId: operationId,
       };
       next.items[index] = savedItem;
       next = appendToolroomAssignment(next, {
@@ -7901,11 +8200,11 @@ apiRouter.post('/toolroom/returns', requireAnyPermission(['canReturnTools', 'can
       next.updatedAt = new Date().toISOString();
       return next;
     });
-    if (previousHolderEmail) {
+    if (!deduplicated && previousHolderEmail) {
       await appendAccountNotificationForUsers([previousHolderEmail], buildToolroomNotification('returned', savedItem, `${savedItem.name} je razduzen. Status: ${savedItem.status}.`));
     }
-    await logActivity(req.session.email, 'toolroom_tool_returned', { toolId, condition, status: savedItem.status });
-    res.json({ ok: true, item: savedItem });
+    if (!deduplicated) await logActivity(req.session.email, 'toolroom_tool_returned', { toolId, condition, status: savedItem.status });
+    res.json({ ok: true, item: savedItem, operationId: operationId || undefined, deduplicated });
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);
@@ -7923,13 +8222,21 @@ apiRouter.post('/toolroom/transfers', requireAnyPermission(['canAssignTools', 'c
     const assignedAt = sanitizeString(body.assignedAt || new Date().toISOString().slice(0, 10), 80);
     const expectedReturnAt = sanitizeString(body.expectedReturnAt || '', 80);
     const note = sanitizeString(body.note || '', 500);
+    const operationId = sanitizeString(body.operationId || '', 120);
     let savedItem = null;
     let previousHolder = '';
+    let deduplicated = false;
     await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
       let next = normalizeToolroomDocument(doc);
       const index = next.items.findIndex((item) => item.id === toolId && !item.archived);
       if (index < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
       const existing = next.items[index];
+      if (operationId && existing.lastOperationId === operationId) {
+        savedItem = existing;
+        previousHolder = getToolroomHolderLabel(existing);
+        deduplicated = true;
+        return next;
+      }
       if (!['worker', 'site'].includes(existing.currentHolderType)) {
         const error = new Error('TOOLROOM_ITEM_NOT_ASSIGNED');
         error.statusCode = 400;
@@ -7950,6 +8257,7 @@ apiRouter.post('/toolroom/transfers', requireAnyPermission(['canAssignTools', 'c
         itemVersion: Number(existing.itemVersion || 1) + 1,
         updatedAt: new Date().toISOString(),
         updatedBy: sanitizeString(req.session.email || '', 160),
+        lastOperationId: operationId,
       };
       next.items[index] = savedItem;
       next = appendToolroomAssignment(next, {
@@ -7988,17 +8296,17 @@ apiRouter.post('/toolroom/transfers', requireAnyPermission(['canAssignTools', 'c
       next.updatedAt = new Date().toISOString();
       return next;
     });
-    if (savedItem.currentHolderType === 'worker' && savedItem.currentHolderUserEmail) {
+    if (!deduplicated && savedItem.currentHolderType === 'worker' && savedItem.currentHolderUserEmail) {
       await appendAccountNotificationForUsers([savedItem.currentHolderUserEmail], buildToolroomNotification('transferred', savedItem, `${savedItem.name} je prebacen na vas.`));
-    } else if (savedItem.currentHolderType === 'site' && savedItem.currentHolderSiteId) {
+    } else if (!deduplicated && savedItem.currentHolderType === 'site' && savedItem.currentHolderSiteId) {
       const siteRecipients = admins
         .map((admin) => normalizeAdminRecord(admin))
         .filter((admin) => admin.email && admin.email !== req.session.email && admin.active !== false && adminHasSiteAccess(admin, savedItem.currentHolderSiteId))
         .map((admin) => admin.email);
       await appendAccountNotificationForUsers(siteRecipients, buildToolroomNotification('transferred', savedItem, `${savedItem.name} je prebacen na gradiliste ${savedItem.currentHolderSiteId}.`));
     }
-    await logActivity(req.session.email, 'toolroom_tool_transferred', { toolId, from: previousHolder, to: getToolroomHolderLabel(savedItem) });
-    res.json({ ok: true, item: savedItem });
+    if (!deduplicated) await logActivity(req.session.email, 'toolroom_tool_transferred', { toolId, from: previousHolder, to: getToolroomHolderLabel(savedItem) });
+    res.json({ ok: true, item: savedItem, operationId: operationId || undefined, deduplicated });
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);
@@ -8033,14 +8341,24 @@ apiRouter.post('/toolroom/faults', requireAnyPermission(['canReportToolFault', '
     const comment = sanitizeString(body.comment || '', 1000);
     const attachmentUrl = sanitizeString(body.attachmentUrl || '', 500);
     const replacementRequested = body.replacementRequested === true;
+    const operationId = sanitizeString(body.operationId || '', 100);
+    const faultId = operationId ? `fault_${operationId}` : createToolroomId('fault');
     const admins = await readAdmins();
     let savedFault = null;
     let savedItem = null;
+    let deduplicated = false;
     await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
       let next = normalizeToolroomDocument(doc);
       const index = next.items.findIndex((item) => item.id === toolId && !item.archived);
       if (index < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
       const existing = next.items[index];
+      const previousFault = next.faults.find((fault) => fault.id === faultId);
+      if (previousFault) {
+        savedFault = previousFault;
+        savedItem = existing;
+        deduplicated = true;
+        return next;
+      }
       if (!canUserAccessToolForFault(req.session, existing, activeSite)) {
         const error = new Error('TOOLROOM_FAULT_TOOL_FORBIDDEN');
         error.statusCode = 403;
@@ -8060,7 +8378,7 @@ apiRouter.post('/toolroom/faults', requireAnyPermission(['canReportToolFault', '
       };
       next.items[index] = savedItem;
       savedFault = {
-        id: createToolroomId('fault'),
+        id: faultId,
         toolId,
         status: 'reported',
         faultType: faultType || 'Ostalo',
@@ -8090,9 +8408,9 @@ apiRouter.post('/toolroom/faults', requireAnyPermission(['canReportToolFault', '
       next.updatedAt = new Date().toISOString();
       return next;
     });
-    await appendAccountNotificationForUsers(getToolroomManagers(admins, req.session.email), buildToolroomNotification('fault', savedItem, `${savedItem.internalNumber}: nova prijava kvara${replacementRequested ? ' i zahtjev za zamjenu' : ''}.`));
-    await logActivity(req.session.email, 'toolroom_fault_reported', { toolId, faultId: savedFault.id, replacementRequested });
-    res.json({ ok: true, fault: savedFault, item: savedItem });
+    if (!deduplicated) await appendAccountNotificationForUsers(getToolroomManagers(admins, req.session.email), buildToolroomNotification('fault', savedItem, `${savedItem.internalNumber}: nova prijava kvara${replacementRequested ? ' i zahtjev za zamjenu' : ''}.`));
+    if (!deduplicated) await logActivity(req.session.email, 'toolroom_fault_reported', { toolId, faultId: savedFault.id, replacementRequested });
+    res.json({ ok: true, fault: savedFault, item: savedItem, operationId: operationId || undefined, deduplicated });
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);
@@ -8223,10 +8541,13 @@ apiRouter.post('/toolroom/service', requireAnyPermission(['canHandleToolService'
     if (req.session.isReadonly || !canHandleToolService(req.session)) return res.status(403).json({ error: 'FORBIDDEN' });
     const body = sanitizeObject(req.body || {});
     const faultId = sanitizeString(body.faultId || '', 120);
+    const operationId = sanitizeString(body.operationId || '', 100);
+    const serviceId = operationId ? `service_${operationId}` : createToolroomId('service');
     if (!faultId) return res.status(400).json({ error: 'TOOLROOM_FAULT_ID_REQUIRED' });
     let savedService = null;
     let savedFault = null;
     let savedItem = null;
+    let deduplicated = false;
     await mutateVersionedJsonFile(toolroomFile, createEmptyToolroomDocument(), async (doc) => {
       let next = normalizeToolroomDocument(doc);
       const faultIndex = next.faults.findIndex((fault) => fault.id === faultId);
@@ -8235,8 +8556,16 @@ apiRouter.post('/toolroom/service', requireAnyPermission(['canHandleToolService'
       const itemIndex = next.items.findIndex((item) => item.id === fault.toolId && !item.archived);
       if (itemIndex < 0) { const error = new Error('TOOLROOM_ITEM_NOT_FOUND'); error.statusCode = 404; throw error; }
       const item = next.items[itemIndex];
+      const previousService = next.serviceRecords.find((record) => record.id === serviceId);
+      if (previousService) {
+        savedService = previousService;
+        savedFault = fault;
+        savedItem = item;
+        deduplicated = true;
+        return next;
+      }
       savedService = {
-        id: createToolroomId('service'),
+        id: serviceId,
         faultId,
         toolId: item.id,
         status: 'in_service',
@@ -8269,11 +8598,11 @@ apiRouter.post('/toolroom/service', requireAnyPermission(['canHandleToolService'
       });
       return next;
     });
-    if (savedFault.reporterEmail) {
+    if (!deduplicated && savedFault.reporterEmail) {
       await appendAccountNotificationForUsers([savedFault.reporterEmail], buildToolroomNotification('service', savedItem, `${savedItem.internalNumber} je poslan na servis.`));
     }
-    await logActivity(req.session.email, 'toolroom_service_sent', { faultId, serviceId: savedService.id, toolId: savedItem.id });
-    res.json({ ok: true, fault: savedFault, item: savedItem, service: savedService });
+    if (!deduplicated) await logActivity(req.session.email, 'toolroom_service_sent', { faultId, serviceId: savedService.id, toolId: savedItem.id });
+    res.json({ ok: true, fault: savedFault, item: savedItem, service: savedService, operationId: operationId || undefined, deduplicated });
   } catch (error) {
     if (error?.statusCode) return res.status(error.statusCode).json({ error: error.message });
     next(error);

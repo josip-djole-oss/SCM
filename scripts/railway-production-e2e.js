@@ -60,11 +60,18 @@ async function getState(session) {
   assert(body && body.state && Number(body.version) >= 1, "State response is incomplete");
   return body;
 }
-async function saveModule(session, target, site, payloadBody) {
+async function saveModule(session, target, site, payloadBody, options = {}) {
   const current = await getState(session);
   const versions = current.state.moduleVersions || {};
   const baseVersion = target === "adminUsers" ? Number(versions.adminUsers || 1) : Number(versions[target]?.[site] || 1);
-  return session.ok("/api/state/module", { method: "POST", json: { target, site, baseVersion, payload: payloadBody } });
+  const operationId = options.operationId || `railway-module-${crypto.randomUUID()}`;
+  const request = { target, site, baseVersion, operationId, payload: payloadBody };
+  const first = await session.ok("/api/state/module", { method: "POST", json: request });
+  if (!options.verifyRetry) return first;
+  const retry = await session.ok("/api/state/module", { method: "POST", json: request });
+  assert(retry.deduplicated === true, `${target} retry was not deduplicated`);
+  assert(retry.moduleVersion === first.moduleVersion, `${target} retry advanced the module version`);
+  return first;
 }
 async function configureModules(session, site, modules) {
   const current = await session.ok(`/api/projects/${encodeURIComponent(site)}/modules`);
@@ -220,28 +227,62 @@ async function prepare() {
   const date = new Date().toISOString().slice(0, 10);
   await admin.ok(`/api/planner/${encodeURIComponent(siteA)}/${date}/rows/${encodeURIComponent(`row-${runId}`)}`, { method: "PATCH", json: { changedFields: { worker: marker, task: "Railway validation" }, baseFieldVersions: {} } });
   await admin.ok(`/api/tidplan/${encodeURIComponent(siteA)}/activities/${encodeURIComponent(`activity-${runId}`)}`, { method: "PATCH", json: { changedFields: { title: marker, startDate: date, endDate: date }, baseFieldVersions: {} } });
-  await saveModule(admin, "bins", siteA, { bins: { rows: [{ id: `bin-${runId}`, name: marker, quantity: 1 }] } });
-  await saveModule(admin, "warehouse", siteA, { warehouse: { catalog: [{ id: `warehouse-${runId}`, name: marker }], stock: { [`warehouse-${runId}`]: 7 }, logs: [{ id: `warehouse-log-${runId}`, action: marker }] } });
+  await saveModule(admin, "bins", siteA, { bins: { rows: [{ id: `bin-${runId}`, name: marker, quantity: 1 }] } }, { operationId: `module-retry-${runId}`, verifyRetry: true });
+  const warehouseItemId = `warehouse-${runId}`;
+  await saveModule(admin, "warehouse", siteA, { warehouse: { catalog: [{ id: warehouseItemId, name: marker }], stock: { [warehouseItemId]: { current: 7, totalIssued: 0, totalReceived: 7 } }, logs: [{ id: `warehouse-log-${runId}`, action: marker }] } });
+  const warehouseOperation = {
+    operationId: `warehouse-retry-${runId}`,
+    type: "stock",
+    direction: "in",
+    worker: "",
+    comment: marker,
+    items: [{ itemId: warehouseItemId, quantity: 10 }],
+  };
+  const warehouseFirst = await admin.ok(`/api/warehouse/${encodeURIComponent(siteA)}/movements`, { method: "POST", json: warehouseOperation });
+  const warehouseRetry = await admin.ok(`/api/warehouse/${encodeURIComponent(siteA)}/movements`, { method: "POST", json: warehouseOperation });
+  assert(warehouseRetry.deduplicated === true, "Warehouse retry was not deduplicated");
+  assert(warehouseRetry.moduleVersion === warehouseFirst.moduleVersion, "Warehouse retry advanced the module version");
+  assert(warehouseRetry.warehouse?.stock?.[warehouseItemId]?.current === 17, "Warehouse +10 retry did not leave authoritative stock at 17");
+  assert(warehouseRetry.warehouse.logs.filter((entry) => entry.id === `wh_${warehouseOperation.operationId}_0`).length === 1, "Warehouse retry created duplicate log entries");
   const productId = `product-${runId}`;
   await saveModule(admin, "storeCatalog", siteA, { store: { products: [{ id: productId, name: marker, price: 1, sizes: ["M"], active: true }], orders: [], carts: {}, workerProfiles: {}, creditLedger: [], auditLog: [], settings: {} } });
-  const order = await collaboratorSession.ok("/api/store/orders", { method: "POST", json: { site: siteA, order: { workerComment: marker, items: [{ productId, size: "M", quantity: 1 }] } } });
+  const orderOperationId = `store-order-${runId}`;
+  const order = await collaboratorSession.ok("/api/store/orders", { method: "POST", json: { site: siteA, operationId: orderOperationId, order: { operationId: orderOperationId, workerComment: marker, items: [{ productId, size: "M", quantity: 1 }] } } });
   assert(order.order && order.serverPriced === true, "Store order was not authoritatively server-priced");
+  const orderRetry = await collaboratorSession.ok("/api/store/orders", { method: "POST", json: { site: siteA, operationId: orderOperationId, order: { operationId: orderOperationId, workerComment: marker, items: [{ productId, size: "M", quantity: 1 }] } } });
+  assert(orderRetry.deduplicated === true && orderRetry.order?.id === order.order.id, "Store retry did not return the original order");
 
   const reportsBefore = await admin.ok(`/api/reports?site=${encodeURIComponent(siteA)}`);
-  await admin.ok("/api/reports", { method: "POST", json: { site: siteA, lastKnownVersion: reportsBefore.version, reports: [...reportsBefore.reports, { id: `report-${runId}`, title: marker, status: "open", createdAt: new Date().toISOString() }] } });
+  const reportsMutation = { site: siteA, lastKnownVersion: reportsBefore.version, reports: [...reportsBefore.reports, { id: `report-${runId}`, title: marker, status: "open", createdAt: new Date().toISOString() }] };
+  const reportSaved = await admin.ok("/api/reports", { method: "POST", json: reportsMutation });
+  const reportRetry = await admin.ok("/api/reports", { method: "POST", json: reportsMutation });
+  assert(reportRetry.version === reportSaved.version, "Report retry advanced the version");
   const notificationsBefore = await admin.ok(`/api/notifications?site=${encodeURIComponent(siteA)}`);
-  await admin.ok("/api/notifications", { method: "POST", json: { site: siteA, lastKnownVersion: notificationsBefore.version, notifications: [...notificationsBefore.notifications, { id: `notification-${runId}`, title: marker, message: marker, createdAt: new Date().toISOString() }] } });
-  const chat = await collaboratorSession.ok(`/api/site-chat/${encodeURIComponent(siteA)}/messages`, { method: "POST", json: { text: marker, attachments: [] } });
+  const notificationsMutation = { site: siteA, lastKnownVersion: notificationsBefore.version, notifications: [...notificationsBefore.notifications, { id: `notification-${runId}`, title: marker, message: marker, createdAt: new Date().toISOString() }] };
+  const notificationSaved = await admin.ok("/api/notifications", { method: "POST", json: notificationsMutation });
+  const notificationRetry = await admin.ok("/api/notifications", { method: "POST", json: notificationsMutation });
+  assert(notificationRetry.version === notificationSaved.version, "Notification retry advanced the version");
+  const chatDraft = { clientId: `chat-${runId}`, text: marker, attachments: [] };
+  const chat = await collaboratorSession.ok(`/api/site-chat/${encodeURIComponent(siteA)}/messages`, { method: "POST", json: chatDraft });
   assert(chat.message?.text === marker, "Chat save did not return marker");
+  const chatRetry = await collaboratorSession.ok(`/api/site-chat/${encodeURIComponent(siteA)}/messages`, { method: "POST", json: chatDraft });
+  assert(chatRetry.deduplicated === true && chatRetry.message?.id === chat.message.id, "Chat retry did not return the original message");
 
-  const form = new FormData();
-  form.set("site", siteA); form.set("module", "reports");
   const uploadText = `SCM Railway persistent upload ${marker}\n`;
-  form.set("file", new Blob([uploadText], { type: "text/plain" }), `railway-${runId}.txt`);
-  const upload = await admin.request("/api/upload", { method: "POST", body: form });
+  const uploadOperationId = `upload-retry-${runId}`;
+  const createUploadForm = () => {
+    const form = new FormData();
+    form.set("site", siteA); form.set("module", "reports"); form.set("operationId", uploadOperationId);
+    form.set("file", new Blob([uploadText], { type: "text/plain" }), `railway-${runId}.txt`);
+    return form;
+  };
+  const uploadPath = `/api/upload?operationId=${encodeURIComponent(uploadOperationId)}`;
+  const upload = await admin.request(uploadPath, { method: "POST", body: createUploadForm() });
   if (!upload.response.ok) throw new Error(`Upload ${upload.response.status}: ${JSON.stringify(upload.payload)}`);
   const uploadUrl = upload.payload.file?.url;
   assert(uploadUrl, "Upload response has no URL");
+  const uploadRetry = await admin.request(uploadPath, { method: "POST", body: createUploadForm() });
+  assert(uploadRetry.response.ok && uploadRetry.payload.deduplicated === true && uploadRetry.payload.file?.url === uploadUrl, "Upload retry did not return the original persistent file");
   const list = await admin.ok(`/api/files?site=${encodeURIComponent(siteA)}&module=reports`);
   assert(list.files.some((file) => file.url === uploadUrl), "Upload metadata is absent from authoritative file list");
   const adminDownload = await admin.request(uploadUrl);
@@ -282,9 +323,14 @@ async function prepare() {
   assert(notificationAfter.notifications.some((x) => x.id === `notification-${runId}`), "Notification did not survive reload");
   assert(chatAfter.messages.some((x) => x.text === marker), "Chat did not survive reload");
   assert(ordersAfter.orders.some((x) => x.id === order.order.id), "Store order did not survive reload");
+  assert(chatAfter.messages.filter((x) => x.clientId === chatDraft.clientId).length === 1, "Chat retry created a duplicate message");
+  assert(ordersAfter.orders.filter((x) => x.id === order.order.id).length === 1, "Store retry created a duplicate order");
+  const warehouseAfter = authoritative.state.siteData?.[siteA]?.warehouse;
+  assert(warehouseAfter?.stock?.[warehouseItemId]?.current === 17, "Warehouse authoritative stock is not 17 after retry");
+  assert(warehouseAfter.logs.filter((entry) => entry.id === `wh_${warehouseOperation.operationId}_0`).length === 1, "Warehouse authoritative log contains a duplicate movement");
 
   const browser = await browserProof({ runId }, { email: adminEmail, password: adminPassword, cookie: admin.cookie }, collaborator, siteA, siteB);
-  const context = { runId, baseUrl: BASE, siteA, siteB, marker, date, productId, orderId: order.order.id, uploadUrl, uploadText, backupId, admin: { email: adminEmail, password: adminPassword }, collaborator, outsider, restricted, oldCookies: { admin: admin.cookie, collaborator: collaboratorSession.cookie }, browser };
+  const context = { runId, baseUrl: BASE, siteA, siteB, marker, date, productId, orderId: order.order.id, chatClientId: chatDraft.clientId, warehouseItemId, warehouseOperationId: warehouseOperation.operationId, uploadUrl, uploadText, backupId, admin: { email: adminEmail, password: adminPassword }, collaborator, outsider, restricted, oldCookies: { admin: admin.cookie, collaborator: collaboratorSession.cookie }, browser };
   fs.mkdirSync(path.dirname(CONTEXT_FILE), { recursive: true });
   fs.writeFileSync(CONTEXT_FILE, JSON.stringify(context, null, 2), { mode: 0o600 });
   process.stdout.write(`${JSON.stringify({ ok: true, phase: "prepare", runId, siteA, siteB, uploadUrl, backupId, checks: { loginSession: true, projectSwitching: true, modulesAndProtection: true, realtimeApiAndFrontend: true, planner: true, tidplan: true, sompturnor: true, warehouse: true, store: true, chat: true, reports: true, notifications: true, permissionsAndSuperAdmin: true, uploadAuthorization: true, browser, backupAndDryRun: true } }, null, 2)}\n`);
@@ -307,8 +353,11 @@ async function verify() {
   const orders = await collaborator.ok(`/api/store/orders?site=${encodeURIComponent(ctx.siteA)}`);
   assert(report.reports.some((x) => x.id === `report-${ctx.runId}`), "Report missing after restart");
   assert(notification.notifications.some((x) => x.id === `notification-${ctx.runId}`), "Notification missing after restart");
-  assert(chat.messages.some((x) => x.text === ctx.marker), "Chat missing after restart");
-  assert(orders.orders.some((x) => x.id === ctx.orderId), "Store order missing after restart");
+  assert(chat.messages.filter((x) => x.clientId === ctx.chatClientId).length === 1, "Chat missing or duplicated after restart");
+  assert(orders.orders.filter((x) => x.id === ctx.orderId).length === 1, "Store order missing or duplicated after restart");
+  const warehouse = state.state.siteData?.[ctx.siteA]?.warehouse;
+  assert(warehouse?.stock?.[ctx.warehouseItemId]?.current === 17, "Warehouse stock did not remain exactly 17 after restart");
+  assert(warehouse.logs.filter((entry) => entry.id === `wh_${ctx.warehouseOperationId}_0`).length === 1, "Warehouse movement duplicated after restart");
   const list = await admin.ok(`/api/files?site=${encodeURIComponent(ctx.siteA)}&module=reports`);
   assert(list.files.some((file) => file.url === ctx.uploadUrl), "Upload metadata missing after restart");
   const download = await collaborator.request(ctx.uploadUrl);

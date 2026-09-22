@@ -72,7 +72,7 @@ function workwearApiSaveOrder(order) {
     return fetch("/api/store/orders", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ site, order }),
+      body: JSON.stringify({ site, operationId: order?.operationId, order }),
     })
       .then((res) => workwearApiParseResponse(res, "STORE_ORDER_SAVE_FAILED"))
       .then((payload) => {

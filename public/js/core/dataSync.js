@@ -748,6 +748,11 @@ var moduleSyncTimeouts = {};
 var moduleSyncInFlight = {};
 var pendingModuleSaves = {};
 var moduleSaveFailures = {};
+var moduleMutationOperations = {};
+
+function createMutationOperationId(prefix = "mutation") {
+  return globalThis.crypto?.randomUUID?.() || `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
 
 function getModuleStateVersion(target, site = currentSite) {
   const versions = moduleStateVersions && typeof moduleStateVersions === "object" ? moduleStateVersions : {};
@@ -809,11 +814,17 @@ async function syncModuleState(target, payload = null, options = {}) {
   const context = captureAppContext();
   const requestPayload = JSON.parse(JSON.stringify(payload || createModuleStatePayload(target)));
   const key = target === "adminUsers" ? target : `${target}:${siteId}`;
+  const fingerprint = JSON.stringify(requestPayload);
+  const previousOperation = moduleMutationOperations[key];
+  const operationId = options.operationId || (previousOperation?.fingerprint === fingerprint
+    ? previousOperation.operationId
+    : createMutationOperationId("module"));
+  moduleMutationOperations[key] = { fingerprint, operationId };
   if (moduleSyncInFlight[key]) {
     await moduleSyncInFlight[key];
     if (!isAppContextCurrent(context)) return false;
     if (moduleSaveFailures[key]) return false;
-    return syncModuleState(target, requestPayload, { ...options, siteId });
+    return syncModuleState(target, requestPayload, { ...options, siteId, operationId });
   }
   const saveRevision = Number(appState.editRevision) || 0;
   const promise = Promise.resolve().then(async () => {
@@ -821,7 +832,7 @@ async function syncModuleState(target, payload = null, options = {}) {
       const res = await fetch("/api/state/module", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, siteId, baseVersion: options.baseVersion || getModuleStateVersion(target, siteId), payload: requestPayload }),
+        body: JSON.stringify({ target, siteId, operationId, baseVersion: options.baseVersion || getModuleStateVersion(target, siteId), payload: requestPayload }),
       });
       const response = await res.json();
       if (!res.ok) {
@@ -838,8 +849,9 @@ async function syncModuleState(target, payload = null, options = {}) {
       if (response.version) serverStateVersion = Number(response.version);
       if (response.admins && target === "adminUsers") setCachedStorageJson(ADMINS_KEY, response.admins);
       delete moduleSaveFailures[key];
+      if (moduleMutationOperations[key]?.operationId === operationId) delete moduleMutationOperations[key];
       if (["planner", "tidplan", "bins"].includes(target) && !pendingModuleSaves[key] && saveRevision === (Number(appState.editRevision) || 0)
-          && stableJson(requestPayload) === stableJson(createModuleStatePayload(target))) {
+          && JSON.stringify(requestPayload) === JSON.stringify(createModuleStatePayload(target))) {
         if (target === "tidplan") tidplanDataChanged = false;
         if (target === "planner" && typeof markClean === "function") markClean();
       }
@@ -1064,7 +1076,7 @@ async function flushPendingModuleSaves() {
     if (isAppContextCurrent(queued.context)) jobs.push(syncModuleState(queued.target, queued.payload, queued.options));
   });
   const results = await Promise.all(jobs);
-  return results.every((saved) => saved === true) && !Object.keys(moduleSaveFailures).length;
+  return results.every((saved) => saved === true);
 }
 
 function stopServerSync() {
@@ -1073,6 +1085,7 @@ function stopServerSync() {
   moduleSyncTimeouts = {};
   pendingModuleSaves = {};
   moduleSaveFailures = {};
+  moduleMutationOperations = {};
   moduleSyncInFlight = {};
   serverSyncTimeout = null;
   serverSyncInFlight = null;

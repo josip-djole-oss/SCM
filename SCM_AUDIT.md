@@ -2,6 +2,16 @@
 
 Audit and remediation completed locally on 2026-09-21. Production data was not connected, changed or deleted. Validation used isolated temporary data directories, upload directories, browser profiles and test accounts.
 
+## 2026-09-22 mutation/conflict/retry reliability continuation
+
+The exhaustive user-action audit is recorded in [SCM_MUTATION_RELIABILITY.md](SCM_MUTATION_RELIABILITY.md). It supersedes earlier assumptions that a successful functional suite alone proved safe retry behavior.
+
+Confirmed root causes were stale client module versions after a committed response was lost, optimistic Warehouse arithmetic before acknowledgement, transient Warehouse form fields being saved as whole-module mutations, historical failure flags poisoning unrelated flushes, reconnect turning a pending-save error into the global retry screen, and missing browser-instance identity on realtime events.
+
+Implemented fixes include atomic operation receipts for state/module, Warehouse movements, Store orders, full-state saves and survey creation; server-authoritative Warehouse arithmetic; idempotent same-value entity retries; equivalent-snapshot retries for Reports and Notifications; operation IDs for Chat, Toolroom and uploads; self-event filtering; and local handling of expected save failures.
+
+Local evidence is `PASS` for both reported regressions and the expanded mutation matrix. New Railway evidence remains `NOT VERIFIED` until the updated commit is deployed and exercised with dedicated production-safe records. Railway must remain at one replica.
+
 ## System inventory
 
 SCM is an Express server with an ordered-script browser application. Authentication uses server sessions, HttpOnly cookies and CSRF protection. `server/storage/index.js` provides versioned JSON and PostgreSQL document backends. Browser storage is now treated as a cache and preferences layer; it does not authorize access or establish that a server mutation succeeded.

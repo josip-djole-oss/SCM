@@ -68,6 +68,29 @@ function createUploadService({ uploadsDir, authorize, authorizeLegacy, maxBytes 
   const metadataPath = (relative) => path.join(metadataRoot, `${crypto.createHash('sha256').update(relative).digest('hex')}.json`);
   const urlFor = (filePath) => `/uploads/${path.relative(root, filePath).split(path.sep).map(encodeURIComponent).join('/')}`;
   const relativeFor = (filePath) => path.relative(root, filePath).split(path.sep).join('/');
+  const operationLocks = new Map();
+
+  async function withOperationLock(key, operation) {
+    const previous = operationLocks.get(key) || Promise.resolve();
+    const next = previous.catch(() => {}).then(operation);
+    const tail = next.then(() => undefined, () => undefined).finally(() => {
+      if (operationLocks.get(key) === tail) operationLocks.delete(key);
+    });
+    operationLocks.set(key, tail);
+    return next;
+  }
+
+  async function findOperationUpload(operationId, context, owner) {
+    if (!operationId || !fs.existsSync(metadataRoot)) return null;
+    for (const filename of await fs.promises.readdir(metadataRoot)) {
+      if (!filename.endsWith('.json')) continue;
+      const metadata = JSON.parse(await fs.promises.readFile(path.join(metadataRoot, filename), 'utf8'));
+      if (metadata.operationId === operationId && metadata.site === context.site && metadata.module === context.module && metadata.owner === owner) {
+        return metadata;
+      }
+    }
+    return null;
+  }
 
   function cleanup(file) {
     if (!file?.path || !isWithin(root, file.path)) return;
@@ -115,19 +138,35 @@ function createUploadService({ uploadsDir, authorize, authorizeLegacy, maxBytes 
             if (!req.file) return next();
             const file = req.file;
             file.mimetype = verifyFileContent(file);
-            const relative = relativeFor(file.path);
-            const metadata = {
-              version: 1, relative, site: context.site, module: context.module,
-              owner: req.session.email, originalName: file.originalname,
-              mimetype: file.mimetype, size: file.size, uploadedAt: new Date().toISOString(),
-              temporary: context.temporary,
-            };
-            atomicWriteJson(metadataPath(relative), metadata);
-            // Reopen after close/flush and metadata persistence before reporting upload completion.
-            await fs.promises.access(file.path, fs.constants.R_OK);
-            file.uploadMetadata = metadata;
-            res.once('finish', () => {
-              if (context.temporary || (res.statusCode >= 400 && res.statusCode < 500)) cleanup(file);
+            const operationId = String(req.query?.operationId || req.body?.operationId || req.get('x-idempotency-key') || '').trim().slice(0, 120);
+            const lockKey = operationId ? `${req.session.email}:${context.site}:${context.module}:${operationId}` : crypto.randomUUID();
+            await withOperationLock(lockKey, async () => {
+              const existing = await findOperationUpload(operationId, context, req.session.email);
+              if (existing) {
+                if (existing.originalName !== file.originalname || Number(existing.size) !== Number(file.size) || existing.mimetype !== file.mimetype) {
+                  throw uploadError('IDEMPOTENCY_KEY_REUSED', 409);
+                }
+                cleanup(file);
+                const existingPath = path.resolve(root, existing.relative);
+                await fs.promises.access(existingPath, fs.constants.R_OK);
+                req.file = { ...file, path: existingPath, filename: path.basename(existingPath), size: existing.size, mimetype: existing.mimetype, originalname: existing.originalName, uploadMetadata: existing };
+                req.uploadDeduplicated = true;
+                return;
+              }
+              const relative = relativeFor(file.path);
+              const metadata = {
+                version: 1, relative, site: context.site, module: context.module,
+                owner: req.session.email, originalName: file.originalname,
+                mimetype: file.mimetype, size: file.size, uploadedAt: new Date().toISOString(),
+                temporary: context.temporary, operationId: operationId || null,
+              };
+              atomicWriteJson(metadataPath(relative), metadata);
+              // Reopen after close/flush and metadata persistence before reporting upload completion.
+              await fs.promises.access(file.path, fs.constants.R_OK);
+              file.uploadMetadata = metadata;
+              res.once('finish', () => {
+                if (context.temporary || (res.statusCode >= 400 && res.statusCode < 500)) cleanup(file);
+              });
             });
             next();
           } catch (failure) { cleanup(req.file); next(failure); }

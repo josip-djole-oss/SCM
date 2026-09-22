@@ -235,12 +235,17 @@ function uploadNotificationImages(files, site = currentSite) {
     );
   }
 
+  const pendingUploads = window.scmNotificationUploadOperations = window.scmNotificationUploadOperations || {};
   return Promise.all(
     fileList.map((file) => {
+      const fingerprint = `${site}:${file.name}:${file.size}:${file.lastModified || 0}`;
+      const operationId = pendingUploads[fingerprint] || (globalThis.crypto?.randomUUID?.() || `upload_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+      pendingUploads[fingerprint] = operationId;
       const formData = new FormData();
       formData.append("file", file);
       formData.append("userEmail", appState.currentUser || "");
-      return fetch(`/api/upload?site=${encodeURIComponent(site)}&module=notifications`, {
+      formData.append("operationId", operationId);
+      return fetch(`/api/upload?site=${encodeURIComponent(site)}&module=notifications&operationId=${encodeURIComponent(operationId)}`, {
         method: "POST",
         body: formData,
       })
@@ -253,6 +258,7 @@ function uploadNotificationImages(files, site = currentSite) {
           const fileInfo = (data && data.file) || data || null;
           const url = normalizeUploadUrl(fileInfo);
           if (!url) throw new Error("UPLOAD_UNCONFIRMED");
+          delete pendingUploads[fingerprint];
           return { url, name: (fileInfo && fileInfo.originalName) || file.name };
         });
     }),

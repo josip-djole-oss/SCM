@@ -1,3 +1,15 @@
+var warehouseMovementInFlight = {};
+var warehousePendingMovementIds = {};
+
+function createWarehouseOperationId() {
+  return globalThis.crypto?.randomUUID?.() || `warehouse_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+function cacheWarehouseData(site = currentSite) {
+  warehouseData = normalizeWarehouseData(warehouseData);
+  setCachedStorageJson(getSiteStorageKey("cmax_warehouse_data", site), warehouseData);
+}
+
 function getWarehouseCatalogSorted() {
   return (warehouseData?.catalog || []).slice().sort((a, b) => compareNaturally(a.name, b.name));
 }
@@ -192,7 +204,7 @@ function createWorkerSelect(selectedValue, action, args = []) {
 }
 
 function saveWarehouseDraft() {
-  persistWarehouseData();
+  cacheWarehouseData();
   if (typeof cmaxScheduleFrame === "function") {
     cmaxScheduleFrame("warehouse-issue-draft-render", () => renderWarehouseIssueTable());
   } else {
@@ -273,6 +285,7 @@ function renderWarehouseIssueTable() {
 
   const actionsTd = document.createElement("td");
   const saveBtn = document.createElement("button");
+  saveBtn.id = "warehouseIssueSaveBtn";
   saveBtn.className = "btn";
   saveBtn.textContent = t("warehouseSave");
   saveBtn.disabled = !canEditWarehouse();
@@ -500,7 +513,7 @@ function showWarehouseGraph() {
 function updateWarehouseStockForm(field, value) {
   if (warehouseData.stockForm[field] === value) return;
   warehouseData.stockForm[field] = value;
-  persistWarehouseData();
+  cacheWarehouseData();
 }
 
 function updateWarehouseStockFormFromEvent(field, event) {
@@ -548,6 +561,57 @@ function applyWarehouseMovement(itemId, quantity, direction, extra = {}) {
   return true;
 }
 
+async function submitWarehouseMovement(kind, payload) {
+  const site = currentSite;
+  const fingerprint = stableJson({ site, ...payload });
+  const pending = warehousePendingMovementIds[kind];
+  const operationId = pending?.fingerprint === fingerprint ? pending.operationId : createWarehouseOperationId();
+  warehousePendingMovementIds[kind] = { fingerprint, operationId };
+  if (warehouseMovementInFlight[kind]) return warehouseMovementInFlight[kind];
+
+  const promise = (async () => {
+    const buttons = [document.getElementById("warehouseIssueSaveBtn"), document.getElementById("warehouseStockSaveBtn")].filter(Boolean);
+    buttons.forEach((button) => {
+      button.disabled = true;
+      button.setAttribute("aria-busy", "true");
+    });
+    try {
+      if (!(await flushPendingModuleSaves())) return null;
+      const response = await fetch(`/api/warehouse/${encodeURIComponent(site)}/movements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...payload, siteId: site, operationId }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(result?.error || "WAREHOUSE_MOVEMENT_FAILED");
+        error.status = response.status;
+        throw error;
+      }
+      if (!result?.warehouse || result.operationId !== operationId) throw new Error("WAREHOUSE_MOVEMENT_UNCONFIRMED");
+      if (site !== currentSite) return null;
+      warehouseData = normalizeWarehouseData(result.warehouse);
+      cacheWarehouseData(site);
+      setModuleStateVersion("warehouse", result.moduleVersion, site);
+      if (result.version) serverStateVersion = Number(result.version);
+      delete moduleSaveFailures[`warehouse:${site}`];
+      delete warehousePendingMovementIds[kind];
+      return result;
+    } finally {
+      buttons.forEach((button) => {
+        button.disabled = !canEditWarehouse();
+        button.removeAttribute("aria-busy");
+      });
+    }
+  })();
+  warehouseMovementInFlight[kind] = promise;
+  try {
+    return await promise;
+  } finally {
+    if (warehouseMovementInFlight[kind] === promise) delete warehouseMovementInFlight[kind];
+  }
+}
+
 async function saveWarehouseIssueRow() {
   if (!canEditWarehouse()) return;
   const worker = (warehouseData.issueDraft.worker || "").trim();
@@ -563,17 +627,23 @@ async function saveWarehouseIssueRow() {
     return;
   }
   const comment = (warehouseData.issueDraft.comment || "").trim();
-  for (const slot of chosenSlots) {
-    const ok = applyWarehouseMovement(slot.itemId, slot.quantity, "out", {
+  try {
+    const result = await submitWarehouseMovement("issue", {
       type: "issue",
+      direction: "out",
       worker,
       comment,
+      items: chosenSlots,
     });
-    if (!ok) return;
-  }
-  warehouseData.issueDraft = createWarehouseIssueDraft();
-  if (!await persistWarehouseData()) {
-    showToast("Izdavanje nije spremljeno na server. Podaci su zadrzani za ponovni pokusaj.", "error");
+    if (!result) {
+      showToast("Izdavanje nije potvrđeno na serveru. Ista operacija je sačuvana za siguran ponovni pokušaj.", "error");
+      return;
+    }
+  } catch (error) {
+    const message = error?.message === "WAREHOUSE_INSUFFICIENT_STOCK"
+      ? "Nema dovoljno zalihe za izdavanje. Osvježite podatke i provjerite količine."
+      : "Ishod izdavanja nije potvrđen. Ponovni pokušaj neće dvaput primijeniti istu operaciju.";
+    showToast(message, "error");
     return;
   }
   addLog("warehouse_issue", { worker, items: chosenSlots.length, site: currentSite });
@@ -588,13 +658,25 @@ async function saveWarehouseStockAdjustment() {
     showToast("Odaberi alat ili materijal.", "error");
     return;
   }
-  if (!applyWarehouseMovement(itemId, quantity, direction, { type: "stock", comment })) {
-    return;
-  }
-  warehouseData.stockForm.quantity = 1;
-  warehouseData.stockForm.comment = "";
-  if (!await persistWarehouseData()) {
-    showToast("Promjena zalihe nije spremljena na server. Podaci su zadrzani za ponovni pokusaj.", "error");
+  const amount = Math.max(Number(quantity) || 0, 0);
+  if (!amount) return;
+  try {
+    const result = await submitWarehouseMovement("stock", {
+      type: "stock",
+      direction,
+      worker: "",
+      comment: (comment || "").trim(),
+      items: [{ itemId, quantity: amount }],
+    });
+    if (!result) {
+      showToast("Promjena zalihe nije potvrđena na serveru. Ista operacija je sačuvana za siguran ponovni pokušaj.", "error");
+      return;
+    }
+  } catch (error) {
+    const message = error?.message === "WAREHOUSE_INSUFFICIENT_STOCK"
+      ? "Nema dovoljno zalihe za ovu promjenu."
+      : "Ishod promjene nije potvrđen. Ponovni pokušaj neće dvaput primijeniti istu operaciju.";
+    showToast(message, "error");
     return;
   }
   addLog("warehouse_stock_update", { itemId, quantity, direction, site: currentSite });

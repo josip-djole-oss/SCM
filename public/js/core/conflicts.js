@@ -20,6 +20,14 @@ function parseServerSyncResponse(response, fallbackMessage) {
     });
 }
 
+var serverStateMutationOperation = null;
+
+function getStateMutationFingerprint(snapshot) {
+  const comparable = JSON.parse(JSON.stringify(snapshot || {}));
+  ["savedAt", "savedBy", "savedByName", "updatedAt", "updatedBy", "updatedByName", "savedByClientId"].forEach((key) => delete comparable[key]);
+  return typeof stableJson === "function" ? stableJson(comparable) : JSON.stringify(comparable);
+}
+
 function postServerStateSnapshot(serverState, lastKnownVersion, options = {}) {
   const {
     keepalive = false,
@@ -34,18 +42,26 @@ function postServerStateSnapshot(serverState, lastKnownVersion, options = {}) {
     section = null,
   } = options;
 
+  const snapshot = buildServerStateSnapshot(serverState, {
+    includeAdmins,
+    includeGuestPermissions,
+    includeBinPermissions,
+    includeSites,
+    includeAdminRemovalNotices,
+    adminEditTargetEmail,
+  });
+  const fingerprint = getStateMutationFingerprint(snapshot);
+  const operationId = serverStateMutationOperation?.fingerprint === fingerprint
+    ? serverStateMutationOperation.operationId
+    : (typeof createMutationOperationId === "function" ? createMutationOperationId("state") : `state_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+  serverStateMutationOperation = { fingerprint, operationId };
+
   return fetch("/api/state", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      state: buildServerStateSnapshot(serverState, {
-        includeAdmins,
-        includeGuestPermissions,
-        includeBinPermissions,
-        includeSites,
-        includeAdminRemovalNotices,
-        adminEditTargetEmail,
-      }),
+      state: snapshot,
+      operationId,
       lastKnownVersion: lastKnownVersion || 1,
       userEmail: appState.currentUser || null,
       skipLog,
@@ -53,7 +69,10 @@ function postServerStateSnapshot(serverState, lastKnownVersion, options = {}) {
       section,
     }),
     keepalive,
-  }).then((res) => parseServerSyncResponse(res, "STATE_SAVE_FAILED"));
+  }).then((res) => parseServerSyncResponse(res, "STATE_SAVE_FAILED")).then((payload) => {
+    if (serverStateMutationOperation?.operationId === operationId) serverStateMutationOperation = null;
+    return payload;
+  });
 }
 
 function showServerConflictNotice(message = "Podaci su promijenjeni na drugom uredjaju. Povuci najnovije podatke prije nastavka.") {

@@ -23,6 +23,16 @@ function clearAuthSessionLocal() {
 
 var sessionExpiredHandled = false;
 
+function getClientInstanceId() {
+  const key = "cmax_client_instance_id";
+  let value = sessionStorage.getItem(key);
+  if (!value) {
+    value = globalThis.crypto?.randomUUID?.() || `client_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    sessionStorage.setItem(key, value);
+  }
+  return value;
+}
+
 function callIfDefined(functionName) {
   if (typeof window[functionName] === "function") {
     window[functionName]();
@@ -98,6 +108,9 @@ window.fetch = function patchedFetch(resource, options = {}) {
     nextOptions.cache = "no-store";
     nextOptions.headers = new Headers(nextOptions.headers || resource?.headers || {});
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS" && !requestUrl.includes("/api/login")) {
+      if (!nextOptions.headers.has("x-client-instance-id")) {
+        nextOptions.headers.set("x-client-instance-id", getClientInstanceId());
+      }
       const csrfToken = getCsrfToken();
       if (csrfToken && !nextOptions.headers.has("x-csrf-token")) {
         nextOptions.headers.set("x-csrf-token", csrfToken);

@@ -268,7 +268,7 @@ async function main() {
 
     res = await api(workerSession, "/api/store/orders", {
       method: "POST",
-      json: { site: "Site A", order: { items: [{ productId: "P500", size: "M", quantity: 1 }] } },
+      json: { site: "Site A", operationId: "module-scoped-store-order", order: { operationId: "module-scoped-store-order", items: [{ productId: "P500", size: "M", quantity: 1 }] } },
     });
     assert(res.status === 201, `Store order failed: ${res.status} ${JSON.stringify(res.payload)}`);
     state = (await api(superSession, "/api/state")).payload.state;

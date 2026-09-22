@@ -77,6 +77,8 @@ function getSurveysList(options = {}) {
     });
 }
 
+var surveyPublishOperation = null;
+
 function submitSurvey() {
   if (!hasAdminPermission("canCreateSurveys") || !hasAdminPermission("canPublishSurveys")) {
     showToast(t("surveyNoPublishPermission"), "error");
@@ -136,6 +138,13 @@ function submitSurvey() {
   }
 
   const formData = new FormData();
+  const privacy = document.getElementById("surveyPrivacy")?.value || "semiAnonymous";
+  const operationFingerprint = JSON.stringify({ question, answers, startDate, startTime, endDate, endTime, targetAll, targetSite, targetUsers, privacy, site: currentSite, imageName: imageFile?.name || "", imageSize: imageFile?.size || 0 });
+  const operationId = surveyPublishOperation?.fingerprint === operationFingerprint
+    ? surveyPublishOperation.operationId
+    : (globalThis.crypto?.randomUUID?.() || `survey_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+  surveyPublishOperation = { fingerprint: operationFingerprint, operationId };
+  formData.append("operationId", operationId);
   formData.append("question", question);
   formData.append("answers", JSON.stringify(answers));
   formData.append("startDate", startDate);
@@ -146,7 +155,7 @@ function submitSurvey() {
   formData.append("targetAll", targetAll);
   formData.append("targetSite", targetSite);
   formData.append("targetUsers", JSON.stringify(targetUsers));
-  formData.append("privacy", document.getElementById("surveyPrivacy")?.value || "semiAnonymous");
+  formData.append("privacy", privacy);
   formData.append("site", currentSite);
   
   if (imageFile) {
@@ -167,6 +176,7 @@ function submitSurvey() {
               .then((data) => Promise.reject(new Error(data.error || "SURVEY_SAVE_FAILED"))),
       )
       .then(() => {
+        surveyPublishOperation = null;
         showToast(t("surveyPublished"), "success");
         resetSurveyForm();
         return getSurveysList();
