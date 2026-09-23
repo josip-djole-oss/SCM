@@ -232,6 +232,7 @@ async function prepare() {
   await saveModule(admin, "warehouse", siteA, { warehouse: { catalog: [{ id: warehouseItemId, name: marker }], stock: { [warehouseItemId]: { current: 7, totalIssued: 0, totalReceived: 7 } }, logs: [{ id: `warehouse-log-${runId}`, action: marker }] } });
   const warehouseOperation = {
     operationId: `warehouse-retry-${runId}`,
+    siteId: siteA,
     type: "stock",
     direction: "in",
     worker: "",

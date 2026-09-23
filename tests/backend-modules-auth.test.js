@@ -187,6 +187,8 @@ test('module configuration, project isolation, persistence, SSE and authorizatio
       assert.equal(first.status, 200, `${route}: ${JSON.stringify(first.body)}`);
       const retry = await request(admin, route, 'POST', body);
       assert.equal(retry.status, 200, `${route}: ${JSON.stringify(retry.body)}`);
+      assert.equal(retry.body.deduplicated, true, route);
+      assert.equal(retry.body.version, first.body.version, `${route} retry must not advance version`);
       const staleDifferent = await request(admin, route, 'POST', { ...body, [field]: [{ ...list[0], title: 'Different stale value' }] });
       assert.equal(staleDifferent.status, 409, route);
     }

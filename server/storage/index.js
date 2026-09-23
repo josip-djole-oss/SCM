@@ -261,7 +261,9 @@ function createJsonStorage(options = {}) {
       if (nextData === undefined) {
         throw new Error(`Mutator for ${filePath} returned undefined.`);
       }
-      const nextVersion = current.exists ? current.version + 1 : 1;
+      // Version 1 represents the readable fallback for an absent document.
+      // The first real mutation must advance to 2 so a stale base version can be detected.
+      const nextVersion = current.version + 1;
       const envelope = createEnvelope(nextData, nextVersion);
       atomicWriteJson(filePath, envelope);
       return envelope;
@@ -731,7 +733,9 @@ function createPostgresStorage(options = {}) {
       }
 
       await writeTargetData(client, target, nextData);
-      const nextVersion = current.exists ? Number(versionRow.version) + 1 : Number(versionRow.version);
+      // The version row starts at 1 even before a scoped document exists.
+      // A first mutation is therefore version 2, preserving optimistic concurrency semantics.
+      const nextVersion = Number(versionRow.version) + 1;
       const versionResult = await client.query(
         `UPDATE document_versions
          SET version = $2, updated_at = NOW()

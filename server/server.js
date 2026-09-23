@@ -7280,9 +7280,15 @@ apiRouter.post('/reports', requireAnyPermission(['canCreateReports', 'canApprove
   if (!Array.isArray(reports)) {
     return res.status(400).json({ error: 'Invalid reports payload' });
   }
+  if (!Number.isInteger(lastKnownVersion) || lastKnownVersion < 1) {
+    return res.status(400).json({ error: 'VERSION_REQUIRED' });
+  }
+  const currentDocument = await readVersionedJsonFile(getReportsFilePath(site), []);
+  if (stableChecksum(currentDocument.data) === stableChecksum(reports)) {
+    return res.json({ ok: true, version: currentDocument.version, updatedAt: currentDocument.updatedAt, deduplicated: true });
+  }
   const savedDocument = await mutateVersionedJsonFile(getReportsFilePath(site), [], (existingReports, documentInfo) => {
-    if (!Number.isInteger(lastKnownVersion) || lastKnownVersion < 1) throw projectModules.accessError('VERSION_REQUIRED', 400);
-    if (Number(documentInfo.version) !== lastKnownVersion && stableChecksum(existingReports) !== stableChecksum(reports)) throw new VersionConflictError(documentInfo);
+    if (Number(documentInfo.version) !== lastKnownVersion) throw new VersionConflictError(documentInfo);
     const previousById = new Map((existingReports || []).map((report) => [String(report?.id || ''), report]));
     const nextIds = new Set(reports.map((report) => String(report?.id || '')));
     if (nextIds.size !== reports.length || nextIds.has('')) throw projectModules.accessError('INVALID_REPORT_IDS', 400);
@@ -7295,7 +7301,7 @@ apiRouter.post('/reports', requireAnyPermission(['canCreateReports', 'canApprove
     return reports;
   });
   await logActivity(req.session.email, 'save_reports', { count: reports.length, site });
-  res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt });
+  res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt, deduplicated: false });
   } catch (error) {
     if (isVersionConflictError(error)) {
       const site = sanitizeString(req.body?.site || 'default', 80);
@@ -7371,12 +7377,18 @@ apiRouter.post('/notifications', requireAnyPermission(['canManageNotifications',
   if (!Array.isArray(notifications)) {
     return res.status(400).json({ error: 'Invalid notifications payload' });
   }
+  if (!Number.isInteger(lastKnownVersion) || lastKnownVersion < 1) {
+    return res.status(400).json({ error: 'VERSION_REQUIRED' });
+  }
+  const currentDocument = await readVersionedJsonFile(getNotificationsFilePath(site), []);
+  if (stableChecksum(currentDocument.data) === stableChecksum(notifications)) {
+    return res.json({ ok: true, version: currentDocument.version, updatedAt: currentDocument.updatedAt, deduplicated: true });
+  }
   const savedDocument = await mutateVersionedJsonFile(
     getNotificationsFilePath(site),
     [],
     (existingNotifications, documentInfo) => {
-      if (!Number.isInteger(lastKnownVersion) || lastKnownVersion < 1) throw projectModules.accessError('VERSION_REQUIRED', 400);
-      if (Number(documentInfo.version) !== lastKnownVersion && stableChecksum(existingNotifications) !== stableChecksum(notifications)) throw new VersionConflictError(documentInfo);
+      if (Number(documentInfo.version) !== lastKnownVersion) throw new VersionConflictError(documentInfo);
       if (
         !sessionHasPermission(req.session, 'canManageNotifications') &&
         !isDeleteOnlyNotificationsChange(existingNotifications, notifications)
@@ -7392,7 +7404,7 @@ apiRouter.post('/notifications', requireAnyPermission(['canManageNotifications',
     },
   );
   await logActivity(req.session.email, 'save_notifications', { count: notifications.length, site });
-  res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt });
+  res.json({ ok: true, version: savedDocument.version, updatedAt: savedDocument.updatedAt, deduplicated: false });
   } catch (error) {
     if (isVersionConflictError(error)) {
       const site = sanitizeString(req.body?.site || 'default', 80);
