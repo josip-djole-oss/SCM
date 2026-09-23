@@ -1,6 +1,6 @@
 # SCM mutation, conflict, retry, and user-action reliability audit
 
-Audit date: 2026-09-22
+Audit date: 2026-09-22; Railway execution completed 2026-09-23
 
 ## Scope and evidence rule
 
@@ -91,7 +91,25 @@ Operation receipts are bounded to 500 entries per namespace and 30 days. A reuse
 - rapid double invocation: Warehouse shares the in-flight promise and sends one operation while pending;
 - project isolation, disabled-module API guards, permission matrix, chat, backup/restore, multipart persistence/restart, import/export, and browser freshness suites.
 
-## Railway status
+## Railway execution record — 2026-09-23
 
-The code in this document must be deployed before Railway behavior can be marked `PASS`. Until the deployment and production-safe test records are exercised, all new mutation/retry cases are `NOT VERIFIED ON RAILWAY`. The application must remain on one Railway replica.
+The mutation release was deployed to Railway and exercised only with dedicated `SCM-VALIDATION-*` projects, users, records and files. Deployment `3444f727-285e-497e-bccd-7e6338f7a8d8` ran commit `c398d7b`; controlled restart deployment `244d72d7-421c-41b8-ac63-2a11515c5a21` proved persistence. After test-account/project cleanup, deployment `f46a41ff-b5e7-4882-95bf-533f3bee596c` reached `SUCCESS`. Every deployment retained exactly one replica and the `/data` volume mount.
 
+| Railway scenario | Status | Executed authoritative evidence |
+|---|---|---|
+| One-user module unknown outcome | **PASS** | The same `operationId`, payload and stale base version were submitted twice. The retry returned `deduplicated: true`, the first module version, and the next distinct save remained valid. |
+| Warehouse `+10` unknown outcome | **PASS** | Starting from 7, the identical stock operation was submitted twice. PostgreSQL state returned 17, `totalReceived` advanced once, and exactly one operation log existed before and after application restart. |
+| Store create retry | **PASS** | Replaying the same order operation returned the original order ID. Authoritative order reads contained one order before and after restart. |
+| Chat create retry | **PASS** | Replaying the same author/client ID returned the original message. Authoritative reads contained one message before and after restart. |
+| Reports/Notifications replay | **PASS after production-only fix** | The first run exposed that an equal replay still advanced the document version. Commit `c398d7b` changed equal snapshots to a true no-op and made the first scoped mutation advance version 1 to 2. The rerun proved unchanged versions for equal replay; local tests prove different stale data returns 409. |
+| Upload retry and persistence | **PASS** | The same operation ID and bytes returned the original URL. Metadata/listing contained one file; exact bytes were retrievable by two authorized sessions, denied to site-unauthorized and anonymous sessions, and remained retrievable with the same authorization after restart. |
+| Own/other realtime behavior | **PASS** | Two isolated authenticated browser contexts applied module changes in realtime. Local regression also proves the origin browser ignores its own client-instance event. |
+| UI failure boundary and stale cache | **PASS combined evidence** | Local browser tests prove pending-save failure keeps the application visible. Railway browser reload, context restart and logout/login rejected injected stale data and preserved authoritative data. |
+| Build, health, PostgreSQL reconnect and logs | **PASS** | Build checked 71 JavaScript files. Health returned 200 with storage ready/connected after one attempt. PostgreSQL 18.6 accepted two fresh read-only connections and exposed all ten required tables. Application and HTTP logs contained no application error or 5xx during the mutation run and restarts. |
+| Rapid click/in-flight Warehouse coalescing | **PASS local / NOT REPEATED IN RAILWAY UI** | Browser unit execution proves both buttons remain disabled and concurrent calls share one in-flight operation. Railway proved the server-side duplicate request invariant. |
+| Planner/Tidplan real two-writer field conflict | **PASS local / NOT VERIFIED ON RAILWAY in this run** | Local HTTP tests prove same-value stale replay and different-value conflict. Railway created and persisted dedicated Planner/Tidplan records but did not inject a simultaneous stale edit into the same entity. |
+| Toolroom and Survey create retry | **PASS local code path / NOT VERIFIED ON RAILWAY in this run** | Operation-key regressions and module guards passed locally. The production run did not create Toolroom or Survey retry fixtures. |
+| Full-state lost-response replay | **PASS local implementation / NOT VERIFIED ON RAILWAY in this run** | The atomic receipt is covered by the state/storage suite. Production used scoped writers for its test records. |
+| Forced connection loss during/after commit | **NOT VERIFIED / BLOCKED** | The run safely simulated an unknown response by discarding the first logical result and replaying the exact operation. It did not disrupt the only live database/network service. |
+
+The reported false-conflict and Warehouse duplication paths are therefore verified on Railway at the authoritative API/database level and across restart. Destructive failure injection remains blocked until an isolated Railway staging environment exists. The application remains on one Railway replica.

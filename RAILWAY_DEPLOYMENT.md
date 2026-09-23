@@ -85,6 +85,22 @@ The checklist above was executed on 2026-09-21 against `https://scm-production-f
 
 The executed evidence and exact scope are recorded in `SCM_AUDIT.md`. Expected 503 responses during controlled restarts are normal: `/api/health` stays unavailable until PostgreSQL initialization completes, preventing Railway from routing traffic to an unready instance.
 
+## Mutation reliability validation — 2026-09-23
+
+Commit `c398d7b` was exercised against the production service with new isolated records. Deployment `3444f727-285e-497e-bccd-7e6338f7a8d8`, persistence restart `244d72d7-421c-41b8-ac63-2a11515c5a21`, and post-cleanup restart `f46a41ff-b5e7-4882-95bf-533f3bee596c` all reached `SUCCESS` with one replica and `/data` mounted.
+
+- **PASS:** retrying one module save with the original stale base version and operation ID returned the first authoritative version without a false conflict.
+- **PASS:** retrying the same Warehouse `+10` operation left stock at exactly the initial value plus 10, with one movement log, including after restart.
+- **PASS:** Store order, Chat message and uploaded file retries returned the first entity/file and produced one authoritative record.
+- **PASS:** equal Reports and Notifications retries became true no-ops with unchanged versions. The first production run found and triggered the prior extra-version bug; the fix was deployed and rerun.
+- **PASS:** two authenticated browser contexts received realtime module changes; project/module/permission/direct-URL/API protections remained correct.
+- **PASS:** restart invalidated old process-local sessions, fresh login recovered all authoritative records, stale browser data was rejected, and PostgreSQL/volume data remained available.
+- **PASS:** runtime and HTTP logs showed no application error or 5xx during the successful run and restarts. The only error-level line was npm's `--omit=dev` configuration warning.
+- **CLEANUP PASS:** four temporary validation accounts and 14 accumulated `SCM-VALIDATION-*` projects were removed; the temporary Railway SSH key and local credentials were deleted. The final health check returned 200 with storage connected on attempt 1.
+- **NOT VERIFIED / BLOCKED:** destructive PostgreSQL outage/failover, real production restore, and physical network interruption after commit. These require an isolated Railway staging environment. Exact same-operation replay was used to prove the server-side unknown-outcome invariant safely.
+
+The detailed endpoint inventory and the exact local/Railway split are in `SCM_MUTATION_RELIABILITY.md`.
+
 ## Scaling limitation
 
 Sessions and Server-Sent Event subscribers currently live in one application process. Run one replica. Multiple replicas require a shared session store and shared event transport. PostgreSQL protects documents but does not distribute in-memory sessions or realtime events.

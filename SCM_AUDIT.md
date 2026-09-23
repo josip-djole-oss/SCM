@@ -10,7 +10,7 @@ Confirmed root causes were stale client module versions after a committed respon
 
 Implemented fixes include atomic operation receipts for state/module, Warehouse movements, Store orders, full-state saves and survey creation; server-authoritative Warehouse arithmetic; idempotent same-value entity retries; equivalent-snapshot retries for Reports and Notifications; operation IDs for Chat, Toolroom and uploads; self-event filtering; and local handling of expected save failures.
 
-Local evidence is `PASS` for both reported regressions and the expanded mutation matrix. New Railway evidence remains `NOT VERIFIED` until the updated commit is deployed and exercised with dedicated production-safe records. Railway must remain at one replica.
+Local evidence is `PASS` for both reported regressions and the expanded mutation matrix. Railway execution completed on 2026-09-23 with dedicated production-safe records: module, Warehouse, Store, Chat, Reports, Notifications and upload replays were deduplicated authoritatively and remained correct after restart. The run found one production-only Reports/Notifications version no-op defect; commit `c398d7b` fixed it and the complete affected Railway test was rerun successfully. Railway remains at one replica.
 
 ## System inventory
 
@@ -39,7 +39,7 @@ Feature modules are Planner, Sompturnor (`bins`), Tidplan, Store (`workwear`), C
 
 ## Verification record
 
-`npm run check` passed: production asset build, 47 Node tests and `npm audit` with 0 vulnerabilities. The Node suites cover frontend context synchronization and persistence, atomic storage, Unicode project-key collisions, upload authorization/restart behavior, dependency pinning, module configuration, API guards, Super Admin separation, password persistence and session revocation.
+`npm run check` passed: production asset build, 60 Node tests and `npm audit` with 0 vulnerabilities. The Node suites cover frontend context synchronization and persistence, atomic storage, Unicode project-key collisions, upload authorization/restart behavior, dependency pinning, module configuration, API guards, Super Admin separation, password persistence, session revocation and lost-response retry invariants.
 
 `npm run test:browser` passed against a temporary live server and headless Chrome. It verified project A/B switching with no stale flash, disabled Store API returning 403, live module revocation redirecting the open view, disabled routes remaining closed, session reload and reconnect without false permission notifications.
 
